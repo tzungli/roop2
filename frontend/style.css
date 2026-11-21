@@ -4473,90 +4473,394 @@ body.table-col-resizing * {
   flex-shrink: 0;
 }
 
-.player-zone-volume-stack .zone-btn {
-  margin-right: 0;
-  padding: 3px 10px;
-  font-size: 11px;
-  width: 100%;
-  max-width: 130px;
-  justify-content: center;
-  box-sizing: border-box;
-  border-radius: 3px;
-}
-
-.player-volume-box {
+/* ----------------- Roon-Style Bottom Bar & Volume Popover ----------------- */
+.player-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 200px;
 }
 
-.zone-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-main);
-  padding: 4px 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  margin-right: 6px;
-}
-
-.zone-btn:hover {
-  background: rgba(121, 82, 214, 0.15);
-  border-color: rgba(121, 82, 214, 0.45);
-  color: #ffffff;
-}
-
-.zone-btn.network-active {
-  background: rgba(121, 82, 214, 0.22);
-  border-color: var(--accent-purple);
-  color: #d8b4fe;
-}
-
-/* LINE OUT 與 EXCLUSIVE 上下排列在同一欄：節省播放列橫向空間，兩個開關狀態仍一眼可辨 */
-.output-mode-stack {
+.roon-bottom-btn {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  min-width: 62px;
+  height: 44px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-sub);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.roon-bottom-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+}
+
+.roon-bottom-btn.active {
+  background: rgba(124, 58, 237, 0.14);
+  color: var(--accent-purple, #8b5cf6);
+  border-color: rgba(124, 58, 237, 0.3);
+}
+
+[data-theme="light"] .roon-bottom-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+}
+
+[data-theme="light"] .roon-bottom-btn.active {
+  background: rgba(124, 58, 237, 0.10);
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+.roon-bottom-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+  max-width: 80px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+.roon-bottom-svg {
+  flex-shrink: 0;
+  color: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.roon-bottom-svg.muted,
+.popover-speaker-btn.muted {
+  opacity: 0.38;
+}
+
+/* Roon Floating Volume Popover Card */
+.roon-volume-popover {
+  position: fixed;
+  bottom: 94px;
+  right: 28px;
+  z-index: 1000;
+  width: 420px;
+  max-width: calc(100vw - 36px);
+  background: var(--bg-card, #181920);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.6);
+  padding: 16px 20px;
+  box-sizing: border-box;
+  animation: roonPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes roonPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-theme="light"] .roon-volume-popover {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.12);
+}
+
+/* Popover Top Toolbar */
+.popover-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.popover-tools-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.popover-tool-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  color: var(--text-sub, #94a3b8);
+  border-radius: 4px;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.popover-tool-btn:hover {
+  color: var(--text-main, #f8fafc);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.popover-tool-btn.active {
+  color: var(--accent-purple, #a78bfa);
+  background: rgba(124, 58, 237, 0.16);
+}
+
+[data-theme="light"] .popover-tool-btn {
+  color: #64748b;
+}
+
+[data-theme="light"] .popover-tool-btn:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .popover-tool-btn.active {
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.12);
+}
+
+.popover-tools-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Popover Divider */
+.popover-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border-color, rgba(255, 255, 255, 0.08));
+  margin: 0 0 16px 0;
+}
+
+[data-theme="light"] .popover-divider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Volume Row */
+.popover-vol-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.popover-vol-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.output-mode-stack .line-out-btn,
-.output-mode-stack .exclusive-out-btn {
-  padding: 3px 8px;
-  gap: 6px;
-  justify-content: flex-start;
-  border-radius: 2px;
+.popover-speaker-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sub, #94a3b8);
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
 }
 
-/* Line Out 鎖定按鈕（最大音量輸出鎖定） */
-.line-out-btn {
+.popover-speaker-btn:hover {
+  color: var(--text-main, #f8fafc);
+}
+
+[data-theme="light"] .popover-speaker-btn {
+  color: #475569;
+}
+
+[data-theme="light"] .popover-speaker-btn:hover {
+  color: #0f172a;
+}
+
+.popover-vol-number {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-main, #f8fafc);
+  min-width: 28px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+
+[data-theme="light"] .popover-vol-number {
+  color: #0f172a;
+}
+
+.popover-slider-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Custom Styled Popover Range Slider */
+.popover-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+.popover-volume-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent-purple, #6366f1) 0%,
+    var(--accent-purple, #6366f1) var(--vol-percent, 100%),
+    rgba(255, 255, 255, 0.18) var(--vol-percent, 100%),
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  cursor: pointer;
+  transition: background 0.05s ease;
+}
+
+[data-theme="light"] .popover-volume-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--accent-purple, #6366f1) 0%,
+    var(--accent-purple, #6366f1) var(--vol-percent, 100%),
+    rgba(0, 0, 0, 0.12) var(--vol-percent, 100%),
+    rgba(0, 0, 0, 0.12) 100%
+  );
+}
+
+.popover-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  margin-top: -6px;
+  transition: transform 0.1s ease;
+}
+
+.popover-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.popover-slider-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+[data-theme="light"] .popover-slider-scale {
+  color: #64748b;
+}
+
+/* Minus & Plus Round Buttons */
+.popover-step-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vol-step-circle-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: #52525b;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.vol-step-circle-btn:hover {
+  background: #71717a;
+  transform: scale(1.06);
+}
+
+.vol-step-circle-btn:active {
+  transform: scale(0.92);
+}
+
+[data-theme="light"] .vol-step-circle-btn {
+  background: #64748b;
+}
+
+[data-theme="light"] .vol-step-circle-btn:hover {
+  background: #475569;
+}
+
+/* Line Out & Exclusive Buttons in Popover */
+.line-out-btn,
+.exclusive-out-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  border: 1px solid transparent;
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-sub);
+  transition: all 0.15s ease;
 }
 
-.line-out-label {
-  font-size: 10px;
-  letter-spacing: 0.6px;
-  font-weight: 600;
-  white-space: nowrap;
+[data-theme="light"] .line-out-btn,
+[data-theme="light"] .exclusive-out-btn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #475569;
 }
 
 .line-out-btn.line-out-active {
-  background: rgba(16, 185, 129, 0.22);
-  border-color: var(--accent-green, #10b981);
-  color: var(--accent-green, #10b981);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-color: var(--accent-green, #10b981) !important;
+  color: var(--accent-green, #10b981) !important;
+}
+
+.exclusive-out-btn.exclusive-out-active {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: #f59e0b !important;
+  color: #f59e0b !important;
 }
 
 /* WASAPI 獨佔輸出：與 LINE OUT 同樣鎖定音量，但用琥珀色區分「繞過混音器」的輸出路徑 */

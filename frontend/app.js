@@ -10967,12 +10967,36 @@ function applyVolume(v) {
       masterGain.gain.setValueAtTime(v * 0.15, audioCtx.currentTime);
     }
   }
-  btnVolumeIcon.textContent = v === 0 ? '🔇' : (v < 0.5 ? '🔉' : '🔊');
+
+  const vol100 = Math.round(v * 100);
+  const currentVolumeNumber = document.getElementById('currentVolumeNumber');
+  const popoverVolumeNumber = document.getElementById('popoverVolumeNumber');
+  const bottomVolSvg = document.getElementById('bottomVolSvg');
+  const btnVolumeIcon = document.getElementById('btnVolumeIcon');
+
+  if (state.lineOut) {
+    if (popoverVolumeNumber) popoverVolumeNumber.textContent = '100';
+    if (currentVolumeNumber) currentVolumeNumber.textContent = '100';
+    if (volumeSlider) {
+      volumeSlider.value = 1;
+      volumeSlider.style.setProperty('--vol-percent', '100%');
+    }
+  } else {
+    if (popoverVolumeNumber) popoverVolumeNumber.textContent = vol100;
+    if (currentVolumeNumber) currentVolumeNumber.textContent = v === 0 ? '0' : vol100;
+    if (volumeSlider) {
+      if (parseFloat(volumeSlider.value) !== v) volumeSlider.value = v;
+      volumeSlider.style.setProperty('--vol-percent', `${vol100}%`);
+    }
+  }
+
+  const isMuted = v === 0 && !state.lineOut;
+  if (btnVolumeIcon) btnVolumeIcon.classList.toggle('muted', isMuted);
+  if (bottomVolSvg) bottomVolSvg.classList.toggle('muted', isMuted);
 
   if (state.activeAudioZone !== 'local' && state.activeDlnaDevice) {
     if (window.electronAPI && window.electronAPI.setDlnaVolume) {
-      const vol100 = Math.round(v * 100);
-      window.electronAPI.setDlnaVolume(state.activeDlnaDevice.id, vol100);
+      window.electronAPI.setDlnaVolume(state.activeDlnaDevice.id, state.lineOut ? 100 : vol100);
     }
   }
 }
@@ -10985,22 +11009,25 @@ volumeSlider.addEventListener('input', (e) => {
 btnVolumeIcon.addEventListener('click', () => {
   if (state.lineOut) return; // Line Out 鎖定中：靜音亦屬音量調整，停用
   if (state.volume > 0) {
-    volumeSlider.value = 0;
-    volumeSlider.dispatchEvent(new Event('input'));
+    applyVolume(0);
   } else {
-    volumeSlider.value = lastVolume > 0 ? lastVolume : 1;
-    volumeSlider.dispatchEvent(new Event('input'));
+    const restore = lastVolume > 0 ? lastVolume : 1;
+    applyVolume(restore);
   }
 });
 
 const btnLineOut = document.getElementById('btnLineOut');
 btnLineOut.addEventListener('click', () => {
+  const btnVolStepDown = document.getElementById('btnVolStepDown');
+  const btnVolStepUp = document.getElementById('btnVolStepUp');
   if (!state.lineOut) {
     lineOutRestoreVolume = state.volume;
     state.lineOut = true;
     volumeSlider.value = 1;
     volumeSlider.disabled = true;
     btnVolumeIcon.disabled = true;
+    if (btnVolStepDown) { btnVolStepDown.disabled = true; btnVolStepDown.style.opacity = '0.35'; }
+    if (btnVolStepUp) { btnVolStepUp.disabled = true; btnVolStepUp.style.opacity = '0.35'; }
     btnLineOut.classList.add('line-out-active');
     applyVolume(1);
     showToast('🔌 Line Out 已啟用：輸出音量鎖定為最大');
@@ -11008,6 +11035,8 @@ btnLineOut.addEventListener('click', () => {
     state.lineOut = false;
     volumeSlider.disabled = false;
     btnVolumeIcon.disabled = false;
+    if (btnVolStepDown) { btnVolStepDown.disabled = false; btnVolStepDown.style.opacity = '1'; }
+    if (btnVolStepUp) { btnVolStepUp.disabled = false; btnVolStepUp.style.opacity = '1'; }
     btnLineOut.classList.remove('line-out-active');
     const restore = lineOutRestoreVolume === null ? 1 : lineOutRestoreVolume;
     lineOutRestoreVolume = null;
@@ -11018,6 +11047,144 @@ btnLineOut.addEventListener('click', () => {
     if (state.exclusive) setExclusiveOff('WASAPI 獨佔輸出需鎖定最大音量，已一併解除');
   }
 });
+
+// ----------------- Roon Style Floating Popover Controls -----------------
+function initRoonVolumeControls() {
+  const btnRoonVolumeToggle = document.getElementById('btnRoonVolumeToggle');
+  const roonVolumePopover = document.getElementById('roonVolumePopover');
+  const btnVolStepDown = document.getElementById('btnVolStepDown');
+  const btnVolStepUp = document.getElementById('btnVolStepUp');
+  const popoverBtnSleep = document.getElementById('popoverBtnSleep');
+  const popoverBtnSignalPath = document.getElementById('popoverBtnSignalPath');
+  const popoverBtnTransfer = document.getElementById('popoverBtnTransfer');
+  const popoverBtnSettings = document.getElementById('popoverBtnSettings');
+
+  function toggleRoonVolumePopover(force) {
+    if (!roonVolumePopover) return;
+    const isHidden = roonVolumePopover.style.display === 'none' || !roonVolumePopover.style.display;
+    const shouldOpen = (force !== undefined) ? force : isHidden;
+    if (shouldOpen) {
+      roonVolumePopover.style.display = 'block';
+      if (btnRoonVolumeToggle) btnRoonVolumeToggle.classList.add('active');
+    } else {
+      roonVolumePopover.style.display = 'none';
+      if (btnRoonVolumeToggle) btnRoonVolumeToggle.classList.remove('active');
+    }
+  }
+
+  if (btnRoonVolumeToggle) {
+    btnRoonVolumeToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRoonVolumePopover();
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (roonVolumePopover && roonVolumePopover.style.display !== 'none') {
+      if (!roonVolumePopover.contains(e.target) && !btnRoonVolumeToggle.contains(e.target)) {
+        toggleRoonVolumePopover(false);
+      }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && roonVolumePopover && roonVolumePopover.style.display !== 'none') {
+      toggleRoonVolumePopover(false);
+    }
+  });
+
+  if (btnVolStepDown) {
+    btnVolStepDown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.lineOut) {
+        showToast('🔌 Line Out 鎖定中：輸出音量鎖定為 100%');
+        return;
+      }
+      const current = parseFloat(volumeSlider.value) || 0;
+      const next = Math.max(0, Math.min(1, Math.round((current - 0.01) * 100) / 100));
+      applyVolume(next);
+    });
+  }
+
+  if (btnVolStepUp) {
+    btnVolStepUp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.lineOut) {
+        showToast('🔌 Line Out 鎖定中：輸出音量鎖定為 100%');
+        return;
+      }
+      const current = parseFloat(volumeSlider.value) || 0;
+      const next = Math.max(0, Math.min(1, Math.round((current + 0.01) * 100) / 100));
+      applyVolume(next);
+    });
+  }
+
+  if (popoverBtnSignalPath) {
+    popoverBtnSignalPath.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRoonVolumePopover(false);
+      if (btnSignalPath) btnSignalPath.click();
+    });
+  }
+
+  [popoverBtnTransfer, popoverBtnSettings].forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleRoonVolumePopover(false);
+        const audioDeviceModal = document.getElementById('audioDeviceModal');
+        if (audioDeviceModal) {
+          audioDeviceModal.style.display = 'flex';
+          refreshAudioDevices(false);
+        }
+      });
+    }
+  });
+
+  // Sleep Timer
+  let sleepTimerId = null;
+  let sleepTimerMinutes = 0;
+  function setSleepTimer(minutes) {
+    if (sleepTimerId) {
+      clearTimeout(sleepTimerId);
+      sleepTimerId = null;
+    }
+    sleepTimerMinutes = minutes;
+    if (minutes > 0) {
+      sleepTimerId = setTimeout(() => {
+        if (state.isPlaying) {
+          if (btnPlayPause) btnPlayPause.click();
+          showToast('🌙 休眠計時時間到：音樂已暫停');
+        }
+        setSleepTimer(0);
+      }, minutes * 60 * 1000);
+      showToast(`🌙 已設定休眠計時器：${minutes} 分鐘後停止播放`);
+      if (popoverBtnSleep) {
+        popoverBtnSleep.classList.add('active');
+        popoverBtnSleep.title = `休眠計時中：剩餘約 ${minutes} 分鐘（點擊切換）`;
+      }
+    } else {
+      showToast('🌙 休眠計時器已關閉');
+      if (popoverBtnSleep) {
+        popoverBtnSleep.classList.remove('active');
+        popoverBtnSleep.title = '休眠計時器（點擊設定）';
+      }
+    }
+  }
+
+  if (popoverBtnSleep) {
+    popoverBtnSleep.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const presets = [0, 15, 30, 45, 60, 90];
+      const currIdx = presets.indexOf(sleepTimerMinutes);
+      const nextMinutes = presets[(currIdx + 1) % presets.length];
+      setSleepTimer(nextMinutes);
+    });
+  }
+
+  // Initial volume sync
+  applyVolume(state.volume !== undefined ? state.volume : 1);
+}
 
 // ----------------- WASAPI 獨佔輸出（Windows 聲音獨佔模式） -----------------
 // 開啟後本機播放改由 tools/rp-wasapi-exclusive（主行程以 Windows 內建 csc 編譯）直接以
@@ -11297,6 +11464,10 @@ if (btnExclusive) {
         volumeSlider.value = 1;
         volumeSlider.disabled = true;
         btnVolumeIcon.disabled = true;
+        const btnVolStepDown = document.getElementById('btnVolStepDown');
+        const btnVolStepUp = document.getElementById('btnVolStepUp');
+        if (btnVolStepDown) { btnVolStepDown.disabled = true; btnVolStepDown.style.opacity = '0.35'; }
+        if (btnVolStepUp) { btnVolStepUp.disabled = true; btnVolStepUp.style.opacity = '0.35'; }
         btnLineOut.classList.add('line-out-active');
         applyVolume(1);
       }
@@ -15416,6 +15587,9 @@ function setupPlayerControls() {
       }
     });
   }
+
+  // Initialize Roon Style Volume & Popover Controls
+  initRoonVolumeControls();
 }
 
 // ----------------- DLNA / UPnP Audio Zones Engine -----------------
@@ -15671,7 +15845,7 @@ async function switchAudioZone(target) {
         window.electronAPI.selectDlnaDevice('local').catch(() => {});
       }
 
-      if (currentZoneName) currentZoneName.textContent = '本機播放';
+      if (currentZoneName) currentZoneName.textContent = 'System Output';
       if (btnAudioOutput) btnAudioOutput.classList.remove('network-active');
 
       if (signalOutputIcon) signalOutputIcon.textContent = '🔊';
@@ -15714,7 +15888,7 @@ async function switchAudioZone(target) {
         window.electronAPI.setDlnaVolume(dev.id, Math.round((state.lineOut ? 1 : state.volume) * 100)).catch(() => {});
       }
 
-      if (currentZoneName) currentZoneName.textContent = `📡 ${dev.name}`;
+      if (currentZoneName) currentZoneName.textContent = dev.name;
       if (btnAudioOutput) btnAudioOutput.classList.add('network-active');
 
       if (signalOutputIcon) signalOutputIcon.textContent = (dev.deviceCategory === 'tv') ? '📺' : '📡';

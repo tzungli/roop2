@@ -2698,37 +2698,104 @@
       </div>
     </div>
 
-    <!-- Right: Zone Output, Volume & Queue -->
+    <!-- Right: Zone Output, Volume & Queue (Roon Style) -->
     <div class="player-right">
-      <div class="player-zone-volume-stack">
-        <button id="btnAudioOutput" class="zone-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
-          <span class="zone-icon">🔊</span>
-          <span class="zone-name" id="currentZoneName">本機播放</span>
-        </button>
-        <div class="player-volume-box">
-          <button id="btnVolumeIcon" class="icon-btn" title="靜音切換">🔊</button>
-          <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" class="volume-slider">
-        </div>
-      </div>
-      <div class="output-mode-stack">
-        <button id="btnLineOut" class="icon-btn line-out-btn" title="Line Out：最大音量輸出鎖定（鎖定時不可調音量）">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 2v6"/><path d="M15 2v6"/>
-            <path d="M7 8h10v4a5 5 0 0 1-10 0z"/>
-            <path d="M12 17v5"/>
-          </svg>
-          <span class="line-out-label">LINE OUT</span>
-        </button>
-        <button id="btnExclusive" class="icon-btn exclusive-out-btn" title="WASAPI 獨佔模式：繞過 Windows 混音器，直接以裝置支援的最高取樣率 24-bit 輸出（獨佔期間系統音效暫停、音量鎖定最大）">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12h2l2-7 3 14 3-11 2 4h6"/>
-          </svg>
-          <span class="exclusive-out-label">EXCLUSIVE</span>
-        </button>
-      </div>
+      <!-- 1. Music Output Device (Zone Button) -->
+      <button id="btnAudioOutput" class="roon-bottom-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
+        <svg class="roon-bottom-svg roon-device-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <circle cx="12" cy="7" r="2.2"/>
+          <circle cx="12" cy="15" r="4.2"/>
+          <circle cx="12" cy="15" r="1.6"/>
+        </svg>
+        <span class="roon-bottom-label" id="currentZoneName">System Output</span>
+      </button>
+
+      <!-- 2. Volume Trigger Button -->
+      <button id="btnRoonVolumeToggle" class="roon-bottom-btn" title="音量控制與輸出設定">
+        <svg class="roon-bottom-svg roon-vol-icon" id="bottomVolSvg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <span class="roon-bottom-label" id="currentVolumeNumber">100</span>
+      </button>
+
+      <!-- 3. Queue Drawer Button -->
       <button id="btnToggleQueue" class="icon-btn" title="播放清單隊列">
         <span class="queue-icon">☰</span>
       </button>
+    </div>
+
+    <!-- Roon-styled Floating Volume & Output Control Popover Card -->
+    <div id="roonVolumePopover" class="roon-volume-popover" style="display: none;">
+      <!-- Row 1: Top Toolbar -->
+      <div class="popover-toolbar">
+        <div class="popover-tools-left">
+          <button id="popoverBtnSleep" class="popover-tool-btn" title="休眠計時器">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+          <button id="popoverBtnSignalPath" class="popover-tool-btn" title="訊號路徑與 DSP 設定">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M2 12h2l3-7 4 14 3-10 3 6 3-3h4"/>
+            </svg>
+          </button>
+          <button id="popoverBtnTransfer" class="popover-tool-btn" title="區域傳輸與同步">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/>
+            </svg>
+          </button>
+          <button id="popoverBtnSettings" class="popover-tool-btn" title="音訊輸出設備選單">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="popover-tools-right">
+          <button id="btnLineOut" class="icon-btn line-out-btn" title="Line Out：最大音量輸出鎖定（鎖定時不可調音量）">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 2v6"/><path d="M15 2v6"/><path d="M7 8h10v4a5 5 0 0 1-10 0z"/><path d="M12 17v5"/>
+            </svg>
+            <span class="line-out-label">LINE OUT</span>
+          </button>
+          <button id="btnExclusive" class="icon-btn exclusive-out-btn" title="WASAPI 獨佔模式：繞過 Windows 混音器直接輸出">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h2l2-7 3 14 3-11 2 4h6"/>
+            </svg>
+            <span class="exclusive-out-label">EXCLUSIVE</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="popover-divider"></div>
+
+      <!-- Row 2: Volume Control Row (Exact match to Roon UI) -->
+      <div class="popover-vol-row">
+        <div class="popover-vol-left">
+          <button id="btnVolumeIcon" class="popover-speaker-btn" title="靜音切換">
+            <svg class="popover-speaker-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
+          </button>
+          <span id="popoverVolumeNumber" class="popover-vol-number">100</span>
+        </div>
+
+        <div class="popover-slider-col">
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" class="popover-volume-slider">
+          <div class="popover-slider-scale">
+            <span>0</span>
+            <span>100</span>
+          </div>
+        </div>
+
+        <div class="popover-step-buttons">
+          <button id="btnVolStepDown" class="vol-step-circle-btn" title="降低音量">−</button>
+          <button id="btnVolStepUp" class="vol-step-circle-btn" title="提高音量">＋</button>
+        </div>
+      </div>
     </div>
   </footer>
 
