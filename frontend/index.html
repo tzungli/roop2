@@ -1,0 +1,2803 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' media: file: http://127.0.0.1:* http://localhost:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file: media: http: https: blob:; media-src 'self' data: file: media: http://127.0.0.1:* http://localhost:* blob: https:; connect-src 'self' https: http://127.0.0.1:* http://localhost:*;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>rooPlayer</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    html, body {
+      background-color: #0e0f13;
+      color: #f3f4f6;
+    }
+  </style>
+  <script src="tauri-shim.js"></script>
+</head>
+<body>
+  <!-- Custom Window Titlebar (rooPlayer Style) -->
+  <header id="titlebar">
+    <div class="titlebar-left">
+      <div class="brand">
+        <img src="icon.png" alt="rooPlayer" class="brand-app-icon" style="width: 22px; height: 22px; border-radius: 5px; object-fit: cover; box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);">
+        <span class="brand-text">rooPlayer</span>
+      </div>
+      <div class="history-nav">
+        <button id="btnNavBack" class="icon-btn" title="返回">❮</button>
+        <button id="btnNavForward" class="icon-btn" title="前進">❯</button>
+      </div>
+    </div>
+    
+    <div class="titlebar-center">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="globalSearch" placeholder="搜尋演出者、專輯、曲目、作曲家..." autocomplete="off">
+        <button id="btnClearSearch" class="btn-clear" style="display: none;">✕</button>
+      </div>
+    </div>
+
+    <div class="titlebar-right">
+      <button id="btnThemeToggle" class="icon-btn theme-toggle-btn" title="切換深色 / 淺色主題">
+        <span id="themeIcon">🌙</span> <span id="themeLabel">深色</span>
+      </button>
+      <!-- 介面語言選擇（繁體中文 / English）：選單、按鈕、表格與說明頁全部跟著切換 -->
+      <div class="language-control" id="languageControl" data-i18n-skip>
+        <button id="btnLanguageToggle" class="icon-btn language-toggle-btn" title="選擇介面語言 Language">
+          <span id="languageIcon">🌐</span> <span id="languageLabel">繁體中文</span> <span class="lang-caret">▾</span>
+        </button>
+      </div>
+      <div class="window-controls">
+        <button id="btnMinimize" class="win-btn" title="最小化">─</button>
+        <button id="btnMaximize" class="win-btn" title="最大化">□</button>
+        <button id="btnClose" class="win-btn win-close" title="關閉">✕</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div id="appContainer">
+    <!-- Left Navigation Sidebar -->
+    <aside id="sidebar">
+      <div class="nav-group">
+        <div class="nav-title">音樂庫 LIBRARY</div>
+        <button class="nav-item active" data-view="overview">
+          <span class="nav-icon">☷</span>
+          <span class="nav-label">總覽 Overview</span>
+        </button>
+        <button class="nav-item" data-view="albums">
+          <span class="nav-icon">💿</span>
+          <span class="nav-label">專輯 Albums</span>
+          <span class="badge" id="albumCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="artists">
+          <span class="nav-icon">👤</span>
+          <span class="nav-label">演出者 Artists</span>
+          <span class="badge" id="artistCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="tracks">
+          <span class="nav-icon">🎵</span>
+          <span class="nav-label">曲目 Tracks</span>
+          <span class="badge" id="trackCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="genres">
+          <span class="nav-icon">🏷️</span>
+          <span class="nav-label">曲風流派 Genres</span>
+          <span class="badge" id="genreCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="history">
+          <span class="nav-icon">🕒</span>
+          <span class="nav-label">播放紀錄</span>
+          <span class="badge" id="historyCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="playlists">
+          <span class="nav-icon">📃</span>
+          <span class="nav-label">播放清單</span>
+          <span class="badge" id="playlistCountBadge">0</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">我的最愛 FAVORITES</div>
+        <button class="nav-item" data-view="favAlbums">
+          <span class="nav-icon nav-fav-icon" style="color: #f43f5e;">
+            <svg class="fav-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </span>
+          <span class="nav-label">最愛專輯</span>
+          <span class="badge" id="favAlbumsCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="favTracks">
+          <span class="nav-icon nav-fav-icon" style="color: #f43f5e;">
+            <svg class="fav-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </span>
+          <span class="nav-label">最愛歌曲</span>
+          <span class="badge" id="favTracksCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="favArtists">
+          <span class="nav-icon nav-fav-icon" style="color: #f59e0b;">
+            <svg class="fav-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </span>
+          <span class="nav-label">最愛演出者</span>
+          <span class="badge" id="favArtistsCountBadge">0</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">線上串流 STREAMING</div>
+        <button class="nav-item" data-view="tidal" id="navItemTidal">
+          <span class="nav-icon" style="color: #00e5ff; display: inline-flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/>
+            </svg>
+          </span>
+          <span class="nav-label">TIDAL</span>
+          <span class="badge" id="tidalStatusBadge" style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3);">未登入</span>
+        </button>
+        <button class="nav-item" data-view="kkbox">
+          <span class="nav-icon" style="color: #25d5ff;">🎧</span>
+          <span class="nav-label">KKBOX</span>
+          <span class="badge" id="kkboxStatusBadge" style="background: rgba(37, 213, 255, 0.15); color: #25d5ff; border: 1px solid rgba(37, 213, 255, 0.35);">在線</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">管理與設定 SETTINGS</div>
+        <button class="nav-item" data-view="storage">
+          <span class="nav-icon">📁</span>
+          <span class="nav-label">本機資料夾管理</span>
+        </button>
+        <button class="nav-item" data-view="networkStorage">
+          <span class="nav-icon">🌐</span>
+          <span class="nav-label">網路資料夾設定</span>
+          <span class="badge" id="netFolderCountBadge">0</span>
+        </button>
+        <button class="nav-item" data-view="about">
+          <span class="nav-icon">📖</span>
+          <span class="nav-label">說明</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="mainContent">
+      <!-- 1. OVERVIEW VIEW -->
+      <section id="viewOverview" class="content-view active">
+        <div class="hero-banner" id="overviewHeroBanner">
+          <div class="hero-overlay"></div>
+          <div class="hero-content">
+            <span class="hero-tag">AUDIOPHILE MEDIA HUB</span>
+            <h1 class="hero-title">高解析音樂殿堂</h1>
+            <p class="hero-desc">還原母帶級細節，探索無損音訊的極致聆聽體驗。</p>
+            <div class="hero-stats">
+              <div class="stat-pill"><span id="heroAlbumCount">0</span> 專輯</div>
+              <div class="stat-pill"><span id="heroTrackCount">0</span> 曲目</div>
+              <div class="stat-pill highlight"><span id="heroHiresCount">0</span> Hi-Res 無損音樂</div>
+              <div class="stat-pill" id="heroHistoryPill" style="cursor: pointer;" title="點擊檢視播放紀錄">🕒 <span id="heroHistoryCount">0</span> 播放紀錄</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 最近聆聽 Recent Played (顯示最近聽的 5 張專輯) -->
+        <div class="section-block" id="recentAlbumsSection" style="margin-bottom: 32px;">
+          <div class="section-header">
+            <h2>🕒 最近聆聽 Recent Played</h2>
+            <button class="btn-text" id="btnSeeAllHistory">檢視完整播放紀錄 ➔</button>
+          </div>
+          <div class="album-grid" id="recentAlbumsGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- 最近新增專輯 (依加入時間排序的本機最新匯入與 TIDAL 線上專輯) -->
+        <div class="section-block" style="margin-top: 32px; margin-bottom: 32px;">
+          <div class="section-header">
+            <h2>🆕 最近新增專輯</h2>
+            <button class="btn-text" id="btnSeeAllAlbums">瀏覽全部專輯 ➔</button>
+          </div>
+          <div class="album-grid featured-grid" id="overviewGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- 你最常聽的藝人 (顯示最常聽的 10 個藝人圖像) -->
+        <div class="section-block" id="topArtistsSection" style="margin-top: 32px; margin-bottom: 32px;">
+          <div class="section-header">
+            <h2>🎙️ 你最常聽的藝人 Top Artists</h2>
+            <button class="btn-text" id="btnSeeAllTopArtists">瀏覽全部演出者 ➔</button>
+          </div>
+          <div class="artists-grid top-artists-grid" id="topArtistsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 18px;">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- 每日推薦 Daily Picks (參考最近播放紀錄每日隨機推薦五張專輯) -->
+        <div class="section-block" id="dailyRecommendSection" style="margin-top: 32px; margin-bottom: 32px;">
+          <div class="section-header">
+            <h2>🌟 每日推薦 Daily Recommendation</h2>
+          </div>
+          <div class="album-grid" id="dailyRecommendGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- 藝人生活誌 Artist Spotlight (隨機推薦一位藝人，含生平簡介、照片與3張關聯專輯) -->
+        <div class="section-block" id="artistSpotlightSection" style="margin-top: 32px; margin-bottom: 32px;">
+          <div class="section-header">
+            <h2>📖 藝人生活誌 Artist Spotlight</h2>
+            <button class="btn-text" id="btnRefreshSpotlight" title="隨機換一位藝人">隨機換一位 ↻</button>
+          </div>
+          
+          <div class="artist-spotlight-card" id="artistSpotlightCard">
+            <div class="spotlight-top-wrap">
+              <div class="spotlight-avatar-col">
+                <div class="spotlight-avatar-box" id="spotlightAvatarBox">
+                  <img src="" alt="Artist Photo" class="spotlight-avatar-img" id="spotlightAvatarImg" style="display: none;">
+                  <div class="spotlight-avatar-placeholder" id="spotlightAvatarPlaceholder">🎤</div>
+                </div>
+              </div>
+              <div class="spotlight-info-col">
+                <div class="spotlight-tag">FEATURED ARTIST</div>
+                <h3 class="spotlight-name" id="spotlightName">演出者名稱</h3>
+                <div class="spotlight-genres" id="spotlightGenres"></div>
+                <div class="spotlight-bio-box">
+                  <p class="spotlight-bio" id="spotlightBio">正在載入藝人生平簡介...</p>
+                </div>
+                <div class="spotlight-actions">
+                  <button class="btn btn-primary btn-sm" id="btnSpotlightViewArtist">查看演出者主頁 ➔</button>
+                  <button class="btn btn-secondary btn-sm" id="btnSpotlightPlayArtist">▶ 播放該歌手所有歌曲</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="spotlight-albums-wrap" id="spotlightAlbumsWrap">
+              <div class="spotlight-albums-title" id="spotlightAlbumsTitle">📀 相關精選專輯 Selected Albums</div>
+              <div class="album-grid spotlight-album-grid" id="spotlightAlbumsGrid">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-block" style="margin-top: 36px;">
+          <div class="section-header">
+            <h2>🎤 探索演出者 Artists</h2>
+            <button class="btn-text" id="btnSeeAllArtists">瀏覽全部演出者 ➔</button>
+          </div>
+          <div class="artist-grid" id="overviewArtistsGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- PLAYBACK HISTORY VIEW (Recent 100 Tracks) -->
+      <section id="viewHistory" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">播放紀錄 Playback History</h1>
+            <span class="page-subtitle" id="historyHeaderCount">最近播放的 0 首歌曲 (依時間由最近到最久排序)</span>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary btn-sm" id="btnPlayAllHistory">▶ 依序播放</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleHistory">🔀 隨機播放</button>
+            <button class="btn btn-secondary btn-sm" id="btnClearHistory" title="清空播放紀錄">🗑️ 清除紀錄</button>
+          </div>
+        </div>
+        <div class="tracklist-table-container">
+          <table class="tracklist-table" id="historyTracksTable">
+            <thead>
+              <tr>
+                <th style="width: 45px;">#</th>
+                <th style="width: 40px; text-align: center;">播放</th>
+                <th style="width: 38px;"></th>
+                <th>曲目名稱</th>
+                <th style="width: 70px; text-align: center;">YouTube</th>
+                <th>演出者</th>
+                <th>專輯</th>
+                <th style="width: 130px;">播放時間</th>
+                <th style="width: 140px;">格式規格</th>
+                <th style="width: 80px; text-align: right;">時長</th>
+              </tr>
+            </thead>
+            <tbody id="historyTracksTbody">
+              <!-- Injected via JS -->
+            </tbody>
+          </table>
+        </div>
+        <div class="empty-hint" id="historyEmptyHint" style="display: none; padding: 48px; text-align: center;">
+          <div style="font-size: 36px; margin-bottom: 12px;">🕒</div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未有任何播放紀錄</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">開始播放歌曲後，系統將自動記錄最近播放的 100 首曲目並由最近到最久排序。</div>
+        </div>
+      </section>
+
+      <!-- PLAYLISTS VIEW (播放清單：儲存、匯入、編輯、刪除) -->
+      <section id="viewPlaylists" class="content-view">
+        <!-- 清單總覽 -->
+        <div id="playlistsListView">
+          <div class="view-header">
+            <div>
+              <h1 class="page-title">播放清單 Playlists</h1>
+              <span class="page-subtitle" id="playlistsHeaderCount">共 0 個播放清單</span>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary btn-sm" id="btnPlaylistNew" title="新增一個空白播放清單">➕ 新增清單</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistSaveQueue" title="將目前播放隊列的所有歌曲依序存成新的播放清單">💾 儲存目前隊列</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistImport" title="匯入 .m3u / .m3u8 / .json 播放清單檔">📥 匯入清單</button>
+            </div>
+          </div>
+          <div class="tracklist-table-container" id="playlistsTableContainer">
+            <table class="tracklist-table" id="playlistsTable">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">#</th>
+                  <th style="width: 70px; text-align: center;">播放</th>
+                  <th>清單名稱</th>
+                  <th style="width: 110px; text-align: center;">曲目數</th>
+                  <th style="width: 110px; text-align: right;">總時長</th>
+                  <th style="width: 150px;">更新時間</th>
+                  <th style="width: 190px; text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="playlistsTableTbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="empty-hint" id="playlistsEmptyHint" style="display: none; padding: 48px; text-align: center;">
+            <div style="font-size: 36px; margin-bottom: 12px;">📃</div>
+            <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">還沒有任何播放清單</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">可用上方「新增清單」建立空白清單，或到播放隊列按「儲存目前隊列」把正在排的曲目依序存成清單；也可以「匯入清單」讀取 .m3u / .json 清單檔。</div>
+          </div>
+        </div>
+
+        <!-- 清單明細（編輯：上移、下移、刪除單曲） -->
+        <div id="playlistDetailView" style="display: none;">
+          <div class="view-header">
+            <div>
+              <h1 class="page-title" id="playlistDetailTitle">播放清單</h1>
+              <span class="page-subtitle" id="playlistDetailCount">0 首歌曲</span>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistBack">← 返回清單</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistRename" title="重新命名這個清單">✏️ 重新命名</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistAppendQueue" title="將目前播放隊列依序附加到這個清單">➕ 加入目前隊列</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistExportM3u" title="匯出成 .m3u8 播放清單檔（通用格式，可被其他播放器讀取）">💾 匯出 M3U</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistExportJson" title="匯出成 .json（保留完整曲目資訊，rooPlayer 可直接再匯入）">🧬 匯出 JSON</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistShuffle">🔀 隨機播放</button>
+              <button class="btn btn-primary btn-sm" id="btnPlaylistPlayAll">▶ 依序播放</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistDelete" title="刪除整個播放清單">🗑️ 刪除清單</button>
+            </div>
+          </div>
+          <div class="tracklist-table-container" id="playlistTrackTableContainer">
+            <table class="tracklist-table" id="playlistTrackTable">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">#</th>
+                  <th style="width: 70px; text-align: center;">播放</th>
+                  <th>曲目名稱</th>
+                  <th>演出者</th>
+                  <th>專輯</th>
+                  <th style="width: 140px;">格式規格</th>
+                  <th style="width: 80px; text-align: right;">時長</th>
+                  <th style="width: 170px; text-align: right;">編輯</th>
+                </tr>
+              </thead>
+              <tbody id="playlistTrackTbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="empty-hint" id="playlistDetailEmptyHint" style="display: none; padding: 48px; text-align: center;">
+            <div style="font-size: 36px; margin-bottom: 12px;">🎵</div>
+            <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">這個清單還沒有曲目</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">按「加入目前隊列」可把正在排的曲目依序加進來，或從專輯、曲目、播放紀錄頁面播放歌曲後再儲存。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. ALBUMS VIEW -->
+      <section id="viewAlbums" class="content-view">
+        <div class="view-header" id="albumsViewHeader">
+          <div>
+            <h1 class="page-title" id="albumsPageTitle">專輯庫 Albums</h1>
+            <span class="page-subtitle" id="albumsHeaderCount">共 0 張專輯</span>
+          </div>
+          <div class="filter-bar" id="albumsFilterBar">
+            <div class="pill-group" id="albumFilters">
+              <button class="pill active" data-filter="all">全部</button>
+              <button class="pill" data-filter="hires">Hi-Res 24-bit</button>
+              <button class="pill" data-filter="flac">FLAC 無損</button>
+              <button class="pill" data-filter="recent">最近新增</button>
+            </div>
+            <select id="albumSortSelect" class="select-dropdown">
+              <option value="added" selected>依新增順序排列</option>
+              <option value="title">依專輯名稱 A-Z</option>
+              <option value="artist">依演出者 A-Z</option>
+              <option value="year">依發行年份 (新到舊)</option>
+              <option value="tracks">依曲目數量</option>
+              <option value="playCount">依最常播放 (播放次數)</option>
+            </select>
+            <div class="cover-size-control" id="albumCoverSizeControl">
+              <span class="size-control-label">封面尺寸：</span>
+              <div class="pill-group size-pill-group" id="albumCoverSizePills">
+                <button class="pill size-pill" data-cover-size="small" title="小尺寸封面">小</button>
+                <button class="pill size-pill active" data-cover-size="medium" title="中尺寸封面 (預設)">中</button>
+                <button class="pill size-pill" data-cover-size="large" title="大尺寸封面">大</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="genreFilterBannerBox"></div>
+
+        <!-- Search Active Results Container (Shown when searching) -->
+        <div id="searchResultsContainer" style="display: none;">
+          <!-- Search Header & Tab Controls -->
+          <div class="search-results-summary-bar">
+            <div class="search-summary-text">
+              <span class="search-summary-label">搜尋關鍵字：</span>
+              <span class="search-query-badge" id="searchQueryBadge"></span>
+              <span class="search-stat-text" id="searchStatText"></span>
+            </div>
+            <div class="pill-group search-filter-pills" id="searchFilterPills">
+              <button class="pill active" data-search-tab="all">全部結果</button>
+              <button class="pill" data-search-tab="local">📁 本機端專輯</button>
+              <button class="pill" data-search-tab="streaming">🌐 線上串流 (KKBOX • TIDAL • QOBUZ • SPOTIFY)</button>
+            </div>
+          </div>
+
+          <!-- Section 1: Local Albums -->
+          <div class="search-section" id="searchLocalSection">
+            <div class="search-section-header">
+              <div class="search-section-title">
+                <span class="search-section-icon">📁</span>
+                <span>本機端音樂庫專輯</span>
+                <span class="badge" id="searchLocalCountBadge">0</span>
+              </div>
+            </div>
+            <div class="album-grid" id="searchLocalAlbumsGrid"></div>
+            <div class="search-empty-box" id="searchLocalEmptyBox" style="display: none;">
+              未在本機音樂庫找到相符的專輯，您可透過下方各大線上串流平台進行搜尋與試聽。
+            </div>
+          </div>
+
+          <!-- Section 2: Online Streaming Platforms Search -->
+          <div class="search-section" id="searchStreamingSection">
+            <div class="search-section-header">
+              <div>
+                <div class="search-section-title">
+                  <span class="search-section-icon">🌐</span>
+                  <span>線上串流搜尋結果</span>
+                  <span class="badge highlight">KKBOX • TIDAL • QOBUZ • SPOTIFY</span>
+                </div>
+                <div class="search-section-desc">線上各大串流平台相關作品，可點選各平台按鈕前往收聽</div>
+              </div>
+            </div>
+
+            <!-- Online Catalog Matching Albums -->
+            <div class="streaming-catalog-block" id="streamingCatalogBlock" style="margin-top: 0;">
+              <div class="streaming-catalog-header">
+                <h3>線上相關專輯作品</h3>
+                <span id="streamingCatalogCount">檢索中...</span>
+              </div>
+              <div class="streaming-loading-box" id="streamingLoadingBox">
+                <span class="spinner"></span> 正在連線檢索 KKBOX、TIDAL、QOBUZ、SPOTIFY 線上音樂作品...
+              </div>
+              <div class="album-grid streaming-catalog-grid" id="streamingCatalogGrid">
+                <!-- Injected via JS -->
+              </div>
+
+              <!-- TIDAL Online Matching Tracks -->
+              <div class="streaming-tracks-block" id="streamingTracksBlock" style="display: none; margin-top: 24px;">
+                <div class="streaming-catalog-header">
+                  <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #00e5ff;">💎</span>
+                    <span>TIDAL 相符歌曲曲目 (直接點播)</span>
+                  </h3>
+                  <span id="streamingTracksCount">0 首</span>
+                </div>
+                <div class="tidal-track-list" id="streamingTracksList">
+                  <!-- Injected via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="album-grid" id="allAlbumsGrid">
+          <!-- Injected via JS -->
+        </div>
+      </section>
+
+      <!-- 2.5 ALBUM DETAIL VIEW (Standard Full Page) -->
+      <section id="viewAlbumDetail" class="content-view">
+        <div class="view-back-bar" style="margin-bottom: 20px;">
+          <button class="btn btn-secondary btn-sm" id="btnBackFromAlbumDetail" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500;">
+            <span>←</span> 返回上一頁
+          </button>
+        </div>
+
+        <div class="album-detail-container">
+          <div class="album-detail-header">
+            <div class="detail-cover-column">
+              <div class="album-detail-art-box" id="detailCoverArtBox">
+                <img id="detailCoverImg" src="" alt="Album Artwork" class="album-detail-art">
+                <span class="detail-format-badge" id="detailFormatBadge">FLAC 24/96</span>
+              </div>
+              <div class="detail-cover-size-bar">
+                <span class="detail-size-label">封面尺寸：</span>
+                <div class="pill-group detail-size-pills" id="detailCoverSizePills">
+                  <button class="pill size-pill" data-detail-size="small" title="小尺寸封面">小</button>
+                  <button class="pill size-pill active" data-detail-size="medium" title="中尺寸封面 (預設)">中</button>
+                  <button class="pill size-pill" data-detail-size="large" title="大尺寸封面">大</button>
+                </div>
+              </div>
+            </div>
+            <div class="album-detail-meta">
+              <div class="detail-tag">ALBUM</div>
+              <h1 class="detail-title" id="detailTitle">Album Title</h1>
+              <div class="detail-artist-line">
+                <span class="detail-artist-label">歌手：</span>
+                <span class="detail-artist" id="detailArtist">Artist Name</span>
+              </div>
+              <div class="detail-meta-line" id="detailMetaLine">
+                <span class="detail-meta-item" id="detailCompanyWrap">
+                  <span class="detail-meta-label">發行公司：</span>
+                  <span class="detail-meta-value" id="detailCompany">獨立發行 / 未標記廠牌</span>
+                </span>
+                <span class="detail-meta-sep">•</span>
+                <span class="detail-meta-item" id="detailYearWrap">
+                  <span class="detail-meta-label">年份：</span>
+                  <span class="detail-meta-value" id="detailYear">未載明</span>
+                </span>
+                <span class="detail-meta-sep">•</span>
+                <span class="detail-meta-item" id="detailDurationWrap">
+                  <span class="detail-meta-label">總曲目總時長：</span>
+                  <span class="detail-meta-value" id="detailTracksDuration">0 首歌曲</span>
+                </span>
+              </div>
+
+              <div class="detail-actions" style="margin-bottom: 14px;">
+                <button class="btn btn-primary" id="btnPlayAlbumNow">▶ 播放專輯</button>
+                <button class="btn btn-secondary" id="btnShuffleAlbum">🔀 隨機播放</button>
+                <button class="btn btn-secondary" id="btnFavAlbumDetail"><svg class="fav-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;pointer-events:none;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> <span>加入最愛專輯</span></button>
+                <button class="btn btn-secondary" id="btnTidalLibraryToggle" style="display: none;">
+                  <span id="btnTidalLibraryToggleIcon">➕</span> <span id="btnTidalLibraryToggleText">加入曲庫</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Album Versions (本機與線上版本比對切換) -->
+          <div class="album-versions-section" id="albumVersionsSection" style="display: none;">
+            <div class="album-versions-header">
+              <div class="album-versions-title">
+                <span>💿 其他發行版本 / VERSIONS</span>
+                <span class="versions-count-badge" id="albumVersionsCountBadge">2 個版本</span>
+              </div>
+              <span class="versions-hint-text">點擊切換不同音質規格或發行版本</span>
+            </div>
+            <div class="album-versions-grid" id="albumVersionsGrid">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- 簡短專輯介紹 (網路上搜尋，轉換成繁體中文) -->
+          <div class="album-intro-section" id="albumIntroSection">
+            <div class="album-intro-header" id="albumIntroHeader">
+              <div class="album-intro-title-wrap" title="點擊展開或縮小專輯介紹">
+                <h3 class="album-intro-title">📖 專輯介紹 Album Review</h3>
+                <span class="data-source-badge" id="albumIntroSourceBadge">資料來源：維基百科音樂資料庫</span>
+              </div>
+              <div class="album-intro-actions">
+                <button class="btn-toggle-lang" id="btnToggleAlbumBioLang" style="display: none;" title="切換檢視原文或繁體中文翻譯">檢視原文</button>
+                <button class="btn-toggle-collapse" id="btnToggleAlbumIntroCollapse" title="縮小或展開專輯介紹">
+                  <span class="collapse-icon" id="albumIntroCollapseIcon">▲</span>
+                  <span class="collapse-text" id="albumIntroCollapseText">縮小</span>
+                </button>
+              </div>
+            </div>
+            <div class="album-intro-card" id="albumIntroCard">
+              <div class="bio-loading" id="albumBioLoading">
+                <span class="spinner"></span> 正在搜尋專輯背景資料並自動翻譯為繁體中文...
+              </div>
+              <p class="bio-text" id="albumBioText" style="display: none;"></p>
+            </div>
+          </div>
+
+          <div class="album-detail-tracklist">
+            <h3>曲目清單 (<span id="detailTrackCount">0</span> 首)</h3>
+            <table class="tracklist-table" id="detailTracklistTable">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">#</th>
+                  <th style="width: 38px;"></th>
+                  <th>曲目名稱</th>
+                  <th style="width: 70px; text-align: center;">YouTube</th>
+                  <th style="width: 140px;">格式</th>
+                  <th style="width: 80px; text-align: right;">時長</th>
+                </tr>
+              </thead>
+              <tbody id="detailTracklistTbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 同類型推薦專輯 (由歌曲 meta 資料判斷) -->
+          <div class="album-recommendations-section" id="albumRecommendationsSection">
+            <div class="section-header" style="margin-bottom: 12px;">
+              <h3 style="font-size: 16px;">✨ 同類型推薦專輯 Recommended Albums</h3>
+              <span class="section-count-badge" id="recommendCountBadge">0 張推薦</span>
+            </div>
+            <p class="section-desc" id="recommendDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
+              依同演出者、相同曲目收錄、曲風（<span id="recommendGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）與相近曲風、發行廠牌、製作或作曲、年代與音質規格綜合判斷；關聯不足者不顯示，卡片標示原因，滑過可看完整依據。
+            </p>
+            <div class="album-grid recommend-album-grid" id="albumRecommendationsGrid">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- 推薦演出者 (參考相同流派隨機推薦) -->
+          <div class="album-recommendations-section" id="albumArtistsRecommendationsSection" style="margin-top: 36px;">
+            <div class="section-header" style="margin-bottom: 12px;">
+              <h3 style="font-size: 16px;">🎤 推薦演出者 Recommended Artists</h3>
+              <span class="section-count-badge" id="recommendArtistCountBadge">0 位推薦</span>
+            </div>
+            <p class="section-desc" id="recommendArtistDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
+              為您隨機探索具備相同音樂流派（<span id="recommendArtistGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）的經典演出者與音樂家。
+            </p>
+            <div class="artist-grid recommend-artist-grid" id="albumArtistRecommendationsGrid">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. ARTISTS VIEW -->
+      <section id="viewArtists" class="content-view">
+        <div class="view-header" id="artistsViewHeader">
+          <div>
+            <h1 class="page-title">演出者 Artists</h1>
+            <span class="page-subtitle" id="artistsHeaderCount">共 0 位演出者</span>
+          </div>
+          <div class="cover-size-control" id="artistSizeControl">
+            <span class="size-control-label">頭像尺寸：</span>
+            <div class="pill-group size-pill-group" id="artistSizePills">
+              <button class="pill size-pill" data-artist-size="small" title="小尺寸頭像">小</button>
+              <button class="pill size-pill active" data-artist-size="medium" title="中尺寸頭像 (預設)">中</button>
+              <button class="pill size-pill" data-artist-size="large" title="大尺寸頭像">大</button>
+            </div>
+          </div>
+        </div>
+        <div class="artist-grid" id="artistsGrid">
+          <!-- Injected via JS -->
+        </div>
+      </section>
+
+      <!-- 3.5 ARTIST DETAIL VIEW -->
+      <section id="viewArtistDetail" class="content-view">
+        <div class="artist-detail-hero" id="artistDetailHero">
+          <div class="artist-hero-backdrop" id="artistHeroBackdrop"></div>
+          <div class="artist-hero-gradient"></div>
+
+          <div class="artist-hero-inner">
+            <div class="artist-detail-avatar-box">
+              <img id="artistDetailAvatar" src="" alt="Artist Photo" class="artist-detail-avatar" style="display: none;">
+              <div id="artistDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder">🎤</div>
+            </div>
+            <div class="artist-detail-info">
+              <div class="artist-detail-tag">ARTIST PROFILE • 演出者總覽</div>
+              <h1 class="artist-detail-name" id="artistDetailName">Artist Name</h1>
+              <div class="artist-detail-genres" id="artistDetailGenres">
+                <!-- Genre chips -->
+              </div>
+              <div class="artist-detail-stats" id="artistDetailStats">
+                <span class="stat-pill"><span id="artistDetailAlbumCount">0</span> 本機專輯</span>
+                <span class="stat-pill"><span id="artistDetailTrackCount">0</span> 首歌曲</span>
+              </div>
+              <div class="artist-detail-actions">
+                <button class="btn btn-primary" id="btnPlayAllArtistTracks">▶ 播放該歌手所有歌曲</button>
+                <button class="btn btn-secondary" id="btnShuffleArtistTracks">🔀 隨機播放</button>
+                <button class="btn btn-secondary" id="btnFavArtistDetail"><svg class="fav-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;pointer-events:none;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> <span>加入最愛演出者</span></button>
+                <button class="btn btn-secondary" id="btnOpenWikipedia" title="在瀏覽器開啟 Wikipedia 完整條目">🌐 Wikipedia 維基百科</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2-1. 維基百科或音樂資料庫簡介 -->
+        <div class="artist-section-block">
+          <div class="section-header">
+            <h2>📖 歌手簡介與背景</h2>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="data-source-badge" id="bioSourceBadge">來源：Wikipedia 百科資料庫</span>
+              <button class="btn-toggle-lang" id="btnToggleBioLang" style="display: none;" title="切換檢視原文或繁體中文翻譯">檢視原文</button>
+            </div>
+          </div>
+          <div class="artist-bio-card" id="artistBioCard">
+            <div class="bio-loading" id="bioLoading">
+              <span class="spinner"></span> 正在連線至維基百科音樂資料庫並自動翻譯為繁體中文...
+            </div>
+            <p class="bio-text" id="artistBioText" style="display: none;"></p>
+          </div>
+        </div>
+
+        <!-- 2-2. 最近播放的專輯 -->
+        <div class="artist-section-block">
+          <div class="section-header">
+            <h2>⏱️ 最近播放的專輯</h2>
+            <span class="section-count-badge" id="artistRecentAlbumsCount">0 張</span>
+          </div>
+          <div class="album-grid" id="artistRecentAlbumsGrid">
+            <!-- Injected via JS -->
+          </div>
+          <div class="empty-hint" id="artistNoRecentHint" style="display: none;">
+            尚無最近播放紀錄，點擊下方本機專輯即可開始聆聽。
+          </div>
+        </div>
+
+        <!-- 2-3. 目前本機端擁有的專輯 -->
+        <div class="artist-section-block">
+          <div class="section-header">
+            <h2>💿 本機音樂庫收藏</h2>
+            <span class="section-count-badge" id="artistLocalAlbumsCount">0 張</span>
+          </div>
+          <div class="album-grid" id="artistLocalAlbumsGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- 2-4. 找尋 KKBOX, Tidal, Qobuz 等網站，列出本機沒有的專輯 -->
+        <div class="artist-section-block">
+          <div class="section-header">
+            <div class="header-with-tag">
+              <h2 id="artistOnlineSectionTitle">🌐 線上專輯探索 (本機未收錄)</h2>
+              <div class="streaming-platforms-tags" id="artistOnlinePlatformTags">
+                <span class="platform-tag tidal">Tidal</span>
+                <span class="platform-tag qobuz">Qobuz</span>
+                <span class="platform-tag kkbox">KKBOX</span>
+                <span class="platform-tag apple">Apple Music</span>
+                <span class="platform-tag spotify">Spotify</span>
+              </div>
+            </div>
+            <span class="section-count-badge" id="artistMissingAlbumsCount">載入中...</span>
+          </div>
+          <p class="section-desc" id="artistOnlineSectionDesc">比對線上音樂資料庫，為您挖掘該歌手尚未收藏的經典專輯，點擊按鈕可直接前往 Tidal、Qobuz Hi-Res、KKBOX、Apple Music 或 Spotify 平台搜尋聆聽。</p>
+          
+          <div class="bio-loading" id="missingAlbumsLoading">
+            <span class="spinner"></span> 正在比對線上音樂庫 (Tidal / Qobuz / KKBOX 支援)...
+          </div>
+
+          <div class="album-grid missing-album-grid" id="artistMissingAlbumsGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 3.5 RECORD LABEL (發行公司) DETAIL VIEW -->
+      <section id="viewLabelDetail" class="content-view">
+        <div class="artist-detail-hero" id="labelDetailHero">
+          <div class="artist-hero-backdrop" id="labelHeroBackdrop"></div>
+          <div class="artist-hero-gradient"></div>
+
+          <div class="artist-hero-inner">
+            <div class="artist-detail-avatar-box">
+              <img id="labelDetailAvatar" src="" alt="Label Logo" class="artist-detail-avatar" style="display: none;">
+              <div id="labelDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder">🏷️</div>
+            </div>
+            <div class="artist-detail-info">
+              <div class="artist-detail-tag">RECORD LABEL • 發行公司總覽</div>
+              <h1 class="artist-detail-name" id="labelDetailName">Record Label</h1>
+              <div class="artist-detail-genres" id="labelDetailArtists">
+                <!-- 該公司演出者 chips -->
+              </div>
+              <div class="artist-detail-stats">
+                <span class="stat-pill"><span id="labelDetailAlbumCount">0</span> 張專輯</span>
+                <span class="stat-pill"><span id="labelDetailArtistCount">0</span> 位演出者</span>
+                <span class="stat-pill"><span id="labelDetailTrackCount">0</span> 首歌曲</span>
+              </div>
+              <div class="artist-detail-actions">
+                <button class="btn btn-primary" id="btnPlayAllLabelAlbums">▶ 播放該公司所有專輯</button>
+                <button class="btn btn-secondary" id="btnShuffleLabelAlbums">🔀 隨機播放</button>
+                <button class="btn btn-secondary" id="btnLabelTidalSearch" title="重新連線 TIDAL 比對該發行公司">🔄 重新比對 TIDAL</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.5.1 本機音樂庫中該公司發行的專輯 -->
+        <div class="artist-section-block">
+          <div class="section-header">
+            <h2>💿 本機音樂庫收藏（該公司發行）</h2>
+            <span class="section-count-badge" id="labelLocalAlbumsCount">0 張</span>
+          </div>
+          <p class="section-desc">比對範圍：本機檔案的 LABEL / PUBLISHER / COPYRIGHT 標籤，以及已加入曲庫的 TIDAL 專輯發行資料。</p>
+          <div class="album-grid" id="labelLocalAlbumsGrid">
+            <!-- Injected via JS -->
+          </div>
+          <div class="empty-hint" id="labelNoLocalHint" style="display: none;">
+            音樂庫內沒有以該發行公司標記的專輯；下方 TIDAL 發行清單可直接播放或加入曲庫。
+          </div>
+        </div>
+
+        <!-- 3.5.2 TIDAL 上該公司發行的專輯 -->
+        <div class="artist-section-block">
+          <div class="section-header">
+            <div class="header-with-tag">
+              <h2 id="labelTidalSectionTitle">💎 TIDAL 該公司發行專輯</h2>
+              <div class="streaming-platforms-tags" id="labelTidalPlatformTags">
+                <span class="platform-tag tidal">TIDAL</span>
+                <span class="platform-tag" style="background:rgba(255,255,255,0.08);color:#d4d4d8;">依發行公司欄位比對</span>
+              </div>
+            </div>
+            <span class="section-count-badge" id="labelTidalAlbumsCount">載入中...</span>
+          </div>
+          <p class="section-desc" id="labelTidalSectionDesc">以 TIDAL 專輯的發行公司資料（copyright 欄位）比對同一家唱片公司，並循該公司演出者的 TIDAL 歷年發行作品延伸查找；可直接以 rooPlayer 音訊引擎播放，或加入曲庫。</p>
+
+          <div class="bio-loading" id="labelTidalLoading">
+            <span class="spinner"></span> 正在連線 TIDAL 並比對該發行公司的專輯...
+          </div>
+
+          <div class="album-grid missing-album-grid" id="labelTidalAlbumsGrid">
+            <!-- Injected via JS -->
+          </div>
+          <div class="empty-hint" id="labelTidalEmptyHint" style="display: none;"></div>
+        </div>
+      </section>
+
+      <!-- 4. TRACKS VIEW -->
+      <section id="viewTracks" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">所有曲目 Tracks</h1>
+            <span class="page-subtitle" id="tracksHeaderCount">共 0 首曲目</span>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <select id="trackSortSelect" class="select-dropdown">
+              <option value="default">預設排序</option>
+              <option value="playCount">依最常播放 (播放次數)</option>
+              <option value="title">依曲目名稱 A-Z</option>
+              <option value="artist">依演出者 A-Z</option>
+              <option value="duration">依曲目長度</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="btnPlayAllTracks">▶ 播放全部曲目</button>
+          </div>
+        </div>
+        <div class="tracklist-table-container">
+          <table class="tracklist-table" id="allTracksTable">
+            <thead>
+              <tr>
+                <th style="width: 45px;">#</th>
+                <th style="width: 38px;"></th>
+                <th class="col-track-title" style="width: 42%;">曲目名稱</th>
+                <th style="width: 70px; text-align: center;">YouTube</th>
+                <th class="col-track-artist" style="width: 16%;">演出者</th>
+                <th class="col-track-album" style="width: 18%;">專輯</th>
+                <th style="width: 120px;">格式規格</th>
+                <th style="width: 75px; text-align: right;">時長</th>
+              </tr>
+            </thead>
+            <tbody id="allTracksTbody">
+              <!-- Injected via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 5. GENRES VIEW -->
+      <section id="viewGenres" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">曲風風格 Genres</h1>
+            <p class="page-subtitle" id="genresHeaderCount">共 0 個音樂曲風與流派，以專輯風格探索您的發燒音樂庫</p>
+          </div>
+          <div class="cover-size-control" id="genreSizeControl">
+            <span class="size-control-label">封面尺寸：</span>
+            <div class="pill-group size-pill-group" id="genreSizePills">
+              <button class="pill size-pill" data-genre-size="small" title="小尺寸封面">小</button>
+              <button class="pill size-pill active" data-genre-size="medium" title="中尺寸封面 (預設)">中</button>
+              <button class="pill size-pill" data-genre-size="large" title="大尺寸封面">大</button>
+            </div>
+          </div>
+        </div>
+        <div class="genre-grid genre-size-medium" id="genresGrid">
+          <!-- Injected via JS -->
+        </div>
+      </section>
+
+      <!-- 6. STORAGE VIEW -->
+      <section id="viewStorage" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">本機音樂庫設定 Storage</h1>
+            <p class="page-subtitle">管理本地音樂儲存夾，自動監控並建立音訊母帶資料庫。</p>
+          </div>
+        </div>
+
+        <div class="storage-card">
+          <div class="storage-card-header">
+            <h3>掃描本機資料夾</h3>
+            <p>支援格式：FLAC (24/192 Hi-Res), WAV, AIFF, DSD/DSF, MP3, M4A, AAC, OGG</p>
+          </div>
+          <div class="storage-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="btnSelectFolder">
+              <span>📂 選擇音樂資料夾並掃描</span>
+            </button>
+            <button class="btn btn-secondary" id="btnExportLibrary" title="完整匯出所有音樂資料、資料夾設定、我的最愛收藏、自訂播放清單與播放紀錄為標準 JSON 備份檔">
+              <span>💾 匯出資料庫</span>
+            </button>
+            <button class="btn btn-secondary" id="btnImportLibrary" title="匯入資料庫備份檔並合併（自動略過重複曲目與資料夾）">
+              <span>📥 匯入資料庫</span>
+            </button>
+          </div>
+          
+          <!-- Scan Progress Indicator -->
+          <div id="scanProgressBox" class="scan-progress-box" style="display: none;">
+            <div class="progress-info">
+              <span id="scanStatusLabel">正在分析無損音訊中...</span>
+              <span id="scanPercentLabel">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="scanProgressBar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="current-file-text" id="scanCurrentFile">掃描中...</div>
+          </div>
+
+          <div class="folder-list-header">已加入的資料夾：</div>
+          <div class="folder-list" id="scannedFoldersList">
+            <div class="empty-folder-hint">尚未加入任何音樂資料夾，請點擊上方按鈕選取包含音樂的檔案夾。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6.5. NETWORK STORAGE VIEW (SAMBA / NAS) -->
+      <section id="viewNetworkStorage" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">網路資料夾設定 Network Storage</h1>
+            <p class="page-subtitle">連線區域網路 SAMBA / NAS 伺服器，將遠端無損音樂庫無縫匯入 rooPlayer，支援多相升頻與發燒串流。</p>
+          </div>
+        </div>
+
+        <!-- Add Samba Connection Card -->
+        <div class="storage-card" style="margin-bottom: 24px;">
+          <div class="storage-card-header">
+            <h3>新增 SAMBA / NAS 網路共用連線</h3>
+            <p>支援標準 SMB / CIFS 協定，相容 Synology 群暉、QNAP 威聯通、Asustor 華芸、TrueNAS、Windows 共用資料夾與 Linux Samba。</p>
+          </div>
+          
+          <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="btnAutoDiscoverSamba" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; display: inline-flex; align-items: center; gap: 6px;">
+              <span>🔍 自動搜尋區域網路 SAMBA / NAS 伺服器</span>
+            </button>
+            <button class="btn btn-secondary" id="btnBrowseNetworkFolder">
+              <span>📂 瀏覽區域網路共用資料夾 (UNC)</span>
+            </button>
+            <button class="btn btn-secondary" id="btnToggleManualSamba">
+              <span>⚙️ 手動輸入 SAMBA 連線參數</span>
+            </button>
+          </div>
+
+          <!-- Discovered Servers Panel (動態呈現自動搜尋結果) -->
+          <div id="discoveredServersBox" style="display: none; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 16px;">🔍</span>
+                <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: #f8fafc;">發現的區域網路 SAMBA / NAS 伺服器</h4>
+                <span class="badge" id="discoveredServersCountBadge" style="background: rgba(37, 99, 235, 0.25); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 11px;">0 台伺服器</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" id="btnCloseDiscoveredServers">關閉 ✕</button>
+            </div>
+            <div id="discoveredServersList" style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- Manual Samba Input Form -->
+          <div id="manualSambaForm" style="display: none; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+              <div>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputHost">伺服器 IP 或主機名稱 (必填)</label>
+                <input type="text" id="sambaInputHost" placeholder="例如: 192.168.1.100 或 NAS-SERVER" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-size: 13px;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputShare">共用名稱 Share Name (必填)</label>
+                <input type="text" id="sambaInputShare" placeholder="例如: music 或 Audio" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-size: 13px;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputSubPath">子目錄路徑 (選填)</label>
+                <input type="text" id="sambaInputSubPath" placeholder="例如: FLAC 或 Hi-Res (選填)" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-size: 13px;">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+              <div>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputUsername">帳號 (選填，訪客留空)</label>
+                <input type="text" id="sambaInputUsername" placeholder="使用者名稱 (選填)" autocomplete="username" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-size: 13px;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputPassword">密碼 (選填)</label>
+                <input type="password" id="sambaInputPassword" placeholder="密碼 (選填)" autocomplete="current-password" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-size: 13px;">
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button class="btn btn-secondary" id="btnCancelManualSamba">取消</button>
+              <button class="btn btn-primary" id="btnConnectManualSamba">
+                <span>🔗 連線並掃描 SAMBA 音樂庫</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Network Scan Progress Indicator -->
+          <div id="netScanProgressBox" class="scan-progress-box" style="display: none; margin-top: 16px;">
+            <div class="progress-info">
+              <span id="netScanStatusLabel">正在分析 SAMBA 遠端音訊...</span>
+              <span id="netScanPercentLabel">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="netScanProgressBar" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="current-file-text" id="netScanCurrentFile">準備中...</div>
+          </div>
+        </div>
+
+        <!-- Connected Network Shares Card -->
+        <div class="storage-card">
+          <div class="storage-card-header">
+            <h3>已連線的 SAMBA 網路資料夾</h3>
+            <p>已成功掛載的區域網路音樂庫，曲目已全量匯總至總覽、專輯與曲目頁面。</p>
+          </div>
+          <div class="folder-list" id="networkFoldersList">
+            <div class="empty-folder-hint">尚未加入任何 SAMBA 網路資料夾，請點擊上方按鈕瀏覽或手動輸入 NAS 共用設定。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. FAVORITE ALBUMS VIEW -->
+      <section id="viewFavAlbums" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">最愛專輯 Favorite Albums</h1>
+            <span class="page-subtitle" id="favAlbumsHeaderCount">共 0 張最愛專輯</span>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btnPlayAllFavAlbums">▶ 播放全部最愛專輯</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleFavAlbums">🔀 隨機播放</button>
+          </div>
+        </div>
+        <div class="album-grid" id="favAlbumsGrid">
+          <!-- Injected via JS -->
+        </div>
+        <div class="empty-hint" id="favAlbumsEmptyHint" style="display: none; padding: 48px; text-align: center;">
+          <div style="font-size: 36px; margin-bottom: 12px;">💿</div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛專輯</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在任何專輯卡片上點擊 ♡ 空心愛心圖示即可加入我的最愛。</div>
+        </div>
+      </section>
+
+      <!-- 8. FAVORITE TRACKS VIEW -->
+      <section id="viewFavTracks" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">最愛歌曲 Favorite Tracks</h1>
+            <span class="page-subtitle" id="favTracksHeaderCount">共 0 首最愛歌曲</span>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary btn-sm" id="btnPlayAllFavTracks">▶ 播放全部最愛歌曲</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleFavTracks">🔀 隨機播放</button>
+          </div>
+        </div>
+        <div class="tracklist-table-container">
+          <table class="tracklist-table" id="favTracksTable">
+            <thead>
+              <tr>
+                <th style="width: 45px;">#</th>
+                <th style="width: 38px;"></th>
+                <th class="col-track-title" style="width: 42%;">曲目名稱</th>
+                <th style="width: 70px; text-align: center;">YouTube</th>
+                <th class="col-track-artist" style="width: 16%;">演出者</th>
+                <th class="col-track-album" style="width: 18%;">專輯</th>
+                <th style="width: 120px;">格式規格</th>
+                <th style="width: 75px; text-align: right;">時長</th>
+              </tr>
+            </thead>
+            <tbody id="favTracksTbody">
+              <!-- Injected via JS -->
+            </tbody>
+          </table>
+        </div>
+        <div class="empty-hint" id="favTracksEmptyHint" style="display: none; padding: 48px; text-align: center;">
+          <div style="font-size: 36px; margin-bottom: 12px;">💖</div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛歌曲</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在播放列左側愛心按鈕或曲目清單點擊 ♡ 即可收藏。</div>
+        </div>
+      </section>
+
+      <!-- 9. FAVORITE ARTISTS VIEW -->
+      <section id="viewFavArtists" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">最愛演出者 Favorite Artists</h1>
+            <span class="page-subtitle" id="favArtistsHeaderCount">共 0 位最愛演出者</span>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btnPlayAllFavArtists">▶ 播放最愛演出者歌曲</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleFavArtists">🔀 隨機播放</button>
+          </div>
+        </div>
+        <div class="artist-grid" id="favArtistsGrid">
+          <!-- Injected via JS -->
+        </div>
+        <div class="empty-hint" id="favArtistsEmptyHint" style="display: none; padding: 48px; text-align: center;">
+          <div style="font-size: 36px; margin-bottom: 12px;">⭐</div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛演出者</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在演出者介紹頁面或演出者卡片上點擊 ⭐ 即可加入最愛演出者。</div>
+        </div>
+      </section>
+
+      <!-- 10. KKBOX STREAMING VIEW (Native rooPlayer Explorer) -->
+      <section id="viewKkbox" class="content-view">
+        <div class="kkbox-view-container">
+          <!-- KKBOX Top Navigation Toolbar -->
+          <div class="kkbox-header-bar">
+            <div class="kkbox-header-left">
+              <div class="kkbox-brand-badge">
+                <span class="kkbox-badge-dot"></span>
+                <span class="kkbox-badge-name">KKBOX</span>
+                <span class="kkbox-badge-tag">STREAMING EXPLORER</span>
+              </div>
+            </div>
+
+            <div class="kkbox-header-right">
+              <div class="kkbox-search-box">
+                <span class="kkbox-search-icon">🔍</span>
+                <input type="text" id="kkboxSearchInput" placeholder="在 KKBOX 百萬曲庫搜尋歌曲/歌手/專輯..." class="kkbox-search-input">
+                <button class="btn btn-sm btn-kkbox-search" id="btnKkboxSearch">搜尋</button>
+              </div>
+              <button class="btn btn-sm btn-kkbox-login" id="btnOpenKkboxLoginModal" title="KKBOX 帳號連線資訊">
+                🔑 KKBOX 帳號
+              </button>
+              <button class="btn btn-sm btn-kkbox-logout" id="btnKkboxLogout" style="display: none; background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.4); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; align-items: center; gap: 4px;" title="登出並清除已記住的 KKBOX 帳號">
+                🚪 登出
+              </button>
+            </div>
+          </div>
+
+          <!-- KKBOX Sub-Navigation Bar (獨立分頁導覽欄，比照 TIDAL 佈局) -->
+          <div class="kkbox-subnav-bar">
+            <div class="kkbox-subnav-tabs">
+              <button class="kkbox-subnav-tab kkbox-switch-btn active" id="btnKkboxTabCharts" title="瀏覽 KKBOX 即時熱門排行榜">
+                🏆 即時排行榜
+              </button>
+              <button class="kkbox-subnav-tab kkbox-switch-btn" id="btnKkboxTabFeatured" title="探索 KKBOX 官方精選推薦歌單">
+                ✨ 精選推薦
+              </button>
+              <button class="kkbox-subnav-tab kkbox-switch-btn" id="btnKkboxTabNewHits" title="發現 KKBOX 速爆最新發行歌曲">
+                🆕 新歌速爆
+              </button>
+            </div>
+          </div>
+
+          <!-- KKBOX Status Banner -->
+          <div class="kkbox-info-banner" id="kkboxInfoBanner">
+            <span class="banner-icon">ℹ️</span>
+            <span class="banner-text" id="kkboxBannerText">💡 KKBOX 線上曲庫模式：可一鍵點播排行榜、精選歌單與最新單曲，或匯入整張歌單至 rooPlayer 播放佇列，由原生播放核心與 DLNA 統一控制。</span>
+            <button class="banner-close-btn" id="btnCloseKkboxBanner">✕</button>
+          </div>
+
+          <!-- Main Sub-View: Master Lists -->
+          <div id="kkboxExplorerContainer">
+            <!-- Pane 1: Live Charts Explorer (Powered by KKBOX Open API) -->
+            <div class="kkbox-content-pane active" id="kkboxPaneCharts">
+              <div class="kkbox-api-view-inner">
+                <div class="kkbox-section-title-wrap">
+                  <div>
+                    <h2>🏆 KKBOX 即時排行榜</h2>
+                    <span class="kkbox-sub-desc">KKBOX 官方權威熱門榜單 • 支援整榜一鍵播放與匯入佇列</span>
+                  </div>
+                  <div class="kkbox-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshCharts">🔄 重新整理</button>
+                  </div>
+                </div>
+                <div class="kkbox-charts-category-bar" id="kkboxChartCategories">
+                  <!-- Category buttons injected by JS -->
+                </div>
+                <div class="kkbox-playlist-header-card" id="kkboxChartHeaderCard" style="display: none;">
+                  <!-- Dynamic Playlist Banner Header injected by JS -->
+                </div>
+                <div class="kkbox-track-list" id="kkboxChartTracksList">
+                  <div class="kkbox-loading-indicator">⏳ 正在載入 KKBOX 即時排行榜...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 2: Featured Playlists Explorer (Powered by KKBOX Open API) -->
+            <div class="kkbox-content-pane" id="kkboxPaneFeatured" style="display: none;">
+              <div class="kkbox-api-view-inner">
+                <div class="kkbox-section-title-wrap">
+                  <div>
+                    <h2>✨ KKBOX 官方精選歌單</h2>
+                    <span class="kkbox-sub-desc">官方主題選品、情境音樂與發燒曲風合輯</span>
+                  </div>
+                  <div class="kkbox-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshFeatured">🔄 重新整理</button>
+                  </div>
+                </div>
+                <div class="kkbox-playlists-grid" id="kkboxFeaturedGrid">
+                  <div class="kkbox-loading-indicator">⏳ 正在載入 KKBOX 精選歌單...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 3: New Hits Playlists Explorer (Powered by KKBOX Open API) -->
+            <div class="kkbox-content-pane" id="kkboxPaneNewHits" style="display: none;">
+              <div class="kkbox-api-view-inner">
+                <div class="kkbox-section-title-wrap">
+                  <div>
+                    <h2>🆕 KKBOX 新歌速爆</h2>
+                    <span class="kkbox-sub-desc">華語、西洋、日韓即時焦點速爆新歌，掌握第一手潮流發行</span>
+                  </div>
+                  <div class="kkbox-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshNewHits">🔄 重新整理</button>
+                  </div>
+                </div>
+                <div class="kkbox-playlists-grid" id="kkboxNewHitsGrid">
+                  <div class="kkbox-loading-indicator">⏳ 正在載入 KKBOX 新歌歌單...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 4: Search Results Explorer -->
+            <div class="kkbox-content-pane" id="kkboxPaneSearch" style="display: none;">
+              <div class="kkbox-api-view-inner">
+                <div class="kkbox-section-title-wrap">
+                  <div>
+                    <h2>🔍 KKBOX 線上搜尋結果</h2>
+                    <span class="kkbox-sub-desc" id="kkboxSearchSummary">搜尋中...</span>
+                  </div>
+                  <div class="kkbox-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnBackFromSearch">❮ 返回排行榜</button>
+                  </div>
+                </div>
+                <div class="kkbox-track-list" id="kkboxSearchTracksList">
+                  <!-- Search rows injected by JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secondary Sub-View: Playlist/Album Drill-down Detail View -->
+          <div id="kkboxDetailView" class="kkbox-detail-view" style="display: none;">
+            <div class="kkbox-detail-header">
+              <button class="btn btn-sm btn-secondary" id="btnKkboxBackToList" style="margin-bottom: 16px;">❮ 返回列表</button>
+              <div class="kkbox-detail-banner">
+                <img id="kkboxDetailCover" class="kkbox-detail-cover" src="" alt="Cover" onerror="this.src='default_cover.png'">
+                <div class="kkbox-detail-info">
+                  <span class="kkbox-detail-badge" id="kkboxDetailType">KKBOX PLAYLIST</span>
+                  <h1 class="kkbox-detail-title" id="kkboxDetailTitle">歌單名稱</h1>
+                  <p class="kkbox-detail-desc" id="kkboxDetailDesc">歌單描述與簡介</p>
+                  <div class="kkbox-detail-meta" id="kkboxDetailMeta">共 0 首歌曲</div>
+                  <div class="kkbox-detail-actions">
+                    <button class="btn btn-primary" id="btnKkboxPlayDetailAll">▶ 立即播放全部</button>
+                    <button class="btn btn-secondary" id="btnKkboxImportDetailToQueue">📥 匯入至播放佇列</button>
+                    <button class="btn btn-secondary" id="btnKkboxShuffleDetail">🔀 隨機播放</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="kkbox-detail-tracklist-wrap">
+              <div class="kkbox-track-list" id="kkboxDetailTracksList">
+                <!-- Tracks injected by JS -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 10.5 TIDAL HI-RES STREAMING VIEW (Native rooPlayer Explorer) -->
+      <section id="viewTidal" class="content-view">
+        <div class="tidal-view-container">
+          <!-- TIDAL Top Navigation Toolbar -->
+          <div class="tidal-header-bar">
+            <div class="tidal-header-left">
+              <div class="tidal-brand-badge">
+                <span class="tidal-badge-logo">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/>
+                  </svg>
+                </span>
+                <span class="tidal-badge-name">TIDAL</span>
+                <span class="tidal-badge-tag">HI-RES EXPLORER</span>
+              </div>
+            </div>
+
+            <div class="tidal-header-right">
+              <div class="tidal-search-box">
+                <span class="tidal-search-icon">🔍</span>
+                <input type="text" id="tidalSearchInput" placeholder="在 TIDAL Hi-Res 百萬曲庫搜尋歌曲/專輯/演出者..." class="tidal-search-input">
+                <button class="btn btn-sm btn-tidal-search" id="btnTidalSearch">搜尋</button>
+              </div>
+              <button class="btn btn-sm btn-tidal-account" id="btnOpenTidalAccount" title="TIDAL 帳號與連線資訊">
+                💎 TIDAL 帳號
+              </button>
+            </div>
+          </div>
+
+          <!-- TIDAL Sub-Navigation Bar (獨立分頁導覽欄，免除擠壓跳行) -->
+          <div class="tidal-subnav-bar">
+            <div class="tidal-subnav-tabs">
+              <button class="tidal-subnav-tab active" id="btnTidalTabFeatured" title="探索 TIDAL 官方推薦與發燒母帶">
+                💎 發燒推薦
+              </button>
+              <button class="tidal-subnav-tab" id="btnTidalTabNewReleases" title="最新發行 Hi-Res 專輯">
+                🆕 最新發行
+              </button>
+              <button class="tidal-subnav-tab" id="btnTidalTabOfficialPlaylists" title="TIDAL 官方主題與發燒評測播放清單">
+                📑 官方歌單
+              </button>
+              <button class="tidal-subnav-tab" id="btnTidalTabCollection" title="瀏覽我的 TIDAL 雲端最愛收藏">
+                ❤️ 我的收藏
+              </button>
+            </div>
+            <div class="cover-size-control tidal-cover-size-control" id="tidalCoverSizeControl">
+              <span class="size-control-label">封面尺寸：</span>
+              <div class="pill-group size-pill-group" id="tidalCoverSizePills">
+                <button class="pill size-pill" data-tidal-cover-size="small" title="小尺寸封面">小</button>
+                <button class="pill size-pill active" data-tidal-cover-size="medium" title="中尺寸封面 (預設)">中</button>
+                <button class="pill size-pill" data-tidal-cover-size="large" title="大尺寸封面">大</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TIDAL Status Banner -->
+          <div class="tidal-info-banner" id="tidalInfoBanner">
+            <span class="banner-icon">💎</span>
+            <span class="banner-text" id="tidalBannerText">💡 TIDAL 發燒無損曲庫：支援 24-bit/192kHz Hi-Res MAX、Native DSP 即時倍頻與 1-bit DSD 調變，可一鍵點播整張專輯或無縫加入本機曲庫。</span>
+            <button class="banner-close-btn" id="btnCloseTidalBanner">✕</button>
+          </div>
+
+          <!-- Logged Out Welcome View (If TIDAL not yet connected) -->
+          <div id="tidalNotConnectedBanner" class="tidal-not-connected-banner" style="display: none;">
+            <div class="not-connected-icon">💎</div>
+            <h2>尚未連線至 TIDAL 發燒雲端曲庫</h2>
+            <p>登入您的 TIDAL 帳號，即可以 rooPlayer 原生音訊引擎直接串流 24-bit Hi-Res MAX 母帶音質，並無縫整合本機與線上曲庫。</p>
+            <button class="btn btn-primary" id="btnTidalConnectNow">立即登入 TIDAL</button>
+          </div>
+
+          <!-- Main Sub-View Container -->
+          <div id="tidalExplorerContainer">
+            <!-- Pane 1: Featured & Hi-Res Picks -->
+            <div class="tidal-content-pane active" id="tidalPaneFeatured">
+              <div class="tidal-api-view-inner">
+                <div class="tidal-section-title-wrap">
+                  <div>
+                    <h2>💎 發燒推薦與精選母帶 (Hi-Res Masters)</h2>
+                    <span class="tidal-sub-desc">TIDAL 官方精選 Hi-Res 24-bit 高解析錄音室母帶 • 支援整張一鍵播放與加入曲庫</span>
+                  </div>
+                  <div class="tidal-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshTidalFeatured">🔄 重新整理</button>
+                  </div>
+                </div>
+                <!-- Curated genre/mood filter chips -->
+                <div class="tidal-filter-chips-bar" id="tidalFeaturedFilterChips">
+                  <button class="tidal-chip-btn active" data-curated="audiophile">發燒名盤</button>
+                  <button class="tidal-chip-btn" data-curated="vocal">發燒女聲</button>
+                  <button class="tidal-chip-btn" data-curated="classical">古典交響</button>
+                  <button class="tidal-chip-btn" data-curated="jazz">經典爵士</button>
+                  <button class="tidal-chip-btn" data-curated="pop">西洋潮流</button>
+                </div>
+                <div class="album-grid" id="tidalFeaturedGrid">
+                  <div class="tidal-loading-indicator">⏳ 正在載入 TIDAL 發燒推薦專輯...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 2: New Releases -->
+            <div class="tidal-content-pane" id="tidalPaneNewReleases" style="display: none;">
+              <div class="tidal-api-view-inner">
+                <div class="tidal-section-title-wrap">
+                  <div>
+                    <h2>🆕 最新發行專輯 (New Releases)</h2>
+                    <span class="tidal-sub-desc">全球官方同步首發無損母帶專輯與新單曲</span>
+                  </div>
+                  <div class="tidal-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshTidalNewReleases">🔄 重新整理</button>
+                  </div>
+                </div>
+                <div class="album-grid" id="tidalNewReleasesGrid">
+                  <div class="tidal-loading-indicator">⏳ 正在載入 TIDAL 最新發行專輯...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 2.5: Official Curated Playlists -->
+            <div class="tidal-content-pane" id="tidalPaneOfficialPlaylists" style="display: none;">
+              <div class="tidal-api-view-inner">
+                <div class="tidal-section-title-wrap">
+                  <div>
+                    <h2>📑 TIDAL 官方精選歌單 (Official Curated Playlists)</h2>
+                    <span class="tidal-sub-desc">TIDAL 官方精心編選之發燒評測、高動態母帶與主題歌單 • 支援一鍵整張點播與匯入佇列</span>
+                  </div>
+                  <div class="tidal-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshTidalOfficialPlaylists">🔄 重新整理</button>
+                  </div>
+                </div>
+                <!-- Curated playlist filter chips -->
+                <div class="tidal-filter-chips-bar" id="tidalOfficialPlaylistChips">
+                  <button class="tidal-chip-btn active" data-playlist-cat="audiophile">發燒音響 Hi-Res</button>
+                  <button class="tidal-chip-btn" data-playlist-cat="masters">官方母帶 Masters</button>
+                  <button class="tidal-chip-btn" data-playlist-cat="vocal">發燒人聲女聲</button>
+                  <button class="tidal-chip-btn" data-playlist-cat="jazz">藍調爵士名演</button>
+                  <button class="tidal-chip-btn" data-playlist-cat="classical">古典交響名盤</button>
+                  <button class="tidal-chip-btn" data-playlist-cat="relax">放鬆輕音樂 Chill</button>
+                  <button class="tidal-chip-btn" data-playlist-cat="top">全球熱播榜單</button>
+                </div>
+                <div class="album-grid" id="tidalOfficialPlaylistsGrid">
+                  <div class="tidal-loading-indicator">⏳ 正在載入 TIDAL 官方歌單...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 3: My Collection -->
+            <div class="tidal-content-pane" id="tidalPaneCollection" style="display: none;">
+              <div class="tidal-api-view-inner">
+                <div class="tidal-section-title-wrap">
+                  <div>
+                    <h2>❤️ 我的 TIDAL 雲端收藏</h2>
+                    <span class="tidal-sub-desc" id="tidalCollectionSubDesc">已同步您的 TIDAL 帳號收藏清單</span>
+                  </div>
+                  <div class="tidal-collection-switchers">
+                    <button class="btn-sub-tab active" id="btnTidalSubFavAlbums">💿 最愛專輯 (<span id="tidalFavAlbumsCountBadge">0</span>)</button>
+                    <button class="btn-sub-tab" id="btnTidalSubFavTracks">🎵 最愛歌曲 (<span id="tidalFavTracksCountBadge">0</span>)</button>
+                    <button class="btn-sub-tab" id="btnTidalSubPlaylists">📑 我的歌單 (<span id="tidalPlaylistsCountBadge">0</span>)</button>
+                    <button class="btn btn-sm btn-secondary" id="btnRefreshTidalCollection" style="margin-left: 8px;">🔄 重新整理</button>
+                  </div>
+                </div>
+
+                <!-- Sub-pane 3-1: Fav Albums Grid -->
+                <div id="tidalSubViewFavAlbums">
+                  <div class="album-grid" id="tidalFavAlbumsGrid">
+                    <div class="tidal-loading-indicator">⏳ 正在載入您的 TIDAL 最愛專輯...</div>
+                  </div>
+                </div>
+
+                <!-- Sub-pane 3-2: Fav Tracks Table -->
+                <div id="tidalSubViewFavTracks" style="display: none;">
+                  <div class="tidal-tracklist-toolbar">
+                    <button class="btn btn-primary btn-sm" id="btnPlayAllTidalFavTracks">▶ 播放全部最愛歌曲</button>
+                    <button class="btn btn-secondary btn-sm" id="btnImportTidalFavTracksToQueue">📥 匯入至播放佇列</button>
+                  </div>
+                  <div class="tracklist-table-container">
+                    <table class="tracklist-table" id="tidalFavTracksTable">
+                      <thead>
+                        <tr>
+                          <th style="width: 45px;">#</th>
+                          <th style="width: 38px;"></th>
+                          <th style="width: 44%;">曲目名稱</th>
+                          <th style="width: 18%;">演出者</th>
+                          <th style="width: 20%;">專輯</th>
+                          <th style="width: 100px;">音訊規格</th>
+                          <th style="width: 70px; text-align: right;">時長</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tidalFavTracksTbody">
+                        <!-- Injected via JS -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Sub-pane 3-3: Playlists Grid -->
+                <div id="tidalSubViewPlaylists" style="display: none;">
+                  <div class="album-grid" id="tidalPlaylistsGrid">
+                    <!-- Injected via JS -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pane 4: In-View Search Results -->
+            <div class="tidal-content-pane" id="tidalPaneSearch" style="display: none;">
+              <div class="tidal-api-view-inner">
+                <div class="tidal-section-title-wrap">
+                  <div>
+                    <h2>🔍 TIDAL 線上搜尋結果</h2>
+                    <span class="tidal-sub-desc" id="tidalSearchSummary">搜尋中...</span>
+                  </div>
+                  <div class="tidal-pane-actions">
+                    <button class="btn btn-sm btn-secondary" id="btnTidalBackFromSearch">❮ 返回發燒推薦</button>
+                  </div>
+                </div>
+
+                <div class="tidal-search-section">
+                  <h3 class="tidal-search-group-title">💿 相符專輯 Albums</h3>
+                  <div class="album-grid" id="tidalSearchAlbumsGrid">
+                    <!-- Injected via JS -->
+                  </div>
+                </div>
+
+                <div class="tidal-search-section" style="margin-top: 24px;">
+                  <h3 class="tidal-search-group-title">🎵 相符曲目 Tracks</h3>
+                  <div class="tidal-track-list" id="tidalSearchTracksList">
+                    <!-- Injected via JS -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secondary Sub-View: Playlist Drill-down Detail View -->
+          <div id="tidalPlaylistDetailView" class="tidal-detail-view" style="display: none;">
+            <div class="tidal-detail-header">
+              <button class="btn btn-sm btn-secondary" id="btnTidalPlaylistBackToList" style="margin-bottom: 16px;">❮ 返回列表</button>
+              <div class="tidal-detail-banner">
+                <img id="tidalPlaylistDetailCover" class="tidal-detail-cover" src="" alt="Cover" onerror="this.src='default_cover.png'">
+                <div class="tidal-detail-info">
+                  <span class="tidal-detail-badge" id="tidalPlaylistDetailType">TIDAL PLAYLIST</span>
+                  <h1 class="tidal-detail-title" id="tidalPlaylistDetailTitle">歌單名稱</h1>
+                  <p class="tidal-detail-desc" id="tidalPlaylistDetailDesc">歌單描述與簡介</p>
+                  <div class="tidal-detail-meta" id="tidalPlaylistDetailMeta">共 0 首歌曲</div>
+                  <div class="tidal-detail-actions">
+                    <button class="btn btn-primary" id="btnTidalPlayPlaylistAll">▶ 立即播放全部</button>
+                    <button class="btn btn-secondary" id="btnTidalImportPlaylistToQueue">📥 匯入至播放佇列</button>
+                    <button class="btn btn-secondary" id="btnTidalShufflePlaylist">🔀 隨機播放</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tidal-detail-tracklist-wrap">
+              <div class="tidal-track-list" id="tidalPlaylistTracksList">
+                <!-- Tracks injected by JS -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 11. ABOUT & USER MANUAL VIEW -->
+      <section id="viewAbout" class="content-view">
+        <div class="view-header">
+          <div>
+            <h1 class="page-title">軟體說明與操作手冊</h1>
+            <p class="page-subtitle">版本資訊、功能架構、授權條款、免責聲明與詳細選單使用指引。</p>
+          </div>
+        </div>
+
+        <div class="about-container">
+          <!-- 1. App Header Info Card -->
+          <div class="about-card app-info-hero">
+            <div class="app-info-left">
+              <img src="icon.png" alt="rooPlayer Logo" class="about-app-logo">
+              <div class="app-info-titles">
+                <div class="app-title-row">
+                  <h2>rooPlayer</h2>
+                  <span class="version-tag">v0.8.4 (Build 2026.10)</span>
+                  <span class="engine-tag">Core • Local Audiophile</span>
+                </div>
+                <p class="app-tagline">次世代發燒級數位音訊媒體庫與極致無損串流核心播放器</p>
+                <div class="app-meta-badges">
+                  <span class="meta-badge">64-bit Floating Engine</span>
+                  <span class="meta-badge">Native Polyphase FIR</span>
+                  <span class="meta-badge">1-bit DSD SDM Modulator</span>
+                  <span class="meta-badge">Parametric EQ • Convolution IR</span>
+                  <span class="meta-badge">DLNA / UPnP Bit-Perfect</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Navigation Tabs / Index -->
+          <div class="about-quick-nav">
+            <a href="#aboutSectionManual" class="about-nav-link">📖 各選單操作手冊</a>
+            <a href="#aboutSectionFilterReport" class="about-nav-link">🔬 濾波器音質評測報告</a>
+            <a href="#aboutSectionLicense" class="about-nav-link">📜 使用授權範圍</a>
+            <a href="#aboutSectionDisclaimer" class="about-nav-link">⚖️ 免責聲明</a>
+            <a href="#aboutSectionTech" class="about-nav-link">⚙️ 核心音訊規格</a>
+          </div>
+
+          <!-- 2. Detailed Menu User Manual -->
+          <div id="aboutSectionManual" class="about-card">
+            <div class="about-card-title" data-i18n-html="about.manual.title">
+              <span class="title-icon">📖</span>
+              <h3>各選單功能與操作手冊</h3>
+            </div>
+            <p class="section-intro-text" data-i18n-html="about.manual.intro">
+              rooPlayer 採用直覺的模組化架構，將本地無損音樂收藏與先進 DSP 升頻、參數化等化、卷積濾波與網路串流設備深度融合。以下為各選單的詳細操作說明：
+            </p>
+
+            <p class="section-intro-text" data-i18n-html="about.manual.langnote">
+              <strong>介面語言</strong>：右上角「深色/淺色」按鈕右方的 <strong>🌐 語言選擇</strong>，可切換「繁體中文 / English」；選單、按鈕、表格欄頭、滑鼠提示、提示訊息與確認對話框，以及本說明頁全部跟著切換。首次使用時預設語言依系統語言與時區判斷：<strong>只有台灣、中國、香港預設繁體中文，其他地區預設 English</strong>；一旦您手動選擇過，之後一律沿用您選過的語言。曲目名稱、演出者名稱、檔案路徑與自訂濾波器名稱屬資料，一律保持原文。
+            </p>
+
+            <div class="manual-modules-grid">
+              <!-- Module 1: 我的音樂庫 -->
+              <div class="manual-item" data-i18n-html="about.manual.m1">
+                <div class="manual-item-header">
+                  <span class="item-badge">總覽</span>
+                  <h4>首頁總覽 (Overview)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>音樂殿堂的儀表板。集中呈現目前音樂庫的<strong>專輯總數、曲目數量與 Hi-Res 高解析無損音樂統計</strong>，深度整合本機與線上串流：</p>
+                  <ul>
+                    <li><strong>🕒 最近聆聽 (Recent Played)</strong>：自動列出最近聽過的 5 張專輯與完整播放紀錄。</li>
+                    <li><strong>🆕 最近新增專輯</strong>：自動同步本機最新匯入與已加入曲庫之 TIDAL 線上專輯。</li>
+                    <li><strong>🌟 每日推薦 (Daily Picks)</strong>：依聆聽紀錄自動精選 5 張發燒代表作，每日自動更新。</li>
+                    <li><strong>📖 藝人生活誌 (Artist Spotlight)</strong>：隨機探索音樂大師生平歷程、代表作與關聯發燒名盤。</li>
+                    <li><strong>🎤 探索演出者 (Artists)</strong>：曲庫演出者卡片隨機抽样，一鍵進入演出者主頁與其專輯。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 2: 專輯與演出者 -->
+              <div class="manual-item" data-i18n-html="about.manual.m2">
+                <div class="manual-item-header">
+                  <span class="item-badge">曲庫瀏覽</span>
+                  <h4>專輯、演出者與曲目清單 (Albums / Artists / Tracks)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>提供多維度的音樂分類瀏覽與高度自訂視覺配置：</p>
+                  <ul>
+                    <li><strong>依新增順序排列 (預設)</strong>：專輯庫預設以最新新增時間排序，亦支援依專輯名稱 A-Z、演出者 A-Z、發行年份、曲目數與播放次數排列。</li>
+                    <li><strong>封面尺寸切換 (小 / 中 / 大)</strong>：專輯庫、演出者頭像、<strong>曲風流派</strong>與 TIDAL 探索頁的標題列皆提供尺寸切換，自由切換密集緊湊或大器發燒卡片檢視，各頁面獨立記憶個人偏好。</li>
+                    <li><strong>極簡沉浸式元資料</strong>：專輯詳情頁於封面右側俐落標示演出者、發行廠牌、發行年份、曲目總數與總時長，免除雜亂底色與框線干擾。</li>
+                    <li><strong>AI/關聯推薦擴展</strong>：同曲風推薦專輯與關聯演出者自動擴展涵蓋 TIDAL 線上發燒名盤（登入時）。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 3: 我的最愛 -->
+              <div class="manual-item" data-i18n-html="about.manual.m3">
+                <div class="manual-item-header">
+                  <span class="item-badge">收藏管理</span>
+                  <h4>我的最愛 (Favorites: 專輯 / 歌曲 / 演出者)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>專屬個人發燒精選庫：</p>
+                  <ul>
+                    <li>在任何專輯卡片、曲目列或演出者頁面點擊<strong>愛心圖示 (♡)</strong> 即可加入我的最愛。</li>
+                    <li>在最愛頁面中支援「播放全部最愛」與「隨機播放最愛」快捷控制。</li>
+                    <li>最愛清單支援隨時備份匯出與智慧無損去重合併匯入。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 3B: 播放清單 Playlists -->
+              <div class="manual-item" data-i18n-html="about.manual.m4">
+                <div class="manual-item-header">
+                  <span class="item-badge" style="background: rgba(139, 92, 246, 0.16); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.35);">播放清單</span>
+                  <h4>播放清單 (Playlists: 儲存 / 匯入 / 編輯 / 刪除)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>在左側選單「播放紀錄」下方的<strong>播放清單</strong>頁面，自行建立與管理曲目順序：</p>
+                  <ul>
+                    <li><strong>💾 儲存</strong>：播放隊列上方按「儲存清單」，即可把目前隊列的所有歌曲<strong>依序</strong>存成一個命名清單；也可在清單頁按「新增清單」建立空白清單，或按「加入目前隊列」把佇列附加到既有清單。</li>
+                    <li><strong>📥 匯入 / 匯出</strong>：支援匯入 <code>.m3u</code> / <code>.m3u8</code> / <code>.json</code> 清單檔（不在曲庫中的路徑也會保留檔案路徑，演出者與曲目名稱自動分離還原）；清單也可匯出成 M3U8 給其他播放器，或匯出 JSON 完整備份後再匯入。</li>
+                    <li><strong>✏️ 編輯</strong>：清單明細每一首都提供<strong>上移 ↑ / 下移 ↓ / 刪除單曲 ✕</strong>，播放順序即依你排好的順序；支援重新命名，同名清單不會重複建立。</li>
+                    <li><strong>🗑️ 刪除</strong>：可刪除整個清單（只移除清單本身，歌曲仍保留在音樂庫）。</li>
+                    <li><strong>▶ 依序播放 / 🔀 隨機播放</strong>：清單內容直接載入播放隊列，本機、獨佔輸出與 DLNA 串流皆適用。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 4: TIDAL Hi-Res 串流探索中心 -->
+              <div class="manual-item" data-i18n-html="about.manual.m5">
+                <div class="manual-item-header">
+                  <span class="item-badge" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3);">Hi-Res 串流</span>
+                  <h4>TIDAL 串流探索中心 (TIDAL Hi-Res Explorer)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>原生整合 TIDAL 百萬母帶級 Hi-Res MAX 無損串流曲庫：</p>
+                  <ul>
+                    <li><strong>💎 發燒推薦 (Hi-Res Masters)</strong>：分類晶片一鍵篩選發燒名盤、發燒女聲、古典交響、經典爵士與西洋潮流。</li>
+                    <li><strong>🆕 最新發行</strong>：全球同步即時首發高動態無損母帶專輯。</li>
+                    <li><strong>📑 官方主題歌單</strong>：精選發燒音響評測、高動態測試與情境放鬆主題合輯。</li>
+                    <li><strong>❤️ 我的雲端收藏</strong>：無縫連線個人 TIDAL 帳號，同步最愛專輯、歌曲與雲端自建歌單。</li>
+                    <li><strong>🖼️ 專屬封面尺寸 (小 / 中 / 大)</strong>：次級導航列內建封面縮放切換按鈕，隨心調整檢視網格。</li>
+                    <li><strong>一鍵整張點播與加入曲庫</strong>：支援整張專輯一鍵播放、匯入佇列，並可無縫將 TIDAL 專輯加入本機曲庫共同管理。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 5: KKBOX 線上串流 -->
+              <div class="manual-item" data-i18n-html="about.manual.m6">
+                <div class="manual-item-header">
+                  <span class="item-badge" style="background: rgba(37, 213, 255, 0.15); color: #25d5ff; border: 1px solid rgba(37, 213, 255, 0.3);">線上串流</span>
+                  <h4>KKBOX 串流中心 (KKBOX Streaming)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>比照發燒架構全新重構之 KKBOX 串流介面，接軌華語及全球流行曲庫：</p>
+                  <ul>
+                    <li><strong>🏆 官方即時排行榜</strong>：獨立次級分頁導覽，即時探索華語、西洋、日韓、嘻哈、搖滾、爵士與古典等多語系榜單。</li>
+                    <li><strong>✨ 精選推薦與 🆕 新歌速爆</strong>：掌握官方主題選品、情境音樂合輯與即時潮流新發行。</li>
+                    <li><strong>整榜播放與匯入佇列</strong>：支援動態封面資訊橫幅、整榜一鍵播放與匯入 rooPlayer 播放隊列。</li>
+                    <li><strong>線上即時檢索</strong>：支援在 KKBOX 百萬曲庫中即時搜尋歌曲、演出者與專輯。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 6: 本機資料夾管理與資料庫匯入匯出 -->
+              <div class="manual-item" data-i18n-html="about.manual.m7">
+                <div class="manual-item-header">
+                  <span class="item-badge">儲存與維護</span>
+                  <h4>本機資料夾管理與資料庫維護 (Storage)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>管理本機音樂檔案目錄與資料庫備份：</p>
+                  <ul>
+                    <li><strong>掃描本機資料夾</strong>：選取存放無損音訊的硬碟資料夾，引擎將自動批次高速分析 ID3 / FLAC / DSF 元資料與封面圖。</li>
+                    <li><strong>💾 匯出資料庫</strong>：將所有已收錄音樂資料夾、曲目母帶元資料、我的最愛收藏及播放次數統計完整匯出為標準 JSON 備份檔。</li>
+                    <li><strong>📥 匯入資料庫</strong>：匯入備份資料並執行智慧去重合併。已存在的資料夾與重複曲目將自動略過，並彈出<strong>詳細略過報告</strong>。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 7: 訊號路徑與 DSP 升頻引擎 -->
+              <div class="manual-item" data-i18n-html="about.manual.m8">
+                <div class="manual-item-header">
+                  <span class="item-badge">核心發燒功能</span>
+                  <h4>音訊路徑與升頻引擎 (Signal Path & DSP Engine)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>點擊播放控制器上方的發燒星芒徽章 ⚡ 即可喚起訊號路徑視窗：</p>
+                  <ul>
+                    <li><strong>左欄（即時音訊路徑）</strong>：即時追蹤從「原始母帶音源 ➔ 升頻引擎 ➔ 參數化等化 ➔ 卷積濾波 ➔ DLNA / 本機端點」的各處理節點狀態；作用中的等化器與卷積節點會即時顯示於路徑圖的實際套用位置。</li>
+                    <li><strong>右欄（升頻引擎設定）</strong>：
+                      <br>• <strong>PCM 升頻</strong>：支援 2x、4x 整數倍頻（推薦相位最純淨）、固定 96k / 192k / 384k DXD 超取樣。
+                      <br>• <strong>八種濾波器相位</strong>：純真還原 FIR（Bit-Perfect 極平坦，通帶 0~21.5kHz 漣波 &lt; 0.0001dB）、線性相位、最小相位、緩衰減混和、高斯長脈衝、高斯最小相位、EXT2 近似，以及 PS-EXT2 直譯 FIR（陡峭滾降、止帶達 -180 dB）。
+                      <br>• <strong>1-bit DSD 調變</strong>：內建 2 / 5 / 7 階諧振噪聲整形 Delta-Sigma 調變器，支援即時轉制為 DSD64 (2.8MHz)、DSD128 (5.6MHz)、DSD256 (11.2MHz) 或 DSD512 (22.5MHz)。
+                    </li>
+                    <li><strong>參數化等化器 (PEQ)</strong>：獨立於升頻引擎的音色調整，引擎開或關皆可作用（引擎關閉時於原生採樣率處理，不做多餘升頻）。最多 6 段全參數化頻段（低架 / 峰值 / 高架 / 低通 / 高通 / 陷波），內建平直、溫暖厚實、明亮通透、人聲突出、低頻飽和五種音色預設，並支援<strong>6 組自訂命名儲存槽</strong>一鍵存取個人調校；自動預降保護電路確保任何增益組合都不削頂，頻段設定即時套用到播放中的曲目。</li>
+                    <li><strong>卷積濾波器 (IR 脈衝響應)</strong>：載入脈衝響應 WAV 檔案做高精度卷積處理，適用房間校正 FIR、喇叭與耳機校正等應用。採用分割式頻域卷積技術，長脈衝響應也能即時運算；IR 自動重採樣至播放取樣率、單聲道 IR 自動套用左右聲道、響應峰值過高時自動衰減防削頂。處理於參數化等化之後；DSD 來源自動經 24-bit 88.2kHz 降頻路徑套用。</li>
+                    <li><strong>漸進式平行轉換引擎</strong>：長曲由最多 8 個平行工作核心同步調變並自動節流穩定 CPU 用量；轉換結果以串流方式邊轉邊推送至端點設備，<strong>無需等待整曲轉換完成即可立即開始播放</strong>。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 8: DLNA / UPnP 區域網路串流 -->
+              <div class="manual-item" data-i18n-html="about.manual.m9">
+                <div class="manual-item-header">
+                  <span class="item-badge">串流端點</span>
+                  <h4>音訊輸出裝置與網路串流 (Audio Zones / DLNA / UPnP)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>無縫推播至客廳串流播放機、擴大機或網路 DAC：</p>
+                  <ul>
+                    <li>點擊播放控制器右側的<strong>「輸出裝置按鈕 (🔊/📡)」</strong>，系統將透過 SSDP 自動搜尋區網內的 UPnP/DLNA 渲染器（如 Eversolo、WiIM、Linn 等）。</li>
+                    <li>支援<strong>直接輸入 IP 探測</strong>，若路由器封鎖 UDP 廣播亦可快速手動連線。</li>
+                    <li>支援原生 DSF 直通、PCM 升頻 24-bit PCM 串流與 PCM ➔ 1-bit DSD 比特流即時推送，DAC 自動鎖定 DSD 時脈。</li>
+                    <li>參數化等化器與卷積濾波同樣適用於網路串流：套用時 PCM 以 24-bit 串流推送、DSD 來源自動降採樣至 24-bit 88.2kHz 處理後推送（引擎 DSD 調變模式下 DSF 直通優先）。</li>
+                    <li>串流採<strong>漸進式生成與 HTTP Range / 反壓流量控制</strong>：即使轉換速度慢於實時，端點設備也不會卡頓或中斷。</li>
+                    <li>切換曲目或結束程式時，端點設備會<strong>立即停止並清空剩餘緩衝音訊</strong>。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 9: 全域即時搜尋 -->
+              <div class="manual-item" data-i18n-html="about.manual.m10">
+                <div class="manual-item-header">
+                  <span class="item-badge">智慧檢索</span>
+                  <h4>全域即時搜尋 (Global Audiophile Search)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>頂部搜尋列支援毫秒級跨庫全域檢索：</p>
+                  <ul>
+                    <li><strong>跨庫聯合檢索</strong>：同時搜尋本機資料庫與線上串流（TIDAL Hi-Res / KKBOX）百萬曲庫。</li>
+                    <li><strong>分類分頁篩選</strong>：支援切換「全部結果」、「本機端專輯」與「線上串流」標籤快速聚焦。</li>
+                    <li><strong>智能高亮提示</strong>：關鍵字即時比對演出者、專輯標題、作曲家與發燒格式。</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Module 10: 底欄播放控制與動態全螢幕 -->
+              <div class="manual-item" data-i18n-html="about.manual.m11">
+                <div class="manual-item-header">
+                  <span class="item-badge">播放體驗</span>
+                  <h4>發燒底欄控制器與動態全螢幕 (Player Controls & Modal)</h4>
+                </div>
+                <div class="manual-item-body">
+                  <p>專業級沉浸式底部播放控制列：</p>
+                  <ul>
+                    <li><strong>原生圖示安全預設</strong>：底欄專輯封面未播放時預設呈現 rooPlayer 標誌，徹底避免破圖與檔案遺失現象。</li>
+                    <li><strong>全螢幕詳情、即時頻譜與動態歌詞</strong>：點擊底欄左側專輯封面即可喚起全螢幕視窗，支援大尺寸封面、進度條上方的<strong>即時頻譜視覺化</strong>（由升頻引擎的來源音訊直接驅動）、即時動態滾動歌詞與右側播放清單互動。</li>
+                    <li><strong>精確控制與循環模式</strong>：支援隨機播放、單曲循環、全曲循環與關閉，並即時回饋高解析音訊規格徽章（如 LOSSLESS 24/96 FLAC）。</li>
+                    <li><strong>啟動智慧還原</strong>：開啟程式時播放列自動還原上一次播放的最後一首歌曲，一鍵即可繼續聆聽。</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. License Terms -->
+          <div id="aboutSectionLicense" class="about-card">
+            <div class="about-card-title" data-i18n-html="about.license.title">
+              <span class="title-icon">📜</span>
+              <h3>使用授權範圍 (License & Scope of Use)</h3>
+            </div>
+            <div class="legal-content">
+              <div class="legal-block" data-i18n-html="about.license.b1">
+                <h4>1. 個人與非商業使用授權</h4>
+                <p>
+                  rooPlayer 遵循 MIT 授權條款精神開發，供個人愛樂者、發燒音響玩家於個人電腦或家用網路環境中進行非商業性質之音訊播放、母帶數位檔案管理與數位訊號處理（DSP）。
+                </p>
+              </div>
+              <div class="legal-block" data-i18n-html="about.license.b2">
+                <h4>2. 第三方元件與開放原始碼宣告</h4>
+                <p>本軟體整合了業界先進的開放原始碼專案與數位訊號處理演算法，相關智財權歸屬其原作者所有：</p>
+                <ul>
+                  <li><strong>Electron Framework</strong>：跨平台視窗執行環境 (Chromium / Node.js)。</li>
+                  <li><strong>@wasm-audio-decoders/flac</strong>：WebAssembly 高效能純本地 FLAC 無損解碼核心。</li>
+                  <li><strong>music-metadata</strong>：純 JavaScript 音訊標頭格式剖析與母帶元資料讀取引擎。</li>
+                  <li><strong>rooPlayer Native DSP Kernel</strong>：自研 64-bit 浮點多相 FIR 升頻濾波器、參數化等化器 biquad 鏈、分割式頻域卷積引擎與高階 1-bit Delta-Sigma 調變器，全數由本程式自行實作，不使用外部 DSP 函式庫。</li>
+                </ul>
+              </div>
+              <div class="legal-block" data-i18n-html="about.license.b3">
+                <h4>3. 串流平台 API 授權遵循</h4>
+                <p>
+                  本軟體之線上曲庫功能係透過 KKBOX Open API 開放平台公開介面界接。所有曲目權利、封面圖片及 30 秒音樂試聽片段版權均屬 KKBOX 及各合作唱片公司所有。本程式嚴格遵守其條款，不對 Widevine DRM 加密之付費音訊進行破解或未授權側錄。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Disclaimer -->
+          <div id="aboutSectionDisclaimer" class="about-card">
+            <div class="about-card-title" data-i18n-html="about.disclaimer.title">
+              <span class="title-icon">⚖️</span>
+              <h3>免責聲明 (Disclaimer)</h3>
+            </div>
+            <div class="legal-content">
+              <div class="legal-block" data-i18n-html="about.disclaimer.b1">
+                <h4>1. 音訊硬體輸出與音量防護</h4>
+                <p>
+                  本軟體提供發燒級 DSP 升頻超取樣、1-bit DSD 調變以及 DLNA/UPnP 網路端點推送功能。由於高取樣率（如 384 kHz、DSD256、DSD512）會產生極寬頻率響應與高頻能量，使用者在切換升頻模式或更換 DAC 解碼裝置前，<strong>請務必先將音響擴大機或前級音量調至適當大小</strong>，以避免因硬體設備相容性或突波造成揚聲器、耳機或聽力損傷。開發團隊不對因音響器材操作不當所致之硬體損壞承擔責任。
+                </p>
+              </div>
+              <div class="legal-block" data-i18n-html="about.disclaimer.b2">
+                <h4>2. 本機音訊檔案安全性</h4>
+                <p>
+                  rooPlayer 在執行音樂庫掃描、資料庫匯入/匯出及播放時，皆以<strong>唯讀 (Read-Only)</strong> 方式讀取您的原始無損音訊檔案。從資料庫移除資料夾僅刪除軟體內部的索引快取，不會刪除您實體硬碟中的任何音訊檔案。然而，使用者仍應對重要音樂母帶檔案建立常規備份。
+                </p>
+              </div>
+              <div class="legal-block" data-i18n-html="about.disclaimer.b3">
+                <h4>3. 軟體現況提供 (AS-IS)</h4>
+                <p>
+                  本軟體依「現況」(AS-IS) 提供，不附帶任何明示或暗示之擔保，包括但不限於特定目的之適用性、不中斷性或無錯誤運作。在適用法律允許的最大範圍內，開發者均不對因使用或無法使用本軟體所產生之任何直接、間接或衍生性損害負責。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Technical Specifications -->
+          <div id="aboutSectionTech" class="about-card">
+            <div class="about-card-title" data-i18n-html="about.tech.title">
+              <span class="title-icon">⚙️</span>
+              <h3>核心技術與發燒音訊規格 (Audiophile Specifications)</h3>
+            </div>
+            <div class="tech-spec-grid">
+              <div class="spec-row" data-i18n-html="about.tech.s1">
+                <span class="spec-label">支援音訊格式</span>
+                <span class="spec-value">FLAC (24/192), WAV (32-bit Float), AIFF, DSF (DSD64/128/256/512), DFF, MP3, M4A, AAC, OGG</span>
+              </div>
+              <div class="spec-row" data-i18n-html="about.tech.s2">
+                <span class="spec-label">PCM 升頻引擎</span>
+                <span class="spec-value">自研 64-bit 浮點 Native DSP Kernel：高階 Hermite 插值與八種濾波器相位（純真還原 FIR、線性 / 最小 / 緩衰減混和、高斯窗長脈衝、高斯最小相位、EXT2 近似、PS-EXT2 直譯 FIR，止帶最深 -180 dB）；多相預計算加速架構；支援 2x / 4x 整數倍頻、96k、192k、384k DXD</span>
+              </div>
+              <div class="spec-row" data-i18n-html="about.tech.s3">
+                <span class="spec-label">DSD 調變器</span>
+                <span class="spec-value">2 / 5 / 7 階諧振噪聲整形 1-bit Delta-Sigma Modulator (2.8224 MHz ~ 22.5792 MHz，標準 Sony DSF 封裝、規格正確 MSB-first 位元順序)；最多 8 工作核心平行調變，段與段之間以真實暖機音訊無縫接續</span>
+              </div>
+              <div class="spec-row" data-i18n-html="about.tech.s4">
+                <span class="spec-label">參數化等化器 (PEQ)</span>
+                <span class="spec-value">6 段全參數化 biquad（低架 / 峰值 / 高架 / 低通 / 高通 / 陷波，20 Hz ~ 20 kHz）；5 種音色預設與 6 組自訂命名儲存槽；自動預降防削頂保護；獨立於升頻引擎作用，引擎關閉時於原生採樣率處理</span>
+              </div>
+              <div class="spec-row" data-i18n-html="about.tech.s5">
+                <span class="spec-label">卷積濾波器 (IR)</span>
+                <span class="spec-value">分割式頻域卷積（FFT 4096 / 區塊 2048，支援脈衝響應長度達 262,144  taps）；IR WAV 自動重採樣至播放取樣率、單聲道自動套用雙聲道、響應峰值 &gt; 1 自動衰減防削頂；於 PEQ 之後以 64-bit 浮點處理，線性相位特性完整保留</span>
+              </div>
+              <div class="spec-row" data-i18n-html="about.tech.s6">
+                <span class="spec-label">網路串流架構</span>
+                <span class="spec-value">UPnP A/V Architecture v1.0, DLNA MediaRenderer, HTTP Progressive Streaming with Range & Backpressure Flow Control（邊生成邊推送，轉換慢於實時也不中斷）</span>
+              </div>
+              <div class="spec-row" data-i18n-html="about.tech.s7">
+                <span class="spec-label">本地資料庫</span>
+                <span class="spec-value">高速 JSON 快取、路徑/元資料多重自動去重、完整我的最愛與播放計數同步機制</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Filter Phase Measurement Report & Modulator Acoustic Matching Guide -->
+          <div id="aboutSectionFilterReport" class="about-card" data-i18n-html="about.filter_report">
+            <div class="about-card-title">
+              <span class="title-icon">🔬</span>
+              <h3>濾波器相位音質評測報告與 DSD 調變器搭配指南</h3>
+            </div>
+            <div class="manual-item-body" style="font-size: 13px; line-height: 1.7; color: var(--text-sub);">
+              <p>
+                在數位音訊升頻與 1-bit DSD 調變架構中，<strong>升頻濾波器是第一道防線</strong>（負責濾除超取樣後產生的鏡像反射 Images），而 <strong>Delta-Sigma 調變器是第二道防線</strong>（透過高階噪聲整形將量化噪聲搬移至超高頻）。若前級濾波器能乾淨濾除超聲鏡像，調變器的單 bit 比較器便不會產生互調失真（IMD），能獲得最深邃安靜的背景與細膩的高頻空氣感。
+              </p>
+
+              <h4 style="color: var(--text-main); margin-top: 18px; margin-bottom: 8px;">📊 所有濾波器相位的實測規格與音質影響分析</h4>
+              <div style="overflow-x: auto; margin-bottom: 16px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-main);">
+                      <th style="padding: 8px 10px;">濾波器相位</th>
+                      <th style="padding: 8px 10px;">類型與結構</th>
+                      <th style="padding: 8px 10px;">20kHz 平坦度</th>
+                      <th style="padding: 8px 10px;">鏡像抑制能力</th>
+                      <th style="padding: 8px 10px;">時域鈴振特性</th>
+                      <th style="padding: 8px 10px;">音質與聽感特徵</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #a78bfa;">PS-EXT2 直譯 FIR</td>
+                      <td style="padding: 8px 10px;">Kaiser 窗 sinc (3401 taps)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.00 dB (平直)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-189.5 dB (極深)</td>
+                      <td style="padding: 8px 10px;">線性相位（對稱輕微）</td>
+                      <td style="padding: 8px 10px;"><strong>旗艦監聽級</strong>：超低失真（IMD &lt; -158dB），背景漆黑純淨，結像輪廓如刀刻般銳利清晰。</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">高斯長脈衝 FIR</td>
+                      <td style="padding: 8px 10px;">高斯窗 sinc (1621 taps)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-0.10 dB (極佳)</td>
+                      <td style="padding: 8px 10px;">-112.0 dB (倍頻)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>嚴格無鈴振 (Zero)</strong></td>
+                      <td style="padding: 8px 10px;"><strong>類比黑膠韻味</strong>：階躍完全無震盪波形，音場寬鬆自然大氣，人聲溫潤厚實耐聽，久聽不累。</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">高斯最小相位 FIR</td>
+                      <td style="padding: 8px 10px;">複倒數譜因果折疊</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-0.10 dB (極佳)</td>
+                      <td style="padding: 8px 10px;">-112.0 dB (倍頻)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>零預響鈴 (Zero Pre)</strong></td>
+                      <td style="padding: 8px 10px;"><strong>強大瞬態打擊力</strong>：預響鈴嚴格為零，主脈衝後衝迅速收斂，爵士鼓與低音打擊結實凌厲。</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">EXT2 近似 FIR</td>
+                      <td style="padding: 8px 10px;">超寬過渡帶 (3401 taps)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.00 dB (平直至25k)</td>
+                      <td style="padding: 8px 10px;">-155.1 dB (倍頻)</td>
+                      <td style="padding: 8px 10px;">極短對稱鈴振</td>
+                      <td style="padding: 8px 10px;"><strong>極致通透空氣感</strong>：放寬過渡帶換取最短時域衝激，超高頻泛音豐富，音場立體感極度開闊。</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #34d399;">純真還原 FIR (極致平坦)</td>
+                      <td style="padding: 8px 10px;">最優化 Kaiser 窗 sinc (3401 taps)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>&lt; 0.0001 dB (絕對平坦)</strong></td>
+                      <td style="padding: 8px 10px; color: #34d399;">-160.2 dB (極深)</td>
+                      <td style="padding: 8px 10px;">嚴格線性相位對稱</td>
+                      <td style="padding: 8px 10px;"><strong>母帶直通還原</strong>：通帶 0~21.5kHz 零波動、零相移染色，互調失真 &lt; -162dB，100% 忠實呈現錄音室原音。</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: var(--text-muted);">輕量內插 (線性/最小/緩衰減)</td>
+                      <td style="padding: 8px 10px;">Cubic Hermite 多項式內插</td>
+                      <td style="padding: 8px 10px; color: #fb923c;">-4.46 dB (自然緩降)</td>
+                      <td style="padding: 8px 10px; color: #fb923c;">-15.0 dB (輕量)</td>
+                      <td style="padding: 8px 10px;">時域跨度極短 (4點)</td>
+                      <td style="padding: 8px 10px;"><strong>休閒低負載</strong>：CPU 消耗最低；高頻帶有約 4.5dB 自然緩滾降，音色柔和暗調、毫無刺激感。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h4 style="color: var(--text-main); margin-top: 18px; margin-bottom: 8px;">🎯 發燒最佳搭配矩陣 (Acoustic Matching Guide)</h4>
+              <ul>
+                <li><strong>母帶級純真還原組合 (推薦)</strong>：<code>純真還原 FIR (極致平坦)</code> ➔ <code>5 階 (CRFB 發燒推薦) / 7 階</code> ➔ <code>全取樣率</code>。全頻段零增益染色、零相移，互調失真低於 -162dB，忠實重現樂器原音與人聲真實質地。</li>
+                <li><strong>監聽級極致解析組合</strong>：<code>PS-EXT2 直譯 FIR</code> ➔ <code>7 階 (極致微動態)</code> ➔ <code>DSD256 / DSD512</code>。提供高達 -140dB 的超聲噪聲抑制與極致弱音微動態，適合交響樂、大編制原聲錄音與高階靜電/動鐵耳機。</li>
+                <li><strong>溫潤發燒人聲推薦組合</strong>：<code>高斯長脈衝 FIR</code> ➔ <code>5 階 (CRFB 發燒推薦)</code> ➔ <code>DSD128 / DSD256</code>。兼具零鈴振的寬鬆類比感與雙重 Chebyshev 共振零點的純黑背景，爵士樂與流行人聲溫暖滑順。</li>
+                <li><strong>搖滾流行與節奏衝擊組合</strong>：<code>高斯最小相位 FIR</code> ➔ <code>5 階 (CRFB 發燒推薦)</code> ➔ <code>DSD64 / DSD128</code>。零預響鈴的瞬態響應讓打擊樂鼓點紮實凝聚，速度感與動態張力十足。</li>
+                <li><strong>復古類比黑膠感組合</strong>：<code>線性相位 / 混和緩衰減</code> ➔ <code>2 階 (Boser-Wooley)</code> ➔ <code>DSD64</code>。重現 90 年代早期經典 SACD 溫潤厚重、中頻飽滿的迷人老類比聽感。</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- KKBOX Account/Password Login Modal -->
+  <div id="kkboxLoginModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card kkbox-login-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap" style="display: flex; align-items: center;">
+          <span style="background: #25d5ff; color: #0a0b0e; font-weight: 800; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 10px; letter-spacing: 0.5px;">KKBOX</span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">登入 KKBOX 會員帳號</h3>
+        </div>
+        <button class="icon-btn" id="btnCloseKkboxLogin">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <p style="color: var(--text-muted); font-size: 13px; line-height: 1.6; margin-top: 0; margin-bottom: 20px;">
+          在此綁定您的 KKBOX 會員帳號。rooPlayer 透過 KKBOX Open API 與音訊串流伺服器為您同步官方排行榜、精選推薦與百萬曲庫作品。
+        </p>
+        
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;" for="kkboxInputAccount">
+            KKBOX 帳號 (Email 或 手機號碼)
+          </label>
+          <input type="text" id="kkboxInputAccount" class="form-control" placeholder="example@email.com" autocomplete="username" style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; font-size: 14px;">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;" for="kkboxInputPassword">
+            密碼 (選填)
+          </label>
+          <input type="password" id="kkboxInputPassword" class="form-control" placeholder="請輸入 KKBOX 密碼" autocomplete="current-password" style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; font-size: 14px;">
+        </div>
+
+        <div style="background: rgba(37, 213, 255, 0.08); border: 1px solid rgba(37, 213, 255, 0.25); border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #a0d8ef; line-height: 1.6;">
+          ℹ️ <strong>KKBOX 串流技術說明</strong>：<br>
+          • <strong>API 串流長度</strong>：依據 KKBOX 官方開放平台 (Open API) 與唱片版權協議規範，所有第三方播放器透過 HTTP 串流協定獲取之官方直鏈皆為 30 秒高品質發燒試聽帶。<br>
+          • <strong>完整全曲與 Hi-Fi 無損</strong>：KKBOX 完整全曲與 24-bit Hi-Res 母帶串流受 <strong>Google Widevine DRM</strong> 加密保護，僅授權於 KKBOX 官方專用 App 或授權瀏覽器內部解密播放。<br>
+          • 系統已為您實作原生控制器完全相容（播放/暫停、進度條拖曳、清單循環、DLNA 串流），隨選隨播！
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <button class="btn btn-secondary" id="btnModalKkboxLogout" style="display: none; background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.4); margin-right: auto; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🚪 登出此帳號</button>
+        <button class="btn btn-secondary" id="btnCancelKkboxLogin">取消</button>
+        <button class="btn btn-primary" id="btnSubmitKkboxLogin" style="background: #25d5ff; color: #000; font-weight: 600; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer;">儲存會員帳號</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIDAL Account Login & Settings Modal -->
+  <div id="tidalLoginModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card tidal-login-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap" style="display: flex; align-items: center;">
+          <span class="tidal-logo-badge">TIDAL</span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">TIDAL 發燒串流帳號連線</h3>
+        </div>
+        <button class="icon-btn" id="btnCloseTidalLogin">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <!-- Status Panel: Logged Out -->
+        <div id="tidalLoggedOutView">
+          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.6; margin-top: 0; margin-bottom: 20px;">
+            在 rooPlayer 登入您的 TIDAL 帳號，享受無縫融合本機與雲端的 Hi-Res Lossless FLAC 發燒串流體驗。
+          </p>
+
+          <div class="tidal-auth-action-box" style="text-align: center; padding: 24px 16px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 12px; margin-bottom: 20px;">
+            <div style="font-size: 32px; margin-bottom: 12px;">🌊</div>
+            <h4 style="margin: 0 0 8px 0; font-size: 16px; color: var(--text-main);">一鍵開啟 TIDAL 官方登入</h4>
+            <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted);">
+              點擊下方按鈕將開啟 TIDAL 官方登入視窗，支援 Email、Google、Apple 或 Facebook 登入，完成後自動授權綁定。
+            </p>
+            <button class="btn btn-primary" id="btnTidalStartLogin" style="background: #00e5ff; color: #000; font-weight: 700; border: none; padding: 10px 28px; border-radius: 20px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0, 229, 255, 0.3);">
+              <span>🔑 開啟官方登入視窗</span>
+            </button>
+            <div id="tidalLoginLoading" style="display: none; margin-top: 14px; font-size: 13px; color: #00e5ff; font-weight: 600;">
+              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+                <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+                <span>正在等待登入完成並自動擷取授權...</span>
+              </div>
+              <button id="btnTidalProbeNow" type="button" style="display: block; margin: 8px auto 0; padding: 6px 16px; background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; border-radius: 14px; font-size: 12px; font-weight: 700; cursor: pointer;">
+                🔄 若視窗已進入 TIDAL 首頁，點此立即完成同步
+              </button>
+            </div>
+          </div>
+
+          <!-- Advanced collapsible manual token -->
+          <details style="font-size: 12px; color: var(--text-muted); cursor: pointer;">
+            <summary style="margin-bottom: 8px; color: var(--text-sub); outline: none;">進階：手動貼上 Access Token 或自訂連線</summary>
+            <div class="tidal-manual-box" style="padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; margin-top: 6px;">
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 11px; margin-bottom: 4px; color: var(--text-sub);">OAuth Access Token</label>
+                <input type="text" id="tidalInputManualToken" class="form-control" placeholder="Bearer Token..." style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; font-size: 12px;">
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="tidalInputUserId" placeholder="User ID (選填)" style="flex: 1; padding: 6px 10px; border-radius: 6px; font-size: 12px;">
+                <button class="btn btn-sm btn-secondary" id="btnTidalSaveManualToken" style="padding: 6px 14px; border-radius: 4px; cursor: pointer;">儲存 Token</button>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Logged In View -->
+        <div id="tidalLoggedInView" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 16px; padding: 16px; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 12px; margin-bottom: 20px;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: #00e5ff; color: #000; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900;">
+              T
+            </div>
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h4 style="margin: 0; font-size: 15px; color: var(--text-main);" id="tidalProfileName">TIDAL 官方已連線</h4>
+                <span class="tidal-tier-badge" id="tidalProfileTier">Hi-Res MAX</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="tidalProfileInfo">
+                國家/地區: TW | 連線就緒
+              </div>
+            </div>
+          </div>
+
+          <div class="tidal-feature-box" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; font-size: 12px; line-height: 1.6; margin-bottom: 20px;">
+            ✨ <strong>發燒串流核心功能已就緒</strong>：<br>
+            • <strong>聲音引擎直通</strong>：TIDAL 無損串流支援 1-bit DSD 調變器（5階/7階）升頻與多相濾波器。<br>
+            • <strong>混合曲庫整合</strong>：可隨時將 TIDAL 專輯「加入我的曲庫」，與本機硬碟檔案融為一體。<br>
+            • <strong>DLNA 投播</strong>：支援一鍵將 TIDAL 高解析串流推送至您的數位串流機與擴大機。
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn btn-secondary" id="btnTidalRelogin" style="padding: 8px 18px; border-radius: 6px; cursor: pointer;">重新連線</button>
+            <button class="btn btn-danger" id="btnTidalLogout" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); padding: 8px 18px; border-radius: 6px; cursor: pointer;">中斷連線 (登出)</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color);">
+        <button class="btn btn-secondary" id="btnCancelTidalLogin">關閉</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Now Playing Modal: Album Artwork, Playlist & Online Lyrics -->
+  <div id="nowPlayingModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content now-playing-modal-container">
+      <button class="btn-close-modal" id="btnCloseNowPlaying" title="關閉視窗 (Esc)">✕</button>
+
+      <!-- Modal Top Bar -->
+      <div class="now-playing-header">
+        <div class="now-playing-header-left">
+          <span class="now-playing-badge">NOW PLAYING</span>
+        </div>
+        <div class="now-playing-header-right" style="display: flex; align-items: center; gap: 12px; margin-right: 36px;">
+          <div class="now-playing-header-controls" style="display: flex; align-items: center; gap: 8px;">
+            <button class="np-header-ctrl-btn" id="btnNPHeaderPrev" title="上一首">⏮ 上一首</button>
+            <button class="np-header-ctrl-btn" id="btnNPHeaderNext" title="下一首">下一首 ⏭</button>
+          </div>
+          <div class="now-playing-source-tag" id="nowPlayingSourceTag" style="margin-right: 0;">母帶音訊串流</div>
+        </div>
+      </div>
+
+      <!-- Main 3-Column Layout -->
+      <div class="now-playing-grid">
+        <!-- 1. Left: Cover Art & Playback Controls -->
+        <div class="now-playing-col-left">
+          <div class="now-playing-art-wrap">
+            <img id="nowPlayingCoverImg" src="" alt="Album Artwork" class="now-playing-art-img">
+            <span class="detail-format-badge" id="nowPlayingFormatBadge">FLAC 24/96</span>
+          </div>
+
+          <div class="now-playing-meta">
+            <h2 class="now-playing-track-title" id="nowPlayingTrackTitle">曲目名稱</h2>
+            <div class="now-playing-artist-name clickable-artist" id="nowPlayingArtistName" title="點擊查看演出者簡介">演出者</div>
+            <div class="now-playing-album-name clickable-album" id="nowPlayingAlbumName" title="點擊查看專輯詳情">專輯名稱</div>
+          </div>
+
+          <!-- Mini Player Bar inside Modal -->
+          <div class="now-playing-controls-box">
+            <!-- Real-time spectrum visualizer (fed from the DSP engine's source PCM) -->
+            <div class="now-playing-spectrum-wrap" id="nowPlayingSpectrumWrap">
+              <canvas id="nowPlayingSpectrum" class="now-playing-spectrum-canvas"></canvas>
+            </div>
+            <div class="now-playing-progress-wrap">
+              <span class="now-playing-time" id="nowPlayingCurTime">0:00</span>
+              <div class="now-playing-scrubber" id="nowPlayingScrubber">
+                <div class="now-playing-scrubber-fill" id="nowPlayingScrubberFill"></div>
+              </div>
+              <span class="now-playing-time" id="nowPlayingTotalTime">0:00</span>
+            </div>
+
+            <div class="now-playing-buttons">
+              <button class="now-playing-btn" id="btnNowPlayingPrev" title="上一首">⏮</button>
+              <button class="now-playing-btn btn-play-large" id="btnNowPlayingPlayPause" title="播放 / 暫停">▶</button>
+              <button class="now-playing-btn" id="btnNowPlayingNext" title="下一首">⏭</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Middle: Album Playlist / Tracklist -->
+        <div class="now-playing-col-middle">
+          <div class="now-playing-panel-title">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>🎵</span>
+              <span style="font-weight: 700;">專輯播放列表</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button class="np-header-ctrl-btn" id="btnNPPlaylistPrev" title="上一首">⏮</button>
+              <button class="np-header-ctrl-btn" id="btnNPPlaylistNext" title="下一首">⏭</button>
+              <span class="now-playing-count-pill" id="nowPlayingTracklistCount">0 首歌曲</span>
+            </div>
+          </div>
+          <div class="now-playing-tracklist-scroll" id="nowPlayingTracklistContainer">
+            <!-- Dynamic Track items -->
+          </div>
+        </div>
+
+        <!-- 3. Right: Online Lyrics -->
+        <div class="now-playing-col-right">
+          <div class="now-playing-panel-title">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>📜</span>
+              <span style="font-weight: 700;">動態歌詞 Lyrics</span>
+            </div>
+          </div>
+          <div class="now-playing-lyrics-container" id="nowPlayingLyricsContainer">
+            <!-- Dynamic Lyrics (synced or plain or empty) -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audiophile Signal Path Modal (標誌性訊號路徑追蹤功能) -->
+  <div id="signalPathModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content signal-path-container">
+      <button class="btn-close-modal" id="btnCloseSignalPath">✕</button>
+      <div class="signal-path-header">
+        <span class="signal-dot purple" id="signalPathDot"></span>
+        <h2>Signal Path (音訊路徑)</h2>
+        <span class="signal-status-pill" id="signalPathStatusPill">LOSSLESS BIT-PERFECT</span>
+      </div>
+
+      <div class="signal-path-columns">
+        <!-- Left Column: Audio Signal Path Stages -->
+        <div class="signal-path-col-left">
+          <div class="signal-col-header">
+            <span class="signal-col-title">即時訊號串流路徑</span>
+          </div>
+          <div class="signal-stages">
+            <div class="signal-stage">
+              <div class="stage-icon">💿</div>
+              <div class="stage-info">
+                <div class="stage-title" id="signalSourceTitle">FLAC 96kHz 24bit</div>
+                <div class="stage-desc" id="signalSourceDesc">原始母帶音訊源 (Bit-Perfect Lossless)</div>
+              </div>
+            </div>
+
+            <!-- Dynamic SoX DSP Resampler Stage -->
+            <div class="signal-arrow sox-dsp-element" id="signalSoxArrow" style="display: none;">↓</div>
+            <div class="signal-stage sox-dsp-element sox-stage-highlight" id="signalSoxStage" style="display: none;">
+              <div class="stage-icon">🎛️</div>
+              <div class="stage-info">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="stage-title" id="signalSoxTitle">Native DSP Engine</div>
+                  <span class="stage-badge-dsp">DSP ACTIVE</span>
+                </div>
+                <div class="stage-desc" id="signalSoxDesc">高解析度即時升頻：44.1 kHz ➔ 176.4 kHz (4x 整數倍頻)</div>
+              </div>
+            </div>
+
+            <!-- Dynamic PEQ (Parametric Equalizer) Stage: JS repositions it to the exact point
+                 of the chain where the engine applies it (before DSD modulation / after PCM upsampling) -->
+            <div class="signal-arrow peq-dsp-element" id="signalPeqArrow" style="display: none;">↓</div>
+            <div class="signal-stage peq-dsp-element" id="signalPeqStage" style="display: none;">
+              <div class="stage-icon">🎚️</div>
+              <div class="stage-info">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="stage-title" id="signalPeqTitle">參數化等化器 (PEQ)</div>
+                  <span class="stage-badge-peq">EQ ACTIVE</span>
+                </div>
+                <div class="stage-desc" id="signalPeqDesc">參數化等化器：N 段作用中</div>
+              </div>
+            </div>
+
+            <!-- Dynamic Convolution (IR) Stage: JS repositions it to the exact point of the chain
+                 where the engine applies it (after PEQ: after upsampling / on source PCM / native rate) -->
+            <div class="signal-arrow conv-dsp-element" id="signalConvArrow" style="display: none;">↓</div>
+            <div class="signal-stage conv-dsp-element" id="signalConvStage" style="display: none;">
+              <div class="stage-icon">🌊</div>
+              <div class="stage-info">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="stage-title" id="signalConvTitle">卷積濾波器 (IR)</div>
+                  <span class="stage-badge-conv">IR ACTIVE</span>
+                </div>
+                <div class="stage-desc" id="signalConvDesc">分割式頻域卷積：IR 作用中</div>
+              </div>
+            </div>
+
+            <!-- Dynamic Ultrasonic Filter Stage -->
+            <div class="signal-arrow ultrasonic-dsp-element" id="signalUltrasonicArrow" style="display: none;">↓</div>
+            <div class="signal-stage ultrasonic-dsp-element" id="signalUltrasonicStage" style="display: none;">
+              <div class="stage-icon">🛡️</div>
+              <div class="stage-info">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="stage-title" id="signalUltrasonicTitle">超音波噪聲防護濾波</div>
+                  <span class="stage-badge-dsp">PROTECTION ACTIVE</span>
+                </div>
+                <div class="stage-desc" id="signalUltrasonicDesc">30 kHz 截止：平滑切除超聲頻量化雜訊，杜絕 DAC 運放過載</div>
+              </div>
+            </div>
+
+            <div class="signal-arrow">↓</div>
+            <div class="signal-stage">
+              <div class="stage-icon">⚡</div>
+              <div class="stage-info">
+                <div class="stage-title" id="signalEngineTitle">rooPlayer Core Audio Engine</div>
+                <div class="stage-desc" id="signalEngineDesc">64-bit 浮點無損混音核心，零採樣損失處理</div>
+              </div>
+            </div>
+            <div class="signal-arrow">↓</div>
+            <div class="signal-stage">
+              <div class="stage-icon" id="signalOutputIcon">🔊</div>
+              <div class="stage-info">
+                <div class="stage-title" id="signalOutputTitle">Windows WASAPI Exclusive / DirectSound</div>
+                <div class="stage-desc" id="signalOutputDesc">輸出至本機預設音訊裝置</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Upsampling DSP Engine Settings -->
+        <div class="signal-path-col-right">
+          <div class="dsp-sox-card">
+            <div class="dsp-sox-header">
+              <div class="dsp-sox-title-wrap">
+                <span class="dsp-sox-icon">🎛️</span>
+                <div>
+                  <div class="dsp-sox-title">升頻引擎設定</div>
+                  <div class="dsp-sox-desc">發燒級 64 位元浮點即時超取樣升頻濾波器，拓展音場細節與瞬態還原</div>
+                </div>
+              </div>
+              <label class="switch-toggle" title="啟用/關閉 升頻引擎">
+                <input type="checkbox" id="toggleSoxDsp">
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="dsp-sox-body" id="dspSoxBody">
+              <!-- Target Sample Rate Selection (PCM) -->
+              <div class="dsp-option-group">
+                <div class="dsp-option-label">
+                  <span>PCM 升頻取樣規格 (PCM Upsampling)</span>
+                  <span class="dsp-hint-badge" id="dspActiveRateHint">4x 整數倍頻</span>
+                </div>
+                <div class="dsp-pill-selector" id="dspRateSelector">
+                  <button class="dsp-pill active" data-rate-mode="4x" title="44.1k➔176.4k, 48k➔192k (發燒推薦：整數倍頻相位最純淨)">4x 整數倍頻 (推薦)</button>
+                  <button class="dsp-pill" data-rate-mode="2x" title="44.1k➔88.2k, 48k➔96k (整數 2 倍超取樣)">2x 整數倍頻</button>
+                  <button class="dsp-pill" data-rate-mode="192k" title="固定升頻至 192 kHz / 24-bit">固定 192 kHz</button>
+                  <button class="dsp-pill" data-rate-mode="384k" title="固定升頻至 384 kHz / 24-bit (DXD 頂級解碼)">固定 384 kHz</button>
+                  <button class="dsp-pill" data-rate-mode="96k" title="固定升頻至 96 kHz / 24-bit">固定 96 kHz</button>
+                </div>
+              </div>
+
+              <!-- Target DSD Modulation Selection -->
+              <div class="dsp-option-group">
+                <div class="dsp-option-label">
+                  <span>1-bit DSD 調變升頻 (PCM ➔ 1-bit DSD SDM Modulator)</span>
+                  <span class="dsp-hint-badge dsd-badge-color" id="dspActiveDsdHint">可選 DSD 格式</span>
+                </div>
+                <div class="dsp-pill-selector" id="dspDsdRateSelector">
+                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd64" title="PCM ➔ DSD64 (1-bit / 2.8224 MHz 或 3.072 MHz 超高頻噪聲整形調變)">DSD64 (2.8 MHz)</button>
+                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd128" title="PCM ➔ DSD128 (1-bit / 5.6448 MHz 或 6.144 MHz 雙倍 DSD 調變)">DSD128 (5.6 MHz)</button>
+                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd256" title="PCM ➔ DSD256 (1-bit / 11.2896 MHz 或 12.288 MHz 四倍 DSD 調變)">DSD256 (11.2 MHz)</button>
+                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd512" title="PCM ➔ DSD512 (1-bit / 22.5792 MHz 或 24.576 MHz 極限發燒 DSD 調變)">DSD512 (22.5 MHz)</button>
+                </div>
+              </div>
+
+              <!-- DSD Modulator Order Selection -->
+              <div class="dsp-option-group" id="dspOrderGroup">
+                <div class="dsp-option-label">
+                  <span>調變器階數 (Modulator Order)</span>
+                  <span class="dsp-hint-badge dsd-badge-color" id="dspActiveOrderHint">5 階 (CRFB 發燒推薦)</span>
+                </div>
+                <div class="dsp-pill-selector" id="dspOrderSelector">
+                  <button class="dsp-pill pill-dsd" data-order="2" title="2 階 Boser-Wooley 經典調變 (溫潤厚實，類比黑膠感)">2 階 (經典溫潤)</button>
+                  <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB 發燒推薦)</button>
+                  <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CRFB 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (極致微動態)</button>
+                </div>
+              </div>
+
+              <!-- Ultrasonic Noise Protection Filter (類似 HQPlayer Filter 20k/30k/40k/50k) -->
+              <div class="dsp-option-group" id="dspUltrasonicGroup">
+                <div class="dsp-option-label">
+                  <span>🛡️ 超音波噪聲防護濾波 (Ultrasonic Filter)</span>
+                  <span class="dsp-hint-badge dsd-badge-color" id="dspActiveUltrasonicHint">30 kHz (預設推薦)</span>
+                </div>
+                <div class="dsp-pill-selector" id="dspUltrasonicSelector">
+                  <button class="dsp-pill pill-dsd" data-ultrasonic="none" title="關閉超音波防護 (無濾波)">關閉 (None)</button>
+                  <button class="dsp-pill pill-dsd" data-ultrasonic="20k" title="20 kHz 截止：強效防護，徹底隔絕超高頻，適合敏感型 DAC 或老晶片">20 kHz</button>
+                  <button class="dsp-pill pill-dsd active" data-ultrasonic="30k" title="30 kHz 截止 (預設推薦)：發燒黃金平衡，兼具極限空氣感與超音波噪聲徹底阻隔">30 kHz (預設推薦)</button>
+                  <button class="dsp-pill pill-dsd" data-ultrasonic="40k" title="40 kHz 截止：寬廣高頻延伸，有效降低 DAC 射頻互調失真">40 kHz</button>
+                  <button class="dsp-pill pill-dsd" data-ultrasonic="50k" title="50 kHz 截止：極限解析保留，消除超高頻發散噪聲">50 kHz</button>
+                </div>
+              </div>
+
+              <!-- Quantization Dither Selection (含 HQPlayer Gauss1 演算法) -->
+              <div class="dsp-option-group" id="dspDitherGroup">
+                <div class="dsp-option-label">
+                  <span>✨ 量化抖動 (Quantization Dither)</span>
+                  <span class="dsp-hint-badge" id="dspActiveDitherHint">Gauss1 (高斯溫潤)</span>
+                </div>
+                <div class="dsp-pill-selector" id="dspDitherSelector">
+                  <button class="dsp-pill active" data-dither="gauss1" title="Gauss1：高斯機率密度分佈抖動 (HQPlayer 同款演算法，徹底打散極限環，背景溫潤深黑)">Gauss1 (高斯溫潤 - 推薦)</button>
+                  <button class="dsp-pill" data-dither="tpdf" title="TPDF：標準三角形機率密度抖動 (經典錄音室標準，線性純淨無諧波失真)">TPDF (三角形分佈)</button>
+                  <button class="dsp-pill" data-dither="none" title="關閉抖動 (無 Dither)">關閉 (None)</button>
+                </div>
+              </div>
+
+              <!-- Filter Phase Selection (按鈕由濾波器插件註冊表動態生成，見 app.js renderFilterPhaseSelector) -->
+              <div class="dsp-option-group" id="dspPhaseGroup">
+                <div class="dsp-option-label">
+                  <div style="display: inline-flex; align-items: center; gap: 6px;">
+                    <span>濾波器相位 (Filter Phase)</span>
+                    <button type="button" class="dsp-guide-link" id="btnFilterGuideLink" title="檢視各濾波器相位的實測規格、音質影響與發燒搭配指南">📖 搭配指南</button>
+                  </div>
+                  <span class="dsp-hint-badge" id="dspActivePhaseHint">線性相位 (零相位失真)</span>
+                </div>
+                <div class="dsp-pill-selector" id="dspPhaseSelector"></div>
+              </div>
+
+              <!-- User Filter Toolbox (使用者自訂濾波槽：純參數 JSON，安全範圍由引擎夾限；
+                   編輯器與管理直接在條列內展開，所有操作同一視窗完成) -->
+              <div class="user-filter-strip" id="userFilterStrip">
+                <div class="user-filter-strip-head">
+                  <span class="user-filter-strip-title">🛠️ 自訂濾波器</span>
+                  <span class="user-filter-strip-actions">
+                    <button class="uf-mini-btn" id="ufNewBtn">＋ 新建</button>
+                    <button class="uf-mini-btn uf-manage-btn" id="ufManageBtn">⚙ 管理</button>
+                  </span>
+                </div>
+                <div class="user-filter-chips" id="ufChipRow"><span class="uf-chips-empty">尚無自訂濾波器 — 點「＋ 新建」於安全範圍內設計專屬濾波器</span></div>
+
+                <!-- Inline editor panel -->
+                <div class="uf-panel" id="ufEditorPanel" style="display: none;">
+                  <div class="uf-panel-head">
+                    <span id="ufEditorTitle">新建濾波器</span>
+                    <button class="uf-mini-btn" id="ufCloseEditor">收合 ✕</button>
+                  </div>
+                  <div class="uf-form-col">
+                    <div class="uf-grid2">
+                      <div class="uf-field">
+                        <label for="ufNameInput">名稱</label>
+                        <input type="text" id="ufNameInput" class="form-control" maxlength="40" placeholder="例如：暖聲緩降" style="width:100%;box-sizing:border-box;">
+                      </div>
+                      <div class="uf-field">
+                        <label for="ufSlotSelect">儲存槽</label>
+                        <select id="ufSlotSelect" class="form-control" style="width:100%;box-sizing:border-box;"></select>
+                      </div>
+                    </div>
+                    <div class="uf-field">
+                      <label for="ufSoundInput">聲音特色描述（顯示於濾波器按鈕滑鼠提示）</label>
+                      <input type="text" id="ufSoundInput" class="form-control" maxlength="80" placeholder="例如：高頻柔化、鈴振不可聽" style="width:100%;box-sizing:border-box;">
+                    </div>
+                    <div class="uf-field">
+                      <label title="窗函數決定「過渡帶寬度」與「鏡像抑制深度」的取捨：過渡越窄=高頻越精準鮮明；止帶越深=背景越黑、鏡像泄漏越不可聽">窗函數 <span class="uf-info">ⓘ 對聲音的影響</span></label>
+                      <div id="ufWindowSeg">
+                        <div class="uf-seg-group">餘弦窗（固定性格）</div>
+                        <div class="uf-seg">
+                          <button class="uf-seg-btn" data-window="hann" title="Hann：過渡帶窄，高頻轉折精準鮮明；止帶較淺(-31dB)，些微鏡像泄漏通常在超聲頻不可聽">Hann</button>
+                          <button class="uf-seg-btn" data-window="hamming" title="Hamming：與 Hann 相近但鏡像抑制較深(-42dB)；高頻聽感些微明亮">Hamming</button>
+                          <button class="uf-seg-btn" data-window="blackman" title="Blackman：過渡帶較寬，高頻以柔和斜率緩降、聽感溫潤；鏡像泄漏 -58dB 不可聽">Blackman</button>
+                          <button class="uf-seg-btn active" data-window="blackmanHarris" title="Blackman-Harris：止帶極深(-92dB)、鏡像完全不可聽；過渡帶略寬於 Blackman，整體乾淨透明">Blackman-Harris</button>
+                          <button class="uf-seg-btn" data-window="nuttall" title="Nuttall：過渡帶與 Blackman-Harris 同寬，但旁瓣隨頻率衰減更快——鏡像帶抑制再深約 12dB，遠處背景更黑">Nuttall</button>
+                          <button class="uf-seg-btn" data-window="blackmanNuttall" title="Blackman-Nuttall：Nuttall 家族的平衡版，旁瓣峰值略低；鏡像抑制略淺於 Nuttall，其餘特性相近">Blackman-Nuttall</button>
+                        </div>
+                        <div class="uf-seg-group">參數窗（滑桿可調）</div>
+                        <div class="uf-seg">
+                          <button class="uf-seg-btn" data-window="kaiser" title="Kaiser：用下方「止帶深度」滑桿自由取捨——60dB 溫潤柔和，140dB 以上參考級乾淨">Kaiser</button>
+                          <button class="uf-seg-btn" data-window="chebyshev" title="Chebyshev（等漣波）：用下方「止帶深度」滑桿——止帶平坦恰在設定深度；高止帶設定下緊接轉折處的抑制比 Kaiser 更深，截止聽感最銳利">Chebyshev</button>
+                          <button class="uf-seg-btn" data-window="gauss" title="Gauss：完全無旁瓣漣波（高斯頻譜單調滾降）——零鏡像泄漏、零鈴振；用下方「Gauss 窗寬 σ」滑桿取捨：σ 小止帶深且柔，σ 大截止直接">Gauss</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="uf-field" id="ufAsRow" style="display:none;">
+                      <label title="止帶深度＝鏡像與雜訊被壓低多少 dB：數值越小過渡帶越窄高頻越鮮明(聽感偏直接)；越大背景越黑高頻越柔(聽感偏潤色)">止帶深度 <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufAsVal">100 dB</span></label>
+                      <input type="range" id="ufAsSlider" min="40" max="180" step="5" value="100">
+                    </div>
+                    <div class="uf-field" id="ufSigmaRow" style="display:none;">
+                      <label title="σ 是窗寬相對濾波長度的比例：σ 越小窗越窄、止帶越深背景越黑，但過渡帶變寬、高頻更早開始滾降；σ 越大截止越直接鮮明，但截斷使止帶變淺">Gauss 窗寬 σ <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufSigmaVal">0.30 ×L</span></label>
+                      <input type="range" id="ufSigmaSlider" min="20" max="50" step="1" value="30">
+                    </div>
+                    <div class="uf-grid2">
+                      <div class="uf-field">
+                        <label title="截止延伸＝濾波器對源高頻的處理性格：低於 1.0× 高頻先柔和滾降(類比味、最安全)；1.0~1.2× 平衡；1.2× 以上最大化超頻延伸與透明度，但過渡帶變寬、鏡像抑制變淺">截止延伸 <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufCutVal">1.13 ×源Nyq</span></label>
+                        <input type="range" id="ufCutSlider" min="80" max="135" step="1" value="113">
+                      </div>
+                      <div class="uf-field">
+                        <label title="濾波長度＝過渡帶陡度與鈴振長度：較短高頻漸進滾降、鈴振短而自然(省 CPU)；較長滾降陡峭精準、背景更靜，但預鈴振較長">濾波長度 <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufTapVal">96 taps</span> <span class="uf-load" id="ufLoadBadge">低負荷</span></label>
+                        <input type="range" id="ufTapSlider" min="16" max="512" step="8" value="96">
+                      </div>
+                    </div>
+                    <div class="uf-field">
+                      <label>相位性格 <span class="uf-info">ⓘ 對聲音的影響</span></label>
+                      <div class="uf-seg" id="ufPhaseSeg">
+                        <button class="uf-seg-btn active" data-phase="linear" title="線性相位：零相位失真，定位、音場與形體最精準；代價是預鈴振對稱分佈在瞬態之前(鈴振敏感者可察)">線性相位</button>
+                        <button class="uf-seg-btn" data-phase="minimum" title="最小相位：預鈴振嚴格為零，鼓擊與瞬態領先凌厲(多數人認為更自然)；代價是些微高頻相位偏移">最小相位 (零預響鈴)</button>
+                      </div>
+                    </div>
+                    <div class="uf-editor-actions">
+                      <button class="uf-mini-btn uf-save-btn" id="ufSaveBtn">💾 儲存並套用</button>
+                      <button class="uf-mini-btn uf-delete-btn" id="ufDeleteBtn" style="display:none;">刪除</button>
+                    </div>
+                  </div>
+                  <div class="uf-preview-col">
+                    <div class="uf-preview-title">頻率響應預覽 <span class="uf-preview-note" id="ufPreviewCtxNote"></span></div>
+                    <canvas id="ufPreviewCanvas" width="340" height="300" title="黃色截止線可直接左右拖曳＝調整截止延伸；綠區原音保留、琥珀為過渡帶、紅區鏡像被抑制"></canvas>
+                    <div class="uf-preview-legend">綠＝可聽音頻保留區・黃虛線＝濾波器截止點（圖上可直接拖曳）・琥珀＝過渡帶（高頻滾降位置）・紅＝升頻鏡像被抑制的區域</div>
+                  </div>
+                </div>
+
+                <!-- Inline manage panel -->
+                <div class="uf-panel" id="ufManagePanel" style="display: none;">
+                  <div class="uf-panel-head">
+                    <span>自訂濾波器管理</span>
+                    <button class="uf-mini-btn" id="ufCloseManage">收合 ✕</button>
+                  </div>
+                  <div id="ufManageList" class="uf-manage-list"></div>
+                  <div class="uf-manage-hint">自訂濾波器以純參數儲存，引擎自動做安全驗證與夾限；任何異常自動退回線性相位，不影響播放穩定。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Parametric Equalizer Card: fully independent of the upsampling engine.
+               Acts whenever its own switch is on (with the engine off it runs at the native sample rate). -->
+          <div class="dsp-sox-card peq-card" id="peqCard">
+            <div class="dsp-sox-header">
+              <div class="dsp-sox-title-wrap">
+                <span class="dsp-sox-icon">🎚️</span>
+                <div>
+                  <div class="dsp-sox-title">參數化等化器 (Parametric EQ) <span class="dsp-hint-badge" id="dspActivePeqHint">關閉</span></div>
+                  <div class="dsp-sox-desc">獨立於升頻引擎的音色調整：引擎開或關皆可作用（引擎關閉時於原生採樣率處理；最多 6 段；自動預降保護電路不削頂）</div>
+                </div>
+              </div>
+              <label class="switch-toggle" title="啟用/關閉 參數化等化器">
+                <input type="checkbox" id="togglePeq">
+                <span class="slider-round"></span>
+              </label>
+            </div>
+            <div id="peqEditor" class="peq-editor" style="display: none;">
+              <div class="dsp-pill-selector" id="peqPresetSelector">
+                <button class="dsp-pill active" data-peq-preset="flat" title="不改變原始音色（全部頻段關閉）">平直</button>
+                <button class="dsp-pill" data-peq-preset="warm" title="低頻飽和、中低頻厚實、柔化高頻毛刺">溫暖厚實</button>
+                <button class="dsp-pill" data-peq-preset="bright" title="高頻通透與空氣感、收束渾濁低頻">明亮通透</button>
+                <button class="dsp-pill" data-peq-preset="vocal" title="人聲存在感與咬字清晰度提升">人聲突出</button>
+                <button class="dsp-pill" data-peq-preset="bass" title="低頻下潛與飽和增加、中頻保持乾淨">低頻飽和</button>
+              </div>
+              <div class="peq-slot-row" id="peqSlotRow"></div>
+              <div class="peq-slot-hint">點空白格 → 輸入名稱 Enter 儲存目前設定 ・ 點儲存格載入 ・ 雙擊更名 ・ ✕ 刪除（两步確認）</div>
+              <canvas id="peqCurveCanvas" class="peq-curve" width="560" height="150"></canvas>
+              <div class="peq-meta-row">
+                <span class="peq-headroom-note" id="peqHeadroomNote">自動預降 0.0 dB（保護電路不削頂）</span>
+                <span class="peq-live-note">設定即時套用到播放中的曲目</span>
+              </div>
+              <div class="peq-band-list" id="peqBandList"></div>
+            </div>
+          </div>
+
+          <!-- Convolution (IR) Card: independent stage like PEQ, applied after PEQ in the chain.
+               Loads a Roon-style impulse response and applies partitioned frequency-domain filtering. -->
+          <div class="dsp-sox-card conv-card" id="convCard">
+            <div class="dsp-sox-header">
+              <div class="dsp-sox-title-wrap">
+                <span class="dsp-sox-icon">🌊</span>
+                <div>
+                  <div class="dsp-sox-title">卷積濾波器 (IR 脈衝響應) <span class="dsp-hint-badge" id="dspActiveConvHint">關閉</span></div>
+                  <div class="dsp-sox-desc">載入脈衝響應 WAV 做分割式頻域卷積（房間校正 FIR / 喇叭・耳機校正）；於 PEQ 之後以 PCM 域處理，線性相位不改變</div>
+                </div>
+              </div>
+              <label class="switch-toggle" title="啟用/關閉 卷積濾波器">
+                <input type="checkbox" id="toggleConv">
+                <span class="slider-round"></span>
+              </label>
+            </div>
+            <div id="convEditor" class="conv-editor" style="display: none;">
+              <div class="dsp-pill-selector" id="convActionRow">
+                <button class="dsp-pill" id="convPickIr">📂 載入 IR 檔案…</button>
+                <button class="dsp-pill" id="convRemoveIr" style="display: none;">移除 IR</button>
+              </div>
+              <div class="conv-info" id="convInfo">尚未載入 IR。請選擇 16/24/32-bit WAV 脈衝響應檔（單聲道自動套用到左右聲道）。</div>
+              <div class="conv-hint">DSD 來源自動經 88.2k 降頻路徑套用卷積 ・ 引擎 DSD 模式下 DSF 直通優先（不套卷積） ・ 設定即時套用到播放中的曲目</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Output Devices / Zones Modal (DLNA / UPnP Discovery) -->
+  <div id="audioDeviceModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content audio-device-container">
+      <button class="btn-close-modal" id="btnCloseAudioDevice">✕</button>
+      <div class="device-modal-header">
+        <div class="device-title-wrap">
+          <span class="device-modal-icon">📡</span>
+          <div>
+            <h2>音訊輸出設備 Audio Output Zones</h2>
+            <p class="device-modal-sub">自動搜尋區網 DLNA / UPnP 串流節點與本機音訊端點</p>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="btnRefreshDevices">
+          <span class="refresh-spinner" id="deviceScanSpinner" style="display: none;">⏳</span>
+          <span>重新搜尋設備 🔄</span>
+        </button>
+      </div>
+
+      <!-- Direct IP Probe Bar -->
+      <div class="direct-ip-probe-box">
+        <div class="direct-ip-input-wrap">
+          <span class="direct-ip-icon">🎯</span>
+          <input type="text" id="inputDirectIp" class="direct-ip-input" placeholder="手動指定 IP 連線探測 (例如: 192.168.1.100)">
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnProbeDirectIp">指定 IP 探測連線</button>
+      </div>
+
+      <div class="device-list-section">
+        <div class="device-section-title">💻 本機音訊端點</div>
+        <div class="device-card active" id="localAudioCard" data-device-id="local">
+          <div class="device-card-left">
+            <div class="device-avatar">💻</div>
+            <div class="device-info">
+              <div class="device-name">本機音訊 (此電腦)</div>
+              <div class="device-detail">Windows WASAPI Exclusive / DirectSound 核心</div>
+            </div>
+          </div>
+          <div class="device-card-right">
+            <span class="device-status-badge active" id="localBadge">播放中端點</span>
+          </div>
+        </div>
+
+        <div class="device-section-title" style="margin-top: 20px;">
+          <span>🌐 區網 DLNA / UPnP 串流設備 (<span id="dlnaDeviceCount">0</span>)</span>
+        </div>
+        <div class="dlna-devices-list" id="dlnaDevicesList">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Play Queue Slide-in Drawer -->
+  <div id="queueDrawer" class="queue-drawer">
+    <div class="queue-header">
+      <h3>播放隊列 (<span id="queueCount">0</span>)</h3>
+      <button class="btn-save-queue-playlist" id="btnSaveQueuePlaylist" title="將目前播放隊列的所有歌曲依序加入一個播放清單並命名儲存">💾 儲存清單</button>
+      <button class="btn-clear-queue" id="btnClearQueue">清空</button>
+      <button class="btn-close-queue" id="btnCloseQueue">✕</button>
+    </div>
+    <div class="queue-list" id="queueList">
+      <!-- Injected via JS -->
+    </div>
+  </div>
+
+  <!-- Bottom Audiophile Playback Bar -->
+  <footer id="playerBar">
+    <!-- Left: Track info -->
+    <div class="player-left">
+      <div class="player-cover-box" id="playerCoverBox" title="點擊展開專輯封面、播放列表與動態歌詞">
+        <img id="playerCoverImg" src="icon.png" alt="rooPlayer" class="player-cover" onerror="this.onerror=null;this.src='icon.png';">
+        <div class="player-cover-expand-hint" title="展開播放詳情與歌詞">⛶</div>
+      </div>
+      <div class="player-track-info">
+        <div class="player-title" id="playerTitle">未播放曲目</div>
+        <div class="player-artist" id="playerArtist">點選任意曲目開始聆聽</div>
+      </div>
+      <button class="btn-heart" id="btnPlayerHeart" title="加入最愛"><svg class="fav-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;pointer-events:none;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+    </div>
+
+    <!-- Center: Signal path badge & controls -->
+    <div class="player-center">
+      <div class="player-top-indicator">
+        <button class="signal-path-btn" id="btnSignalPath" title="查看 rooPlayer 音訊路徑 (Signal Path)">
+          <span class="signal-light-dot"></span>
+          <span id="signalPathBadge">LOSSLESS | 24/96 FLAC</span>
+        </button>
+      </div>
+
+      <div class="player-controls">
+        <button id="btnShuffle" class="ctrl-btn" title="隨機播放">🔀</button>
+        <button id="btnPrev" class="ctrl-btn" title="上一首">⏮</button>
+        <button id="btnPlayPause" class="ctrl-btn ctrl-play" title="播放 / 暫停">▶</button>
+        <button id="btnNext" class="ctrl-btn" title="下一首">⏭</button>
+        <button id="btnRepeat" class="ctrl-btn" title="循環模式">🔁</button>
+      </div>
+
+      <div class="player-scrubber-box">
+        <span class="time-label" id="currentTimeLabel">0:00</span>
+        <div class="scrubber-bar" id="scrubberBar">
+          <div class="scrubber-fill" id="scrubberFill"></div>
+          <div class="scrubber-handle" id="scrubberHandle"></div>
+        </div>
+        <span class="time-label" id="totalTimeLabel">0:00</span>
+        <!-- DLNA 串流準備中：顯示引擎記憶體緩衝進度與已等待時間，避免使用者以為失敗而一直按播放鍵 -->
+        <div class="dlna-buffer-strip" id="dlnaBufferStrip" style="display: none;">
+          <span class="dlna-buffer-stage" id="dlnaBufferStage">⏳ 串流準備中</span>
+          <div class="dlna-buffer-bar"><div class="dlna-buffer-fill" id="dlnaBufferFill"></div></div>
+          <span class="dlna-buffer-meta" id="dlnaBufferMeta"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Zone Output, Volume & Queue -->
+    <div class="player-right">
+      <button id="btnAudioOutput" class="zone-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
+        <span class="zone-icon">🔊</span>
+        <span class="zone-name" id="currentZoneName">本機播放</span>
+      </button>
+      <button id="btnVolumeIcon" class="icon-btn" title="靜音切換">🔊</button>
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" class="volume-slider">
+      <div class="output-mode-stack">
+        <button id="btnLineOut" class="icon-btn line-out-btn" title="Line Out：最大音量輸出鎖定（鎖定時不可調音量）">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 2v6"/><path d="M15 2v6"/>
+            <path d="M7 8h10v4a5 5 0 0 1-10 0z"/>
+            <path d="M12 17v5"/>
+          </svg>
+          <span class="line-out-label">LINE OUT</span>
+        </button>
+        <button id="btnExclusive" class="icon-btn exclusive-out-btn" title="WASAPI 獨佔模式：繞過 Windows 混音器，直接以裝置支援的最高取樣率 24-bit 輸出（獨佔期間系統音效暫停、音量鎖定最大）">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12h2l2-7 3 14 3-11 2 4h6"/>
+          </svg>
+          <span class="exclusive-out-label">EXCLUSIVE</span>
+        </button>
+      </div>
+      <button id="btnToggleQueue" class="icon-btn" title="播放清單隊列">
+        <span class="queue-icon">☰</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Database Import Report Modal -->
+  <!-- 播放清單命名 Modal（新增／重新命名／儲存隊列） -->
+  <div id="playlistNameModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="width: 470px; max-width: 92vw;">
+      <div class="modal-header">
+        <div class="modal-title-wrap" style="display: flex; align-items: center;">
+          <span style="background: #8b5cf6; color: #fff; font-weight: 800; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 10px; letter-spacing: 0.5px;">PLAYLIST</span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;" id="playlistNameModalTitle">儲存播放清單</h3>
+        </div>
+        <button class="icon-btn" id="btnClosePlaylistName">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 22px 24px;">
+        <label for="playlistNameInput" style="display:block; font-size: 12px; font-weight: 600; color: var(--text-sub); margin-bottom: 8px;">清單名稱</label>
+        <input type="text" id="playlistNameInput" maxlength="60" placeholder="例如：深夜爵士" autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; font-size: 14px;">
+        <div id="playlistNameModalHint" style="margin-top: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.6;"></div>
+      </div>
+      <div class="modal-footer" style="padding: 14px 24px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-secondary btn-sm" id="btnPlaylistNameCancel">取消</button>
+        <button class="btn btn-primary btn-sm" id="btnPlaylistNameConfirm">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 音樂資料庫匯入結果 Modal -->
+  <div id="importReportModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card import-report-modal-card" style="width: 580px; max-width: 92vw; background: var(--bg-card, #171820); border: 1px solid var(--border-color, rgba(255,255,255,0.12)); border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div class="modal-title-wrap" style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📊</span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--text-main);">資料庫匯入與合併報告</h3>
+        </div>
+        <button class="icon-btn" id="btnCloseImportReport" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px;">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; max-height: 65vh; overflow-y: auto;">
+        <!-- Summary stats -->
+        <div id="importReportStats" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+          <!-- Injected via JS -->
+        </div>
+
+        <div id="importReportDetails" style="font-size: 13px; line-height: 1.6; color: var(--text-secondary);">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.15);">
+        <button class="btn btn-primary" id="btnConfirmImportReport" style="padding: 8px 22px;">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden native HTML5 Audio element -->
+  <audio id="nativeAudio"></audio>
+
+  <!-- 語言選單放在 body 層級：#titlebar 有 contain: paint，放在標題列內會被裁切擋住 -->
+  <div class="language-menu" id="languageMenu" data-i18n-skip>
+    <div class="language-menu-title">介面語言 / Interface language</div>
+    <button class="language-option" data-lang-option="zh-TW">繁體中文</button>
+    <button class="language-option" data-lang-option="en">English</button>
+  </div>
+
+  <script src="genre-utils.js"></script>
+  <script src="tidal-service.js"></script>
+  <script src="i18n-messages-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="i18n-docs-en.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

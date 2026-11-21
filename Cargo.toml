@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/roo-dsp",
+    "crates/roo-decoder",
+    "crates/roo-output",
+    "crates/roo-streamer",
+    "crates/roo-dlna",
+    "crates/roo-library",
+    "src-tauri",
+]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.38", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+byteorder = "1.5"
+rand = "0.8"
+rayon = "1.10"
+symphonia = { version = "0.5", features = ["all"] }
+lofty = "0.21"
+rusqlite = { version = "0.31", features = ["bundled"] }
+axum = { version = "0.7", features = ["tokio"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "trace"] }
+reqwest = { version = "0.12", features = ["json", "stream", "blocking"] }
+quick-xml = { version = "0.36", features = ["serialize"] }
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
+    "Win32_System_Threading",
+    "Win32_Security",
+] }
+tauri = { version = "2.2", features = [] }
+tauri-build = { version = "2.2" }
+rustfft = "6.2"
+realfft = "3.4"

@@ -1,0 +1,31 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Tauri build artifacts
+src-tauri/target/
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+.vscode/
+.idea/
+
+# Local databases and runtime caches
+*.db
+*.db-shm
+*.db-wal
+library.db
+covers/
+
+# Private credentials & tokens
+tidal-auth.json
+.env
+.env.*
+!.env.example
+
+# Temporary test captures / system generated
+.system_generated/
