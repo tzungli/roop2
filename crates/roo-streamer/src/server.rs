@@ -199,7 +199,7 @@ async fn handle_stream(
             Ok(gen) => {
                 let arc_s = Arc::new(gen);
                 let mut write_cache = state.cache.write().unwrap();
-                if write_cache.len() >= 2 {
+                if !write_cache.is_empty() {
                     write_cache.clear();
                 }
                 write_cache.insert(cache_key, arc_s.clone());

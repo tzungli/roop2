@@ -62,6 +62,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-main);
+}
+
 /* ----------------- Custom Titlebar ----------------- */
 #titlebar {
   position: relative;
@@ -526,6 +530,7 @@ body {
 .section-header h2 {
   font-size: 20px;
   font-weight: 700;
+  color: var(--text-main);
 }
 
 .album-grid {
@@ -551,7 +556,7 @@ body {
   background-color: var(--bg-card-hover);
   border-color: rgba(121, 82, 214, 0.3);
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: none !important;
 }
 
 .album-art-wrap {
@@ -562,7 +567,7 @@ body {
   position: relative;
   background-color: #121318;
   margin-bottom: 10px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  box-shadow: none !important;
 }
 
 .album-art-img {
@@ -575,6 +580,7 @@ body {
 .album-card:hover .album-art-wrap,
 .album-card:hover .album-art-img {
   transform: none !important;
+  box-shadow: none !important;
 }
 
 .album-quality-tag {
@@ -3945,6 +3951,20 @@ body.table-col-resizing * {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
 }
 
+[data-theme="light"] body {
+  color: var(--text-main) !important;
+}
+
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6,
+[data-theme="light"] .section-header h2,
+[data-theme="light"] .hero-title,
+[data-theme="light"] .spotlight-name,
+[data-theme="light"] .spotlight-albums-title,
 [data-theme="light"] .detail-title, 
 [data-theme="light"] .page-title, 
 [data-theme="light"] .stage-title, 
@@ -3954,6 +3974,12 @@ body.table-col-resizing * {
 [data-theme="light"] .track-title-cell,
 [data-theme="light"] .track-title-text {
   color: #0f172a !important;
+}
+
+[data-theme="light"] .album-card:hover,
+[data-theme="light"] .album-art-wrap,
+[data-theme="light"] .album-card:hover .album-art-wrap {
+  box-shadow: none !important;
 }
 
 [data-theme="light"] .tracklist-table th {
@@ -4289,7 +4315,7 @@ body.table-col-resizing * {
   background-color: var(--bg-card-hover);
   border-color: var(--accent-cyan);
   transform: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: none !important;
 }
 
 .missing-badge {

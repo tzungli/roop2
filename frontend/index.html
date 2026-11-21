@@ -9,8 +9,8 @@
   <link rel="stylesheet" href="style.css">
   <style>
     html, body {
-      background-color: #0e0f13;
-      color: #f3f4f6;
+      background-color: var(--bg-main, #0e0f13);
+      color: var(--text-main, #f3f4f6);
     }
   </style>
   <script src="tauri-shim.js"></script>
@@ -39,7 +39,7 @@
 
     <div class="titlebar-right">
       <button id="btnThemeToggle" class="icon-btn theme-toggle-btn" title="切換深色 / 淺色主題">
-        <span id="themeIcon">🌙</span> <span id="themeLabel">深色</span>
+        <span id="themeIcon">☀️</span> <span id="themeLabel">淺色</span>
       </button>
       <!-- 介面語言選擇（繁體中文 / English）：選單、按鈕、表格與說明頁全部跟著切換 -->
       <div class="language-control" id="languageControl" data-i18n-skip>
@@ -167,6 +167,7 @@
           <div class="hero-content">
             <span class="hero-tag">AUDIOPHILE MEDIA HUB</span>
             <h1 class="hero-title">高解析音樂殿堂</h1>
+            <p class="hero-desc">還原母帶級細節，探索無損音訊的極致聆聽體驗。</p>
             <div class="hero-stats">
               <div class="stat-pill"><span id="heroAlbumCount">0</span> 專輯</div>
               <div class="stat-pill"><span id="heroTrackCount">0</span> 曲目</div>

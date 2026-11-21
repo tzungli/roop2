@@ -803,8 +803,21 @@ async function initApp() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       triggerShowWindow();
+      // Proactive post-boot memory compaction
+      setTimeout(() => {
+        if (typeof window.gc === 'function') {
+          try { window.gc(); } catch (e) {}
+        }
+      }, 3000);
     });
   });
+
+  // Periodic background memory reclamation (runs every 60s)
+  setInterval(() => {
+    if (typeof window.gc === 'function') {
+      try { window.gc(); } catch (e) {}
+    }
+  }, 60000);
   // Safety timeout in case rAF is throttled
   setTimeout(triggerShowWindow, 120);
 
@@ -1022,11 +1035,11 @@ function setTheme(theme) {
   const labelEl = document.getElementById('themeLabel');
   if (iconEl && labelEl) {
     if (theme === 'light') {
-      iconEl.textContent = '☀️';
-      labelEl.textContent = '淺色';
-    } else {
       iconEl.textContent = '🌙';
       labelEl.textContent = '深色';
+    } else {
+      iconEl.textContent = '☀️';
+      labelEl.textContent = '淺色';
     }
   }
 }
@@ -1224,11 +1237,12 @@ function showRestoredTrack(track, queue, index) {
 
   playerTitle.textContent = track.title;
   playerArtist.textContent = `${track.artist} — ${track.title}`;
-  const defaultPlayerCover = createSvgCover(track.album || '', track.artist || '', '#27272a', '#09090b');
-  playerCoverImg.src = formatCoverSrc(track.cover) || defaultPlayerCover;
+  const formattedPlayerCover = formatCoverSrc(track.cover);
+  const defaultPlayerCover = formattedPlayerCover ? '' : createSvgCover(track.album || '', track.artist || '', '#27272a', '#09090b');
+  playerCoverImg.src = formattedPlayerCover || defaultPlayerCover;
   playerCoverImg.onerror = () => {
     playerCoverImg.onerror = null;
-    playerCoverImg.src = defaultPlayerCover;
+    playerCoverImg.src = defaultPlayerCover || createSvgCover(track.album || '', track.artist || '', '#27272a', '#09090b');
   };
   playerArtist.style.cursor = 'pointer';
   playerArtist.onclick = () => openArtistDetail(track.artist);
@@ -3125,8 +3139,8 @@ function createAlbumCard(album) {
   card.className = 'album-card';
   card._album = album;
 
-  const defaultCover = createSvgCover(album.title, album.artist, '#27272a', '#09090b');
-  const coverSrc = formatCoverSrc(album.cover) || defaultCover;
+  const formattedCover = formatCoverSrc(album.cover);
+  const coverSrc = formattedCover || createSvgCover(album.title, album.artist, '#27272a', '#09090b');
 
   const firstTrack = (album.tracks && album.tracks[0]) || {};
   const rawPath = firstTrack.filePath || firstTrack.fileName || album.filePath || '';
@@ -3712,8 +3726,8 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
             card.className = 'album-card tidal-discography-card';
             card.dataset.tidalId = String(alb.tidalId);
 
-            const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
-            const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
+            const formattedCover = formatCoverSrc(alb.cover);
+            const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
             const inLib = isTidalAlbumInLibrary(alb.tidalId);
             const hasLocal = localTitlesNormalized.has(normTitle);
 
@@ -3858,8 +3872,8 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
     const card = document.createElement('div');
     card.className = 'missing-album-card';
 
-    const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
-    const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
+    const formattedCover = formatCoverSrc(alb.cover);
+    const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
 
     const searchQuery = `${alb.title} ${alb.artist}`;
     // Tidal: direct site search on Google avoids Tidal's 403 Forbidden Cloudflare block on URL queries
@@ -5065,8 +5079,8 @@ function createLabelTidalCard(alb) {
   card.className = 'album-card tidal-discography-card';
   card.dataset.tidalId = String(alb.tidalId);
 
-  const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
-  const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
+  const formattedCover = formatCoverSrc(alb.cover);
+  const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
   const inLib = isTidalAlbumInLibrary(alb.tidalId);
   const isHiRes = alb.audioQuality === 'HI_RES_LOSSLESS' || alb.audioQuality === 'HIRES';
   const qualityBadgeHtml = isHiRes
@@ -5437,8 +5451,8 @@ function createRecommendAlbumCard(alb, reason, detail) {
   card.dataset.recommendReason = reason || '';
   card.dataset.recommendDetail = detail || '';
 
-  const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
-  const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
+  const formattedCover = formatCoverSrc(alb.cover);
+  const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
 
   let specLabel = '';
   if (alb.isTidal) {
@@ -8608,7 +8622,6 @@ function initConvControls() {
       syncConvModalUI();
       updateSignalPathUI();
       if (state.isPlaying) restartCurrentStreamWithDsp();
-      showToast(state.dsp.conv.enabled ? '🌊 卷積濾波器已啟用' : '卷積濾波器已關閉');
     });
   }
 
@@ -9688,7 +9701,6 @@ function initDspControls() {
           }
         }
       }
-      showToast(state.dsp.enabled ? '⚡ 已啟用 Native DSP 升頻引擎' : '已關閉 DSP 升頻，恢復 Bit-Perfect 直通');
     });
   }
 
@@ -10129,8 +10141,8 @@ function updateNowPlayingModalContent() {
   const foundAlbum = findAlbumForTrack(track);
 
   // 1. Left: Cover Art & Track Info
-  const defaultCover = createSvgCover(track.album || track.title, track.artist, '#27272a', '#09090b');
-  const coverSrc = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null)) || defaultCover;
+  const formattedCover = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null));
+  const coverSrc = formattedCover || createSvgCover(track.album || track.title, track.artist, '#27272a', '#09090b');
   const coverImg = document.getElementById('nowPlayingCoverImg');
   if (coverImg) {
     coverImg.src = coverSrc;
@@ -12857,6 +12869,11 @@ function applyView(viewId, updateNav = true) {
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-view') === viewId);
     });
+  }
+
+  // Proactive memory cleanup on view transitions
+  if (typeof window.gc === 'function') {
+    setTimeout(() => { try { window.gc(); } catch (e) {} }, 150);
   }
 }
 
@@ -17602,8 +17619,8 @@ function createTidalAlbumCard(alb) {
   card.className = 'album-card tidal-discography-card';
   card.dataset.tidalId = String(alb.tidalId);
 
-  const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
-  const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
+  const formattedCover = formatCoverSrc(alb.cover);
+  const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
   const inLib = isTidalAlbumInLibrary(alb.tidalId);
 
   const isHiRes = alb.audioQuality === 'HI_RES_LOSSLESS' || alb.audioQuality === 'HIRES' || (alb.mediaMetadata?.tags?.includes('HIRES_LOSSLESS'));

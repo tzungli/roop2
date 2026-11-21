@@ -21,11 +21,31 @@ use roo_library::LibraryDatabase;
 use roo_output::ExclusiveController;
 use roo_streamer::StreamServer;
 
+#[cfg(target_os = "windows")]
+mod win_mem {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcess() -> *mut std::ffi::c_void;
+        fn SetProcessWorkingSetSize(
+            h_process: *mut std::ffi::c_void,
+            dw_minimum_working_set_size: usize,
+            dw_maximum_working_set_size: usize,
+        ) -> i32;
+    }
+
+    pub fn trim_working_set() {
+        unsafe {
+            let handle = GetCurrentProcess();
+            SetProcessWorkingSetSize(handle, usize::MAX, usize::MAX);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction --disable-background-networking --disable-component-update --js-flags=\"--max-old-space-size=512\" --renderer-process-limit=1"
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction,CalculateNativeWinOcclusion,SpareRendererForSitePerProcess --disable-background-networking --disable-component-update --disable-gpu-shader-disk-cache --disk-cache-size=16777216 --media-cache-size=16777216 --js-flags=\"--max-old-space-size=128 --expose-gc\" --renderer-process-limit=1"
     );
 
     tracing_subscriber::fmt()
@@ -83,6 +103,16 @@ async fn main() {
                             let _ = win.set_focus();
                         }
                     }
+                }
+            });
+
+            #[cfg(target_os = "windows")]
+            tokio::spawn(async {
+                // Periodic memory compaction & physical working set trimming (every 45s)
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(45));
+                loop {
+                    interval.tick().await;
+                    win_mem::trim_working_set();
                 }
             });
             Ok(())
