@@ -125,7 +125,7 @@ body {
   background-color: rgba(255, 255, 255, 0.06);
   color: var(--text-sub);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   letter-spacing: 0.8px;
 }
 
@@ -146,7 +146,7 @@ body {
   cursor: pointer;
   font-size: 13px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 2px;
   transition: all 0.15s ease;
 }
 
@@ -158,7 +158,7 @@ body {
 .search-box {
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
-  border-radius: 18px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   padding: 5px 14px;
@@ -354,7 +354,7 @@ body {
 /* ----------------- Overview View ----------------- */
 .hero-banner {
   position: relative;
-  border-radius: 12px;
+  border-radius: 3px;
   background: linear-gradient(135deg, #13141f 0%, #0c0d13 100%);
   border: 1px solid rgba(255, 255, 255, 0.06);
   padding: 18px 24px;
@@ -536,7 +536,7 @@ body {
 
 .album-card {
   background-color: var(--bg-card);
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 10px;
   border: 1px solid var(--border-color);
   cursor: pointer;
@@ -557,7 +557,7 @@ body {
 .album-art-wrap {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 6px;
+  border-radius: 2px;
   overflow: hidden;
   position: relative;
   background-color: #121318;
@@ -584,7 +584,7 @@ body {
   font-size: 9px;
   font-weight: 700;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
   backdrop-filter: blur(8px);
 }
@@ -795,7 +795,7 @@ body {
   text-align: center;
   cursor: pointer;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 3px;
   border: 1px solid transparent;
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   content-visibility: auto;
@@ -847,7 +847,7 @@ body {
 }
 .artist-grid.artist-size-small .artist-card {
   padding: 8px !important;
-  border-radius: 10px !important;
+  border-radius: 3px !important;
 }
 .artist-grid.artist-size-small .artist-avatar-wrap {
   width: 80px !important;
@@ -881,7 +881,7 @@ body {
 }
 .artist-grid.artist-size-large .artist-card {
   padding: 16px !important;
-  border-radius: 14px !important;
+  border-radius: 4px !important;
 }
 .artist-grid.artist-size-large .artist-avatar-wrap {
   width: 170px !important;
@@ -909,7 +909,7 @@ body {
 .artist-spotlight-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 4px;
   padding: 24px;
   transition: all 0.25s ease;
 }
@@ -933,7 +933,7 @@ body {
 .spotlight-avatar-box {
   width: 130px;
   height: 130px;
-  border-radius: 14px;
+  border-radius: 4px;
   overflow: hidden;
   position: relative;
   background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(99, 102, 241, 0.3));
@@ -1063,7 +1063,7 @@ body {
 /* ----------------- Tracklist Table ----------------- */
 .tracklist-table-container {
   background-color: var(--bg-card);
-  border-radius: 8px;
+  border-radius: 3px;
   border: 1px solid var(--border-color);
   overflow: hidden;
 }
@@ -1199,7 +1199,7 @@ body.table-col-resizing * {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  border-radius: 9px;
+  border-radius: 3px;
   background: rgba(217, 70, 239, 0.14);
   color: var(--accent-purple);
   border: 1px solid rgba(217, 70, 239, 0.28);
@@ -1227,7 +1227,7 @@ body.table-col-resizing * {
   color: #ef4444;
   border: none;
   padding: 0;
-  border-radius: 4px;
+  border-radius: 2px;
   opacity: 0.82;
 }
 
@@ -1248,7 +1248,7 @@ body.table-col-resizing * {
   color: #c4b5fd;
   border: 1px solid rgba(121, 82, 214, 0.25);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-family: monospace;
 }
 
@@ -1256,7 +1256,7 @@ body.table-col-resizing * {
 .storage-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 24px;
   max-width: 800px;
 }
@@ -1275,7 +1275,7 @@ body.table-col-resizing * {
 .scan-progress-box {
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 14px;
   margin-top: 16px;
 }
@@ -1317,7 +1317,7 @@ body.table-col-resizing * {
 
 .folder-list-item {
   background-color: rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 10px 14px;
   display: flex;
   justify-content: space-between;
@@ -1330,7 +1330,7 @@ body.table-col-resizing * {
   color: var(--text-muted);
   padding: 16px;
   border: 1px dashed var(--border-color);
-  border-radius: 8px;
+  border-radius: 3px;
   text-align: center;
 }
 
@@ -1353,7 +1353,7 @@ body.table-col-resizing * {
 .modal-content {
   background-color: #171820;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
+  border-radius: 4px;
   position: relative;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
   max-height: 85vh;
@@ -1400,7 +1400,7 @@ body.table-col-resizing * {
 .album-detail-art-box {
   width: 220px;
   height: 220px;
-  border-radius: 12px;
+  border-radius: 3px;
   position: relative;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
@@ -1424,7 +1424,7 @@ body.table-col-resizing * {
   font-size: 10px;
   font-weight: 700;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .album-detail-meta {
@@ -1573,7 +1573,7 @@ body.table-col-resizing * {
   margin-bottom: 24px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 18px 20px;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1620,7 +1620,7 @@ body.table-col-resizing * {
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-sub);
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
@@ -1683,7 +1683,7 @@ body.table-col-resizing * {
   color: #c084fc;
   border: 1px solid rgba(124, 58, 237, 0.3);
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: 3px;
   font-weight: 600;
 }
 
@@ -1696,7 +1696,7 @@ body.table-col-resizing * {
 .recommend-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1720,7 +1720,7 @@ body.table-col-resizing * {
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 3px;
   overflow: hidden;
   margin-bottom: 10px;
   background: #111;
@@ -1743,7 +1743,7 @@ body.table-col-resizing * {
   font-size: 9.5px;
   font-weight: 700;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   border: 1px solid rgba(168, 85, 247, 0.4);
 }
 
@@ -1757,7 +1757,7 @@ body.table-col-resizing * {
   font-size: 9px;
   font-weight: 700;
   padding: 1.5px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   border: 1px solid rgba(0, 229, 255, 0.5);
   letter-spacing: 0.3px;
   z-index: 2;
@@ -1797,7 +1797,7 @@ body.table-col-resizing * {
   color: var(--text-muted);
   font-size: 13px;
   background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  border-radius: 3px;
 }
 
 [data-theme="light"] .album-intro-section {
@@ -1840,7 +1840,7 @@ body.table-col-resizing * {
   color: #c084fc;
   border: 1px solid rgba(139, 92, 246, 0.4);
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: 3px;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
@@ -1890,7 +1890,7 @@ body.table-col-resizing * {
   background-color: transparent;
   border: none;
   padding: 10px 8px;
-  border-radius: 8px;
+  border-radius: 3px;
   transition: background-color 0.2s ease;
 }
 
@@ -1931,7 +1931,7 @@ body.table-col-resizing * {
   font-size: 9px;
   font-weight: 800;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: var(--accent-purple);
   border: none;
@@ -1947,7 +1947,7 @@ body.table-col-resizing * {
   content: '';
   position: absolute;
   inset: -3px -7px;
-  border-radius: 12px;
+  border-radius: 3px;
   z-index: -1;
   pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(167, 139, 250, 0.85) 0%, rgba(139, 92, 246, 0.45) 40%, rgba(139, 92, 246, 0) 75%);
@@ -1995,7 +1995,7 @@ body.table-col-resizing * {
   font-size: 9px;
   font-weight: 800;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: #22d3ee;
   border: none;
@@ -2010,7 +2010,7 @@ body.table-col-resizing * {
   content: '';
   position: absolute;
   inset: -3px -7px;
-  border-radius: 12px;
+  border-radius: 3px;
   z-index: -1;
   pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.8) 0%, rgba(167, 139, 250, 0.4) 45%, rgba(244, 114, 182, 0) 78%);
@@ -2058,7 +2058,7 @@ body.table-col-resizing * {
   font-size: 9px;
   font-weight: 800;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: #fb923c;
   border: none;
@@ -2073,7 +2073,7 @@ body.table-col-resizing * {
   content: '';
   position: absolute;
   inset: -3px -7px;
-  border-radius: 12px;
+  border-radius: 3px;
   z-index: -1;
   pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(251, 146, 60, 0.8) 0%, rgba(251, 146, 60, 0.4) 45%, rgba(253, 224, 71, 0) 78%);
@@ -2117,7 +2117,7 @@ body.table-col-resizing * {
   margin-top: 14px;
   border: 1px solid rgba(52, 211, 153, 0.25);
   background: rgba(52, 211, 153, 0.05);
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 10px 14px;
   /* 供編輯器以容器查詢判斷是否改用左右配置 */
   container-type: inline-size;
@@ -2147,7 +2147,7 @@ body.table-col-resizing * {
   background: rgba(52, 211, 153, 0.12);
   border: 1px solid rgba(52, 211, 153, 0.4);
   color: #34d399;
-  border-radius: 7px;
+  border-radius: 2px;
   padding: 5px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -2197,7 +2197,7 @@ body.table-col-resizing * {
   gap: 8px;
   background: rgba(52, 211, 153, 0.1);
   border: 1px solid rgba(52, 211, 153, 0.35);
-  border-radius: 16px;
+  border-radius: 4px;
   padding: 4px 12px;
   font-size: 12px;
   color: #a7f3d0;
@@ -2318,7 +2318,7 @@ body.table-col-resizing * {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  border-radius: 7px;
+  border-radius: 2px;
   padding: 4px 8px;
   font-size: 11px;
   cursor: pointer;
@@ -2365,7 +2365,7 @@ body.table-col-resizing * {
   height: auto;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 3px;
   /* 截止線可在圖上直接拖曳：游標回饋由 JS 依位置切換（ew-resize / crosshair） */
   touch-action: none;
 }
@@ -2436,7 +2436,7 @@ body.table-col-resizing * {
   gap: 10px;
   background: rgba(52, 211, 153, 0.06);
   border: 1px solid rgba(52, 211, 153, 0.25);
-  border-radius: 9px;
+  border-radius: 3px;
   padding: 9px 12px;
   font-size: 13px;
 }
@@ -2504,7 +2504,7 @@ body.table-col-resizing * {
   margin-top: 0;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 18px 20px;
   transition: all 0.3s ease;
 }
@@ -2569,7 +2569,7 @@ body.table-col-resizing * {
   bottom: 0;
   background-color: rgba(255, 255, 255, 0.15);
   transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  border-radius: 24px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -2634,7 +2634,7 @@ body.table-col-resizing * {
   background: rgba(139, 92, 246, 0.15);
   color: #c084fc;
   border: 1px solid rgba(139, 92, 246, 0.4);
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 1px 7px;
   font-size: 10px;
   font-weight: 700;
@@ -2685,7 +2685,7 @@ body.table-col-resizing * {
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #94a3b8; /* 沒被選擇的按鈕字體設定成灰色 */
   padding: 5px 11px;
-  border-radius: 14px;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -2820,7 +2820,7 @@ body.table-col-resizing * {
   gap: 6px;
   min-width: 92px;
   padding: 5px 10px;
-  border-radius: 8px;
+  border-radius: 3px;
   border: 1px dashed rgba(255, 255, 255, 0.25);
   background: transparent;
   color: var(--text-muted);
@@ -2939,7 +2939,7 @@ body.table-col-resizing * {
   margin-top: 10px;
   background: rgba(15, 18, 26, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 3px;
 }
 
 .peq-meta-row {
@@ -2973,7 +2973,7 @@ body.table-col-resizing * {
   align-items: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 6px 8px;
   opacity: 0.45;
   transition: opacity 0.2s, border-color 0.2s;
@@ -2996,7 +2996,7 @@ body.table-col-resizing * {
   background: #333846;
   color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 7px;
+  border-radius: 2px;
   font-size: 10.5px;
   font-weight: 600;
   padding: 5px 4px;
@@ -3173,7 +3173,7 @@ body.table-col-resizing * {
 .btn-save-queue-playlist {
   background: rgba(139, 92, 246, 0.16);
   border: 1px solid rgba(139, 92, 246, 0.45);
-  border-radius: 6px;
+  border-radius: 2px;
   color: #d8b4fe;
   cursor: pointer;
   font-size: 12px;
@@ -3189,7 +3189,7 @@ body.table-col-resizing * {
 .btn-playlist-row-edit {
   background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 2px;
   color: var(--text-sub);
   cursor: pointer;
   font-size: 12px;
@@ -3229,7 +3229,7 @@ body.table-col-resizing * {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 3px;
   cursor: pointer;
   transition: background 0.15s;
   margin-bottom: 4px;
@@ -3286,7 +3286,7 @@ body.table-col-resizing * {
 .player-cover-box {
   width: 52px;
   height: 52px;
-  border-radius: 6px;
+  border-radius: 2px;
   overflow: hidden;
   background-color: #161720;
   flex-shrink: 0;
@@ -3479,7 +3479,7 @@ body.table-col-resizing * {
   align-items: center;
   gap: 12px;
   padding: 0 14px;
-  border-radius: 9px;
+  border-radius: 3px;
   background-color: rgba(13, 14, 22, 0.94);
   border: 1px solid rgba(139, 92, 246, 0.4);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -3645,7 +3645,7 @@ body.table-col-resizing * {
 
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -3722,7 +3722,7 @@ body.table-col-resizing * {
   min-width: 210px;
   background: var(--modal-bg);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 6px;
   z-index: 6000;
   box-shadow: var(--card-shadow);
@@ -3747,7 +3747,7 @@ body.table-col-resizing * {
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 8px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -3917,7 +3917,7 @@ body.table-col-resizing * {
 
 [data-theme="light"] .queue-list::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.18);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 [data-theme="light"] .hero-title {
@@ -3994,7 +3994,7 @@ body.table-col-resizing * {
 /* ----------------- Artist Detail View ----------------- */
 .artist-detail-hero {
   position: relative;
-  border-radius: 16px;
+  border-radius: 4px;
   overflow: hidden;
   border: 1px solid var(--border-color);
   margin-bottom: 32px;
@@ -4102,7 +4102,7 @@ body.table-col-resizing * {
   color: var(--text-sub);
   font-size: 11px;
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 3px;
 }
 
 [data-theme="light"] .genre-chip {
@@ -4131,7 +4131,7 @@ body.table-col-resizing * {
   border: 1px solid var(--border-color);
   color: var(--text-muted);
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 3px;
 }
 
 .btn-toggle-lang {
@@ -4142,7 +4142,7 @@ body.table-col-resizing * {
   border: 1px solid rgba(124, 58, 237, 0.35);
   color: #a78bfa;
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
@@ -4175,7 +4175,7 @@ body.table-col-resizing * {
 .artist-bio-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 24px;
   line-height: 1.8;
 }
@@ -4215,7 +4215,7 @@ body.table-col-resizing * {
   padding: 24px;
   text-align: center;
   background-color: var(--bg-card);
-  border-radius: 10px;
+  border-radius: 3px;
   border: 1px dashed var(--border-color);
 }
 
@@ -4235,7 +4235,7 @@ body.table-col-resizing * {
   font-size: 10px;
   font-weight: 700;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
 }
 
@@ -4277,7 +4277,7 @@ body.table-col-resizing * {
 .missing-album-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -4300,7 +4300,7 @@ body.table-col-resizing * {
   font-size: 9px;
   font-weight: 700;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .missing-links-bar {
@@ -4321,7 +4321,7 @@ body.table-col-resizing * {
   font-size: 10px;
   font-weight: 700;
   padding: 4px 6px;
-  border-radius: 5px;
+  border-radius: 2px;
   cursor: pointer;
   text-align: center;
   transition: all 0.15s;
@@ -4415,7 +4415,7 @@ body.table-col-resizing * {
   border: 1px solid rgba(121, 82, 214, 0.35);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   padding: 8px 18px;
-  border-radius: 20px;
+  border-radius: 4px;
   font-size: 13px;
   font-weight: 600;
   z-index: 2500;
@@ -4658,7 +4658,7 @@ body.table-col-resizing * {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 
@@ -4743,7 +4743,7 @@ body.table-col-resizing * {
 .device-tag {
   font-size: 10px;
   padding: 2px 7px;
-  border-radius: 6px;
+  border-radius: 2px;
   font-weight: 600;
   letter-spacing: 0.3px;
 }
@@ -4870,7 +4870,7 @@ body.table-col-resizing * {
   cursor: pointer;
   line-height: 1;
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
@@ -4962,7 +4962,7 @@ body.table-col-resizing * {
   background: rgba(139, 92, 246, 0.12);
   border: 1px solid rgba(139, 92, 246, 0.3);
   padding: 10px 18px;
-  border-radius: 10px;
+  border-radius: 3px;
   margin-bottom: 24px;
 }
 
@@ -4979,7 +4979,7 @@ body.table-col-resizing * {
   background: var(--accent-purple);
   color: #fff;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 11px;
   font-weight: 700;
 }
@@ -4989,7 +4989,7 @@ body.table-col-resizing * {
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: var(--text-main);
   padding: 4px 12px;
-  border-radius: 6px;
+  border-radius: 2px;
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
@@ -5024,7 +5024,7 @@ body.table-col-resizing * {
   overflow: hidden;
   background-color: #0c0d10;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 4px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
 }
 
@@ -5070,7 +5070,7 @@ body.table-col-resizing * {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #f4f4f5;
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 500;
@@ -5108,7 +5108,7 @@ body.table-col-resizing * {
   overflow-y: auto;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.015);
-  border-radius: 16px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -5116,7 +5116,7 @@ body.table-col-resizing * {
   position: relative;
   width: min(230px, 28vh);
   height: min(230px, 28vh);
-  border-radius: 14px;
+  border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
@@ -5282,7 +5282,7 @@ body.table-col-resizing * {
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.015);
-  border-radius: 16px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   padding: 16px;
   overflow: hidden;
@@ -5305,7 +5305,7 @@ body.table-col-resizing * {
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.06);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 3px;
 }
 
 .now-playing-tracklist-scroll {
@@ -5321,7 +5321,7 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: 3px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   font-size: 13px;
@@ -5380,7 +5380,7 @@ body.table-col-resizing * {
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.015);
-  border-radius: 16px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   padding: 16px;
   overflow: hidden;
@@ -5409,7 +5409,7 @@ body.table-col-resizing * {
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.35);
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
@@ -5462,7 +5462,7 @@ body.table-col-resizing * {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
-  border-radius: 8px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -5499,7 +5499,7 @@ body.table-col-resizing * {
   font-size: 16px;
   opacity: 0;
   transition: opacity 0.2s ease;
-  border-radius: 8px;
+  border-radius: 3px;
 }
 
 .player-cover-box:hover .player-cover-expand-hint {
@@ -5640,7 +5640,7 @@ body.table-col-resizing * {
 .search-results-summary-bar {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 14px 20px;
   margin-bottom: 24px;
   display: flex;
@@ -5668,7 +5668,7 @@ body.table-col-resizing * {
   font-weight: 700;
   font-size: 14px;
   padding: 3px 12px;
-  border-radius: 20px;
+  border-radius: 4px;
   border: 1px solid rgba(139, 92, 246, 0.3);
 }
 
@@ -5718,7 +5718,7 @@ body.table-col-resizing * {
 .search-empty-box {
   background-color: var(--bg-card);
   border: 1px dashed var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 36px 20px;
   text-align: center;
   color: var(--text-muted);
@@ -5757,7 +5757,7 @@ body.table-col-resizing * {
   padding: 36px 20px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 3px;
   color: var(--text-muted);
   font-size: 13px;
 }
@@ -5814,7 +5814,7 @@ body.table-col-resizing * {
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: 2px;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
@@ -5844,7 +5844,7 @@ body.table-col-resizing * {
 }
 .album-grid.cover-size-small .album-card {
   padding: 8px !important;
-  border-radius: 10px !important;
+  border-radius: 3px !important;
 }
 .album-grid.cover-size-small .album-title {
   font-size: 12px !important;
@@ -5869,7 +5869,7 @@ body.table-col-resizing * {
 }
 .album-grid.cover-size-large .album-card {
   padding: 16px !important;
-  border-radius: 14px !important;
+  border-radius: 4px !important;
 }
 .album-grid.cover-size-large .album-title {
   font-size: 16px !important;
@@ -5887,7 +5887,7 @@ body.table-col-resizing * {
 }
 .genre-grid.genre-size-small .album-card {
   padding: 8px !important;
-  border-radius: 10px !important;
+  border-radius: 3px !important;
 }
 .genre-grid.genre-size-small .album-title {
   font-size: 12px !important;
@@ -5922,7 +5922,7 @@ body.table-col-resizing * {
 }
 .genre-grid.genre-size-large .album-card {
   padding: 16px !important;
-  border-radius: 14px !important;
+  border-radius: 4px !important;
 }
 .genre-grid.genre-size-large .album-title {
   font-size: 16px !important;
@@ -5969,7 +5969,7 @@ body.table-col-resizing * {
 .album-detail-art-box {
   width: 220px;
   height: 220px;
-  border-radius: 12px;
+  border-radius: 3px;
   position: relative;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
@@ -6076,7 +6076,7 @@ body.table-col-resizing * {
   padding: 5px 12px;
   background: rgba(37, 213, 255, 0.08);
   border: 1px solid rgba(37, 213, 255, 0.25);
-  border-radius: 20px;
+  border-radius: 4px;
 }
 
 .kkbox-badge-dot {
@@ -6101,7 +6101,7 @@ body.table-col-resizing * {
   color: #25d5ff;
   background: rgba(37, 213, 255, 0.18);
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: 3px;
 }
 
 /* KKBOX Subnav Bar (Matching TIDAL Layout) */
@@ -6130,7 +6130,7 @@ body.table-col-resizing * {
   font-size: 13.5px;
   font-weight: 600;
   padding: 8px 16px 10px 16px;
-  border-radius: 6px 6px 0 0;
+  border-radius: 2px 2px 0 0;
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
@@ -6159,7 +6159,7 @@ body.table-col-resizing * {
   font-size: 12px;
   font-weight: 600;
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: 2px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -6183,7 +6183,7 @@ body.table-col-resizing * {
   font-size: 13px;
   font-weight: 600;
   padding: 6px 14px;
-  border-radius: 20px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
@@ -6312,7 +6312,7 @@ body.table-col-resizing * {
 .kkbox-api-view-inner::-webkit-scrollbar-thumb,
 .kkbox-detail-view::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .kkbox-api-view-inner::-webkit-scrollbar-thumb:hover,
@@ -6341,7 +6341,7 @@ body.table-col-resizing * {
   align-items: center;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
+  border-radius: 4px;
   padding: 3px 10px;
   gap: 6px;
   transition: all 0.2s ease;
@@ -6371,7 +6371,7 @@ body.table-col-resizing * {
   background: rgba(37, 213, 255, 0.2);
   color: #25d5ff;
   border: 1px solid rgba(37, 213, 255, 0.4);
-  border-radius: 14px;
+  border-radius: 4px;
   padding: 2px 10px;
   font-size: 11px;
   font-weight: 600;
@@ -6399,7 +6399,7 @@ body.table-col-resizing * {
 
 .kkbox-cat-chip {
   padding: 6px 14px;
-  border-radius: 20px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -6429,7 +6429,7 @@ body.table-col-resizing * {
   gap: 20px;
   background: linear-gradient(135deg, rgba(37, 213, 255, 0.1) 0%, rgba(20, 24, 33, 0.8) 100%);
   border: 1px solid rgba(37, 213, 255, 0.25);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 16px 20px;
   margin-bottom: 20px;
 }
@@ -6437,7 +6437,7 @@ body.table-col-resizing * {
 .kkbox-header-card-thumb {
   width: 90px;
   height: 90px;
-  border-radius: 8px;
+  border-radius: 3px;
   object-fit: cover;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
@@ -6481,7 +6481,7 @@ body.table-col-resizing * {
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: 3px;
   transition: all 0.2s ease;
 }
 
@@ -6513,7 +6513,7 @@ body.table-col-resizing * {
 .kkbox-track-thumb {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: 2px;
   object-fit: cover;
   background: #1e222b;
 }
@@ -6561,7 +6561,7 @@ body.table-col-resizing * {
   font-weight: 700;
   letter-spacing: 0.4px;
   padding: 3px 8px;
-  border-radius: 12px;
+  border-radius: 3px;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
@@ -6607,7 +6607,7 @@ body.table-col-resizing * {
   background: rgba(37, 213, 255, 0.15);
   color: #25d5ff;
   border: 1px solid rgba(37, 213, 255, 0.3);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 5px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -6628,7 +6628,7 @@ body.table-col-resizing * {
   background: rgba(255, 255, 255, 0.06);
   color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 5px 10px;
   font-size: 12px;
   cursor: pointer;
@@ -6651,7 +6651,7 @@ body.table-col-resizing * {
 .kkbox-playlist-card {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border-radius: 3px;
   padding: 12px;
   cursor: pointer;
   transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
@@ -6668,7 +6668,7 @@ body.table-col-resizing * {
 .kkbox-playlist-cover {
   width: 100%;
   aspect-ratio: 1/1;
-  border-radius: 8px;
+  border-radius: 3px;
   object-fit: cover;
   background: #1e222b;
   margin-bottom: 10px;
@@ -6721,14 +6721,14 @@ body.table-col-resizing * {
   align-items: flex-end;
   background: linear-gradient(180deg, rgba(37, 213, 255, 0.12) 0%, rgba(18, 21, 28, 0.9) 100%);
   border: 1px solid rgba(37, 213, 255, 0.25);
-  border-radius: 16px;
+  border-radius: 4px;
   padding: 28px;
 }
 
 .kkbox-detail-cover {
   width: 180px;
   height: 180px;
-  border-radius: 12px;
+  border-radius: 3px;
   object-fit: cover;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
@@ -6746,7 +6746,7 @@ body.table-col-resizing * {
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   margin-bottom: 10px;
 }
 
@@ -6781,7 +6781,7 @@ body.table-col-resizing * {
   max-width: 90vw;
   background: #14171f;
   border: 1px solid rgba(37, 213, 255, 0.3);
-  border-radius: 14px;
+  border-radius: 4px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(37, 213, 255, 0.15);
   overflow: hidden;
 }
@@ -7006,7 +7006,7 @@ body.table-col-resizing * {
 .about-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 4px;
   padding: 24px 28px;
   box-shadow: var(--card-shadow);
 }
@@ -7027,7 +7027,7 @@ body.table-col-resizing * {
 .about-app-logo {
   width: 90px;
   height: 90px;
-  border-radius: 18px;
+  border-radius: 4px;
   object-fit: cover;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(124, 58, 237, 0.35);
   flex-shrink: 0;
@@ -7061,7 +7061,7 @@ body.table-col-resizing * {
   color: #c084fc;
   border: 1px solid rgba(124, 58, 237, 0.4);
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
 }
 
@@ -7071,7 +7071,7 @@ body.table-col-resizing * {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-sub);
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
 }
 
@@ -7095,7 +7095,7 @@ body.table-col-resizing * {
   border: 1px solid var(--border-color);
   color: var(--text-muted);
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: 3px;
 }
 
 .about-quick-nav {
@@ -7112,7 +7112,7 @@ body.table-col-resizing * {
   border: 1px solid var(--border-color);
   color: var(--text-sub);
   padding: 8px 16px;
-  border-radius: 20px;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
@@ -7168,7 +7168,7 @@ body.table-col-resizing * {
 .manual-item {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -7200,7 +7200,7 @@ body.table-col-resizing * {
   background: rgba(124, 58, 237, 0.2);
   color: #c084fc;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
 }
 
@@ -7276,7 +7276,7 @@ body.table-col-resizing * {
   padding: 10px 14px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 3px;
   gap: 20px;
   align-items: baseline;
 }
@@ -7406,7 +7406,7 @@ body.table-col-resizing * {
   color: #0a0b0e;
   font-weight: 800;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 12px;
   margin-right: 10px;
   letter-spacing: 0.5px;
@@ -7419,7 +7419,7 @@ body.table-col-resizing * {
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -7429,7 +7429,7 @@ body.table-col-resizing * {
   width: 90%;
   background: #14161d;
   border: 1px solid rgba(0, 229, 255, 0.2);
-  border-radius: 12px;
+  border-radius: 3px;
   overflow: hidden;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 229, 255, 0.08);
 }
@@ -7493,7 +7493,7 @@ body.table-col-resizing * {
   font-size: 11px;
   font-weight: 700;
   padding: 1px 7px;
-  border-radius: 10px;
+  border-radius: 3px;
 }
 
 .versions-hint-text {
@@ -7514,7 +7514,7 @@ body.table-col-resizing * {
   padding: 10px 14px;
   background: rgba(30, 32, 40, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
@@ -7553,7 +7553,7 @@ body.table-col-resizing * {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
@@ -7615,7 +7615,7 @@ body.table-col-resizing * {
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: 2px;
   border: 1px solid rgba(0, 229, 255, 0.35);
   background: rgba(0, 229, 255, 0.1);
   color: #00e5ff;
@@ -7693,7 +7693,7 @@ body.table-col-resizing * {
   padding: 5px 12px;
   background: rgba(0, 229, 255, 0.08);
   border: 1px solid rgba(0, 229, 255, 0.25);
-  border-radius: 20px;
+  border-radius: 4px;
 }
 
 .tidal-badge-logo {
@@ -7717,7 +7717,7 @@ body.table-col-resizing * {
   color: #00e5ff;
   background: rgba(0, 229, 255, 0.18);
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: 3px;
 }
 
 /* TIDAL Subnav Bar */
@@ -7764,7 +7764,7 @@ body.table-col-resizing * {
   font-size: 13.5px;
   font-weight: 600;
   padding: 8px 16px 10px 16px;
-  border-radius: 6px 6px 0 0;
+  border-radius: 2px 2px 0 0;
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
@@ -7792,7 +7792,7 @@ body.table-col-resizing * {
   align-items: center;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 4px 10px;
   gap: 8px;
   width: 280px;
@@ -7828,7 +7828,7 @@ body.table-col-resizing * {
   color: #00e5ff;
   border: 1px solid rgba(0, 229, 255, 0.4);
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 2px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -7844,7 +7844,7 @@ body.table-col-resizing * {
   color: #00e5ff;
   border: 1px solid rgba(0, 229, 255, 0.3);
   padding: 6px 14px;
-  border-radius: 8px;
+  border-radius: 3px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -7935,7 +7935,7 @@ body.table-col-resizing * {
 
 .tidal-chip-btn {
   padding: 5px 14px;
-  border-radius: 16px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-muted);
@@ -7982,7 +7982,7 @@ body.table-col-resizing * {
   font-size: 12px;
   font-weight: 600;
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: 2px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -8026,7 +8026,7 @@ body.table-col-resizing * {
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: 3px;
   transition: all 0.2s ease;
   cursor: pointer;
 }
@@ -8056,7 +8056,7 @@ body.table-col-resizing * {
 .tidal-track-thumb {
   width: 42px;
   height: 42px;
-  border-radius: 6px;
+  border-radius: 2px;
   object-fit: cover;
   flex-shrink: 0;
   background: #18181b;
@@ -8158,7 +8158,7 @@ body.table-col-resizing * {
 .tidal-detail-cover {
   width: 200px;
   height: 200px;
-  border-radius: 12px;
+  border-radius: 3px;
   object-fit: cover;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(0, 229, 255, 0.2);
@@ -8177,7 +8177,7 @@ body.table-col-resizing * {
   color: #00e5ff;
   background: rgba(0, 229, 255, 0.15);
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   align-self: flex-start;
 }
 
@@ -8219,7 +8219,7 @@ body.table-col-resizing * {
   margin: 60px auto;
   background: rgba(18, 21, 28, 0.7);
   border: 1px solid rgba(0, 229, 255, 0.25);
-  border-radius: 16px;
+  border-radius: 4px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
