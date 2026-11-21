@@ -527,10 +527,54 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 18px;
 }
 
+.section-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .section-header h2 {
   font-size: 20px;
   font-weight: 700;
   color: var(--text-main);
+  margin: 0;
+}
+
+.section-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--accent-purple, #8b5cf6);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.section-action-btn:hover {
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--accent-purple, #8b5cf6);
+  border-color: rgba(124, 58, 237, 0.25);
+  transform: translateX(2px);
+}
+
+.section-action-btn.btn-refresh:hover {
+  transform: rotate(90deg);
+}
+
+[data-theme="light"] .section-action-btn {
+  color: #7c3aed;
+}
+
+[data-theme="light"] .section-action-btn:hover {
+  background: rgba(124, 58, 237, 0.10);
+  border-color: rgba(124, 58, 237, 0.2);
+  color: #6d28d9;
 }
 
 .album-grid {

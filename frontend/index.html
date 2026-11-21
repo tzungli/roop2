@@ -179,8 +179,14 @@
         <!-- 最近聆聽 Recent Played (顯示最近聽的 5 張專輯) -->
         <div class="section-block" id="recentAlbumsSection" style="margin-bottom: 32px;">
           <div class="section-header">
-            <h2>🕒 最近聆聽 Recent Played</h2>
-            <button class="btn-text" id="btnSeeAllHistory">檢視完整播放紀錄 ➔</button>
+            <div class="section-title-wrap">
+              <h2>🕒 最近聆聽 Recent Played</h2>
+              <button class="section-action-btn" id="btnSeeAllHistory" title="檢視完整播放紀錄">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="album-grid" id="recentAlbumsGrid">
             <!-- Injected via JS -->
@@ -190,8 +196,14 @@
         <!-- 最近新增專輯 (依加入時間排序的本機最新匯入與 TIDAL 線上專輯) -->
         <div class="section-block" style="margin-top: 32px; margin-bottom: 32px;">
           <div class="section-header">
-            <h2>🆕 最近新增專輯</h2>
-            <button class="btn-text" id="btnSeeAllAlbums">瀏覽全部專輯 ➔</button>
+            <div class="section-title-wrap">
+              <h2>🆕 最近新增專輯</h2>
+              <button class="section-action-btn" id="btnSeeAllAlbums" title="瀏覽全部專輯">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="album-grid featured-grid" id="overviewGrid">
             <!-- Injected via JS -->
@@ -201,8 +213,14 @@
         <!-- 你最常聽的藝人 (顯示最常聽的 10 個藝人圖像) -->
         <div class="section-block" id="topArtistsSection" style="margin-top: 32px; margin-bottom: 32px;">
           <div class="section-header">
-            <h2>🎙️ 你最常聽的藝人 Top Artists</h2>
-            <button class="btn-text" id="btnSeeAllTopArtists">瀏覽全部演出者 ➔</button>
+            <div class="section-title-wrap">
+              <h2>🎙️ 你最常聽的藝人 Top Artists</h2>
+              <button class="section-action-btn" id="btnSeeAllTopArtists" title="瀏覽全部演出者">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="artists-grid top-artists-grid" id="topArtistsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 18px;">
             <!-- Injected via JS -->
@@ -222,8 +240,14 @@
         <!-- 藝人生活誌 Artist Spotlight (隨機推薦一位藝人，含生平簡介、照片與3張關聯專輯) -->
         <div class="section-block" id="artistSpotlightSection" style="margin-top: 32px; margin-bottom: 32px;">
           <div class="section-header">
-            <h2>📖 藝人生活誌 Artist Spotlight</h2>
-            <button class="btn-text" id="btnRefreshSpotlight" title="隨機換一位藝人">隨機換一位 ↻</button>
+            <div class="section-title-wrap">
+              <h2>📖 藝人生活誌 Artist Spotlight</h2>
+              <button class="section-action-btn btn-refresh" id="btnRefreshSpotlight" title="隨機換一位藝人">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+              </button>
+            </div>
           </div>
           
           <div class="artist-spotlight-card" id="artistSpotlightCard">
@@ -259,8 +283,14 @@
 
         <div class="section-block" style="margin-top: 36px;">
           <div class="section-header">
-            <h2>🎤 探索演出者 Artists</h2>
-            <button class="btn-text" id="btnSeeAllArtists">瀏覽全部演出者 ➔</button>
+            <div class="section-title-wrap">
+              <h2>🎤 探索演出者 Artists</h2>
+              <button class="section-action-btn" id="btnSeeAllArtists" title="瀏覽全部演出者">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="artist-grid" id="overviewArtistsGrid">
             <!-- Injected via JS -->
