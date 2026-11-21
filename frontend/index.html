@@ -2699,8 +2699,8 @@
     <div class="player-center">
       <div class="player-top-indicator">
         <button class="signal-path-btn" id="btnSignalPath" title="查看 rooPlayer 音訊路徑 (Signal Path)">
-          <span class="signal-light-dot"></span>
-          <span id="signalPathBadge">LOSSLESS | 24/96 FLAC</span>
+          <span class="signal-light-dot" id="signalLightDot"></span>
+          <span id="signalPathBadge">FLAC 44.1kHz 16bit</span>
         </button>
       </div>
 
@@ -2819,6 +2819,118 @@
           <button id="btnVolStepDown" class="vol-step-circle-btn" title="降低音量">−</button>
           <button id="btnVolStepUp" class="vol-step-circle-btn" title="提高音量">＋</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Roon-styled Floating Signal Path Popover Card -->
+    <div id="roonSignalPathPopover" class="roon-signal-path-popover" style="display: none;">
+      <!-- Header: 訊號路徑: 高音質 / 無損 / 加強 -->
+      <div class="signal-popover-header">
+        <div class="signal-popover-title-row">
+          <h3 class="signal-popover-title" id="signalPopoverQualityTitle">訊號路徑: 高音質</h3>
+          <button class="signal-popover-close-btn" id="btnCloseSignalPopover">✕</button>
+        </div>
+        <div class="signal-popover-subtitle">點選音訊路徑上的任意階段了解更多</div>
+      </div>
+
+      <!-- Subheader: Zone Name with Dot & Action -->
+      <div class="signal-popover-zone-row">
+        <div class="signal-popover-zone-info">
+          <span class="signal-popover-zone-name" id="signalPopoverZoneName">System Output</span>
+          <span class="signal-popover-dot green" id="signalPopoverZoneDot"></span>
+        </div>
+        <button class="signal-popover-more-btn" id="btnSignalPopoverMore" title="開啟 DSP 與音訊設定">⋮</button>
+      </div>
+
+      <div class="signal-popover-divider"></div>
+
+      <!-- Connected Timeline Node Graph (Exact match to Roon UI) -->
+      <div class="signal-timeline" id="signalPopoverTimeline">
+        <!-- Node 1: 來源 Source -->
+        <div class="timeline-step" id="timelineStepSource">
+          <div class="timeline-node-col">
+            <div class="timeline-node-circle" id="timelineSourceCircle">FLAC</div>
+            <div class="timeline-node-line"></div>
+          </div>
+          <div class="timeline-content-col">
+            <div class="timeline-step-title">
+              <span>來源</span>
+              <svg class="timeline-sparkle-svg" width="13" height="13" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z"/>
+              </svg>
+            </div>
+            <div class="timeline-step-desc" id="timelineSourceDesc">TIDAL FLAC 44.1kHz 16bit 2ch</div>
+          </div>
+        </div>
+
+        <!-- Node 2 (Optional DSP): 升頻處理 / PEQ / IR -->
+        <div class="timeline-step" id="timelineStepDsp" style="display: none;">
+          <div class="timeline-node-col">
+            <div class="timeline-node-circle" id="timelineDspCircle">DSP</div>
+            <div class="timeline-node-line"></div>
+          </div>
+          <div class="timeline-content-col">
+            <div class="timeline-step-title">
+              <span id="timelineDspTitle">升頻處理</span>
+              <svg class="timeline-sparkle-svg" width="13" height="13" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z"/>
+              </svg>
+            </div>
+            <div class="timeline-step-desc" id="timelineDspDesc">64-bit 浮點即時超取樣升頻 ➔ 176.4kHz 24bit</div>
+          </div>
+        </div>
+
+        <!-- Node 3: 此 電腦 (Transport / Core) -->
+        <div class="timeline-step" id="timelineStepTransport">
+          <div class="timeline-node-col">
+            <div class="timeline-node-circle" id="timelineTransportCircle">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11 4 A7 7 0 0 0 11 20 Z" />
+                <path d="M14 7.5 A5 5 0 0 1 14 16.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                <path d="M17.5 5 A8 8 0 0 1 17.5 19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="timeline-node-line"></div>
+          </div>
+          <div class="timeline-content-col">
+            <div class="timeline-step-title">
+              <span>此 電腦</span>
+              <svg class="timeline-sparkle-svg" width="13" height="13" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z"/>
+              </svg>
+            </div>
+            <div class="timeline-step-desc" id="timelineTransportDesc">rooPlayer Advanced Audio Transport</div>
+          </div>
+        </div>
+
+        <!-- Node 4: 輸出裝置 Output Zone -->
+        <div class="timeline-step" id="timelineStepOutput">
+          <div class="timeline-node-col">
+            <div class="timeline-node-circle" id="timelineOutputCircle">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="timeline-content-col">
+            <div class="timeline-step-title">
+              <span id="timelineOutputTitle">System Output</span>
+              <span class="signal-popover-dot green" id="timelineOutputDot"></span>
+            </div>
+            <div class="timeline-step-desc" id="timelineOutputDesc">作業系統混音器(OS Mixer)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Action to open full DSP filter settings -->
+      <div class="signal-popover-footer">
+        <button class="signal-popover-dsp-btn" id="btnOpenFullDspModal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>開啟進階 DSP 升頻與濾波設定</span>
+        </button>
       </div>
     </div>
   </footer>

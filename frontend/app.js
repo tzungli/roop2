@@ -8008,6 +8008,174 @@ function updateSignalPathUI(track = null) {
       ultrasonicStage.style.display = 'none';
     }
   }
+
+  // ----------------- Roon-Styled Signal Path & Badge Presentation -----------------
+  try {
+    let circleFmt = 'FLAC';
+    let srcPrefix = '本機';
+    if (track.isTidal) {
+      circleFmt = 'FLAC';
+      srcPrefix = 'TIDAL';
+    } else if (track.isKkbox) {
+      circleFmt = 'AAC';
+      srcPrefix = 'KKBOX';
+    } else {
+      const extFmt = getAudioFormatFromPath(track.filePath || track.fileName, track.formatName || 'FLAC').toUpperCase();
+      if (extFmt === 'DSF' || extFmt === 'DFF' || isNativeDsd) {
+        circleFmt = 'DSD';
+      } else if (['FLAC', 'WAV', 'MP3', 'AAC', 'ALAC', 'AIFF', 'OGG', 'M4A', 'APE'].includes(extFmt)) {
+        circleFmt = extFmt === 'M4A' ? 'AAC' : extFmt;
+      } else {
+        circleFmt = (extFmt || 'PCM').slice(0, 4);
+      }
+      srcPrefix = '本機';
+    }
+
+    const srcRate = track.sampleRate || 44100;
+    const srcKhz = formatKhz(srcRate);
+    let bitDepthStr = circleFmt === 'DSD' ? '1bit' : `${track.bitDepth || track.bitsPerSample || 16}bit`;
+
+    const peqN = countActivePeqBands();
+    const peqOn = peqN > 0;
+    const convOn = !!buildConvPayload();
+    const procParts = [];
+    if (peqOn) procParts.push('PEQ');
+    if (convOn) procParts.push('卷積 IR');
+    const procLabel = procParts.join(' + ');
+
+    const isDlna = state.activeAudioZone !== 'local' && !!state.activeDlnaDevice;
+    const isLocalExclusive = !isDlna && !!state.exclusive;
+    const isDsp = (state.dsp && state.dsp.enabled) || peqOn || convOn || (isNativeDsd && !isDlna);
+
+    let qualityTitle = '訊號路徑: 高音質';
+    let dotColor = 'green';
+    let badgeText = `${circleFmt} ${srcKhz} ${bitDepthStr}`;
+
+    if (isDsp) {
+      qualityTitle = '訊號路徑: 加強';
+      dotColor = 'blue';
+      if (state.dsp && state.dsp.enabled) {
+        if (isDsdRateMode(curRateMode)) {
+          badgeText = `${circleFmt} ➔ ${curRateMode.toUpperCase()} (DSP)`;
+        } else {
+          const tgtRate = calculateTargetSampleRate(srcRate, curRateMode);
+          badgeText = `${circleFmt} ➔ ${formatKhz(tgtRate)} (DSP)`;
+        }
+      } else if (isNativeDsd && !isDlna) {
+        badgeText = `${circleFmt} ➔ 88.2kHz (DSP)`;
+      } else if (procLabel) {
+        badgeText = `${circleFmt} ${srcKhz} ${bitDepthStr} (${procLabel})`;
+      }
+    } else if (isLocalExclusive || (isDlna && isNativeDsd)) {
+      qualityTitle = isNativeDsd ? '訊號路徑: 無損 DSD (Bit-Perfect)' : '訊號路徑: 位元完美 (Bit-Perfect)';
+      dotColor = isNativeDsd ? 'gold' : 'purple';
+      if (isNativeDsd) {
+        const dsdMhz = track.sampleRate ? (track.sampleRate / 1000000).toFixed(1) + 'MHz' : '2.8MHz';
+        badgeText = `DSD64 ${dsdMhz} 1bit`;
+      } else {
+        badgeText = `${circleFmt} ${srcKhz} ${bitDepthStr}`;
+      }
+    } else {
+      // Standard local OS Mixer / Shared output
+      qualityTitle = '訊號路徑: 高音質';
+      dotColor = 'green';
+      badgeText = `${circleFmt} ${srcKhz} ${bitDepthStr}`;
+    }
+
+    // 1. Update Center Badge in Player Bar
+    if (signalPathBadge) {
+      signalPathBadge.textContent = badgeText;
+    }
+    const signalLightDot = document.getElementById('signalLightDot');
+    if (signalLightDot) {
+      signalLightDot.className = `signal-light-dot ${dotColor}`;
+    }
+
+    // 2. Update Roon Floating Popover Card
+    const signalPopoverQualityTitle = document.getElementById('signalPopoverQualityTitle');
+    if (signalPopoverQualityTitle) {
+      signalPopoverQualityTitle.textContent = qualityTitle;
+    }
+
+    const signalPopoverZoneName = document.getElementById('signalPopoverZoneName');
+    if (signalPopoverZoneName) {
+      signalPopoverZoneName.textContent = isDlna ? state.activeDlnaDevice.name : 'System Output';
+    }
+
+    const signalPopoverZoneDot = document.getElementById('signalPopoverZoneDot');
+    if (signalPopoverZoneDot) {
+      signalPopoverZoneDot.className = `signal-popover-dot ${dotColor}`;
+    }
+
+    // Node 1: Source
+    const timelineSourceCircle = document.getElementById('timelineSourceCircle');
+    if (timelineSourceCircle) {
+      timelineSourceCircle.textContent = circleFmt;
+    }
+    const timelineSourceDesc = document.getElementById('timelineSourceDesc');
+    if (timelineSourceDesc) {
+      timelineSourceDesc.textContent = `${srcPrefix} ${circleFmt} ${srcKhz} ${bitDepthStr} 2ch`;
+    }
+
+    // Node 2: Optional DSP
+    const timelineStepDsp = document.getElementById('timelineStepDsp');
+    const timelineDspCircle = document.getElementById('timelineDspCircle');
+    const timelineDspTitle = document.getElementById('timelineDspTitle');
+    const timelineDspDesc = document.getElementById('timelineDspDesc');
+    if (timelineStepDsp) {
+      if (isDsp) {
+        timelineStepDsp.style.display = 'flex';
+        if (timelineDspCircle) timelineDspCircle.textContent = isDsdDsp ? 'DSD' : (peqOn && !isDspActive ? 'PEQ' : 'DSP');
+        if (timelineDspTitle) timelineDspTitle.textContent = isDspActive ? '升頻處理' : 'DSP 音訊處理';
+        if (timelineDspDesc) {
+          if (isDspActive) {
+            if (isDsdRateMode(curRateMode)) {
+              timelineDspDesc.textContent = `1-bit ${curRateMode.toUpperCase()} Delta-Sigma 調變 (${state.dsp.dsdOrder || 5}階 • ${filterLabel(curPhase)})`;
+            } else {
+              const tgtRate = calculateTargetSampleRate(srcRate, curRateMode);
+              timelineDspDesc.textContent = `64-bit 浮點即時超取樣升頻 ➔ ${formatKhz(tgtRate)} 24bit (${filterLabel(curPhase)})`;
+            }
+          } else if (isNativeDsd && !isDlna) {
+            timelineDspDesc.textContent = '64-bit 浮點降採樣 (Decimation Filter) ➔ 24-bit 88.2kHz';
+          } else {
+            timelineDspDesc.textContent = `64-bit 浮點原生率即時處理（${procLabel}）`;
+          }
+        }
+      } else {
+        timelineStepDsp.style.display = 'none';
+      }
+    }
+
+    // Node 3: Core / Transport
+    const timelineTransportDesc = document.getElementById('timelineTransportDesc');
+    if (timelineTransportDesc) {
+      timelineTransportDesc.textContent = 'rooPlayer Advanced Audio Transport';
+    }
+
+    // Node 4: Output Zone
+    const timelineOutputTitle = document.getElementById('timelineOutputTitle');
+    if (timelineOutputTitle) {
+      timelineOutputTitle.textContent = isDlna ? state.activeDlnaDevice.name : 'System Output';
+    }
+    const timelineOutputDot = document.getElementById('timelineOutputDot');
+    if (timelineOutputDot) {
+      timelineOutputDot.className = `signal-popover-dot ${dotColor}`;
+    }
+    const timelineOutputDesc = document.getElementById('timelineOutputDesc');
+    if (timelineOutputDesc) {
+      if (isDlna) {
+        timelineOutputDesc.textContent = `UPnP AVTransport 區網串流 (${state.activeDlnaDevice.ip})`;
+      } else if (isLocalExclusive) {
+        timelineOutputDesc.textContent = 'WASAPI Exclusive 獨佔模式 24-bit';
+      } else if (state.lineOut) {
+        timelineOutputDesc.textContent = 'Line Out 100% 輸出鎖定';
+      } else {
+        timelineOutputDesc.textContent = '作業系統混音器(OS Mixer)';
+      }
+    }
+  } catch (err) {
+    console.error('Error updating Roon signal path presentation:', err);
+  }
 }
 
 // ========================================================
@@ -11122,7 +11290,11 @@ function initRoonVolumeControls() {
     popoverBtnSignalPath.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleRoonVolumePopover(false);
-      if (btnSignalPath) btnSignalPath.click();
+      if (typeof window.toggleRoonSignalPathPopover === 'function') {
+        window.toggleRoonSignalPathPopover(true);
+      } else if (btnSignalPath) {
+        btnSignalPath.click();
+      }
     });
   }
 
@@ -11181,6 +11353,103 @@ function initRoonVolumeControls() {
 
   // Initial volume sync
   applyVolume(state.volume !== undefined ? state.volume : 1);
+}
+
+// ----------------- Roon Style Floating Signal Path Popover Controls -----------------
+function initRoonSignalPathControls() {
+  const roonSignalPathPopover = document.getElementById('roonSignalPathPopover');
+  const btnCloseSignalPopover = document.getElementById('btnCloseSignalPopover');
+  const btnSignalPopoverMore = document.getElementById('btnSignalPopoverMore');
+  const btnOpenFullDspModal = document.getElementById('btnOpenFullDspModal');
+  const timelineStepDsp = document.getElementById('timelineStepDsp');
+  const signalPathModal = document.getElementById('signalPathModal');
+  const btnSignalPath = document.getElementById('btnSignalPath');
+  const popoverBtnSignalPath = document.getElementById('popoverBtnSignalPath');
+
+  function toggleRoonSignalPathPopover(force) {
+    if (!roonSignalPathPopover) return;
+    const isHidden = roonSignalPathPopover.style.display === 'none' || !roonSignalPathPopover.style.display;
+    const shouldOpen = (force !== undefined) ? force : isHidden;
+
+    if (shouldOpen) {
+      updateSignalPathUI();
+      // Close volume popover if open so they don't overlap
+      const roonVolumePopover = document.getElementById('roonVolumePopover');
+      if (roonVolumePopover && roonVolumePopover.style.display !== 'none') {
+        roonVolumePopover.style.display = 'none';
+        const btnRoonVolumeToggle = document.getElementById('btnRoonVolumeToggle');
+        if (btnRoonVolumeToggle) btnRoonVolumeToggle.classList.remove('active');
+      }
+
+      // Position directly above btnSignalPath if available
+      roonSignalPathPopover.style.display = 'block';
+      if (btnSignalPath) {
+        btnSignalPath.classList.add('active');
+        const btnRect = btnSignalPath.getBoundingClientRect();
+        const popoverWidth = roonSignalPathPopover.offsetWidth || 410;
+        let left = btnRect.left + (btnRect.width / 2) - (popoverWidth / 2);
+        left = Math.max(16, Math.min(window.innerWidth - popoverWidth - 16, left));
+        roonSignalPathPopover.style.left = `${left}px`;
+        roonSignalPathPopover.style.transform = 'none';
+        roonSignalPathPopover.style.bottom = `${Math.max(90, window.innerHeight - btnRect.top + 8)}px`;
+      }
+    } else {
+      roonSignalPathPopover.style.display = 'none';
+      if (btnSignalPath) btnSignalPath.classList.remove('active');
+    }
+  }
+
+  window.toggleRoonSignalPathPopover = toggleRoonSignalPathPopover;
+
+  if (btnSignalPath) {
+    btnSignalPath.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRoonSignalPathPopover();
+    });
+  }
+
+  if (btnCloseSignalPopover) {
+    btnCloseSignalPopover.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRoonSignalPathPopover(false);
+    });
+  }
+
+  const openDspModalHandler = (e) => {
+    e.stopPropagation();
+    toggleRoonSignalPathPopover(false);
+    if (signalPathModal) {
+      updateSignalPathUI();
+      signalPathModal.style.display = 'flex';
+    }
+  };
+
+  if (btnSignalPopoverMore) {
+    btnSignalPopoverMore.addEventListener('click', openDspModalHandler);
+  }
+
+  if (btnOpenFullDspModal) {
+    btnOpenFullDspModal.addEventListener('click', openDspModalHandler);
+  }
+
+  if (timelineStepDsp) {
+    timelineStepDsp.style.cursor = 'pointer';
+    timelineStepDsp.addEventListener('click', openDspModalHandler);
+  }
+
+  document.addEventListener('click', (e) => {
+    if (roonSignalPathPopover && roonSignalPathPopover.style.display !== 'none') {
+      if (!roonSignalPathPopover.contains(e.target) && !btnSignalPath.contains(e.target) && (!popoverBtnSignalPath || !popoverBtnSignalPath.contains(e.target))) {
+        toggleRoonSignalPathPopover(false);
+      }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && roonSignalPathPopover && roonSignalPathPopover.style.display !== 'none') {
+      toggleRoonSignalPathPopover(false);
+    }
+  });
 }
 
 // ----------------- WASAPI 獨佔輸出（Windows 聲音獨佔模式） -----------------
@@ -11430,12 +11699,27 @@ function updateExclusiveBtnState() {
     : (exclusiveCapChecked ? 'WASAPI 獨佔模式：目前輸出裝置未回報可用格式' : 'WASAPI 獨佔模式：正在探測輸出裝置能力');
 }
 
-// 訊號路徑徽章：獨佔輸出在既有徽章後方補上 EXCLUSIVE 標記（原函數照常執行）
+// 訊號路徑徽章：獨佔輸出時同步確保位元完美標記與節點狀態
 const baseUpdateSignalPathUI = updateSignalPathUI;
 updateSignalPathUI = function (track = null) {
   baseUpdateSignalPathUI(track);
-  if (exclusiveActive && exclusiveRate && signalPathBadge) {
-    signalPathBadge.textContent = `${signalPathBadge.textContent} | EXCLUSIVE ${formatKhz(exclusiveRate)}`;
+  if (exclusiveActive && exclusiveRate) {
+    const isDsp = (state.dsp && state.dsp.enabled) || countActivePeqBands() > 0 || !!buildConvPayload();
+    const signalLightDot = document.getElementById('signalLightDot');
+    const signalPopoverQualityTitle = document.getElementById('signalPopoverQualityTitle');
+    const signalPopoverZoneDot = document.getElementById('signalPopoverZoneDot');
+    const timelineOutputDot = document.getElementById('timelineOutputDot');
+    const timelineOutputDesc = document.getElementById('timelineOutputDesc');
+
+    if (!isDsp) {
+      if (signalLightDot) signalLightDot.className = 'signal-light-dot purple';
+      if (signalPopoverQualityTitle) signalPopoverQualityTitle.textContent = '訊號路徑: 位元完美 (Bit-Perfect)';
+      if (signalPopoverZoneDot) signalPopoverZoneDot.className = 'signal-popover-dot purple';
+      if (timelineOutputDot) timelineOutputDot.className = 'signal-popover-dot purple';
+    }
+    if (timelineOutputDesc) {
+      timelineOutputDesc.textContent = `WASAPI Exclusive 獨佔模式 (${formatKhz(exclusiveRate)} 24-bit)`;
+    }
   }
 };
 
@@ -15491,17 +15775,17 @@ function setupPlayerControls() {
     });
   }
 
-  // Signal Path Modal
-  btnSignalPath.addEventListener('click', () => {
-    updateSignalPathUI();
-    signalPathModal.style.display = 'flex';
-  });
-  btnCloseSignalPath.addEventListener('click', () => {
-    signalPathModal.style.display = 'none';
-  });
-  signalPathModal.addEventListener('click', (e) => {
-    if (e.target === signalPathModal) signalPathModal.style.display = 'none';
-  });
+  // Signal Path Modal Close Handlers
+  if (btnCloseSignalPath) {
+    btnCloseSignalPath.addEventListener('click', () => {
+      signalPathModal.style.display = 'none';
+    });
+  }
+  if (signalPathModal) {
+    signalPathModal.addEventListener('click', (e) => {
+      if (e.target === signalPathModal) signalPathModal.style.display = 'none';
+    });
+  }
 
   // Album Detail View
   const btnBackFromAlbumDetail = document.getElementById('btnBackFromAlbumDetail');
@@ -15585,8 +15869,9 @@ function setupPlayerControls() {
     });
   }
 
-  // Initialize Roon Style Volume & Popover Controls
+  // Initialize Roon Style Volume & Signal Path Popover Controls
   initRoonVolumeControls();
+  initRoonSignalPathControls();
 }
 
 // ----------------- DLNA / UPnP Audio Zones Engine -----------------
