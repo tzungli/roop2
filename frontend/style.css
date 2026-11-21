@@ -118,7 +118,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .brand-text {
   font-size: 15px;
-  color: #f5f5f7;
+  color: var(--text-main);
   font-weight: 700;
   letter-spacing: -0.2px;
   text-transform: none;
@@ -400,7 +400,7 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 22px;
   font-weight: 700;
   margin: 2px 0 6px 0;
-  color: #f5f5f7;
+  color: var(--hero-title-color, var(--text-main));
   letter-spacing: -0.4px;
   line-height: 1.25;
 }
@@ -433,7 +433,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .stat-pill span {
   font-weight: 600;
-  color: #f5f5f7;
+  color: var(--text-main);
 }
 
 #heroHistoryPill {
@@ -693,7 +693,7 @@ h1, h2, h3, h4, h5, h6 {
 .album-title {
   font-size: 13px;
   font-weight: 600;
-  color: #f5f5f7;
+  color: var(--text-main);
   margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
@@ -729,7 +729,7 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.4px;
-  color: #f5f5f7;
+  color: var(--text-main);
 }
 
 .page-subtitle,
@@ -837,7 +837,7 @@ h1, h2, h3, h4, h5, h6 {
 .artist-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: #f5f5f7;
+  color: var(--text-main);
 }
 
 .artist-sub {
@@ -1451,7 +1451,7 @@ body.table-col-resizing * {
   font-size: 28px;
   font-weight: 800;
   margin: 6px 0;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .detail-artist-line {
@@ -3312,9 +3312,9 @@ body.table-col-resizing * {
 }
 
 .player-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
-  color: #f5f5f7;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3962,6 +3962,7 @@ body.table-col-resizing * {
 [data-theme="light"] h5,
 [data-theme="light"] h6,
 [data-theme="light"] .section-header h2,
+[data-theme="light"] .player-title,
 [data-theme="light"] .hero-title,
 [data-theme="light"] .spotlight-name,
 [data-theme="light"] .spotlight-albums-title,
@@ -3972,8 +3973,15 @@ body.table-col-resizing * {
 [data-theme="light"] .artist-name,
 [data-theme="light"] .artist-detail-name,
 [data-theme="light"] .track-title-cell,
-[data-theme="light"] .track-title-text {
+[data-theme="light"] .track-title-text,
+[data-theme="light"] .now-playing-track-title {
   color: #0f172a !important;
+}
+
+[data-theme="light"] .player-artist,
+[data-theme="light"] .album-artist,
+[data-theme="light"] .now-playing-album-name {
+  color: #334155 !important;
 }
 
 [data-theme="light"] .album-card:hover,
@@ -5470,7 +5478,7 @@ body.table-col-resizing * {
 .now-playing-track-title {
   font-size: 19px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -5493,7 +5501,7 @@ body.table-col-resizing * {
 
 .now-playing-album-name {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-sub);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
