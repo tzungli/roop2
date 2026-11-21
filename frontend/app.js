@@ -11057,7 +11057,6 @@ function initRoonVolumeControls() {
   const popoverBtnSleep = document.getElementById('popoverBtnSleep');
   const popoverBtnSignalPath = document.getElementById('popoverBtnSignalPath');
   const popoverBtnTransfer = document.getElementById('popoverBtnTransfer');
-  const popoverBtnSettings = document.getElementById('popoverBtnSettings');
 
   function toggleRoonVolumePopover(force) {
     if (!roonVolumePopover) return;
@@ -11127,19 +11126,17 @@ function initRoonVolumeControls() {
     });
   }
 
-  [popoverBtnTransfer, popoverBtnSettings].forEach(btn => {
-    if (btn) {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleRoonVolumePopover(false);
-        const audioDeviceModal = document.getElementById('audioDeviceModal');
-        if (audioDeviceModal) {
-          audioDeviceModal.style.display = 'flex';
-          refreshAudioDevices(false);
-        }
-      });
-    }
-  });
+  if (popoverBtnTransfer) {
+    popoverBtnTransfer.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRoonVolumePopover(false);
+      const audioDeviceModal = document.getElementById('audioDeviceModal');
+      if (audioDeviceModal) {
+        audioDeviceModal.style.display = 'flex';
+        refreshAudioDevices(false);
+      }
+    });
+  }
 
   // Sleep Timer
   let sleepTimerId = null;
