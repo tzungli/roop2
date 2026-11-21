@@ -320,26 +320,33 @@ function createSvgCover(title, artist, primaryColor, secondaryColor) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-// Convert any cover source (file path, media URL, or file URL) to a valid browser-loadable URL
-function formatCoverSrc(src) {
+// Convert any cover source (file path, media URL, or file URL) to a valid browser-loadable URL (with thumbnail downscaling)
+function formatCoverSrc(src, size = 360) {
   if (!src || typeof src !== 'string') return '';
   src = src.trim();
-  if (src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')) {
+  if (src.startsWith('data:')) return src;
+  if (src.startsWith('http://127.0.0.1:39840/cover') || src.startsWith('http://localhost:39840/cover')) {
+    if (src.includes('size=')) {
+      return src.replace(/size=\d+/, `size=${size}`);
+    }
+    return src + (src.includes('?') ? '&' : '?') + `size=${size}`;
+  }
+  if (src.startsWith('http://') || src.startsWith('https://')) {
     return src;
   }
-  if (src.startsWith('file:///')) {
-    return src;
+  let localPath = src;
+  if (localPath.startsWith('file:///')) {
+    localPath = localPath.replace(/^file:\/\/\/?/, '');
+  } else if (localPath.startsWith('file://')) {
+    localPath = localPath.replace(/^file:\/\//, '');
+  } else if (localPath.startsWith('media://')) {
+    localPath = localPath.replace(/^media:\/\//i, '');
   }
-  if (src.startsWith('file://')) {
-    const raw = src.replace(/^file:\/\//, '').replace(/\\/g, '/');
-    return raw.startsWith('/') ? 'file://' + raw : 'file:///' + raw;
+  if (window.electronAPI && typeof window.electronAPI.getCoverUrl === 'function') {
+    return window.electronAPI.getCoverUrl(localPath, size);
   }
-  if (src.startsWith('media://')) {
-    let raw = src.replace(/^media:\/\//i, '').replace(/\\/g, '/');
-    return raw.startsWith('/') ? 'file://' + raw : 'file:///' + raw;
-  }
-  // Local file path like C:\Users\... or /Users/...
-  const clean = src.replace(/\\/g, '/');
+  // Local file path fallback
+  const clean = localPath.replace(/\\/g, '/');
   return clean.startsWith('/') ? 'file://' + clean : 'file:///' + clean;
 }
 
@@ -4086,7 +4093,8 @@ function scheduleNextTracksIdleChunk() {
   if (tracksRenderOffset >= currentDisplayTracks.length) return;
   if (tracksIdleLoadTimer) clearTimeout(tracksIdleLoadTimer);
   tracksIdleLoadTimer = setTimeout(() => {
-    if (state.currentView === 'tracks' && tracksRenderOffset < currentDisplayTracks.length) {
+    // Only pre-fill up to 240 rows in background idle; remaining rows load on-demand as the user scrolls
+    if (state.currentView === 'tracks' && tracksRenderOffset < Math.min(240, currentDisplayTracks.length)) {
       renderNextTracksChunk();
       scheduleNextTracksIdleChunk();
     }
@@ -18189,6 +18197,11 @@ function updateTidalUIStatus() {
   }
 
   function frame(ts) {
+    if (!canvas.offsetParent) {
+      // When spectrum modal is not visible, throttle check to every 500ms to save CPU & memory
+      setTimeout(() => requestAnimationFrame(frame), 500);
+      return;
+    }
     requestAnimationFrame(frame);
     if (!canvas.clientWidth || canvas.clientWidth !== cw || canvas.clientHeight !== ch) resize();
     if (!cw || !ch || !ctx) return; // modal closed: no drawing, no fetching

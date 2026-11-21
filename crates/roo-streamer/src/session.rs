@@ -23,7 +23,7 @@ pub struct DspStreamOptions {
     pub conv_json: Option<String>,
 }
 
-fn default_rate() -> u32 { 192000 }
+fn default_rate() -> u32 { 0 }
 fn default_order() -> u8 { 5 }
 fn default_phase() -> String { "linear".to_string() }
 
@@ -99,46 +99,51 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
             data: Arc::new(out_buf),
         })
     } else {
-        // PCM Upsampling path (e.g. up to 192kHz/384kHz 24-bit WAV)
-        let target_rate = opts.target_rate;
-        let ratio = target_rate as f64 / src_rate as f64;
-        let out_frames = (left.len() as f64 * ratio).round() as usize;
-
-        let gf = REGISTRY.build_filter(target_rate as f64, src_rate as f64, &opts.filter_phase);
-        let (up_l, up_r) = if let Some(filter) = &gf {
-            let mut l_vec = Vec::with_capacity(out_frames);
-            let mut r_vec = Vec::with_capacity(out_frames);
-            for i in 0..out_frames {
-                l_vec.push(roo_dsp::fir_sample(&left, left.len(), i, ratio, filter));
-                r_vec.push(roo_dsp::fir_sample(&right, right.len(), i, ratio, filter));
-            }
-            (l_vec, r_vec)
+        // PCM path: if target_rate is 0 or matches source, keep original rate (bit-perfect pass-through)
+        let target_rate = if opts.target_rate == 0 { src_rate } else { opts.target_rate };
+        let (up_l, up_r) = if target_rate == src_rate {
+            (left, right)
         } else {
-            // Polynomial Hermite interpolator
-            let mut l_vec = Vec::with_capacity(out_frames);
-            let mut r_vec = Vec::with_capacity(out_frames);
-            let inv_ratio = 1.0 / ratio;
-            for i in 0..out_frames {
-                let t_src = i as f64 * inv_ratio;
-                let idx = t_src.floor() as usize;
-                let frac = t_src - idx as f64;
+            let ratio = target_rate as f64 / src_rate as f64;
+            let out_frames = (left.len() as f64 * ratio).round() as usize;
 
-                let p1_l = if idx < left.len() { left[idx] } else { 0.0 };
-                let p2_l = if idx + 1 < left.len() { left[idx + 1] } else { 0.0 };
-                let p0_l = if idx > 0 && idx - 1 < left.len() { left[idx - 1] } else { p1_l };
-                let p3_l = if idx + 2 < left.len() { left[idx + 2] } else { p2_l };
+            let gf = REGISTRY.build_filter(target_rate as f64, src_rate as f64, &opts.filter_phase);
+            if let Some(filter) = &gf {
+                let mut l_vec = Vec::with_capacity(out_frames);
+                let mut r_vec = Vec::with_capacity(out_frames);
+                for i in 0..out_frames {
+                    l_vec.push(roo_dsp::fir_sample(&left, left.len(), i, ratio, filter));
+                    r_vec.push(roo_dsp::fir_sample(&right, right.len(), i, ratio, filter));
+                }
+                (l_vec, r_vec)
+            } else {
+                // Polynomial Hermite interpolator
+                let mut l_vec = Vec::with_capacity(out_frames);
+                let mut r_vec = Vec::with_capacity(out_frames);
+                let inv_ratio = 1.0 / ratio;
+                for i in 0..out_frames {
+                    let t_src = i as f64 * inv_ratio;
+                    let idx = t_src.floor() as usize;
+                    let frac = t_src - idx as f64;
 
-                let p1_r = if idx < right.len() { right[idx] } else { 0.0 };
-                let p2_r = if idx + 1 < right.len() { right[idx + 1] } else { 0.0 };
-                let p0_r = if idx > 0 && idx - 1 < right.len() { right[idx - 1] } else { p1_r };
-                let p3_r = if idx + 2 < right.len() { right[idx + 2] } else { p2_r };
+                    let p1_l = if idx < left.len() { left[idx] } else { 0.0 };
+                    let p2_l = if idx + 1 < left.len() { left[idx + 1] } else { 0.0 };
+                    let p0_l = if idx > 0 && idx - 1 < left.len() { left[idx - 1] } else { p1_l };
+                    let p3_l = if idx + 2 < left.len() { left[idx + 2] } else { p2_l };
 
-                l_vec.push(roo_dsp::interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac));
-                r_vec.push(roo_dsp::interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac));
+                    let p1_r = if idx < right.len() { right[idx] } else { 0.0 };
+                    let p2_r = if idx + 1 < right.len() { right[idx + 1] } else { 0.0 };
+                    let p0_r = if idx > 0 && idx - 1 < right.len() { right[idx - 1] } else { p1_r };
+                    let p3_r = if idx + 2 < right.len() { right[idx + 2] } else { p2_r };
+
+                    l_vec.push(roo_dsp::interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac));
+                    r_vec.push(roo_dsp::interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac));
+                }
+                (l_vec, r_vec)
             }
-            (l_vec, r_vec)
         };
 
+        let out_frames = up_l.len();
         // Write 24-bit stereo WAV
         let data_size = out_frames as u64 * 6; // 3 bytes L + 3 bytes R
         let total_file_bytes = 44 + data_size;
