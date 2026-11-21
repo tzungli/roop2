@@ -283,7 +283,7 @@ body {
   background: transparent;
   border: none;
   padding: 6px 10px;
-  border-radius: 0;
+  border-radius: 3px;
   color: var(--text-sub);
   font-size: 12.5px;
   font-weight: 500;
@@ -321,7 +321,7 @@ body {
   background-color: rgba(255, 255, 255, 0.06);
   color: var(--text-sub);
   padding: 1px 6px;
-  border-radius: 0;
+  border-radius: 2px;
 }
 
 .zone-icon {
@@ -421,7 +421,7 @@ body {
   backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.06);
   padding: 4px 12px;
-  border-radius: 0;
+  border-radius: 3px;
   font-size: 11.5px;
   color: var(--text-sub);
   font-weight: 500;
@@ -433,7 +433,7 @@ body {
 }
 
 #heroHistoryPill {
-  border-radius: 0;
+  border-radius: 3px;
   transition: all 0.2s ease;
 }
 
@@ -467,7 +467,7 @@ body {
   border: none;
   cursor: pointer;
   font-weight: 600;
-  border-radius: 0;
+  border-radius: 3px;
   padding: 10px 18px;
   font-size: 13px;
   transition: all 0.2s;
@@ -747,7 +747,7 @@ body {
   background-color: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.05);
   padding: 3px;
-  border-radius: 0;
+  border-radius: 3px;
 }
 
 .pill {
@@ -757,7 +757,7 @@ body {
   font-size: 12px;
   font-weight: 500;
   padding: 4px 12px;
-  border-radius: 0;
+  border-radius: 2px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -778,7 +778,7 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-main);
   padding: 6px 12px;
-  border-radius: 0;
+  border-radius: 3px;
   font-size: 12px;
   outline: none;
   cursor: pointer;
@@ -3359,7 +3359,7 @@ body.table-col-resizing * {
   font-size: 10px;
   font-weight: 600;
   padding: 2px 10px;
-  border-radius: 0;
+  border-radius: 3px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3659,7 +3659,7 @@ body.table-col-resizing * {
   gap: 5px;
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
-  border-radius: 0;
+  border-radius: 3px;
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 600;
@@ -3691,7 +3691,7 @@ body.table-col-resizing * {
   gap: 5px;
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
-  border-radius: 0;
+  border-radius: 3px;
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 600;
@@ -4454,7 +4454,7 @@ body.table-col-resizing * {
   max-width: 130px;
   justify-content: center;
   box-sizing: border-box;
-  border-radius: 0;
+  border-radius: 3px;
 }
 
 .player-volume-box {
@@ -4471,7 +4471,7 @@ body.table-col-resizing * {
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-main);
   padding: 4px 12px;
-  border-radius: 0;
+  border-radius: 3px;
   cursor: pointer;
   font-family: inherit;
   font-size: 11.5px;
@@ -4506,7 +4506,7 @@ body.table-col-resizing * {
   padding: 3px 8px;
   gap: 6px;
   justify-content: flex-start;
-  border-radius: 0;
+  border-radius: 2px;
 }
 
 /* Line Out 鎖定按鈕（最大音量輸出鎖定） */
@@ -4515,7 +4515,7 @@ body.table-col-resizing * {
   align-items: center;
   gap: 5px;
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: 2px;
 }
 
 .line-out-label {
@@ -4538,7 +4538,7 @@ body.table-col-resizing * {
   align-items: center;
   gap: 5px;
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: 2px;
 }
 
 .exclusive-out-label {
@@ -4627,7 +4627,7 @@ body.table-col-resizing * {
   align-items: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
-  border-radius: 0;
+  border-radius: 3px;
   padding: 12px 16px;
   cursor: pointer;
   transition: all 0.2s;
@@ -4677,7 +4677,7 @@ body.table-col-resizing * {
 .device-status-badge {
   font-size: 10.5px;
   padding: 3px 10px;
-  border-radius: 0;
+  border-radius: 2px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-sub);
   border: 1px solid var(--border-color);
@@ -4710,7 +4710,7 @@ body.table-col-resizing * {
   align-items: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
-  border-radius: 0;
+  border-radius: 3px;
   padding: 8px 12px;
   margin-bottom: 18px;
 }
@@ -5050,7 +5050,7 @@ body.table-col-resizing * {
   color: #c4b5fd;
   background: rgba(121, 82, 214, 0.15);
   padding: 3px 10px;
-  border-radius: 0;
+  border-radius: 2px;
   border: 1px solid rgba(121, 82, 214, 0.3);
 }
 
@@ -5059,7 +5059,7 @@ body.table-col-resizing * {
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.05);
   padding: 3px 10px;
-  border-radius: 0;
+  border-radius: 2px;
 }
 
 .np-header-ctrl-btn {
