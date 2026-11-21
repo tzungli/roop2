@@ -1,6 +1,6 @@
 [package]
 name = "rooplayer"
-version = "0.8.4"
+version = "0.1.0"
 description = "rooPlayer - Audiophile Music Media Manager"
 edition = "2021"
 

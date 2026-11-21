@@ -290,6 +290,9 @@
     exclusiveState: () => invoke('exclusive_state'),
     onExclusiveStatus: (callback) => listen('exclusive:status', callback),
 
+    // App Metadata
+    getAppVersion: () => '0.1.0',
+
     // Media file URL helper
     getMediaUrl: (absolutePath) => {
       if (!absolutePath) return '';

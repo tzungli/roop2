@@ -58,7 +58,10 @@ pub async fn native_http_request(
     if !has_ua {
         req_builder = req_builder.header(
             "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 rooPlayer/0.8.4",
+            concat!(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 rooPlayer/",
+                env!("CARGO_PKG_VERSION")
+            ),
         );
     }
 
