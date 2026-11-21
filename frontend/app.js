@@ -8090,6 +8090,10 @@ function updateSignalPathUI(track = null) {
     if (signalLightDot) {
       signalLightDot.className = `signal-light-dot ${dotColor}`;
     }
+    const btnSignalPath = document.getElementById('btnSignalPath');
+    if (btnSignalPath) {
+      btnSignalPath.title = `音訊路徑 (Signal Path): ${badgeText}`;
+    }
 
     // 2. Update Roon Floating Popover Card
     const signalPopoverQualityTitle = document.getElementById('signalPopoverQualityTitle');
