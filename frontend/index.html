@@ -2706,12 +2706,16 @@
 
     <!-- Right: Zone Output, Volume & Queue -->
     <div class="player-right">
-      <button id="btnAudioOutput" class="zone-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
-        <span class="zone-icon">🔊</span>
-        <span class="zone-name" id="currentZoneName">本機播放</span>
-      </button>
-      <button id="btnVolumeIcon" class="icon-btn" title="靜音切換">🔊</button>
-      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" class="volume-slider">
+      <div class="player-zone-volume-stack">
+        <button id="btnAudioOutput" class="zone-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
+          <span class="zone-icon">🔊</span>
+          <span class="zone-name" id="currentZoneName">本機播放</span>
+        </button>
+        <div class="player-volume-box">
+          <button id="btnVolumeIcon" class="icon-btn" title="靜音切換">🔊</button>
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" class="volume-slider">
+        </div>
+      </div>
       <div class="output-mode-stack">
         <button id="btnLineOut" class="icon-btn line-out-btn" title="Line Out：最大音量輸出鎖定（鎖定時不可調音量）">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

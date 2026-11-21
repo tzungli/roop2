@@ -41,7 +41,7 @@ pub async fn dlna_play_track(
 ) -> Result<serde_json::Value, String> {
     let title = track.get("title").and_then(|v| v.as_str()).unwrap_or("Track");
     let artist = track.get("artist").and_then(|v| v.as_str()).unwrap_or("Artist");
-    let file_path = track.get("path").and_then(|v| v.as_str()).unwrap_or("");
+    let file_path = track.get("filePath").or_else(|| track.get("path")).and_then(|v| v.as_str()).unwrap_or("");
     let start = start_sec.unwrap_or(0.0);
 
     let stream_url = format!(

@@ -6,6 +6,7 @@ use anyhow::Result;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackRecord {
     pub id: String,
+    #[serde(rename = "filePath", alias = "path")]
     pub path: String,
     pub title: String,
     pub artist: String,
@@ -23,8 +24,9 @@ pub struct TrackRecord {
     pub sample_rate: u32,
     #[serde(rename = "bitsPerSample")]
     pub bits_per_sample: u32,
+    #[serde(rename = "formatName", alias = "format")]
     pub format: String,
-    #[serde(rename = "coverPath")]
+    #[serde(rename = "cover", alias = "coverPath")]
     pub cover_path: Option<String>,
     #[serde(rename = "dateAdded")]
     pub date_added: u64,

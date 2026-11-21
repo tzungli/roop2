@@ -83,7 +83,21 @@ body {
 }
 
 .titlebar-left {
-  min-width: 310px;
+  min-width: 300px;
+  flex-shrink: 0;
+}
+
+.titlebar-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 16px;
+}
+
+.titlebar-right {
+  flex-shrink: 0;
 }
 
 .brand {
@@ -145,7 +159,9 @@ body {
   display: flex;
   align-items: center;
   padding: 5px 14px;
-  width: 360px;
+  width: 100%;
+  max-width: 380px;
+  min-width: 150px;
   transition: all 0.2s ease;
 }
 
@@ -197,6 +213,7 @@ body {
 
 .window-controls {
   display: flex;
+  flex-shrink: 0;
 }
 
 .win-btn {
@@ -518,6 +535,8 @@ body {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
 }
 
 .album-card:hover {
@@ -758,6 +777,13 @@ body {
   padding: 12px;
   border-radius: 12px;
   transition: all 0.2s;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+
+#allTracksTbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
 }
 
 .artist-card:hover {
@@ -4381,6 +4407,31 @@ body.table-col-resizing * {
 }
 
 /* ----------------- Audio Zone / DLNA Output ----------------- */
+.player-zone-volume-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.player-zone-volume-stack .zone-btn {
+  margin-right: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  width: 100%;
+  max-width: 130px;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.player-volume-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .zone-btn {
   display: inline-flex;
   align-items: center;

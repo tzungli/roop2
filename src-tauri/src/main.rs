@@ -23,6 +23,11 @@ use roo_streamer::StreamServer;
 
 #[tokio::main]
 async fn main() {
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction --disable-background-networking --disable-component-update --js-flags=\"--max-old-space-size=512\" --renderer-process-limit=1"
+    );
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
@@ -64,6 +69,9 @@ async fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.hide();
+            }
             let handle = app.handle().clone();
             tokio::spawn(async move {
                 // Emergency fallback: reveal main window after 12s only if frontend failed to reveal it

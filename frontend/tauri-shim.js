@@ -75,6 +75,29 @@
 
   // Native HTTP Fetch Bridge — Bypasses browser CORS and restricted headers for external APIs (KKBOX, iTunes, MusicBrainz, Wikipedia, etc.)
   const originalFetch = window.fetch;
+  let isInsideNativeFetch = false;
+
+  function isLocalOrInternalUrl(u) {
+    if (!u || typeof u !== 'string') return true;
+    const lower = u.trim().toLowerCase();
+    if (lower.startsWith('/') || lower.startsWith('./') || lower.startsWith('../') ||
+        lower.startsWith('blob:') || lower.startsWith('data:') || lower.startsWith('tauri:') ||
+        lower.startsWith('asset:') || lower.startsWith('media:') || lower.startsWith('file:')) {
+      return true;
+    }
+    // Tauri IPC / internal endpoints (e.g. http://ipc.localhost, http://tauri.localhost, http://127.0.0.1:39840)
+    try {
+      const parsed = new URL(u, window.location.href);
+      const host = parsed.hostname.toLowerCase();
+      if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost') || host === 'ipc.localhost') {
+        return true;
+      }
+    } catch (_) {
+      if (lower.includes('localhost') || lower.includes('127.0.0.1')) return true;
+    }
+    return false;
+  }
+
   window.fetch = async function (resource, init = {}) {
     let url = '';
     if (typeof resource === 'string') {
@@ -83,14 +106,10 @@
       url = resource.url;
     }
 
-    const isLocal = url.startsWith('/') ||
-                    url.startsWith('http://127.0.0.1') ||
-                    url.startsWith('http://localhost') ||
-                    url.startsWith('blob:') ||
-                    url.startsWith('data:');
-
-    // If external HTTP/HTTPS request (e.g. kkbox.com, apple.com, musicbrainz.org, wikipedia.org)
-    if (!isLocal && (url.startsWith('http://') || url.startsWith('https://'))) {
+    // Only intercept true external web APIs (api.kkbox.com, tidal.com, musicbrainz.org, etc.)
+    // Never intercept local IPC, 127.0.0.1 stream server, or re-entrant calls
+    if (!isInsideNativeFetch && !isLocalOrInternalUrl(url) && (url.startsWith('http://') || url.startsWith('https://'))) {
+      isInsideNativeFetch = true;
       try {
         const method = (init.method || (typeof resource === 'object' && resource.method) || 'GET').toUpperCase();
         let headers = {};
@@ -141,23 +160,31 @@
         }
       } catch (err) {
         console.warn('[TauriShim] Native HTTP request proxy error, fallback to browser fetch:', err);
+      } finally {
+        isInsideNativeFetch = false;
       }
     }
 
     return originalFetch.apply(this, arguments);
   };
 
+  function normalizeShimTrack(t) {
+    if (!t || typeof t !== 'object') return t;
+    const p = t.filePath || t.path || '';
+    t.filePath = p;
+    t.path = p;
+    const c = t.cover || t.coverPath || '';
+    t.cover = c;
+    t.coverPath = c;
+    const f = t.formatName || t.format || 'PCM';
+    t.formatName = f;
+    t.format = f;
+    return t;
+  }
+
   window.electronAPI = {
     // Window controls
     showWindow: async () => {
-      try {
-        if (window.__TAURI__?.window?.getCurrentWindow) {
-          const win = window.__TAURI__.window.getCurrentWindow();
-          await win.show();
-          await win.setFocus();
-          return;
-        }
-      } catch (_) {}
       return await invoke('window_show');
     },
     startDragging: async () => {
@@ -225,15 +252,44 @@
     connectSambaShare: (params) => invoke('samba_connect_and_scan', { params }),
     testSambaShare: (uncPath) => invoke('samba_test_share', { uncPath }),
     discoverSambaServers: () => invoke('samba_discover_servers'),
-    scanFolder: (folderPath) => invoke('library_scan_folder', { folderPath }),
+    scanFolder: async (folderPath) => {
+      const res = await invoke('library_scan_folder', { folderPath });
+      if (res && Array.isArray(res.tracks)) {
+        res.tracks.forEach(normalizeShimTrack);
+      }
+      return res;
+    },
     onScanProgress: (callback) => listen('library:scanProgress', callback),
-    loadSavedLibrary: () => invoke('library_load_saved'),
-    saveLibraryTracks: (tracks) => invoke('library_save_tracks', { tracks }),
+    loadSavedLibrary: async () => {
+      const res = await invoke('library_load_saved');
+      if (res && Array.isArray(res.tracks)) {
+        res.tracks.forEach(normalizeShimTrack);
+      }
+      return res;
+    },
+    saveLibraryTracks: (tracks) => {
+      if (Array.isArray(tracks)) {
+        tracks.forEach(normalizeShimTrack);
+      }
+      return invoke('library_save_tracks', { tracks });
+    },
     exportLibrary: (defaultFilename, extraData) => invoke('library_export', { defaultFilename, extraData }),
-    importLibrary: () => invoke('library_import'),
+    importLibrary: async () => {
+      const res = await invoke('library_import');
+      if (res && res.data && Array.isArray(res.data.tracks)) {
+        res.data.tracks.forEach(normalizeShimTrack);
+      }
+      return res;
+    },
     readPlaylistFile: () => invoke('playlist_read_file'),
     writePlaylistFile: (suggestedName, text, ext) => invoke('playlist_write_file', { suggestedName, text, ext }),
-    removeFolder: (folderPath) => invoke('library_remove_folder', { folderPath }),
+    removeFolder: async (folderPath) => {
+      const res = await invoke('library_remove_folder', { folderPath });
+      if (res && Array.isArray(res.tracks)) {
+        res.tracks.forEach(normalizeShimTrack);
+      }
+      return res;
+    },
     updateAlbumArtist: (albumTitle, artistName) => invoke('library_update_album_artist', { albumTitle, artistName }),
     openExternal: (url) => invoke('shell_open_external', { url }),
     getDsdStreamUrl: (filePath, startSec = 0, peqJson = '', convJson = '') =>
@@ -297,6 +353,10 @@
     getMediaUrl: (absolutePath) => {
       if (!absolutePath) return '';
       return `http://127.0.0.1:39840/sox-stream?file_path=${encodeURIComponent(absolutePath)}`;
+    },
+    getCoverUrl: (absolutePath, size = 360) => {
+      if (!absolutePath) return '';
+      return `http://127.0.0.1:39840/cover?path=${encodeURIComponent(absolutePath)}&size=${size}`;
     }
   };
 
