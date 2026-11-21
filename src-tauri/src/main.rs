@@ -45,7 +45,7 @@ mod win_mem {
 async fn main() {
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction,CalculateNativeWinOcclusion,SpareRendererForSitePerProcess --disable-background-networking --disable-component-update --disable-gpu-shader-disk-cache --disk-cache-size=16777216 --media-cache-size=16777216 --js-flags=\"--max-old-space-size=128 --expose-gc\" --renderer-process-limit=1"
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction --disable-background-networking --disable-component-update --disk-cache-size=33554432 --media-cache-size=33554432 --js-flags=\"--max-old-space-size=256\" --renderer-process-limit=1"
     );
 
     tracing_subscriber::fmt()
@@ -94,8 +94,8 @@ async fn main() {
             }
             let handle = app.handle().clone();
             tokio::spawn(async move {
-                // Emergency fallback: reveal main window after 12s only if frontend failed to reveal it
-                tokio::time::sleep(std::time::Duration::from_millis(12000)).await;
+                // Emergency fallback: reveal main window after 2.5s only if frontend failed to reveal it
+                tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
                 if let Some(win) = handle.get_webview_window("main") {
                     if let Ok(visible) = win.is_visible() {
                         if !visible {

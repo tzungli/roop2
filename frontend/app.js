@@ -776,21 +776,7 @@ async function initApp() {
     state.recentlyPlayedAlbums = [];
   }
 
-  rebuildLibraryCollections();
-  renderAll();
-
-  // Startup default: show the last played track in the player bar (display only, not playing)
-  restoreLastPlayedTrack();
-  console.log(`[Startup] last-played restore: queue=${state.queue.length} index=${state.currentTrackIndex} history=${getPlaybackHistory().length} tidalLoggedIn=${!!(window.tidalService && window.tidalService.isLoggedIn)}`);
-
-  // Set initial default volume
-  nativeAudio.volume = state.volume;
-
-  // Initialize playback control button states
-  updateShuffleUI();
-  updateRepeatUI();
-
-  // Instant display: UI is fully rendered, reveal main window once the compositor has painted the frame!
+  // Instant display: reveal main window once UI rendering is initiated
   let windowShown = false;
   const triggerShowWindow = () => {
     if (windowShown) return;
@@ -799,6 +785,26 @@ async function initApp() {
       window.electronAPI.showWindow();
     }
   };
+  // Safety timeout: guaranteed window visibility within 150ms under all conditions
+  setTimeout(triggerShowWindow, 150);
+
+  try {
+    rebuildLibraryCollections();
+    renderAll();
+
+    // Startup default: show the last played track in the player bar (display only, not playing)
+    restoreLastPlayedTrack();
+    console.log(`[Startup] last-played restore: queue=${state.queue.length} index=${state.currentTrackIndex} history=${getPlaybackHistory().length} tidalLoggedIn=${!!(window.tidalService && window.tidalService.isLoggedIn)}`);
+
+    // Set initial default volume
+    nativeAudio.volume = state.volume;
+
+    // Initialize playback control button states
+    updateShuffleUI();
+    updateRepeatUI();
+  } catch (err) {
+    console.error('[Startup] Initialization error:', err);
+  }
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -818,8 +824,6 @@ async function initApp() {
       try { window.gc(); } catch (e) {}
     }
   }, 60000);
-  // Safety timeout in case rAF is throttled
-  setTimeout(triggerShowWindow, 120);
 
   // 截圖模式 hook（主行程以 ?rpCapture=1 載入時觸發，供 GitHub Pages 介面展示；
   // 正常啟動 location 無此參數，本區塊完全不執行）
@@ -3139,8 +3143,8 @@ function createAlbumCard(album) {
   card.className = 'album-card';
   card._album = album;
 
-  const formattedCover = formatCoverSrc(album.cover);
-  const coverSrc = formattedCover || createSvgCover(album.title, album.artist, '#27272a', '#09090b');
+  const defaultCover = createSvgCover(album.title, album.artist, '#27272a', '#09090b');
+  const coverSrc = formatCoverSrc(album.cover) || defaultCover;
 
   const firstTrack = (album.tracks && album.tracks[0]) || {};
   const rawPath = firstTrack.filePath || firstTrack.fileName || album.filePath || '';
@@ -3726,8 +3730,8 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
             card.className = 'album-card tidal-discography-card';
             card.dataset.tidalId = String(alb.tidalId);
 
-            const formattedCover = formatCoverSrc(alb.cover);
-            const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+            const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+            const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
             const inLib = isTidalAlbumInLibrary(alb.tidalId);
             const hasLocal = localTitlesNormalized.has(normTitle);
 
@@ -3872,8 +3876,8 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
     const card = document.createElement('div');
     card.className = 'missing-album-card';
 
-    const formattedCover = formatCoverSrc(alb.cover);
-    const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+    const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+    const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
 
     const searchQuery = `${alb.title} ${alb.artist}`;
     // Tidal: direct site search on Google avoids Tidal's 403 Forbidden Cloudflare block on URL queries
@@ -5079,8 +5083,8 @@ function createLabelTidalCard(alb) {
   card.className = 'album-card tidal-discography-card';
   card.dataset.tidalId = String(alb.tidalId);
 
-  const formattedCover = formatCoverSrc(alb.cover);
-  const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+  const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+  const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
   const inLib = isTidalAlbumInLibrary(alb.tidalId);
   const isHiRes = alb.audioQuality === 'HI_RES_LOSSLESS' || alb.audioQuality === 'HIRES';
   const qualityBadgeHtml = isHiRes
@@ -5451,8 +5455,8 @@ function createRecommendAlbumCard(alb, reason, detail) {
   card.dataset.recommendReason = reason || '';
   card.dataset.recommendDetail = detail || '';
 
-  const formattedCover = formatCoverSrc(alb.cover);
-  const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+  const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+  const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
 
   let specLabel = '';
   if (alb.isTidal) {
@@ -10141,8 +10145,8 @@ function updateNowPlayingModalContent() {
   const foundAlbum = findAlbumForTrack(track);
 
   // 1. Left: Cover Art & Track Info
-  const formattedCover = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null));
-  const coverSrc = formattedCover || createSvgCover(track.album || track.title, track.artist, '#27272a', '#09090b');
+  const defaultCover = createSvgCover(track.album || track.title, track.artist, '#27272a', '#09090b');
+  const coverSrc = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null)) || defaultCover;
   const coverImg = document.getElementById('nowPlayingCoverImg');
   if (coverImg) {
     coverImg.src = coverSrc;
@@ -17619,8 +17623,8 @@ function createTidalAlbumCard(alb) {
   card.className = 'album-card tidal-discography-card';
   card.dataset.tidalId = String(alb.tidalId);
 
-  const formattedCover = formatCoverSrc(alb.cover);
-  const coverSrc = formattedCover || createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+  const defaultCover = createSvgCover(alb.title, alb.artist, '#27272a', '#09090b');
+  const coverSrc = formatCoverSrc(alb.cover) || defaultCover;
   const inLib = isTidalAlbumInLibrary(alb.tidalId);
 
   const isHiRes = alb.audioQuality === 'HI_RES_LOSSLESS' || alb.audioQuality === 'HIRES' || (alb.mediaMetadata?.tags?.includes('HIRES_LOSSLESS'));
