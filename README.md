@@ -1,6 +1,6 @@
 # rooPlayer - Audiophile Music Media Manager (Rust Native Edition)
 
-基於 Rust 語言與 Tauri 2 全新移植的發燒級高音質音樂管理及播放程式，完全保持與原版一致的發燒級界面與強大功能，並徹底釋放本機計算極限。
+基於 Rust 語言與 Tauri 2 的發燒級高音質音樂管理及播放程式，完全保持與原版一致的發燒級界面與強大功能，並徹底釋放本機計算極限。
 
 ---
 
