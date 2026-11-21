@@ -1,4 +1,11 @@
 use roo_dsp::{FilterDescriptor, FilterPreviewResult, UserFilterSpec, REGISTRY};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FilterSlotsResponse {
+    pub ok: bool,
+    pub slots: Vec<UserFilterSpec>,
+}
 
 #[tauri::command]
 pub async fn dsp_list_filter_plugins() -> Result<Vec<FilterDescriptor>, String> {
@@ -6,20 +13,29 @@ pub async fn dsp_list_filter_plugins() -> Result<Vec<FilterDescriptor>, String> 
 }
 
 #[tauri::command]
-pub async fn filters_list_slots() -> Result<Vec<UserFilterSpec>, String> {
-    Ok(REGISTRY.list_user_slots())
+pub async fn filters_list_slots() -> Result<FilterSlotsResponse, String> {
+    Ok(FilterSlotsResponse {
+        ok: true,
+        slots: REGISTRY.list_user_slots(),
+    })
 }
 
 #[tauri::command]
-pub async fn filters_save_slot(spec: UserFilterSpec) -> Result<(), String> {
+pub async fn filters_save_slot(spec: UserFilterSpec) -> Result<FilterSlotsResponse, String> {
     REGISTRY.save_user_slot(spec);
-    Ok(())
+    Ok(FilterSlotsResponse {
+        ok: true,
+        slots: REGISTRY.list_user_slots(),
+    })
 }
 
 #[tauri::command]
-pub async fn filters_delete_slot(slot_id: String) -> Result<(), String> {
+pub async fn filters_delete_slot(slot_id: String) -> Result<FilterSlotsResponse, String> {
     REGISTRY.delete_user_slot(&slot_id);
-    Ok(())
+    Ok(FilterSlotsResponse {
+        ok: true,
+        slots: REGISTRY.list_user_slots(),
+    })
 }
 
 #[tauri::command]

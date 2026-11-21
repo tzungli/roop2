@@ -4,7 +4,7 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use crate::fir::{
     build_gauss_filter, build_hq_poly_sinc_gauss_long_filter, build_hqp_ps_ext2_filter,
-    build_poly_ext2_filter, kaiser_sinc_fir, windowed_sinc_fir, FirFilter,
+    build_poly_ext2_filter, kaiser_sinc_fir, windowed_sinc_fir_ext, FirFilter,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,26 +20,48 @@ pub struct FilterDescriptor {
 fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserFilterSpec {
     pub id: String,
-    pub label: String,
+    #[serde(alias = "label")]
+    pub name: String,
     pub sound: Option<String>,
     pub window: String, // "blackmanHarris", "kaiser", "hann", "none"
+    #[serde(alias = "cutoff_rel")]
     pub cutoff_rel: f64, // e.g. 1.15
     pub taps: usize,    // e.g. 96
+    #[serde(alias = "as_db")]
     pub as_db: Option<f64>, // for Kaiser
+    #[serde(alias = "sigma_rel")]
+    pub sigma_rel: Option<f64>, // for Gauss
+    pub phase: Option<String>,
+    #[serde(alias = "minimum_phase")]
     pub minimum_phase: Option<bool>,
 }
 
+impl UserFilterSpec {
+    pub fn is_minimum_phase(&self) -> bool {
+        self.minimum_phase.unwrap_or(false) || self.phase.as_deref() == Some("minimum")
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FilterPreviewResult {
     pub xs: Vec<f64>,
+    #[serde(rename = "ysDb", alias = "ys_db")]
     pub ys_db: Vec<f64>,
+    #[serde(rename = "srcNyq", alias = "src_nyq")]
     pub src_nyq: f64,
+    #[serde(rename = "fsOut", alias = "fs_out")]
     pub fs_out: f64,
+    #[serde(rename = "fcHz", alias = "fc_hz")]
     pub fc_hz: f64,
+    #[serde(rename = "imageZeroHz", alias = "image_zero_hz")]
     pub image_zero_hz: f64,
+    #[serde(rename = "transLoHz", alias = "trans_lo_hz")]
     pub trans_lo_hz: f64,
+    #[serde(rename = "stopBandHz", alias = "stop_band_hz")]
     pub stop_band_hz: f64,
 }
 
@@ -159,16 +181,18 @@ impl FilterRegistry {
     }
 
     pub fn build_user_filter(&self, fs_out: f64, src_rate: f64, spec: &UserFilterSpec) -> Option<FirFilter> {
+        let taps = spec.taps.clamp(16, 512);
+        let cutoff_rel = spec.cutoff_rel.clamp(0.8, 1.4);
+        let as_db = spec.as_db.unwrap_or(100.0).clamp(40.0, 180.0);
+        let sigma_rel = spec.sigma_rel.unwrap_or(0.3).clamp(0.1, 1.0);
+
         if spec.window == "kaiser" {
-            let as_db = spec.as_db.unwrap_or(120.0).clamp(60.0, 180.0);
-            let fc_factor = spec.cutoff_rel.clamp(0.9, 1.4);
+            let fc_factor = cutoff_rel;
             let trans_factor = 0.1;
             Some(kaiser_sinc_fir(fs_out, src_rate, as_db, fc_factor, trans_factor))
         } else {
-            let taps = spec.taps.clamp(32, 256);
-            let cutoff_rel = spec.cutoff_rel.clamp(0.9, 1.4);
-            let filter = windowed_sinc_fir(fs_out, src_rate, cutoff_rel, taps, &spec.window);
-            if spec.minimum_phase.unwrap_or(false) {
+            let filter = windowed_sinc_fir_ext(fs_out, src_rate, cutoff_rel, taps, &spec.window, sigma_rel, as_db);
+            if spec.is_minimum_phase() {
                 let fc = (cutoff_rel * src_rate / 2.0).min(0.45 * fs_out);
                 let l = (taps as i32 / 2).max(8);
                 let s = filter.s;
@@ -187,7 +211,7 @@ impl FilterRegistry {
     pub fn save_user_slot(&self, spec: UserFilterSpec) {
         let desc = FilterDescriptor {
             id: spec.id.clone(),
-            label: spec.label.clone(),
+            label: spec.name.clone(),
             sound: spec.sound.clone().unwrap_or_else(|| "使用者自訂濾波器".to_string()),
             kind: "fir".to_string(),
             dsd_safe: true,
@@ -211,8 +235,8 @@ impl FilterRegistry {
         let n = 512;
         let h_len = gf.h.len();
         let trans_hz = if h_len > 0 { 4.0 * fs_out / h_len.max(1) as f64 } else { 0.0 };
-        let fc_for_span = 1.135 * src_rate / 2.0;
-        let f_max = (fs_out / 2.0).min((1.3 * src_rate).max(fc_for_span + trans_hz));
+        let fc = (spec.cutoff_rel * src_rate / 2.0).min(0.45 * fs_out);
+        let f_max = (fs_out / 2.0).min((1.3 * src_rate).max(fc + trans_hz));
         let h = &gf.h;
         let s_g = gf.s as f64;
         let norm = gf.ratio * s_g;
@@ -241,10 +265,10 @@ impl FilterRegistry {
             ys_db,
             src_nyq: src_rate / 2.0,
             fs_out,
-            fc_hz: fc_for_span,
-            image_zero_hz: 0.0,
-            trans_lo_hz: 0.0,
-            stop_band_hz: 0.0,
+            fc_hz: fc,
+            image_zero_hz: (src_rate - fc).max(fc),
+            trans_lo_hz: fc + trans_hz,
+            stop_band_hz: fc + trans_hz,
         })
     }
 }

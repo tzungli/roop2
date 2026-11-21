@@ -2362,7 +2362,7 @@ body.table-col-resizing * {
 
 #ufPreviewCanvas {
   width: 100%;
-  height: auto;
+  max-height: 220px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border-color);
   border-radius: 3px;
@@ -2373,10 +2373,11 @@ body.table-col-resizing * {
 .uf-preview-legend {
   font-size: 11px;
   color: var(--text-muted);
+  line-height: 1.45;
 }
 
 /* 自訂濾波器編輯器採左右配置：左側放操作參數（窗函數、截止延伸、濾波長度、相位性格…），
-   右側放頻率響應預覽。直向空間因此大幅縮減，預覽也能放大。
+   右側放精準比例的頻率響應預覽。直向空間大幅收斂，版面不臃腫。
    以容器查詢依「自訂濾波器」區塊實際可用寬度決定，不靠視窗尺寸猜。 */
 #ufEditorPanel {
   display: flex;
@@ -2387,13 +2388,13 @@ body.table-col-resizing * {
 @container ufstrip (min-width: 560px) {
   #ufEditorPanel {
     display: grid;
-    /* 操作區與頻率響應預覽對等分配：兩邊都更好操作（滑桿更長、分段按鈕不擠），圖也足夠大 */
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    /* 操作區為主、頻率響應預覽維持精緻比例寬度，避免預覽過度拉長搶佔過多高度 */
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 360px);
     grid-template-areas:
       "head head"
       "form preview";
     align-items: start;
-    gap: 12px 20px;
+    gap: 12px 18px;
   }
 
   #ufEditorPanel .uf-panel-head { grid-area: head; }
@@ -2413,11 +2414,11 @@ body.table-col-resizing * {
   }
 }
 
-/* 空間充足時讓頻率響應預覽佔右側較寬的固定區間，操作區取其餘（滑桿更長、按鈕不再擁擠） */
+/* 空間充足時讓頻率響應預覽維持 320px~400px 的黃金適中寬度，操作區獲得更寬裕的滑桿與按鈕空間 */
 @container ufstrip (min-width: 820px) {
   #ufEditorPanel {
-    grid-template-columns: minmax(0, 1fr) minmax(430px, 560px);
-    gap: 12px 22px;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 400px);
+    gap: 12px 20px;
   }
   #ufEditorPanel .uf-form-col { padding-right: 20px; }
 }

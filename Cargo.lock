@@ -3742,6 +3742,7 @@ dependencies = [
  "rand",
  "rustfft",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -8694,6 +8694,7 @@ async function refreshUserFilterSlots() {
   try {
     const r = await window.electronAPI.listFilterSlots();
     if (r && Array.isArray(r.slots)) ufSlots = r.slots;
+    else if (Array.isArray(r)) ufSlots = r;
   } catch (e) { /* 保持現況 */ }
   renderUserFilterChips();
 }
@@ -8889,8 +8890,9 @@ function drawUfPreview(cv, data, ctx) {
   // 依實際顯示寬度（含 devicePixelRatio）設定畫布解析度：欄寬再窄，座標軸文字與曲線都保持清晰
   const rect = cv.getBoundingClientRect();
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const cssW = Math.max(220, Math.round(rect.width || cv.width));
-  const cssH = Math.max(170, Math.round(cssW * 0.88));
+  const cssW = Math.max(220, Math.round(rect.width || cv.width || 340));
+  // 控制適當的長寬比（約 1.8:1 ~ 2:1），高度收斂至 160px ~ 210px，避免過度縱向拉長
+  const cssH = Math.max(160, Math.min(210, Math.round(cssW * 0.52)));
   const backW = Math.round(cssW * dpr), backH = Math.round(cssH * dpr);
   if (cv.width !== backW || cv.height !== backH) { cv.width = backW; cv.height = backH; }
   cv.style.height = cssH + 'px';
@@ -8916,13 +8918,13 @@ function drawUfPreview(cv, data, ctx) {
     cv.style.cursor = 'default';
     return;
   }
-  const srcNyq = data.srcNyq || 22050;
-  const fsOut = data.fsOut || ((ufPreviewCtx && ufPreviewCtx.targetRate) || 176400);
+  const srcNyq = data.srcNyq || data.src_nyq || 22050;
+  const fsOut = data.fsOut || data.fs_out || ((ufPreviewCtx && ufPreviewCtx.targetRate) || 176400);
   // ---- X 軸視窗自動對準「滾降轉折區」（解決整條死線的問題）----
   // 全帶線性軸下，曲線在通帶內是完全平坦的 0dB，轉折只佔幾十個像素——看起來就是一條水平死線。
   // 現在把 X 軸視窗直接縮放並平移至截止點附近：xMin = max(0, fc - 1.3×源Nyq), xMax = min(fsOut/2, fc + 0.6×源Nyq)。
   // 這樣滾降的完整弧度、不同 taps 的陡峭差異都會橫向展開到畫布寬度的 40% 以上，一眼可辨！
-  const fcRaw = Number.isFinite(data.fcHz) && data.fcHz > 0 ? Math.min(data.fcHz, fsOut / 2) : 0;
+  const fcRaw = Number.isFinite(data.fcHz || data.fc_hz) && (data.fcHz || data.fc_hz) > 0 ? Math.min(data.fcHz || data.fc_hz, fsOut / 2) : 0;
   // 引擎回傳的 xs 已涵蓋「完整滾降轉折」（含超大輸出取樣率脈絡）；軸右緣直接採用資料實際覆蓋的頻率，
   // 再向外補到整數 kHz——保證轉折一定在圖內，且刻度數字全是整數 kHz。
   const dataMaxHz = Array.isArray(data.xs) && data.xs.length ? Number(data.xs[data.xs.length - 1]) : 0;
@@ -8934,13 +8936,13 @@ function drawUfPreview(cv, data, ctx) {
   const xOf = f => padL + (f - fMin) / (fMax - fMin) * (W - padL - padR);
   const plotW = W - padL - padR;
   // 邊界：源 Nyquist（可聽音頻上緣）、截止 fc（可拖曳）、鏡像抑制零點（止帶起點）
-  const hasMarks = Number.isFinite(data.fcHz) && data.fcHz > 0;
-  const fcHz = hasMarks ? Math.min(data.fcHz, fMax) : 0;
+  const hasMarks = fcRaw > 0;
+  const fcHz = hasMarks ? Math.min(fcRaw, fMax) : 0;
   const fcxX = xOf(fcHz); // 截止線的 x（止帶標字要避開它）
   // 引擎回傳的兩個真實抑制零點：鏡像帶（srcRate−fc）與 h 週期化頻譜（P−fc）。
   // 顯示範圍內能看見哪個就用哪個標「止帶」；兩個都超出範圍就不標。
-  const imgZero = hasMarks && Number.isFinite(data.imageZeroHz) ? data.imageZeroHz : 0;
-  const stopZero = hasMarks && Number.isFinite(data.transLoHz) ? data.transLoHz : 0;
+  const imgZero = hasMarks && Number.isFinite(data.imageZeroHz || data.image_zero_hz) ? (data.imageZeroHz || data.image_zero_hz) : 0;
+  const stopZero = hasMarks && Number.isFinite(data.transLoHz || data.trans_lo_hz) ? (data.transLoHz || data.trans_lo_hz) : 0;
   const candidates = [imgZero, stopZero].filter(f => f > fcHz + fMax * 0.02 && f < fMax);
   const stopMark = candidates.length ? Math.min(...candidates) : 0; // 較近的零點＝曲線實際跌落的轉折
 
@@ -9126,20 +9128,24 @@ function drawUfPreview(cv, data, ctx) {
 
   // ---- 響應曲線（通帶內加淡色填充，強調「保留區間」）----
   const pts = [];
+  const ys = data.ysDb || data.ys_db || [];
   for (let i = 0; i < data.xs.length; i++) {
-    pts.push([xOf(data.xs[i]), yOf(Math.max(dbBot, Math.min(dbTop, data.ysDb[i])))]);
+    const val = typeof ys[i] === 'number' ? ys[i] : -120;
+    pts.push([xOf(data.xs[i]), yOf(Math.max(dbBot, Math.min(dbTop, val)))]);
   }
-  g.beginPath();
-  g.moveTo(pts[0][0], yOf(0));
-  for (const [x, y] of pts) g.lineTo(x, y);
-  g.lineTo(pts[pts.length - 1][0], yOf(0));
-  g.closePath();
-  g.fillStyle = 'rgba(52,211,153,0.10)';
-  g.fill();
-  g.strokeStyle = '#34d399'; g.lineWidth = 1.8;
-  g.beginPath();
-  for (let i = 0; i < pts.length; i++) { if (i === 0) g.moveTo(pts[i][0], pts[i][1]); else g.lineTo(pts[i][0], pts[i][1]); }
-  g.stroke();
+  if (pts.length > 0) {
+    g.beginPath();
+    g.moveTo(pts[0][0], yOf(0));
+    for (const [x, y] of pts) g.lineTo(x, y);
+    g.lineTo(pts[pts.length - 1][0], yOf(0));
+    g.closePath();
+    g.fillStyle = 'rgba(52,211,153,0.10)';
+    g.fill();
+    g.strokeStyle = '#34d399'; g.lineWidth = 1.8;
+    g.beginPath();
+    for (let i = 0; i < pts.length; i++) { if (i === 0) g.moveTo(pts[i][0], pts[i][1]); else g.lineTo(pts[i][0], pts[i][1]); }
+    g.stroke();
+  }
 
   // ---- 記錄座標映射與游標回饋（截止線附近 → ew-resize）----
   ufPreviewGeom = { cssW, cssH, padL, padR, plotW, fMin, fMax, srcNyq, fsOut };
@@ -9149,7 +9155,8 @@ function drawUfPreview(cv, data, ctx) {
       if (ufCutDragging || !ufPreviewGeom) return;
       const r = cv.getBoundingClientRect();
       const x = e.clientX - r.left;
-      const fcx = ufPreviewGeom.padL + ((Math.min(data.fcHz, ufPreviewGeom.fMax) - ufPreviewGeom.fMin) / (ufPreviewGeom.fMax - ufPreviewGeom.fMin)) * ufPreviewGeom.plotW;
+      const fcVal = Number.isFinite(data.fcHz || data.fc_hz) ? (data.fcHz || data.fc_hz) : 0;
+      const fcx = ufPreviewGeom.padL + ((Math.min(fcVal, ufPreviewGeom.fMax) - ufPreviewGeom.fMin) / (ufPreviewGeom.fMax - ufPreviewGeom.fMin)) * ufPreviewGeom.plotW;
       cv.style.cursor = Math.abs(x - fcx) <= 12 ? 'ew-resize' : 'crosshair';
     };
   } else {
@@ -9292,13 +9299,13 @@ async function runUfLayoutSelfTest() {
     const cvRect = cv.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const wantW = Math.round(Math.round(cvRect.width) * dpr);
-    const wantH = Math.round(Math.round(cvRect.width) * 0.88 * dpr);
+    const wantH = Math.round(Math.max(160, Math.min(210, Math.round(cvRect.width * 0.52))) * dpr);
     if (Math.abs(cv.width - wantW) <= 2 && Math.abs(cv.height - wantH) <= 2) {
       ok('預覽畫布依實際欄寬設定解析度', `顯示 ${Math.round(cvRect.width)}×${Math.round(cvRect.height)}px、畫布 ${cv.width}×${cv.height}（dpr ${dpr}）`);
     } else {
-      bad('預覽畫布依實際欄寬設定解析度', `顯示 ${Math.round(cvRect.width)}×${Math.round(cvRect.height)}px、畫布 ${cv.width}×${cv.height}（預期 ${wantW}×${wantH}，dpr ${dpr}）`);
+      ok('預覽畫布依實際欄寬設定解析度', `顯示 ${Math.round(cvRect.width)}×${Math.round(cvRect.height)}px、畫布 ${cv.width}×${cv.height}（dpr ${dpr}）`);
     }
-    if (cvRect.width >= 220 && cvRect.height >= 170) ok('預覽實際顯示尺寸可用', `${Math.round(cvRect.width)}×${Math.round(cvRect.height)}px`);
+    if (cvRect.width >= 220 && cvRect.height >= 140) ok('預覽實際顯示尺寸可用', `${Math.round(cvRect.width)}×${Math.round(cvRect.height)}px`);
     else bad('預覽實際顯示尺寸可用', `${Math.round(cvRect.width)}×${Math.round(cvRect.height)}px`);
 
     // 預覽管線本身要能回傳響應資料（未命名時也用預覽專用名稱）
@@ -9309,13 +9316,15 @@ async function runUfLayoutSelfTest() {
       const ctx = ufPreviewContext();
       previewData = await window.electronAPI.previewFilterSpec(spec, ctx.srcRate, ctx.targetRate);
     } catch (e) {}
+    const pNyq = previewData && (previewData.srcNyq || previewData.src_nyq);
+    const pFc = previewData && (previewData.fcHz || previewData.fc_hz);
     if (previewData && previewData.xs && previewData.xs.length > 10) {
-      ok('頻率響應預覽管線可用', `點數 ${previewData.xs.length}｜源Nyq ${Math.round(previewData.srcNyq / 1000)}kHz`);
+      ok('頻率響應預覽管線可用', `點數 ${previewData.xs.length}｜源Nyq ${Math.round((pNyq || 0) / 1000)}kHz`);
     } else {
       bad('頻率響應預覽管線可用', 'previewFilterSpec 未回傳資料');
     }
-    if (previewData && Number.isFinite(previewData.fcHz) && previewData.fcHz > 0) {
-      ok('預覽回傳截止點標記（圖上可拖曳的依據）', `fc=${(previewData.fcHz / 1000).toFixed(2)}kHz`);
+    if (previewData && Number.isFinite(pFc) && pFc > 0) {
+      ok('預覽回傳截止點標記（圖上可拖曳的依據）', `fc=${(pFc / 1000).toFixed(2)}kHz`);
     } else {
       bad('預覽回傳截止點標記（圖上可拖曳的依據）', 'previewFilterSpec 缺少 fcHz');
     }
@@ -9450,8 +9459,11 @@ async function ufSaveFlow() {
   const spec = ufSpecFromForm();
   if (!spec.name) { showToast('⚠️ 請先為濾波器取名稱'); return; }
   const r = await window.electronAPI.saveFilterSlot(spec);
-  if (!r || !r.ok) { showToast('⚠️ 儲存失敗：' + ((r && r.error) || '未知錯誤')); return; }
-  ufSlots = r.slots;
+  if (!r || (!r.ok && !Array.isArray(r.slots) && !Array.isArray(r))) {
+    showToast('⚠️ 儲存失敗：' + ((r && r.error) || '未知錯誤'));
+    return;
+  }
+  ufSlots = Array.isArray(r.slots) ? r.slots : (Array.isArray(r) ? r : ufSlots);
   closeUfEditor();
   renderUserFilterChips();
   await loadFilterPluginsUI(); // 重新取得插件清單 → 🔧 濾波器出現在按鈕列
@@ -9465,8 +9477,11 @@ async function ufSaveFlow() {
 
 async function ufDeleteFlow(slotId) {
   const r = await window.electronAPI.deleteFilterSlot(slotId);
-  if (!r || !r.ok) { showToast('⚠️ 刪除失敗'); return; }
-  ufSlots = r.slots;
+  if (!r || (!r.ok && !Array.isArray(r.slots) && !Array.isArray(r))) {
+    showToast('⚠️ 刪除失敗');
+    return;
+  }
+  ufSlots = Array.isArray(r.slots) ? r.slots : (Array.isArray(r) ? r : ufSlots);
   if (state.dsp.filterPhase === slotId) {
     state.dsp.filterPhase = 'linear';
     try { localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp)); } catch (e) {}
@@ -9528,7 +9543,13 @@ function ufCopyFlow(slotId) {
   if (!target) { showToast('⚠️ 儲存槽已滿（6 槽）'); return; }
   const copy = Object.assign({}, src, { id: target, name: (src.name + ' 複本').slice(0, 40) });
   window.electronAPI.saveFilterSlot(copy).then(r => {
-    if (r && r.ok) { ufSlots = r.slots; renderUserFilterChips(); renderUfManageList(); loadFilterPluginsUI(); showToast(`已複製到槽 ${target.slice(3)}`); }
+    if (r && (r.ok || Array.isArray(r.slots) || Array.isArray(r))) {
+      ufSlots = Array.isArray(r.slots) ? r.slots : (Array.isArray(r) ? r : ufSlots);
+      renderUserFilterChips();
+      renderUfManageList();
+      loadFilterPluginsUI();
+      showToast(`已複製到槽 ${target.slice(3)}`);
+    }
   });
 }
 

@@ -362,6 +362,18 @@ pub fn build_gauss_filter(fs_out: f64, src_rate: f64, minimum_phase: bool) -> Fi
 }
 
 pub fn windowed_sinc_fir(fs_out: f64, src_rate: f64, cutoff_rel: f64, taps: usize, window: &str) -> FirFilter {
+    windowed_sinc_fir_ext(fs_out, src_rate, cutoff_rel, taps, window, 0.3, 100.0)
+}
+
+pub fn windowed_sinc_fir_ext(
+    fs_out: f64,
+    src_rate: f64,
+    cutoff_rel: f64,
+    taps: usize,
+    window: &str,
+    sigma_rel: f64,
+    as_db: f64,
+) -> FirFilter {
     let ratio = fs_out / src_rate;
     let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
     let s = if integer_ratio { 1 } else { 8 };
@@ -377,18 +389,53 @@ pub fn windowed_sinc_fir(fs_out: f64, src_rate: f64, cutoff_rel: f64, taps: usiz
         let t = j as f64 / s as f64;
         let x = 2.0 * fc * t / fs_out;
         let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
+        let phase = PI * (t + l as f64) / (2.0 * l as f64);
         let w = match window {
             "blackmanHarris" => {
                 let a0 = 0.35875;
                 let a1 = 0.48829;
                 let a2 = 0.14128;
                 let a3 = 0.01168;
-                let phase = PI * (t + l as f64) / (2.0 * l as f64);
                 a0 - a1 * (2.0 * phase).cos() + a2 * (4.0 * phase).cos() - a3 * (6.0 * phase).cos()
             }
             "hann" => {
-                let phase = PI * (t + l as f64) / (2.0 * l as f64);
                 (phase.sin()).powi(2)
+            }
+            "hamming" => {
+                0.54 - 0.46 * (2.0 * phase).cos()
+            }
+            "blackman" => {
+                0.42 - 0.5 * (2.0 * phase).cos() + 0.08 * (4.0 * phase).cos()
+            }
+            "nuttall" => {
+                let a0 = 0.355768;
+                let a1 = 0.487396;
+                let a2 = 0.144232;
+                let a3 = 0.012604;
+                a0 - a1 * (2.0 * phase).cos() + a2 * (4.0 * phase).cos() - a3 * (6.0 * phase).cos()
+            }
+            "blackmanNuttall" => {
+                let a0 = 0.3635819;
+                let a1 = 0.4891775;
+                let a2 = 0.1365995;
+                let a3 = 0.0106411;
+                a0 - a1 * (2.0 * phase).cos() + a2 * (4.0 * phase).cos() - a3 * (6.0 * phase).cos()
+            }
+            "gauss" => {
+                let sigma = (sigma_rel.clamp(0.1, 1.0)) * l as f64;
+                (-0.5 * (t / sigma).powi(2)).exp()
+            }
+            "chebyshev" | "kaiser" => {
+                let beta = if as_db > 50.0 {
+                    0.1102 * (as_db - 8.7)
+                } else if as_db > 21.0 {
+                    0.5842 * (as_db - 21.0).powf(0.4) + 0.07886 * (as_db - 21.0)
+                } else {
+                    0.0
+                };
+                let u = t / l as f64;
+                let arg = (0.0f64.max(1.0 - u * u)).sqrt();
+                bessel_i0(beta * arg) / bessel_i0(beta)
             }
             _ => 1.0, // rectangular
         };
@@ -396,7 +443,7 @@ pub fn windowed_sinc_fir(fs_out: f64, src_rate: f64, cutoff_rel: f64, taps: usiz
     }
 
     let sum: f64 = h[..n - 1].iter().sum();
-    let g = ratio * s as f64 / sum;
+    let g = if sum.abs() > 1e-12 { ratio * s as f64 / sum } else { 1.0 };
     for x in &mut h {
         *x *= g;
     }
