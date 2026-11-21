@@ -626,26 +626,35 @@ const btnConfirmImportReport = document.getElementById('btnConfirmImportReport')
 const importReportStats = document.getElementById('importReportStats');
 const importReportDetails = document.getElementById('importReportDetails');
 
-// ----------------- Dynamic Light Pastel Gradient for Overview Hero Banner -----------------
+// ----------------- Roon Flagship Ambient Gradient for Overview Hero Banner -----------------
 function applyRandomHeroGradient() {
   const heroBanner = document.getElementById('overviewHeroBanner') || document.querySelector('.hero-banner');
   if (!heroBanner) return;
 
-  const pastelGradients = [
-    'linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 50%, #fce7f3 100%)', // 薰衣草粉紫
-    'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 45%, #ede9fe 100%)', // 天空冰藍粉紫
-    'linear-gradient(135deg, #fef3c7 0%, #fee2e2 50%, #fce7f3 100%)', // 暖陽蜜桃粉杏
-    'linear-gradient(135deg, #ccfbf1 0%, #e0f2fe 50%, #ede9fe 100%)', // 薄荷清爽冰川藍
-    'linear-gradient(135deg, #dcfce7 0%, #e0f2fe 50%, #f3e8ff 100%)', // 鼠尾草晨光清新
-    'linear-gradient(135deg, #ffedd5 0%, #fce7f3 50%, #ede9fe 100%)', // 晨曦朝霞柔粉
-    'linear-gradient(135deg, #fae8ff 0%, #f5d0fe 40%, #e0e7ff 100%)', // 夢幻紫丁香
-    'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 50%, #fef9c3 100%)', // 晨露微光湖綠黃
-    'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 45%, #ede9fe 100%)', // 高級月光銀霧紫
-    'linear-gradient(135deg, #fce7f3 0%, #ffe4e6 50%, #fed7aa 100%)'  // 櫻花初綻暖杏粉
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    const lightGradients = [
+      'linear-gradient(135deg, #ede9fe 0%, #f5f3ff 50%, #fdf4ff 100%)',
+      'linear-gradient(135deg, #e0f2fe 0%, #ede9fe 50%, #f5f3ff 100%)',
+      'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 45%, #ede9fe 100%)'
+    ];
+    heroBanner.style.background = lightGradients[Math.floor(Math.random() * lightGradients.length)];
+    return;
+  }
+
+  const roonDarkGradients = [
+    'linear-gradient(135deg, #13141f 0%, #0c0d13 55%, #181226 100%)', // 深邃午夜紫晶
+    'linear-gradient(135deg, #0e1520 0%, #090e16 55%, #101524 100%)', // 極夜深海冷灰
+    'linear-gradient(135deg, #17131e 0%, #0d0c13 55%, #141725 100%)', // 曜石紫霧凝黑
+    'linear-gradient(135deg, #11161b 0%, #0a0e13 55%, #121a24 100%)', // 石墨金屬深灰
+    'linear-gradient(135deg, #191420 0%, #0c0b12 55%, #1b1224 100%)', // 旗艦發燒絲絨紫
+    'linear-gradient(135deg, #14171d 0%, #0b0e12 55%, #151921 100%)', // 雅緻炭黑鈦晶
+    'linear-gradient(135deg, #161219 0%, #0b0a10 55%, #1a1420 100%)', // 暗影黑曜魅紫
+    'linear-gradient(135deg, #0f171d 0%, #0a1015 55%, #111922 100%)'  // 冰川玄武冷灰
   ];
 
-  const randomIndex = Math.floor(Math.random() * pastelGradients.length);
-  const selectedGradient = pastelGradients[randomIndex];
+  const randomIndex = Math.floor(Math.random() * roonDarkGradients.length);
+  const selectedGradient = roonDarkGradients[randomIndex];
   heroBanner.style.background = selectedGradient;
 }
 
@@ -1007,6 +1016,7 @@ function setTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('roon_theme', theme);
+  applyRandomHeroGradient();
 
   const iconEl = document.getElementById('themeIcon');
   const labelEl = document.getElementById('themeLabel');
