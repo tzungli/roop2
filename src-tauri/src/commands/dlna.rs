@@ -68,6 +68,8 @@ pub async fn dlna_select_device(manager: State<'_, DlnaManager>, device_id: Stri
     Ok(manager.select_device(&device_id))
 }
 
+static TOKEN_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 #[tauri::command]
 pub async fn dlna_play_track(
     app: AppHandle,
@@ -83,6 +85,7 @@ pub async fn dlna_play_track(
     let file_path = track.get("filePath").or_else(|| track.get("path")).and_then(|v| v.as_str()).unwrap_or("");
     let raw_cover = track.get("cover").or_else(|| track.get("coverPath")).and_then(|v| v.as_str()).unwrap_or("");
     let start = start_sec.unwrap_or(0.0);
+    let duration_sec = track.get("duration").and_then(|v| v.as_f64());
 
     let dev = manager.get_devices().into_iter().find(|d| d.id == device_id);
     let target_ip_or_host = dev.as_ref()
@@ -91,21 +94,22 @@ pub async fn dlna_play_track(
 
     let local_ip = resolve_local_ip_for_target(&target_ip_or_host);
 
-    let cover_url = if !raw_cover.is_empty() {
-        if raw_cover.starts_with("http://") || raw_cover.starts_with("https://") {
-            Some(format!("http://{}:39840/cover?url={}&size=360", local_ip, urlencoding::encode(raw_cover)))
-        } else {
-            let clean = raw_cover
-                .trim_start_matches("media://")
-                .trim_start_matches("file:///")
-                .trim_start_matches("file://");
-            Some(format!("http://{}:39840/cover?path={}&size=360", local_ip, urlencoding::encode(clean)))
-        }
-    } else if !file_path.is_empty() {
-        Some(format!("http://{}:39840/cover?file_path={}&size=360", local_ip, urlencoding::encode(file_path)))
-    } else {
-        None
-    };
+    let stream_token = format!(
+        "{:x}{:04x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        TOKEN_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+
+    // Register cover for token and form clean cover URL for DLNA renderer
+    let cover_url = format!("http://{}:39840/cover/{}/cover.jpg", local_ip, stream_token);
+    roo_streamer::register_cover_for_token(
+        &stream_token,
+        if raw_cover.is_empty() { None } else { Some(raw_cover.to_string()) },
+        if file_path.is_empty() { None } else { Some(file_path.to_string()) },
+    );
 
     let (target_rate, dsd_mode, dsd_order, filter_phase, peq_json, conv_json, ultrasonic_filter) =
         if let Some(opts) = &dsp_options {
@@ -121,39 +125,39 @@ pub async fn dlna_play_track(
             (0, String::new(), 5, "linear".to_string(), String::new(), String::new(), "30k".to_string())
         };
 
-    let stream_url = format!(
-        "http://{}:39840/sox-stream?file_path={}&start_sec={}&target_rate={}&dsd_mode={}&dsd_order={}&filter_phase={}&peq_json={}&conv_json={}&ultrasonic_filter={}&dop=true",
-        local_ip,
-        urlencoding::encode(file_path),
-        start,
-        target_rate,
-        urlencoding::encode(&dsd_mode),
-        dsd_order,
-        urlencoding::encode(&filter_phase),
-        urlencoding::encode(&peq_json),
-        urlencoding::encode(&conv_json),
-        urlencoding::encode(&ultrasonic_filter)
-    );
+    let is_dsd = !dsd_mode.is_empty();
+    let dsd_hz: Option<u32> = if is_dsd {
+        match dsd_mode.to_lowercase().as_str() {
+            "dsd128" => Some(5644800),
+            "dsd256" => Some(11289600),
+            "dsd512" => Some(22579200),
+            _ => Some(2822400),
+        }
+    } else {
+        None
+    };
 
-    // If DSD upsampling or high-rate DSP is requested, prewarm stream into memory cache
-    // so the DLNA renderer receives an immediate response upon connecting, avoiding socket timeout.
-    if !dsd_mode.is_empty() || target_rate > 0 {
-        let opts = roo_streamer::DspStreamOptions {
-            file_path: file_path.to_string(),
-            start_sec: start,
-            target_rate,
-            dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
-            dsd_order,
-            filter_phase: filter_phase.clone(),
-            peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
-            conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
-            ultrasonic_filter: Some(ultrasonic_filter.clone()),
-            dop: Some(true),
-        };
-        let _ = tokio::task::spawn_blocking(move || {
-            roo_streamer::prewarm_stream(&opts)
-        }).await;
-    }
+    let stream_filename = if is_dsd { "audio.dsf" } else { "audio.wav" };
+    let stream_url = format!("http://{}:39840/stream/{}/{}", local_ip, stream_token, stream_filename);
+
+    let opts = roo_streamer::DspStreamOptions {
+        file_path: file_path.to_string(),
+        start_sec: start,
+        target_rate,
+        dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
+        dsd_order,
+        filter_phase: filter_phase.clone(),
+        peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
+        conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
+        ultrasonic_filter: Some(ultrasonic_filter.clone()),
+        dop: Some(false), // Native DSD (DSF), NOT DoP!
+    };
+
+    // Prewarm stream into memory cache with stream_token
+    let token_clone = stream_token.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        roo_streamer::prewarm_stream_with_token(&opts, &token_clone)
+    }).await;
 
     let app_clone = app.clone();
     let app_clone2 = app.clone();
@@ -163,7 +167,9 @@ pub async fn dlna_play_track(
         title,
         artist,
         album,
-        cover_url.as_deref(),
+        Some(&cover_url),
+        dsd_hz,
+        duration_sec,
         start,
         move |pos, dur, state| {
             let _ = app_clone.emit("dlna:progress", serde_json::json!({
@@ -185,7 +191,7 @@ pub async fn dlna_play_track(
         Ok(_) => Ok(serde_json::json!({
             "success": true,
             "ok": true,
-            "token": format!("{}:{}:{}", file_path, start, target_rate)
+            "token": stream_token
         })),
         Err(e) => {
             tracing::error!("DLNA play failed: {}", e);

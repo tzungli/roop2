@@ -65,6 +65,8 @@ impl DlnaManager {
         artist: &str,
         album: &str,
         cover_url: Option<&str>,
+        dsd_hz: Option<u32>,
+        duration_sec: Option<f64>,
         start_sec: f64,
         on_progress: impl Fn(f64, f64, &str) + Send + Sync + 'static,
         on_ended: impl Fn() + Send + Sync + 'static,
@@ -79,14 +81,12 @@ impl DlnaManager {
             let _ = tx.send(true);
         }
 
-        let is_raw_dsf = (stream_url.contains("dsd-stream") || stream_url.contains("dsd_mode=dsd")) && stream_url.contains("dop=false");
-
         // 1. Ensure transport is stopped first to avoid error 705 (Transport locked)
         let _ = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // 2. Set AVTransport URI with proper metadata (including title, artist, album, cover art)
-        let mut set_res = self.controller.set_av_transport_uri(
+        // 2. Set AVTransport URI with proper metadata (including title, artist, album, cover art, duration, dsd_hz)
+        let set_res = self.controller.set_av_transport_uri(
             &dev.av_transport_url,
             &dev.av_transport_service_type,
             stream_url,
@@ -94,26 +94,10 @@ impl DlnaManager {
             artist,
             album,
             cover_url,
-            is_raw_dsf,
+            dsd_hz,
+            duration_sec,
         ).await;
-
-        if let Err(ref e) = set_res {
-            if is_raw_dsf {
-                eprintln!("[DLNA] Device rejected raw DSF SetAVTransportURI: {}. Retrying with DoP WAV fallback...", e);
-                let dop_url = stream_url.replace("dop=false", "dop=true");
-                set_res = self.controller.set_av_transport_uri(
-                    &dev.av_transport_url,
-                    &dev.av_transport_service_type,
-                    &dop_url,
-                    title,
-                    artist,
-                    album,
-                    cover_url,
-                    false,
-                ).await;
-            }
-            set_res?;
-        }
+        set_res?;
 
         tokio::time::sleep(Duration::from_millis(80)).await;
 

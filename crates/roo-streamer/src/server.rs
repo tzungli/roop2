@@ -15,6 +15,17 @@ use anyhow::Result;
 pub static STREAM_CACHE: std::sync::LazyLock<RwLock<HashMap<String, Arc<GeneratedStream>>>> =
     std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
+static COVER_TOKEN_REGISTRY: std::sync::LazyLock<RwLock<HashMap<String, (Option<String>, Option<String>)>>> =
+    std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
+
+pub fn register_cover_for_token(token: &str, cover_path: Option<String>, file_path: Option<String>) {
+    let mut write = COVER_TOKEN_REGISTRY.write().unwrap();
+    if write.len() > 200 {
+        write.clear();
+    }
+    write.insert(token.to_string(), (cover_path, file_path));
+}
+
 pub fn prewarm_stream(opts: &DspStreamOptions) -> Result<Arc<GeneratedStream>> {
     let cache_key = opts.cache_key();
 
@@ -28,10 +39,33 @@ pub fn prewarm_stream(opts: &DspStreamOptions) -> Result<Arc<GeneratedStream>> {
     let gen = generate_audio_stream(opts)?;
     let arc_s = Arc::new(gen);
     let mut write = STREAM_CACHE.write().unwrap();
-    if write.len() > 2 {
+    if write.len() > 6 {
         write.clear();
     }
     write.insert(cache_key, arc_s.clone());
+    Ok(arc_s)
+}
+
+pub fn prewarm_stream_with_token(opts: &DspStreamOptions, token: &str) -> Result<Arc<GeneratedStream>> {
+    let cache_key = opts.cache_key();
+
+    {
+        let read = STREAM_CACHE.read().unwrap();
+        if let Some(s) = read.get(&cache_key) {
+            let mut write = STREAM_CACHE.write().unwrap();
+            write.insert(token.to_string(), s.clone());
+            return Ok(s.clone());
+        }
+    }
+
+    let gen = generate_audio_stream(opts)?;
+    let arc_s = Arc::new(gen);
+    let mut write = STREAM_CACHE.write().unwrap();
+    if write.len() > 6 {
+        write.clear();
+    }
+    write.insert(cache_key, arc_s.clone());
+    write.insert(token.to_string(), arc_s.clone());
     Ok(arc_s)
 }
 
@@ -56,6 +90,12 @@ impl StreamServer {
 
     pub async fn run(&self) -> Result<()> {
         let app = Router::new()
+            .route("/stream/:token/audio.dsf", get(handle_stream_token))
+            .route("/stream/:token/audio.wav", get(handle_stream_token))
+            .route("/stream/:token/:filename", get(handle_stream_token))
+            .route("/cover/:token/cover.jpg", get(handle_cover_token))
+            .route("/cover/:token/:filename", get(handle_cover_token))
+            .route("/cover/:token", get(handle_cover_token_simple))
             .route("/sox-stream", get(handle_stream))
             .route("/dsd-stream", get(handle_dsd_stream))
             .route("/cover", get(handle_cover))
@@ -71,6 +111,19 @@ impl StreamServer {
     }
 }
 
+const FALLBACK_JPEG: &[u8] = &[
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48,
+    0x00, 0x48, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
+    0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0a, 0x0c, 0x14, 0x0d, 0x0c, 0x0b, 0x0b, 0x0c, 0x19, 0x12,
+    0x13, 0x0f, 0x14, 0x1d, 0x1a, 0x1f, 0x1e, 0x1d, 0x1a, 0x1c, 0x1c, 0x20, 0x24, 0x2e, 0x27, 0x20,
+    0x22, 0x2c, 0x23, 0x1c, 0x1c, 0x28, 0x37, 0x29, 0x2c, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1f, 0x27,
+    0x39, 0x3d, 0x38, 0x32, 0x3c, 0x2e, 0x33, 0x34, 0x32, 0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01,
+    0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xff, 0xc4, 0x00, 0x1f, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
+    0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f,
+    0x00, 0xbf, 0x80, 0xff, 0xd9,
+];
+
 fn dlna_image_response(status: StatusCode, mime: &str, data: Vec<u8>) -> Response {
     let mut resp = (status, data).into_response();
     let headers = resp.headers_mut();
@@ -81,11 +134,12 @@ fn dlna_image_response(status: StatusCode, mime: &str, data: Vec<u8>) -> Respons
     }
     headers.insert(header::CACHE_CONTROL, "public, max-age=2592000, immutable".parse().unwrap());
     headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
+    headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
     headers.insert("transferMode.dlna.org", "Interactive".parse().unwrap());
     let dlna_pn = if mime.contains("png") {
-        "PNG_MED"
+        "PNG_LRG"
     } else {
-        "JPEG_MED"
+        "JPEG_LRG"
     };
     let dlna_features = format!("DLNA.ORG_PN={};DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=00900000000000000000000000000000", dlna_pn);
     if let Ok(val) = dlna_features.parse() {
@@ -107,6 +161,37 @@ struct CoverQuery {
 }
 
 async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
+    resolve_cover_response(q).await
+}
+
+async fn handle_cover_token(
+    axum::extract::Path((token, _filename)): axum::extract::Path<(String, String)>,
+) -> Response {
+    serve_cover_for_token(&token).await
+}
+
+async fn handle_cover_token_simple(
+    axum::extract::Path(token): axum::extract::Path<String>,
+) -> Response {
+    serve_cover_for_token(&token).await
+}
+
+async fn serve_cover_for_token(token: &str) -> Response {
+    let pair = {
+        let read = COVER_TOKEN_REGISTRY.read().unwrap();
+        read.get(token).cloned()
+    };
+    let (cover_path, file_path) = pair.unwrap_or((None, None));
+    let q = CoverQuery {
+        path: cover_path,
+        url: None,
+        file_path,
+        size: Some(360),
+    };
+    resolve_cover_response(q).await
+}
+
+async fn resolve_cover_response(q: CoverQuery) -> Response {
     let target_size = q.size.unwrap_or(360);
 
     // 1. Remote HTTP/HTTPS URL proxy for DLNA devices
@@ -176,7 +261,7 @@ async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
     }
 
     let Some(p) = resolved_image_path else {
-        return StatusCode::NOT_FOUND.into_response();
+        return dlna_image_response(StatusCode::OK, "image/jpeg", FALLBACK_JPEG.to_vec());
     };
 
     // If size == 0, serve original file directly
@@ -192,7 +277,7 @@ async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
             };
             return dlna_image_response(StatusCode::OK, mime, data);
         }
-        return StatusCode::NOT_FOUND.into_response();
+        return dlna_image_response(StatusCode::OK, "image/jpeg", FALLBACK_JPEG.to_vec());
     }
 
     // Check if thumbnail already exists on disk (e.g. {stem}_thumb360.jpg)
@@ -209,7 +294,7 @@ async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
 
     // Read original
     let Ok(orig_data) = std::fs::read(&p) else {
-        return StatusCode::NOT_FOUND.into_response();
+        return dlna_image_response(StatusCode::OK, "image/jpeg", FALLBACK_JPEG.to_vec());
     };
 
     // If original file is already very small (< 40 KB), serve directly
@@ -234,6 +319,21 @@ async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
 
     // Fallback: serve original
     dlna_image_response(StatusCode::OK, "image/jpeg", orig_data)
+}
+
+async fn handle_stream_token(
+    axum::extract::Path((token, _filename)): axum::extract::Path<(String, String)>,
+    headers: HeaderMap,
+    State(_state): State<Arc<StreamServerState>>,
+) -> Response {
+    let stream = {
+        let read = STREAM_CACHE.read().unwrap();
+        read.get(&token).cloned()
+    };
+    match stream {
+        Some(s) => serve_stream_data(&s, &headers),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn handle_dsd_stream(
@@ -268,7 +368,7 @@ async fn handle_stream(
             Ok(gen) => {
                 let arc_s = Arc::new(gen);
                 let mut write_cache = STREAM_CACHE.write().unwrap();
-                if write_cache.len() > 2 {
+                if write_cache.len() > 6 {
                     write_cache.clear();
                 }
                 write_cache.insert(cache_key, arc_s.clone());
@@ -281,28 +381,21 @@ async fn handle_stream(
         },
     };
 
+    serve_stream_data(&stream, &headers)
+}
+
+fn serve_stream_data(stream: &GeneratedStream, headers: &HeaderMap) -> Response {
     let total_len = stream.total_bytes;
     let range_header = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
 
     let is_dsd = stream.mime_type.contains("dsf") || stream.mime_type.contains("dsd");
     let mime_type = if is_dsd {
-        let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()).unwrap_or("");
-        if accept.contains("audio/dsf") {
-            "audio/dsf"
-        } else if accept.contains("audio/dsd") {
-            "audio/dsd"
-        } else {
-            "audio/x-dsf"
-        }
+        "audio/x-dsf"
     } else {
         "audio/wav"
     };
 
-    let dlna_features = if is_dsd {
-        "DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000"
-    } else {
-        "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
-    };
+    let dlna_features = "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";
 
     if let Some(range_str) = range_header {
         if let Some(range) = parse_range_header(range_str, total_len) {
@@ -330,6 +423,7 @@ async fn handle_stream(
                 "contentFeatures.dlna.org",
                 dlna_features.parse().unwrap(),
             );
+            headers_mut.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
             return resp;
         }
     }
@@ -344,6 +438,7 @@ async fn handle_stream(
         "contentFeatures.dlna.org",
         dlna_features.parse().unwrap(),
     );
+    headers_mut.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
     resp
 }
 

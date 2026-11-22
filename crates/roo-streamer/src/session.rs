@@ -33,7 +33,7 @@ impl DspStreamOptions {
         let conv = self.conv_json.as_deref().unwrap_or("").trim();
         let dsd = self.dsd_mode.as_deref().unwrap_or("").trim();
         let ultra = self.ultrasonic_filter.as_deref().unwrap_or("").trim();
-        let dop = self.dop.unwrap_or(true);
+        let dop = self.dop.unwrap_or(false);
 
         format!(
             "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
@@ -106,7 +106,7 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         }
 
         let dsd_mode_str = opts.dsd_mode.as_ref().unwrap();
-        let use_dop = opts.dop.unwrap_or(true);
+        let use_dop = opts.dop.unwrap_or(false);
 
         let dsd_multiplier: u32 = match dsd_mode_str.to_lowercase().as_str() {
             "dsd128" | "dsd256" | "dsd512" if use_dop => 128, // Clamp DLNA DoP to DSD128 (352.8k/384k)

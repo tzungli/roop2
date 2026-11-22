@@ -1,6 +1,18 @@
 use std::time::Duration;
 use anyhow::{bail, Result};
 
+pub fn format_hms_ms(seconds: f64) -> String {
+    if seconds <= 0.0 || seconds.is_nan() {
+        return String::new();
+    }
+    let s = seconds.floor() as u64;
+    let hrs = s / 3600;
+    let mins = (s % 3600) / 60;
+    let secs = s % 60;
+    let ms = ((seconds - seconds.floor()) * 1000.0).floor() as u64;
+    format!("{}:{:02}:{:02}.{:03}", hrs, mins, secs, ms)
+}
+
 pub struct UpnpController {
     client: reqwest::Client,
 }
@@ -29,7 +41,8 @@ impl UpnpController {
         artist: &str,
         album: &str,
         cover_url: Option<&str>,
-        is_dsd: bool,
+        dsd_hz: Option<u32>,
+        duration_sec: Option<f64>,
     ) -> Result<()> {
         let st = if service_type.trim().is_empty() {
             "urn:schemas-upnp-org:service:AVTransport:1"
@@ -42,35 +55,56 @@ impl UpnpController {
         let album_esc = xml_escape(album);
         let stream_url_esc = xml_escape(stream_url);
 
-        let is_raw_dsf = is_dsd && stream_url.contains("dop=false");
-        let res_tags = if is_raw_dsf {
+        let dur_attr = duration_sec
+            .map(format_hms_ms)
+            .filter(|s| !s.is_empty())
+            .map(|s| format!(" duration=\"{}\"", s))
+            .unwrap_or_default();
+
+        let res_tags = if let Some(hz) = dsd_hz {
             format!(
-                "<res protocolInfo=\"http-get:*:audio/x-dsf:DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000\">{}</res>",
-                stream_url_esc
+                "<res protocolInfo=\"http-get:*:audio/x-dsf:*\" sampleFrequency=\"{}\" bitsPerSample=\"1\" nrAudioChannels=\"2\"{}>{}</res>\
+                 <res protocolInfo=\"http-get:*:audio/dsf:*\" sampleFrequency=\"{}\" bitsPerSample=\"1\" nrAudioChannels=\"2\"{}>{}</res>",
+                hz, dur_attr, stream_url_esc, hz, dur_attr, stream_url_esc
             )
         } else {
-            format!("<res protocolInfo=\"http-get:*:audio/wav:*\">{}</res>", stream_url_esc)
+            format!(
+                "<res protocolInfo=\"http-get:*:audio/wav:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000\"{}>{}</res>\
+                 <res protocolInfo=\"http-get:*:audio/x-wav:*\"{}>{}</res>",
+                dur_attr, stream_url_esc, dur_attr, stream_url_esc
+            )
         };
 
-        // Build Level 1: Standard compliant UPnP DIDL-Lite
-        // Uses single <upnp:albumArtURI> without foreign namespaces for broad compatibility with
-        // Linkplay / T8, WiiM, BubbleUPnP, Yamaha, Denon, and standard UPnP renderers.
+        let mut cover_tags = String::new();
+        if let Some(curl) = cover_url {
+            if !curl.trim().is_empty() {
+                let c_esc = xml_escape(curl.trim());
+                cover_tags = format!(
+                    "<upnp:albumArtURI dlna:profileID=\"JPEG_TN\">{}</upnp:albumArtURI>\
+                     <upnp:albumArtURI dlna:profileID=\"JPEG_SM\">{}</upnp:albumArtURI>\
+                     <upnp:albumArtURI dlna:profileID=\"JPEG_MED\">{}</upnp:albumArtURI>\
+                     <upnp:albumArtURI dlna:profileID=\"JPEG_LRG\">{}</upnp:albumArtURI>\
+                     <upnp:albumArtURI>{}</upnp:albumArtURI>\
+                     <upnp:icon>{}</upnp:icon>",
+                    c_esc, c_esc, c_esc, c_esc, c_esc, c_esc
+                );
+            }
+        }
+
         let mut optional_meta = String::new();
         if !artist_esc.is_empty() {
+            optional_meta.push_str(&format!("<upnp:artist role=\"Performer\">{}</upnp:artist>", artist_esc));
             optional_meta.push_str(&format!("<upnp:artist>{}</upnp:artist>", artist_esc));
         }
         if !album_esc.is_empty() {
             optional_meta.push_str(&format!("<upnp:album>{}</upnp:album>", album_esc));
+            optional_meta.push_str(&format!("<upnp:albumArtist>{}</upnp:albumArtist>", album_esc));
         }
-        if let Some(curl) = cover_url {
-            if !curl.trim().is_empty() {
-                optional_meta.push_str(&format!("<upnp:albumArtURI>{}</upnp:albumArtURI>", xml_escape(curl.trim())));
-            }
-        }
+        optional_meta.push_str(&cover_tags);
 
         let didl_rich = format!(
-            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">\
-            <item id=\"0\" parentID=\"0\" restricted=\"1\">\
+            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">\
+            <item id=\"1\" parentID=\"0\" restricted=\"1\">\
             <dc:title>{}</dc:title>\
             <dc:creator>{}</dc:creator>\
             {}\
@@ -92,7 +126,7 @@ impl UpnpController {
         // Attempt 2: Basic Metadata (Title + Creator only - verified working on all devices)
         let didl_basic = format!(
             "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">\
-            <item id=\"0\" parentID=\"0\" restricted=\"1\">\
+            <item id=\"1\" parentID=\"0\" restricted=\"1\">\
             <dc:title>{}</dc:title>\
             <dc:creator>{}</dc:creator>\
             <upnp:class>object.item.audioItem.musicTrack</upnp:class>\
@@ -465,5 +499,13 @@ mod tests {
         assert_eq!(parse_duration_hhmmss("01:02:03"), 3723.0);
         assert_eq!(parse_duration_hhmmss("00:01:23.5"), 83.5);
         assert_eq!(parse_duration_hhmmss("03:45"), 225.0);
+    }
+
+    #[test]
+    fn test_format_hms_ms() {
+        assert_eq!(format_hms_ms(0.0), "");
+        assert_eq!(format_hms_ms(-5.0), "");
+        assert_eq!(format_hms_ms(225.5), "0:03:45.500");
+        assert_eq!(format_hms_ms(3661.123), "1:01:01.123");
     }
 }
