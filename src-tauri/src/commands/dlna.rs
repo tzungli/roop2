@@ -153,11 +153,19 @@ pub async fn dlna_play_track(
         dop: Some(false), // Native DSD (DSF), NOT DoP!
     };
 
-    // Prewarm stream into memory cache with stream_token
+    // Cancel any prior progressive stream sessions and start progressive stream session
+    roo_streamer::cancel_all_progressive_streams();
+
     let token_clone = stream_token.clone();
-    let _ = tokio::task::spawn_blocking(move || {
-        roo_streamer::prewarm_stream_with_token(&opts, &token_clone)
-    }).await;
+    let opts_clone = opts.clone();
+    let start_res = tokio::task::spawn_blocking(move || {
+        roo_streamer::start_progressive_stream(&opts_clone, &token_clone)
+    }).await.map_err(|e| e.to_string())?;
+
+    if let Err(e) = start_res {
+        tracing::error!("Failed to start progressive stream: {}", e);
+        return Err(e.to_string());
+    }
 
     let app_clone = app.clone();
     let app_clone2 = app.clone();
@@ -217,6 +225,7 @@ pub async fn dlna_resume(manager: State<'_, DlnaManager>, device_id: String) -> 
 
 #[tauri::command]
 pub async fn dlna_stop(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
+    roo_streamer::cancel_all_progressive_streams();
     manager.stop(&device_id).await.map(|_| true).map_err(|e| e.to_string())
 }
 

@@ -1,11 +1,374 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::collections::HashMap;
+use std::sync::RwLock;
+use std::sync::LazyLock;
 use roo_dsp::{
     build_dsf_header, DsdModulator, DitherType,
     PeqBand, PeqChain, REGISTRY,
 };
 use roo_decoder::read_pcm_samples;
 use anyhow::{bail, Result};
+
+pub struct ProgressiveSession {
+    pub token: String,
+    pub temp_file_path: PathBuf,
+    pub mime_type: &'static str,
+    pub total_bytes: u64,
+    pub bytes_written: Arc<AtomicU64>,
+    pub is_completed: Arc<AtomicBool>,
+    pub is_cancelled: Arc<AtomicBool>,
+    pub notify: Arc<tokio::sync::Notify>,
+}
+
+impl Drop for ProgressiveSession {
+    fn drop(&mut self) {
+        self.is_cancelled.store(true, Ordering::Relaxed);
+        let _ = std::fs::remove_file(&self.temp_file_path);
+    }
+}
+
+static PROGRESSIVE_SESSIONS: LazyLock<RwLock<HashMap<String, Arc<ProgressiveSession>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+pub fn get_progressive_session(token: &str) -> Option<Arc<ProgressiveSession>> {
+    PROGRESSIVE_SESSIONS.read().unwrap().get(token).cloned()
+}
+
+pub fn cancel_all_progressive_streams() {
+    let mut write = PROGRESSIVE_SESSIONS.write().unwrap();
+    for session in write.values() {
+        session.is_cancelled.store(true, Ordering::Relaxed);
+        session.notify.notify_waiters();
+    }
+    write.clear();
+}
+
+pub fn cancel_progressive_stream(token: &str) {
+    let mut write = PROGRESSIVE_SESSIONS.write().unwrap();
+    if let Some(session) = write.remove(token) {
+        session.is_cancelled.store(true, Ordering::Relaxed);
+        session.notify.notify_waiters();
+    }
+}
+
+pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<Arc<ProgressiveSession>> {
+    cancel_progressive_stream(token);
+
+    let cache_dir = std::env::temp_dir().join("rooplayer_dsp_cache");
+    let _ = std::fs::create_dir_all(&cache_dir);
+
+    // Clean up older cache files (> 1 hour)
+    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            if let Ok(meta) = entry.metadata() {
+                if let Ok(elapsed) = meta.modified().and_then(|m| m.elapsed().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))) {
+                    if elapsed.as_secs() > 3600 {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
+                }
+            }
+        }
+    }
+
+    // 1. Read input audio PCM samples
+    let (src_rate, mut left, mut right) = read_pcm_samples(&opts.file_path, opts.start_sec, 3600.0)?;
+    if left.is_empty() {
+        bail!("No audio samples read from file: {}", opts.file_path);
+    }
+
+    // 2. Apply PEQ if configured
+    if let Some(peq_str) = &opts.peq_json {
+        if !peq_str.trim().is_empty() && peq_str != "null" {
+            if let Ok(peq_conf) = serde_json::from_str::<PeqConfig>(peq_str) {
+                if peq_conf.enabled && !peq_conf.bands.is_empty() {
+                    let chain = PeqChain::new(src_rate as f64, peq_conf.pre_gain_db, &peq_conf.bands);
+                    let mut out_l = vec![0.0; left.len()];
+                    let mut out_r = vec![0.0; right.len()];
+                    chain.apply_arrays(&left, &right, &mut out_l, &mut out_r);
+                    left = out_l;
+                    right = out_r;
+                }
+            }
+        }
+    }
+
+    let is_dsd = opts.dsd_mode.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+
+    if is_dsd {
+        if let Some(mode) = &opts.ultrasonic_filter {
+            if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
+                roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
+            }
+        }
+
+        let dsd_mode_str = opts.dsd_mode.as_ref().unwrap();
+        let dsd_multiplier: u32 = match dsd_mode_str.to_lowercase().as_str() {
+            "dsd128" => 128,
+            "dsd256" => 256,
+            "dsd512" => 512,
+            _ => 64,
+        };
+        let base_rate: u32 = if src_rate % 48000 == 0 { 48000 } else { 44100 };
+        let dsd_rate: u32 = base_rate * dsd_multiplier;
+        let ratio = dsd_rate as f64 / src_rate as f64;
+        let inv_ratio = 1.0 / ratio;
+
+        let total_dsd_samples = (left.len() as f64 * ratio).round() as usize;
+        let samples_per_block = 32768usize;
+        let num_blocks = (total_dsd_samples + samples_per_block - 1) / samples_per_block;
+        let total_file_bytes = 92 + (num_blocks * 8192) as u64;
+
+        let temp_file_path = cache_dir.join(format!(
+            "stream_{}_{}.dsf",
+            token,
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()
+        ));
+
+        let header = build_dsf_header(total_file_bytes, dsd_rate, (num_blocks * samples_per_block) as u64, 4096);
+        std::fs::write(&temp_file_path, &header)?;
+
+        let gf = REGISTRY.build_filter(dsd_rate as f64, src_rate as f64, &opts.filter_phase);
+        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, DitherType::Gauss1, gf);
+
+        let initial_blocks = num_blocks.min(180);
+        let mut initial_data = vec![0u8; initial_blocks * 8192];
+        if initial_blocks > 0 {
+            modulator.run_blocks(&left, &right, left.len(), 0, initial_blocks, inv_ratio, &mut initial_data);
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new().append(true).open(&temp_file_path)?;
+            file.write_all(&initial_data)?;
+            file.flush()?;
+        }
+
+        let bytes_written = Arc::new(AtomicU64::new(92 + (initial_blocks * 8192) as u64));
+        let is_completed = Arc::new(AtomicBool::new(initial_blocks >= num_blocks));
+        let is_cancelled = Arc::new(AtomicBool::new(false));
+        let notify = Arc::new(tokio::sync::Notify::new());
+
+        let session = Arc::new(ProgressiveSession {
+            token: token.to_string(),
+            temp_file_path: temp_file_path.clone(),
+            mime_type: "audio/x-dsf",
+            total_bytes: total_file_bytes,
+            bytes_written: bytes_written.clone(),
+            is_completed: is_completed.clone(),
+            is_cancelled: is_cancelled.clone(),
+            notify: notify.clone(),
+        });
+
+        PROGRESSIVE_SESSIONS.write().unwrap().insert(token.to_string(), session.clone());
+
+        if initial_blocks < num_blocks {
+            let bg_file_path = temp_file_path.clone();
+            let bg_bytes_written = bytes_written;
+            let bg_is_completed = is_completed;
+            let bg_is_cancelled = is_cancelled;
+            let bg_notify = notify;
+
+            std::thread::spawn(move || {
+                use std::io::Write;
+                let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&bg_file_path) else {
+                    return;
+                };
+
+                let batch_blocks = 32usize;
+                let mut curr_block = initial_blocks;
+                let mut batch_buf = vec![0u8; batch_blocks * 8192];
+
+                while curr_block < num_blocks {
+                    if bg_is_cancelled.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    let blocks_to_run = (num_blocks - curr_block).min(batch_blocks);
+                    let slice = &mut batch_buf[..blocks_to_run * 8192];
+                    modulator.run_blocks(&left, &right, left.len(), curr_block * samples_per_block, blocks_to_run, inv_ratio, slice);
+                    if file.write_all(slice).is_err() {
+                        return;
+                    }
+                    let _ = file.flush();
+                    curr_block += blocks_to_run;
+                    bg_bytes_written.store(92 + (curr_block * 8192) as u64, Ordering::Release);
+                    bg_notify.notify_waiters();
+                }
+                bg_is_completed.store(true, Ordering::Release);
+                bg_notify.notify_waiters();
+            });
+        }
+
+        Ok(session)
+    } else {
+        let target_rate = if opts.target_rate == 0 { src_rate } else { opts.target_rate };
+        let ratio = target_rate as f64 / src_rate as f64;
+        let out_frames = (left.len() as f64 * ratio).round() as usize;
+
+        let data_size = out_frames as u64 * 6;
+        let total_file_bytes = 44 + data_size;
+
+        let temp_file_path = cache_dir.join(format!(
+            "stream_{}_{}.wav",
+            token,
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()
+        ));
+
+        let mut header = Vec::with_capacity(44);
+        header.extend_from_slice(b"RIFF");
+        header.extend_from_slice(&((36 + data_size) as u32).to_le_bytes());
+        header.extend_from_slice(b"WAVE");
+        header.extend_from_slice(b"fmt ");
+        header.extend_from_slice(&16u32.to_le_bytes());
+        header.extend_from_slice(&1u16.to_le_bytes());
+        header.extend_from_slice(&2u16.to_le_bytes());
+        header.extend_from_slice(&target_rate.to_le_bytes());
+        header.extend_from_slice(&(target_rate * 6).to_le_bytes());
+        header.extend_from_slice(&6u16.to_le_bytes());
+        header.extend_from_slice(&24u16.to_le_bytes());
+        header.extend_from_slice(b"data");
+        header.extend_from_slice(&(data_size as u32).to_le_bytes());
+
+        std::fs::write(&temp_file_path, &header)?;
+
+        let initial_frames = out_frames.min(target_rate as usize * 2);
+        let gf = REGISTRY.build_filter(target_rate as f64, src_rate as f64, &opts.filter_phase);
+        let max_val = 8388607.0f64;
+
+        let mut initial_bytes = Vec::with_capacity(initial_frames * 6);
+        for i in 0..initial_frames {
+            let (sl_f, sr_f) = if target_rate == src_rate {
+                (left[i], right[i])
+            } else if let Some(filter) = &gf {
+                (
+                    roo_dsp::fir_sample(&left, left.len(), i, ratio, filter),
+                    roo_dsp::fir_sample(&right, right.len(), i, ratio, filter),
+                )
+            } else {
+                let t_src = i as f64 / ratio;
+                let idx = t_src.floor() as usize;
+                let frac = t_src - idx as f64;
+                let p1_l = if idx < left.len() { left[idx] } else { 0.0 };
+                let p2_l = if idx + 1 < left.len() { left[idx + 1] } else { 0.0 };
+                let p0_l = if idx > 0 && idx - 1 < left.len() { left[idx - 1] } else { p1_l };
+                let p3_l = if idx + 2 < left.len() { left[idx + 2] } else { p2_l };
+                let p1_r = if idx < right.len() { right[idx] } else { 0.0 };
+                let p2_r = if idx + 1 < right.len() { right[idx + 1] } else { 0.0 };
+                let p0_r = if idx > 0 && idx - 1 < right.len() { right[idx - 1] } else { p1_r };
+                let p3_r = if idx + 2 < right.len() { right[idx + 2] } else { p2_r };
+                (
+                    roo_dsp::interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac),
+                    roo_dsp::interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac),
+                )
+            };
+            let sl = (sl_f.clamp(-1.0, 1.0) * max_val).round() as i32;
+            let sr = (sr_f.clamp(-1.0, 1.0) * max_val).round() as i32;
+            initial_bytes.push((sl & 0xFF) as u8);
+            initial_bytes.push(((sl >> 8) & 0xFF) as u8);
+            initial_bytes.push(((sl >> 16) & 0xFF) as u8);
+            initial_bytes.push((sr & 0xFF) as u8);
+            initial_bytes.push(((sr >> 8) & 0xFF) as u8);
+            initial_bytes.push(((sr >> 16) & 0xFF) as u8);
+        }
+
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new().append(true).open(&temp_file_path)?;
+        file.write_all(&initial_bytes)?;
+        file.flush()?;
+
+        let bytes_written = Arc::new(AtomicU64::new(44 + initial_bytes.len() as u64));
+        let is_completed = Arc::new(AtomicBool::new(initial_frames >= out_frames));
+        let is_cancelled = Arc::new(AtomicBool::new(false));
+        let notify = Arc::new(tokio::sync::Notify::new());
+
+        let session = Arc::new(ProgressiveSession {
+            token: token.to_string(),
+            temp_file_path: temp_file_path.clone(),
+            mime_type: "audio/wav",
+            total_bytes: total_file_bytes,
+            bytes_written: bytes_written.clone(),
+            is_completed: is_completed.clone(),
+            is_cancelled: is_cancelled.clone(),
+            notify: notify.clone(),
+        });
+
+        PROGRESSIVE_SESSIONS.write().unwrap().insert(token.to_string(), session.clone());
+
+        if initial_frames < out_frames {
+            let bg_file_path = temp_file_path.clone();
+            let bg_bytes_written = bytes_written;
+            let bg_is_completed = is_completed;
+            let bg_is_cancelled = is_cancelled;
+            let bg_notify = notify;
+
+            std::thread::spawn(move || {
+                use std::io::Write;
+                let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&bg_file_path) else {
+                    return;
+                };
+
+                let batch_frames = 16384usize;
+                let mut curr_frame = initial_frames;
+                let mut batch_buf = Vec::with_capacity(batch_frames * 6);
+
+                while curr_frame < out_frames {
+                    if bg_is_cancelled.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    let frames_to_run = (out_frames - curr_frame).min(batch_frames);
+                    batch_buf.clear();
+
+                    for f in 0..frames_to_run {
+                        let i = curr_frame + f;
+                        let (sl_f, sr_f) = if target_rate == src_rate {
+                            (left[i], right[i])
+                        } else if let Some(filter) = &gf {
+                            (
+                                roo_dsp::fir_sample(&left, left.len(), i, ratio, filter),
+                                roo_dsp::fir_sample(&right, right.len(), i, ratio, filter),
+                            )
+                        } else {
+                            let t_src = i as f64 / ratio;
+                            let idx = t_src.floor() as usize;
+                            let frac = t_src - idx as f64;
+                            let p1_l = if idx < left.len() { left[idx] } else { 0.0 };
+                            let p2_l = if idx + 1 < left.len() { left[idx + 1] } else { 0.0 };
+                            let p0_l = if idx > 0 && idx - 1 < left.len() { left[idx - 1] } else { p1_l };
+                            let p3_l = if idx + 2 < left.len() { left[idx + 2] } else { p2_l };
+                            let p1_r = if idx < right.len() { right[idx] } else { 0.0 };
+                            let p2_r = if idx + 1 < right.len() { right[idx + 1] } else { 0.0 };
+                            let p0_r = if idx > 0 && idx - 1 < right.len() { right[idx - 1] } else { p1_r };
+                            let p3_r = if idx + 2 < right.len() { right[idx + 2] } else { p2_r };
+                            (
+                                roo_dsp::interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac),
+                                roo_dsp::interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac),
+                            )
+                        };
+                        let sl = (sl_f.clamp(-1.0, 1.0) * max_val).round() as i32;
+                        let sr = (sr_f.clamp(-1.0, 1.0) * max_val).round() as i32;
+                        batch_buf.push((sl & 0xFF) as u8);
+                        batch_buf.push(((sl >> 8) & 0xFF) as u8);
+                        batch_buf.push(((sl >> 16) & 0xFF) as u8);
+                        batch_buf.push((sr & 0xFF) as u8);
+                        batch_buf.push(((sr >> 8) & 0xFF) as u8);
+                        batch_buf.push(((sr >> 16) & 0xFF) as u8);
+                    }
+
+                    if file.write_all(&batch_buf).is_err() {
+                        return;
+                    }
+                    let _ = file.flush();
+                    curr_frame += frames_to_run;
+                    bg_bytes_written.fetch_add(batch_buf.len() as u64, Ordering::Release);
+                    bg_notify.notify_waiters();
+                }
+                bg_is_completed.store(true, Ordering::Release);
+                bg_notify.notify_waiters();
+            });
+        }
+
+        Ok(session)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DspStreamOptions {
@@ -393,6 +756,67 @@ mod tests {
         opts2.conv_json = Some("  ".to_string());
 
         assert_eq!(opts1.cache_key(), opts2.cache_key());
+    }
+
+    #[tokio::test]
+    async fn test_progressive_dsd_stream() {
+        let temp_wav = std::env::temp_dir().join("test_prog_dsd.wav");
+        let num_samples = 44100usize * 3; // 3 seconds
+        let mut wav_data = Vec::new();
+        wav_data.extend_from_slice(b"RIFF");
+        let data_size = (num_samples * 4) as u32;
+        wav_data.extend_from_slice(&((36 + data_size) as u32).to_le_bytes());
+        wav_data.extend_from_slice(b"WAVE");
+        wav_data.extend_from_slice(b"fmt ");
+        wav_data.extend_from_slice(&16u32.to_le_bytes());
+        wav_data.extend_from_slice(&1u16.to_le_bytes());
+        wav_data.extend_from_slice(&2u16.to_le_bytes());
+        wav_data.extend_from_slice(&44100u32.to_le_bytes());
+        wav_data.extend_from_slice(&(44100u32 * 4).to_le_bytes());
+        wav_data.extend_from_slice(&4u16.to_le_bytes());
+        wav_data.extend_from_slice(&16u16.to_le_bytes());
+        wav_data.extend_from_slice(b"data");
+        wav_data.extend_from_slice(&data_size.to_le_bytes());
+        for i in 0..num_samples {
+            let val = ((i as f64 * 440.0 * 2.0 * std::f64::consts::PI / 44100.0).sin() * 8000.0) as i16;
+            wav_data.extend_from_slice(&val.to_le_bytes());
+            wav_data.extend_from_slice(&val.to_le_bytes());
+        }
+        std::fs::write(&temp_wav, &wav_data).unwrap();
+
+        let opts = DspStreamOptions {
+            file_path: temp_wav.to_string_lossy().to_string(),
+            start_sec: 0.0,
+            target_rate: 0,
+            dsd_mode: Some("dsd64".to_string()),
+            dsd_order: 5,
+            filter_phase: "linear".to_string(),
+            peq_json: None,
+            conv_json: None,
+            ultrasonic_filter: Some("30k".to_string()),
+            dop: Some(false),
+        };
+
+        let t0 = std::time::Instant::now();
+        let session = start_progressive_stream(&opts, "test_token_123").expect("Failed to start progressive stream");
+        let init_time = t0.elapsed();
+        println!("start_progressive_stream took: {:?}", init_time);
+        let max_allowed = if cfg!(debug_assertions) { 2500 } else { 500 };
+        assert!(init_time.as_millis() < max_allowed, "Progressive stream init took too long: {:?}", init_time);
+        assert_eq!(session.mime_type, "audio/x-dsf");
+        assert!(session.bytes_written.load(Ordering::Acquire) >= 92);
+
+        // Verify session is retrievable
+        let fetched = get_progressive_session("test_token_123");
+        assert!(fetched.is_some());
+
+        // Wait brief moment for background writer
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(session.bytes_written.load(Ordering::Acquire) >= 92);
+
+        // Clean up
+        cancel_progressive_stream("test_token_123");
+        let _ = std::fs::remove_file(temp_wav);
     }
 }
 

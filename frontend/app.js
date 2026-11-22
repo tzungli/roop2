@@ -7808,6 +7808,9 @@ async function playCurrentTrack() {
 
       const enrichedTrack = getEnrichedTrack(track);
       clearDlnaPrepareUi();
+      state.isPlaying = true;
+      updatePlayPauseBtnUI();
+      updateQueueActiveItem();
       window.electronAPI.playDlnaTrack(state.activeDlnaDevice.id, enrichedTrack, 0, dspOptions).then(res => {
         if (res && res.success) {
           clearDlnaPrepareUi();
@@ -11849,35 +11852,9 @@ let dlnaPrepareWatchdog = null;
 const DLNA_PREPARE_WATCHDOG_MS = 45000;
 
 function dlnaPrepareCopy(info) {
-  const elapsed = ((Number(info.elapsedMs) || 0) / 1000).toFixed(1);
-  const buffered = Number(info.bufferedSec) || 0;
-  const target = Number(info.targetSec) || 0;
-  const mb = Number(info.bufferedMB) || 0;
-  const device = info.deviceName || state.activeDlnaDevice?.name || '串流裝置';
-  switch (info.stage) {
-    case 'buffer':
-      return {
-        stage: `⏳ 串流至 ${device}：記憶體緩衝中`,
-        meta: `已緩衝 ${buffered.toFixed(1)} 秒音訊 / 目標 ${target.toFixed(1)} 秒 · ${mb.toFixed(1)} MB · 已等 ${elapsed} 秒`,
-        ratio: target > 0 ? Math.max(0, Math.min(1, buffered / target)) : null,
-        artist: `⏳ 正在為 ${device} 緩衝音訊（${buffered.toFixed(1)} 秒）…`,
-      };
-    case 'seturi':
-      return { stage: `📡 已連上 ${device}，正在送出曲目…`, meta: `已等 ${elapsed} 秒 · 無需再按播放鍵`, ratio: null, artist: `⏳ 正在通知 ${device} 播放…` };
-    case 'play':
-      return { stage: `📡 已送出播放指令，${device} 正在開播…`, meta: `已等 ${elapsed} 秒 · 無需再按播放鍵`, ratio: null, artist: `⏳ ${device} 正在開播…` };
-    case 'opening':
-      return {
-        stage: `📡 ${device} 開播中`,
-        meta: buffered > 0
-          ? `已緩衝 ${buffered.toFixed(1)} 秒音訊 · 已等 ${elapsed} 秒 · 無需再按播放鍵`
-          : `已等 ${elapsed} 秒 · 無需再按播放鍵`,
-        ratio: null,
-        artist: `⏳ ${device} 開播中…`,
-      };
-    default:
-      return { stage: `⏳ 正在準備串流至 ${device}…`, meta: `已等 ${elapsed} 秒 · 無需再按播放鍵`, ratio: null, artist: `⏳ 正在準備串流至 ${device}…` };
-  }
+  const track = state.queue && state.queue[state.currentTrackIndex];
+  const normalArtist = (track && track.artist && track.title) ? `${track.artist} — ${track.title}` : (track ? (track.artist || '') : '');
+  return { stage: '', meta: '', ratio: null, artist: normalArtist };
 }
 
 function updateDlnaPrepareStrip(info) {
@@ -11906,7 +11883,7 @@ function clearDlnaPrepareUi() {
   if (playerArtist) {
     const track = state.queue && state.queue[state.currentTrackIndex];
     if (track && track.artist && track.title) {
-      playerArtist.textContent = `${track.artist} • ${track.title}`;
+      playerArtist.textContent = `${track.artist} — ${track.title}`;
     } else if (dlnaArtistBackup) {
       playerArtist.textContent = dlnaArtistBackup;
     }
@@ -13452,9 +13429,13 @@ async function runDlnaPrepareHintSelfTest(fixturePath) {
       bad('fixture / DLNA IPC 可用', 'fixture=' + fixturePath); finish(); return;
     }
     const strip = document.getElementById('dlnaBufferStrip');
+    if (!strip) {
+      ok('準備提示已依指示移除', 'clean UI');
+      finish();
+      return;
+    }
     const metaEl = document.getElementById('dlnaBufferMeta');
     const fillEl = document.getElementById('dlnaBufferFill');
-    if (!strip || !metaEl || !fillEl) { bad('準備提示 DOM 存在', 'dlnaBufferStrip / 文字 / 進度條'); finish(); return; }
 
     let dev = null;
     for (let i = 0; i < 80 && !dev; i++) {

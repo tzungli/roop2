@@ -9,7 +9,9 @@ use axum::{
     Router,
 };
 use tower_http::cors::CorsLayer;
-use crate::session::{generate_audio_stream, DspStreamOptions, GeneratedStream};
+use crate::session::{
+    generate_audio_stream, get_progressive_session, DspStreamOptions, GeneratedStream, ProgressiveSession,
+};
 use anyhow::Result;
 
 pub static STREAM_CACHE: std::sync::LazyLock<RwLock<HashMap<String, Arc<GeneratedStream>>>> =
@@ -326,6 +328,10 @@ async fn handle_stream_token(
     headers: HeaderMap,
     State(_state): State<Arc<StreamServerState>>,
 ) -> Response {
+    if let Some(session) = get_progressive_session(&token) {
+        return serve_progressive_stream(&session, &headers).await;
+    }
+
     let stream = {
         let read = STREAM_CACHE.read().unwrap();
         read.get(&token).cloned()
@@ -334,6 +340,121 @@ async fn handle_stream_token(
         Some(s) => serve_stream_data(&s, &headers),
         None => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+async fn serve_progressive_stream(
+    session: &Arc<ProgressiveSession>,
+    headers: &HeaderMap,
+) -> Response {
+    let total_len = session.total_bytes;
+    let range_header = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
+    let is_dsd = session.mime_type.contains("dsf") || session.mime_type.contains("dsd");
+    let mime_type = if is_dsd { "audio/x-dsf" } else { "audio/wav" };
+    let dlna_features = "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";
+
+    let (status, start, end) = if let Some(range_str) = range_header {
+        if let Some((s, e)) = parse_range_header(range_str, total_len) {
+            (StatusCode::PARTIAL_CONTENT, s, e)
+        } else {
+            return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+        }
+    } else {
+        (StatusCode::OK, 0, total_len.saturating_sub(1))
+    };
+
+    let content_len = if end >= start { end - start + 1 } else { 0 };
+
+    struct ReaderState {
+        file_path: std::path::PathBuf,
+        current_pos: u64,
+        end_pos: u64,
+        bytes_written: Arc<std::sync::atomic::AtomicU64>,
+        is_completed: Arc<std::sync::atomic::AtomicBool>,
+        is_cancelled: Arc<std::sync::atomic::AtomicBool>,
+        notify: Arc<tokio::sync::Notify>,
+    }
+
+    let initial_state = ReaderState {
+        file_path: session.temp_file_path.clone(),
+        current_pos: start,
+        end_pos: end,
+        bytes_written: session.bytes_written.clone(),
+        is_completed: session.is_completed.clone(),
+        is_cancelled: session.is_cancelled.clone(),
+        notify: session.notify.clone(),
+    };
+
+    let stream = futures_util::stream::unfold(initial_state, |mut state| async move {
+        if state.current_pos > state.end_pos || state.is_cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+            return None;
+        }
+
+        loop {
+            if state.is_cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                return None;
+            }
+            let written = state.bytes_written.load(std::sync::atomic::Ordering::Acquire);
+            if state.current_pos < written {
+                break;
+            }
+            if state.is_completed.load(std::sync::atomic::Ordering::Acquire) {
+                if state.current_pos >= written {
+                    return None;
+                }
+                break;
+            }
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                state.notify.notified(),
+            ).await;
+        }
+
+        let written = state.bytes_written.load(std::sync::atomic::Ordering::Acquire);
+        let available = written.saturating_sub(state.current_pos);
+        let to_read = (state.end_pos + 1 - state.current_pos).min(available).min(64 * 1024) as usize;
+
+        if to_read == 0 {
+            return None;
+        }
+
+        let curr_pos = state.current_pos;
+        let p = state.file_path.clone();
+
+        let read_res = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
+            use std::io::{Read, Seek, SeekFrom};
+            let mut file = std::fs::File::open(&p)?;
+            file.seek(SeekFrom::Start(curr_pos))?;
+            let mut buf = vec![0u8; to_read];
+            file.read_exact(&mut buf)?;
+            Ok(buf)
+        }).await;
+
+        match read_res {
+            Ok(Ok(bytes)) => {
+                let bytes_len = bytes.len() as u64;
+                state.current_pos += bytes_len;
+                Some((Ok::<bytes::Bytes, std::io::Error>(bytes::Bytes::from(bytes)), state))
+            }
+            _ => None,
+        }
+    });
+
+    let body = axum::body::Body::from_stream(stream);
+    let mut resp = (status, body).into_response();
+    let headers_mut = resp.headers_mut();
+    headers_mut.insert(header::CONTENT_TYPE, mime_type.parse().unwrap());
+    headers_mut.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
+    headers_mut.insert(header::CONTENT_LENGTH, content_len.to_string().parse().unwrap());
+    if status == StatusCode::PARTIAL_CONTENT {
+        headers_mut.insert(
+            header::CONTENT_RANGE,
+            format!("bytes {}-{}/{}", start, end, total_len).parse().unwrap(),
+        );
+    }
+    headers_mut.insert("transferMode.dlna.org", "Streaming".parse().unwrap());
+    headers_mut.insert("contentFeatures.dlna.org", dlna_features.parse().unwrap());
+    headers_mut.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+    resp
 }
 
 async fn handle_dsd_stream(

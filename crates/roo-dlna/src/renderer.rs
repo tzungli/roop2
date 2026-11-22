@@ -99,13 +99,28 @@ impl DlnaManager {
         ).await;
         set_res?;
 
-        tokio::time::sleep(Duration::from_millis(80)).await;
+        // 3. Wait for transport state to finish transitioning, then trigger Play
+        for _ in 0..15 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            if let Ok(state) = self.controller.get_transport_info(&dev.av_transport_url, &dev.av_transport_service_type).await {
+                let st = state.to_uppercase();
+                if st != "TRANSITIONING" {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
 
-        // 3. Trigger Play (with brief retry if transport is still transitioning)
         let mut play_res = self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await;
         if play_res.is_err() {
-            tokio::time::sleep(Duration::from_millis(150)).await;
-            play_res = self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await;
+            for _ in 0..3 {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                play_res = self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await;
+                if play_res.is_ok() {
+                    break;
+                }
+            }
         }
         play_res?;
 

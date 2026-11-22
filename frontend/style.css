@@ -5047,21 +5047,16 @@ body.table-col-resizing * {
   position: relative;
 }
 
-/* DLNA 串流準備中：覆蓋進度條的記憶體緩衝提示（引擎調變 / 緩衝 / 裝置開播） */
-.dlna-buffer-strip {
-  position: absolute;
-  top: -7px;
-  bottom: 6px;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 14px;
-  border-radius: 3px;
-  background-color: rgba(13, 14, 22, 0.94);
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+/* DLNA 串流準備中：舊提示已廢棄並永久隱藏，避免覆蓋進度條 */
+.dlna-buffer-strip, #dlnaBufferStrip {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  opacity: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .dlna-buffer-stage {
