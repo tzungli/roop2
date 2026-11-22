@@ -16985,10 +16985,10 @@ function setupScannerEvents() {
 function showImportReportModal(report) {
   if (!importReportModal || !report) return;
 
-  const folderAdded = report.folders.added.length;
-  const folderSkipped = report.folders.skipped.length;
-  const trackAdded = report.tracks.addedCount;
-  const trackSkipped = report.tracks.skippedCount;
+  const folderAdded = (report.folders && report.folders.added && report.folders.added.length) || 0;
+  const folderSkipped = (report.folders && report.folders.skipped && report.folders.skipped.length) || 0;
+  const trackAdded = (report.tracks && report.tracks.addedCount) || 0;
+  const trackSkipped = (report.tracks && report.tracks.skippedCount) || 0;
   const favAdded = report.favAddedCount || 0;
   const playsMerged = report.playStatsMergedCount || 0;
   const historyMerged = report.historyMergedCount || 0;

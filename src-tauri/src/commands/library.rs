@@ -128,15 +128,229 @@ pub async fn library_update_album_artist(
 
 #[tauri::command]
 pub async fn library_export(
-    _default_filename: Option<String>,
-    _extra_data: Option<serde_json::Value>,
-) -> Result<Option<String>, String> {
-    Ok(None)
+    state: State<'_, LibraryState>,
+    default_filename: Option<String>,
+    extra_data: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let default_name = default_filename.unwrap_or_else(|| {
+        format!("rooplayer_backup_{}.json", now_secs)
+    });
+
+    let dialog = rfd::AsyncFileDialog::new()
+        .add_filter("rooPlayer 資料庫備份 (*.json)", &["json"])
+        .set_file_name(&default_name);
+
+    let file_handle = dialog.save_file().await;
+    let file = match file_handle {
+        Some(f) => f,
+        None => return Ok(serde_json::json!({ "canceled": true })),
+    };
+
+    let tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
+    let folders = state.db.get_folders().map_err(|e| e.to_string())?;
+    let extra = extra_data.unwrap_or_else(|| serde_json::json!({}));
+
+    let fav_albums = extra
+        .get("favorites")
+        .and_then(|f| f.get("albums"))
+        .and_then(|a| a.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let fav_tracks = extra
+        .get("favorites")
+        .and_then(|f| f.get("tracks"))
+        .and_then(|a| a.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let fav_artists = extra
+        .get("favorites")
+        .and_then(|f| f.get("artists"))
+        .and_then(|a| a.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let playlist_count = extra
+        .get("playlists")
+        .and_then(|p| p.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let net_folder_count = extra
+        .get("networkFolders")
+        .and_then(|n| n.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let history_count = extra
+        .get("playbackHistory")
+        .and_then(|h| h.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+
+    let export_payload = serde_json::json!({
+        "app": "rooPlayer",
+        "version": "0.1.0",
+        "exportedAt": now_secs,
+        "folders": folders,
+        "tracks": tracks,
+        "extra": extra
+    });
+
+    let json_str = serde_json::to_string_pretty(&export_payload).map_err(|e| e.to_string())?;
+    std::fs::write(file.path(), json_str).map_err(|e| e.to_string())?;
+
+    let file_path_str = file.path().to_string_lossy().to_string();
+
+    Ok(serde_json::json!({
+        "success": true,
+        "filePath": file_path_str,
+        "folderCount": folders.len(),
+        "trackCount": tracks.len(),
+        "favoriteCounts": {
+            "albums": fav_albums,
+            "tracks": fav_tracks,
+            "artists": fav_artists
+        },
+        "playlistCount": playlist_count,
+        "networkFolderCount": net_folder_count,
+        "historyCount": history_count
+    }))
 }
 
 #[tauri::command]
-pub async fn library_import() -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({ "ok": true }))
+pub async fn library_import(
+    state: State<'_, LibraryState>,
+) -> Result<serde_json::Value, String> {
+    let file_handle = rfd::AsyncFileDialog::new()
+        .add_filter("rooPlayer 資料庫備份 (*.json)", &["json"])
+        .pick_file()
+        .await;
+
+    let file = match file_handle {
+        Some(f) => f,
+        None => return Ok(serde_json::json!({ "canceled": true })),
+    };
+
+    let content = std::fs::read_to_string(file.path())
+        .map_err(|e| format!("讀取檔案失敗: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("JSON 解析失敗: {}", e))?;
+
+    let existing_folders: std::collections::HashSet<String> = state
+        .db
+        .get_folders()
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+
+    let existing_tracks: std::collections::HashSet<String> = state
+        .db
+        .get_all_tracks()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|t| t.path)
+        .collect();
+
+    let mut folders_added = Vec::new();
+    let mut folders_skipped = Vec::new();
+
+    let folders_array = json
+        .get("folders")
+        .or_else(|| json.get("data").and_then(|d| d.get("folders")))
+        .and_then(|v| v.as_array());
+
+    if let Some(folders) = folders_array {
+        for f in folders {
+            if let Some(folder_str) = f.as_str() {
+                if existing_folders.contains(folder_str) {
+                    folders_skipped.push(serde_json::json!({
+                        "path": folder_str,
+                        "reason": "已存在於曲庫中"
+                    }));
+                } else {
+                    let _ = state.db.add_folder(folder_str);
+                    folders_added.push(folder_str.to_string());
+                }
+            }
+        }
+    }
+
+    let mut tracks_added_count = 0usize;
+    let mut tracks_skipped = Vec::new();
+
+    let tracks_array = json
+        .get("tracks")
+        .or_else(|| json.get("data").and_then(|d| d.get("tracks")))
+        .and_then(|v| v.as_array());
+
+    if let Some(tracks) = tracks_array {
+        for t_val in tracks {
+            if let Ok(mut track) = serde_json::from_value::<TrackRecord>(t_val.clone()) {
+                if track.album_artist.is_empty() {
+                    track.album_artist = track.artist.clone();
+                }
+                if existing_tracks.contains(&track.path) {
+                    tracks_skipped.push(serde_json::json!({
+                        "title": track.title,
+                        "artist": track.artist,
+                        "path": track.path,
+                        "reason": "曲目路徑已存在，已自動略過重複"
+                    }));
+                } else {
+                    let _ = state.db.insert_or_update_track(&track);
+                    tracks_added_count += 1;
+                }
+            }
+        }
+    }
+
+    let extra = json
+        .get("extra")
+        .cloned()
+        .unwrap_or_else(|| json.clone());
+
+    let imported_favorites = extra.get("favorites").cloned();
+    let imported_favorite_snapshots = extra.get("favoriteSnapshots").cloned();
+    let imported_playlists = extra.get("playlists").cloned();
+    let imported_network_shares = extra.get("networkShares").cloned();
+    let imported_network_folders = extra.get("networkFolders").cloned();
+    let imported_play_stats = extra.get("playStats").cloned();
+    let imported_playback_history = extra.get("playbackHistory").cloned();
+    let imported_recently_played_albums = extra.get("recentlyPlayedAlbums").cloned();
+
+    let all_tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
+    let all_folders = state.db.get_folders().map_err(|e| e.to_string())?;
+    let file_path_str = file.path().to_string_lossy().to_string();
+
+    Ok(serde_json::json!({
+        "success": true,
+        "filePath": file_path_str,
+        "data": {
+            "tracks": all_tracks,
+            "folders": all_folders
+        },
+        "importedFavorites": imported_favorites,
+        "importedFavoriteSnapshots": imported_favorite_snapshots,
+        "importedPlaylists": imported_playlists,
+        "importedNetworkShares": imported_network_shares,
+        "importedNetworkFolders": imported_network_folders,
+        "importedPlayStats": imported_play_stats,
+        "importedPlaybackHistory": imported_playback_history,
+        "importedRecentlyPlayedAlbums": imported_recently_played_albums,
+        "report": {
+            "folders": {
+                "added": folders_added,
+                "skipped": folders_skipped
+            },
+            "tracks": {
+                "addedCount": tracks_added_count,
+                "skippedCount": tracks_skipped.len(),
+                "skipped": tracks_skipped
+            }
+        }
+    }))
 }
 
 #[tauri::command]
