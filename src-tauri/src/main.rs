@@ -91,7 +91,7 @@ async fn main() {
         .setup(|app| {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-                    width: 1040.0,
+                    width: 840.0,
                     height: 680.0,
                 })));
                 let _ = win.hide();
@@ -126,8 +126,8 @@ async fn main() {
                 if let Ok(scale) = window.scale_factor() {
                     let log_w = phys_size.width as f64 / scale;
                     let log_h = phys_size.height as f64 / scale;
-                    if log_w < 1040.0 || log_h < 680.0 {
-                        let clamped_w = log_w.max(1040.0);
+                    if log_w < 840.0 || log_h < 680.0 {
+                        let clamped_w = log_w.max(840.0);
                         let clamped_h = log_h.max(680.0);
                         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
                             width: clamped_w,

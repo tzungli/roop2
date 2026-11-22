@@ -14,7 +14,7 @@
         "title": "rooPlayer",
         "width": 1320,
         "height": 860,
-        "minWidth": 1040,
+        "minWidth": 840,
         "minHeight": 680,
         "decorations": false,
         "center": true,

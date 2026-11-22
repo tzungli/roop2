@@ -1603,16 +1603,16 @@
               <div class="app-info-titles">
                 <div class="app-title-row">
                   <h2>rooPlayer</h2>
-                  <span class="version-tag">v0.1.0 (Build 2026.11)</span>
-                  <span class="engine-tag">Core • Local Audiophile</span>
+                  <span class="version-tag">v0.1.0</span>
+                  <span class="engine-tag">Rust + Tauri v2 Core</span>
                 </div>
-                <p class="app-tagline">次世代發燒級數位音訊媒體庫與極致無損串流核心播放器</p>
+                <p class="app-tagline">次世代發燒級數位音訊播放器與無損串流核心</p>
                 <div class="app-meta-badges">
-                  <span class="meta-badge">64-bit Floating Engine</span>
-                  <span class="meta-badge">Native Polyphase FIR</span>
-                  <span class="meta-badge">1-bit DSD SDM Modulator</span>
-                  <span class="meta-badge">Parametric EQ • Convolution IR</span>
-                  <span class="meta-badge">DLNA / UPnP Bit-Perfect</span>
+                  <span class="meta-badge">Rust Native Kernel</span>
+                  <span class="meta-badge">WASAPI Exclusive Bit-Perfect</span>
+                  <span class="meta-badge">64-bit rooDSP Processor</span>
+                  <span class="meta-badge">DLNA / UPnP Streamer</span>
+                  <span class="meta-badge">TIDAL Hi-Res &amp; KKBOX</span>
                 </div>
               </div>
             </div>
@@ -1620,11 +1620,11 @@
 
           <!-- Quick Navigation Tabs / Index -->
           <div class="about-quick-nav">
-            <a href="#aboutSectionManual" class="about-nav-link">📖 各選單操作手冊</a>
-            <a href="#aboutSectionFilterReport" class="about-nav-link">🔬 濾波器音質評測報告</a>
-            <a href="#aboutSectionLicense" class="about-nav-link">📜 使用授權範圍</a>
+            <a href="#aboutSectionManual" class="about-nav-link">📖 功能操作手冊</a>
+            <a href="#aboutSectionFilterReport" class="about-nav-link">🔬 濾波器評測報告</a>
+            <a href="#aboutSectionLicense" class="about-nav-link">📜 授權與開源宣告</a>
             <a href="#aboutSectionDisclaimer" class="about-nav-link">⚖️ 免責聲明</a>
-            <a href="#aboutSectionTech" class="about-nav-link">⚙️ 核心音訊規格</a>
+            <a href="#aboutSectionTech" class="about-nav-link">⚙️ 核心技術規格</a>
           </div>
 
           <!-- 2. Detailed Menu User Manual -->
@@ -1634,28 +1634,26 @@
               <h3>各選單功能與操作手冊</h3>
             </div>
             <p class="section-intro-text" data-i18n-html="about.manual.intro">
-              rooPlayer 採用直覺的模組化架構，將本地無損音樂收藏與先進 DSP 升頻、參數化等化、卷積濾波與網路串流設備深度融合。以下為各選單的詳細操作說明：
+              rooPlayer 採用高效能 Rust + Tauri v2 原生架構，將本地無損音樂收藏與先進 rooDSP 處理器、WASAPI 獨佔輸出、DLNA 串流設備深度融合。以下為各功能模組精簡說明：
             </p>
 
             <p class="section-intro-text" data-i18n-html="about.manual.langnote">
-              <strong>介面語言</strong>：右上角「深色/淺色」按鈕右方的 <strong>🌐 語言選擇</strong>，可切換「繁體中文 / English」；選單、按鈕、表格欄頭、滑鼠提示、提示訊息與確認對話框，以及本說明頁全部跟著切換。首次使用時預設語言依系統語言與時區判斷：<strong>只有台灣、中國、香港預設繁體中文，其他地區預設 English</strong>；一旦您手動選擇過，之後一律沿用您選過的語言。曲目名稱、演出者名稱、檔案路徑與自訂濾波器名稱屬資料，一律保持原文。
+              <strong>介面語言與自適應視窗</strong>：右上角可隨時切換「繁體中文 / English」與「深色 / 淺色」主題。軟體邊界具備 840 × 680 最小尺寸保護，縮小至極限時按鈕與各欄位自動適應不重疊。
             </p>
 
             <div class="manual-modules-grid">
-              <!-- Module 1: 我的音樂庫 -->
+              <!-- Module 1: 首頁總覽 -->
               <div class="manual-item" data-i18n-html="about.manual.m1">
                 <div class="manual-item-header">
                   <span class="item-badge">總覽</span>
                   <h4>首頁總覽 (Overview)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>音樂殿堂的儀表板。集中呈現目前音樂庫的<strong>專輯總數、曲目數量與 Hi-Res 高解析無損音樂統計</strong>，深度整合本機與線上串流：</p>
+                  <p>音樂庫核心儀表板，整合本地與線上串流數據：</p>
                   <ul>
-                    <li><strong>🕒 最近聆聽 (Recent Played)</strong>：自動列出最近聽過的 5 張專輯與完整播放紀錄。</li>
-                    <li><strong>🆕 最近新增專輯</strong>：自動同步本機最新匯入與已加入曲庫之 TIDAL 線上專輯。</li>
-                    <li><strong>🌟 每日推薦 (Daily Picks)</strong>：依聆聽紀錄自動精選 5 張發燒代表作，每日自動更新。</li>
-                    <li><strong>📖 藝人生活誌 (Artist Spotlight)</strong>：隨機探索音樂大師生平歷程、代表作與關聯發燒名盤。</li>
-                    <li><strong>🎤 探索演出者 (Artists)</strong>：曲庫演出者卡片隨機抽样，一鍵進入演出者主頁與其專輯。</li>
+                    <li><strong>曲庫統計</strong>：即時統計專輯數、曲目數與 Hi-Res 無損格式分佈。</li>
+                    <li><strong>最近播放</strong>：自動記錄近期播放專輯，支援一鍵即時續播。</li>
+                    <li><strong>每日推薦與藝人誌</strong>：依聆聽喜好每日精選發燒代表作，深入探索大師生平名盤。</li>
                   </ul>
                 </div>
               </div>
@@ -1664,15 +1662,14 @@
               <div class="manual-item" data-i18n-html="about.manual.m2">
                 <div class="manual-item-header">
                   <span class="item-badge">曲庫瀏覽</span>
-                  <h4>專輯、演出者與曲目清單 (Albums / Artists / Tracks)</h4>
+                  <h4>專輯、演出者與曲目 (Library)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>提供多維度的音樂分類瀏覽與高度自訂視覺配置：</p>
+                  <p>多維度曲庫檢視與自訂配置：</p>
                   <ul>
-                    <li><strong>依新增順序排列 (預設)</strong>：專輯庫預設以最新新增時間排序，亦支援依專輯名稱 A-Z、演出者 A-Z、發行年份、曲目數與播放次數排列。</li>
-                    <li><strong>封面尺寸切換 (小 / 中 / 大)</strong>：專輯庫、演出者頭像、<strong>曲風流派</strong>與 TIDAL 探索頁的標題列皆提供尺寸切換，自由切換密集緊湊或大器發燒卡片檢視，各頁面獨立記憶個人偏好。</li>
-                    <li><strong>極簡沉浸式元資料</strong>：專輯詳情頁於封面右側俐落標示演出者、發行廠牌、發行年份、曲目總數與總時長，免除雜亂底色與框線干擾。</li>
-                    <li><strong>AI/關聯推薦擴展</strong>：同曲風推薦專輯與關聯演出者自動擴展涵蓋 TIDAL 線上發燒名盤（登入時）。</li>
+                    <li><strong>排序方式</strong>：支援依新增時間、專輯名稱 A-Z、演出者、年份及播放次數排列。</li>
+                    <li><strong>封面縮放</strong>：提供小、中、大三段尺寸切換，各頁面獨立記憶。</li>
+                    <li><strong>純淨元資料</strong>：清楚展示演出者、廠牌、年份與曲目資訊，介面簡潔無干擾。</li>
                   </ul>
                 </div>
               </div>
@@ -1681,158 +1678,149 @@
               <div class="manual-item" data-i18n-html="about.manual.m3">
                 <div class="manual-item-header">
                   <span class="item-badge">收藏管理</span>
-                  <h4>我的最愛 (Favorites: 專輯 / 歌曲 / 演出者)</h4>
+                  <h4>我的最愛 (Favorites)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>專屬個人發燒精選庫：</p>
+                  <p>個人發燒精選收藏庫：</p>
                   <ul>
-                    <li>在任何專輯卡片、曲目列或演出者頁面點擊<strong>愛心圖示 (♡)</strong> 即可加入我的最愛。</li>
-                    <li>在最愛頁面中支援「播放全部最愛」與「隨機播放最愛」快捷控制。</li>
-                    <li>最愛清單支援隨時備份匯出與智慧無損去重合併匯入。</li>
+                    <li><strong>一鍵收藏</strong>：點擊任何專輯、曲目或演出者卡片上的愛心圖示 (♡) 快速加入收藏。</li>
+                    <li><strong>快速播放</strong>：支援「播放全部最愛」與「隨機播放最愛」捷徑。</li>
+                    <li><strong>備份遷移</strong>：收藏清單支援完整匯出與智慧去重匯入。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 3B: 播放清單 Playlists -->
+              <!-- Module 4: 播放清單 -->
               <div class="manual-item" data-i18n-html="about.manual.m4">
                 <div class="manual-item-header">
                   <span class="item-badge" style="background: rgba(139, 92, 246, 0.16); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.35);">播放清單</span>
-                  <h4>播放清單 (Playlists: 儲存 / 匯入 / 編輯 / 刪除)</h4>
+                  <h4>播放清單 (Playlists)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>在左側選單「播放紀錄」下方的<strong>播放清單</strong>頁面，自行建立與管理曲目順序：</p>
+                  <p>自由組織與編輯曲目播放順序：</p>
                   <ul>
-                    <li><strong>💾 儲存</strong>：播放隊列上方按「儲存清單」，即可把目前隊列的所有歌曲<strong>依序</strong>存成一個命名清單；也可在清單頁按「新增清單」建立空白清單，或按「加入目前隊列」把佇列附加到既有清單。</li>
-                    <li><strong>📥 匯入 / 匯出</strong>：支援匯入 <code>.m3u</code> / <code>.m3u8</code> / <code>.json</code> 清單檔（不在曲庫中的路徑也會保留檔案路徑，演出者與曲目名稱自動分離還原）；清單也可匯出成 M3U8 給其他播放器，或匯出 JSON 完整備份後再匯入。</li>
-                    <li><strong>✏️ 編輯</strong>：清單明細每一首都提供<strong>上移 ↑ / 下移 ↓ / 刪除單曲 ✕</strong>，播放順序即依你排好的順序；支援重新命名，同名清單不會重複建立。</li>
-                    <li><strong>🗑️ 刪除</strong>：可刪除整個清單（只移除清單本身，歌曲仍保留在音樂庫）。</li>
-                    <li><strong>▶ 依序播放 / 🔀 隨機播放</strong>：清單內容直接載入播放隊列，本機、獨佔輸出與 DLNA 串流皆適用。</li>
+                    <li><strong>儲存與建立</strong>：播放隊列可直接一鍵儲存為命名清單，或手動建立空白清單。</li>
+                    <li><strong>清單編輯</strong>：支援單曲上下移動排序、單曲移除與清單重新命名。</li>
+                    <li><strong>匯入匯出</strong>：支援標準 <code>.m3u</code> / <code>.m3u8</code> / <code>.json</code> 檔案，跨播放器輕鬆遷移。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 4: TIDAL Hi-Res 串流探索中心 -->
+              <!-- Module 5: TIDAL Hi-Res 串流 -->
               <div class="manual-item" data-i18n-html="about.manual.m5">
                 <div class="manual-item-header">
                   <span class="item-badge" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3);">Hi-Res 串流</span>
-                  <h4>TIDAL 串流探索中心 (TIDAL Hi-Res Explorer)</h4>
+                  <h4>TIDAL 串流探索中心 (TIDAL Hi-Res)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>原生整合 TIDAL 百萬母帶級 Hi-Res MAX 無損串流曲庫：</p>
+                  <p>直連 TIDAL 百萬母帶級 Hi-Res MAX 無損串流：</p>
                   <ul>
-                    <li><strong>💎 發燒推薦 (Hi-Res Masters)</strong>：分類晶片一鍵篩選發燒名盤、發燒女聲、古典交響、經典爵士與西洋潮流。</li>
-                    <li><strong>🆕 最新發行</strong>：全球同步即時首發高動態無損母帶專輯。</li>
-                    <li><strong>📑 官方主題歌單</strong>：精選發燒音響評測、高動態測試與情境放鬆主題合輯。</li>
-                    <li><strong>❤️ 我的雲端收藏</strong>：無縫連線個人 TIDAL 帳號，同步最愛專輯、歌曲與雲端自建歌單。</li>
-                    <li><strong>🖼️ 專屬封面尺寸 (小 / 中 / 大)</strong>：次級導航列內建封面縮放切換按鈕，隨心調整檢視網格。</li>
-                    <li><strong>一鍵整張點播與加入曲庫</strong>：支援整張專輯一鍵播放、匯入佇列，並可無縫將 TIDAL 專輯加入本機曲庫共同管理。</li>
+                    <li><strong>發燒推薦</strong>：分類晶片一鍵篩選發燒名盤、女聲、古典交響、爵士與流行。</li>
+                    <li><strong>同步發行與合輯</strong>：即時更新全球高動態新發行與官方評測合輯。</li>
+                    <li><strong>雲端同步與整合</strong>：登入個人帳號同步收藏，線上專輯可一鍵加入本地曲庫共同管理。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 5: KKBOX 線上串流 -->
+              <!-- Module 6: KKBOX 線上串流 -->
               <div class="manual-item" data-i18n-html="about.manual.m6">
                 <div class="manual-item-header">
                   <span class="item-badge" style="background: rgba(37, 213, 255, 0.15); color: #25d5ff; border: 1px solid rgba(37, 213, 255, 0.3);">線上串流</span>
                   <h4>KKBOX 串流中心 (KKBOX Streaming)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>比照發燒架構全新重構之 KKBOX 串流介面，接軌華語及全球流行曲庫：</p>
+                  <p>直覺接軌華語及全球流行曲庫：</p>
                   <ul>
-                    <li><strong>🏆 官方即時排行榜</strong>：獨立次級分頁導覽，即時探索華語、西洋、日韓、嘻哈、搖滾、爵士與古典等多語系榜單。</li>
-                    <li><strong>✨ 精選推薦與 🆕 新歌速爆</strong>：掌握官方主題選品、情境音樂合輯與即時潮流新發行。</li>
-                    <li><strong>整榜播放與匯入佇列</strong>：支援動態封面資訊橫幅、整榜一鍵播放與匯入 rooPlayer 播放隊列。</li>
-                    <li><strong>線上即時檢索</strong>：支援在 KKBOX 百萬曲庫中即時搜尋歌曲、演出者與專輯。</li>
+                    <li><strong>即時排行榜</strong>：探索華語、西洋、日韓、搖滾、爵士與古典等多語系即時榜單。</li>
+                    <li><strong>精選與新歌</strong>：掌握潮流新歌速爆與官方情境精選歌單。</li>
+                    <li><strong>整榜播放與搜尋</strong>：支援全榜一鍵播放、加入佇列與百萬線上曲目即時搜尋。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 6: 本機資料夾管理與資料庫匯入匯出 -->
+              <!-- Module 7: 本機儲存與資料庫管理 -->
               <div class="manual-item" data-i18n-html="about.manual.m7">
                 <div class="manual-item-header">
                   <span class="item-badge">儲存與維護</span>
-                  <h4>本機資料夾管理與資料庫維護 (Storage)</h4>
+                  <h4>本機儲存與資料庫管理 (Storage)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>管理本機音樂檔案目錄與資料庫備份：</p>
+                  <p>管理本地音樂目錄與資料庫備份：</p>
                   <ul>
-                    <li><strong>掃描本機資料夾</strong>：選取存放無損音訊的硬碟資料夾，引擎將自動批次高速分析 ID3 / FLAC / DSF 元資料與封面圖。</li>
-                    <li><strong>💾 匯出資料庫</strong>：將所有已收錄音樂資料夾、曲目母帶元資料、我的最愛收藏及播放次數統計完整匯出為標準 JSON 備份檔。</li>
-                    <li><strong>📥 匯入資料庫</strong>：匯入備份資料並執行智慧去重合併。已存在的資料夾與重複曲目將自動略過，並彈出<strong>詳細略過報告</strong>。</li>
+                    <li><strong>快速掃描</strong>：批次高速剖析本機 FLAC / WAV / DSF / DFF 音訊標籤與封面。</li>
+                    <li><strong>唯讀保護</strong>：以唯讀方式掃描硬碟，絕不修改或刪除實體音樂檔案。</li>
+                    <li><strong>備份與還原</strong>：支援將曲庫、最愛與播放次數匯出為 JSON，匯入時自動去重。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 7: 訊號路徑與 DSP 升頻引擎 -->
+              <!-- Module 8: 專屬 rooDSP 處理器 -->
               <div class="manual-item" data-i18n-html="about.manual.m8">
                 <div class="manual-item-header">
-                  <span class="item-badge">核心發燒功能</span>
-                  <h4>音訊路徑與升頻引擎 (Signal Path & DSP Engine)</h4>
+                  <span class="item-badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35);">專屬 DSP 處理器</span>
+                  <h4>專屬 rooDSP 處理器 (rooDSP Processor)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>點擊播放控制器上方的發燒星芒徽章 ⚡ 即可喚起訊號路徑視窗：</p>
+                  <p>全頁面專業數位訊號處理環境（仿 Roon MUSE 風格），支援整套預設值管理：</p>
                   <ul>
-                    <li><strong>左欄（即時音訊路徑）</strong>：即時追蹤從「原始母帶音源 ➔ 升頻引擎 ➔ 參數化等化 ➔ 卷積濾波 ➔ DLNA / 本機端點」的各處理節點狀態；作用中的等化器與卷積節點會即時顯示於路徑圖的實際套用位置。</li>
-                    <li><strong>右欄（升頻引擎設定）</strong>：
-                      <br>• <strong>PCM 升頻</strong>：支援 2x、4x 整數倍頻（推薦相位最純淨）、固定 96k / 192k / 384k DXD 超取樣。
-                      <br>• <strong>八種濾波器相位</strong>：純真還原 FIR（Bit-Perfect 極平坦，通帶 0~21.5kHz 漣波 &lt; 0.0001dB）、線性相位、最小相位、緩衰減混和、高斯長脈衝、高斯最小相位、EXT2 近似，以及 PS-EXT2 直譯 FIR（陡峭滾降、止帶達 -180 dB）。
-                      <br>• <strong>1-bit DSD 調變</strong>：內建 2 / 5 / 7 階諧振噪聲整形 Delta-Sigma 調變器，支援即時轉制為 DSD64 (2.8MHz)、DSD128 (5.6MHz)、DSD256 (11.2MHz) 或 DSD512 (22.5MHz)。
+                    <li><strong>動態範圍餘量管理 (Headroom)</strong>：設定 0 至 -24dB 預降增益，防範等化器與升頻運算削頂（Clipping），附削頂指示器。</li>
+                    <li><strong>取樣率轉換 (SRC)</strong>：
+                      <br>• <strong>PCM 升頻</strong>：支援 2x / 4x 整數倍頻升頻與多階 FIR 相位（純真還原、線性相位、最小相位、高斯、PS-EXT2 等，止帶衰減最深達 -180dB）。
+                      <br>• <strong>1-bit DSD 調變</strong>：內建 2 / 5 / 7 階諧振噪聲整形 Delta-Sigma 調變器，支援即時調變至 DSD64 ~ DSD512。
                     </li>
-                    <li><strong>參數化等化器 (PEQ)</strong>：獨立於升頻引擎的音色調整，引擎開或關皆可作用（引擎關閉時於原生採樣率處理，不做多餘升頻）。最多 6 段全參數化頻段（低架 / 峰值 / 高架 / 低通 / 高通 / 陷波），內建平直、溫暖厚實、明亮通透、人聲突出、低頻飽和五種音色預設，並支援<strong>6 組自訂命名儲存槽</strong>一鍵存取個人調校；自動預降保護電路確保任何增益組合都不削頂，頻段設定即時套用到播放中的曲目。</li>
-                    <li><strong>卷積濾波器 (IR 脈衝響應)</strong>：載入脈衝響應 WAV 檔案做高精度卷積處理，適用房間校正 FIR、喇叭與耳機校正等應用。採用分割式頻域卷積技術，長脈衝響應也能即時運算；IR 自動重採樣至播放取樣率、單聲道 IR 自動套用左右聲道、響應峰值過高時自動衰減防削頂。處理於參數化等化之後；DSD 來源自動經 24-bit 88.2kHz 降頻路徑套用。</li>
-                    <li><strong>漸進式平行轉換引擎</strong>：長曲由最多 8 個平行工作核心同步調變並自動節流穩定 CPU 用量；轉換結果以串流方式邊轉邊推送至端點設備，<strong>無需等待整曲轉換完成即可立即開始播放</strong>。</li>
+                    <li><strong>Crossfeed (耳機互饋)</strong>：降低耳機頭中效應，重建前方自然立體音場。</li>
+                    <li><strong>參數等化器 (PEQ)</strong>：多頻段互動式頻率曲線拖曳，支援低架/峰值/高架/低通/高通/陷波濾波，並內建 6 組命名預設槽。</li>
+                    <li><strong>卷積濾波器 (IR)</strong>：載入空間校正或耳機校準 WAV 脈衝響應檔，64-bit 浮點分割式頻域高精度運算。</li>
+                    <li><strong>超音波保護</strong>：內建 30k / 50k 高頻安全防護，隔絕超高頻干擾，保護後級擴大機與高音單體。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 8: DLNA / UPnP 區域網路串流 -->
+              <!-- Module 9: 音訊輸出與訊號路徑 -->
               <div class="manual-item" data-i18n-html="about.manual.m9">
                 <div class="manual-item-header">
-                  <span class="item-badge">串流端點</span>
-                  <h4>音訊輸出裝置與網路串流 (Audio Zones / DLNA / UPnP)</h4>
+                  <span class="item-badge">輸出與訊號路徑</span>
+                  <h4>音訊輸出端點與訊號路徑 (Signal Path &amp; Audio Zones)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>無縫推播至客廳串流播放機、擴大機或網路 DAC：</p>
+                  <p>發燒級位元完美輸出與網路推播：</p>
                   <ul>
-                    <li>點擊播放控制器右側的<strong>「輸出裝置按鈕 (🔊/📡)」</strong>，系統將透過 SSDP 自動搜尋區網內的 UPnP/DLNA 渲染器（如 Eversolo、WiIM、Linn 等）。</li>
-                    <li>支援<strong>直接輸入 IP 探測</strong>，若路由器封鎖 UDP 廣播亦可快速手動連線。</li>
-                    <li>支援原生 DSF 直通、PCM 升頻 24-bit PCM 串流與 PCM ➔ 1-bit DSD 比特流即時推送，DAC 自動鎖定 DSD 時脈。</li>
-                    <li>參數化等化器與卷積濾波同樣適用於網路串流：套用時 PCM 以 24-bit 串流推送、DSD 來源自動降採樣至 24-bit 88.2kHz 處理後推送（引擎 DSD 調變模式下 DSF 直通優先）。</li>
-                    <li>串流採<strong>漸進式生成與 HTTP Range / 反壓流量控制</strong>：即使轉換速度慢於實時，端點設備也不會卡頓或中斷。</li>
-                    <li>切換曲目或結束程式時，端點設備會<strong>立即停止並清空剩餘緩衝音訊</strong>。</li>
+                    <li><strong>訊號路徑 (Signal Path)</strong>：點擊底欄紫色狀態燈即時彈出路徑卡片，透明呈現「來源 ➔ 解碼 ➔ DSP ➔ 端點」階段，清晰標示位元完美 (Bit-Perfect) 狀態。</li>
+                    <li><strong>WASAPI Exclusive 獨佔模式</strong>：繞過 Windows 系統混音器，專用音訊執行緒直通 USB DAC，保障純淨位元無損。</li>
+                    <li><strong>DLNA / UPnP 網路推播</strong>：自動探索或直接指定 IP 連線區網串流播放機（Eversolo、WiIM、Linn 等），支援無損 PCM 與 DSF 原生直通。</li>
+                    <li><strong>漸進式串流推送</strong>：多核心平行邊轉邊推，開播即刻響起，切換曲目即時清空緩衝，不延遲、不卡頓。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 9: 全域即時搜尋 -->
+              <!-- Module 10: 全域即時搜尋 -->
               <div class="manual-item" data-i18n-html="about.manual.m10">
                 <div class="manual-item-header">
                   <span class="item-badge">智慧檢索</span>
-                  <h4>全域即時搜尋 (Global Audiophile Search)</h4>
+                  <h4>全域即時搜尋 (Global Search)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>頂部搜尋列支援毫秒級跨庫全域檢索：</p>
+                  <p>頂部搜尋列支援毫秒級即時跨庫檢索：</p>
                   <ul>
-                    <li><strong>跨庫聯合檢索</strong>：同時搜尋本機資料庫與線上串流（TIDAL Hi-Res / KKBOX）百萬曲庫。</li>
-                    <li><strong>分類分頁篩選</strong>：支援切換「全部結果」、「本機端專輯」與「線上串流」標籤快速聚焦。</li>
-                    <li><strong>智能高亮提示</strong>：關鍵字即時比對演出者、專輯標題、作曲家與發燒格式。</li>
+                    <li><strong>跨庫聯合檢索</strong>：同步搜尋本機曲庫與線上串流（TIDAL / KKBOX）百萬音軌。</li>
+                    <li><strong>分類快速聚焦</strong>：支援依「全部」、「本機專輯」與「線上串流」標籤精準過濾。</li>
                   </ul>
                 </div>
               </div>
 
-              <!-- Module 10: 底欄播放控制與動態全螢幕 -->
+              <!-- Module 11: 播放控制與自適應介面 -->
               <div class="manual-item" data-i18n-html="about.manual.m11">
                 <div class="manual-item-header">
                   <span class="item-badge">播放體驗</span>
-                  <h4>發燒底欄控制器與動態全螢幕 (Player Controls & Modal)</h4>
+                  <h4>播放控制、全螢幕頻譜與自適應介面 (Player &amp; UI)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>專業級沉浸式底部播放控制列：</p>
+                  <p>沉浸式發燒操作介面與視窗防護：</p>
                   <ul>
-                    <li><strong>原生圖示安全預設</strong>：底欄專輯封面未播放時預設呈現 rooPlayer 標誌，徹底避免破圖與檔案遺失現象。</li>
-                    <li><strong>全螢幕詳情、即時頻譜與動態歌詞</strong>：點擊底欄左側專輯封面即可喚起全螢幕視窗，支援大尺寸封面、進度條上方的<strong>即時頻譜視覺化</strong>（由升頻引擎的來源音訊直接驅動）、即時動態滾動歌詞與右側播放清單互動。</li>
-                    <li><strong>精確控制與循環模式</strong>：支援隨機播放、單曲循環、全曲循環與關閉，並即時回饋高解析音訊規格徽章（如 LOSSLESS 24/96 FLAC）。</li>
-                    <li><strong>啟動智慧還原</strong>：開啟程式時播放列自動還原上一次播放的最後一首歌曲，一鍵即可繼續聆聽。</li>
+                    <li><strong>發燒底欄控制器</strong>：支援隨機、單曲/全部循環、音量衰減與 Hi-Res 格式即時徽章（如 24/96 FLAC）。</li>
+                    <li><strong>全螢幕封面與即時頻譜</strong>：點擊底欄封面喚起全螢幕視窗，包含大尺寸封面、即時音訊頻譜與動態滾動歌詞。</li>
+                    <li><strong>840 × 680 視窗自適應保護</strong>：視窗最小可縮至 840 × 680，所有按鈕與欄位均自適應縮排，徹底避免破版或按鈕重疊。</li>
+                    <li><strong>記憶續播</strong>：啟動時自動還原前次播放之最後一首曲目，點擊即可繼續播放。</li>
                   </ul>
                 </div>
               </div>
@@ -1843,7 +1831,7 @@
           <div id="aboutSectionLicense" class="about-card">
             <div class="about-card-title" data-i18n-html="about.license.title">
               <span class="title-icon">📜</span>
-              <h3>使用授權範圍 (License & Scope of Use)</h3>
+              <h3>使用授權範圍與開源宣告 (License)</h3>
             </div>
             <div class="legal-content">
               <div class="legal-block" data-i18n-html="about.license.b1">
@@ -1854,18 +1842,19 @@
               </div>
               <div class="legal-block" data-i18n-html="about.license.b2">
                 <h4>2. 第三方元件與開放原始碼宣告</h4>
-                <p>本軟體整合了業界先進的開放原始碼專案與數位訊號處理演算法，相關智財權歸屬其原作者所有：</p>
+                <p>本軟體整合業界先進開放技術與自研核心，智財權歸屬其原作者所有：</p>
                 <ul>
-                  <li><strong>Electron Framework</strong>：跨平台視窗執行環境 (Chromium / Node.js)。</li>
-                  <li><strong>@wasm-audio-decoders/flac</strong>：WebAssembly 高效能純本地 FLAC 無損解碼核心。</li>
-                  <li><strong>music-metadata</strong>：純 JavaScript 音訊標頭格式剖析與母帶元資料讀取引擎。</li>
-                  <li><strong>rooPlayer Native DSP Kernel</strong>：自研 64-bit 浮點多相 FIR 升頻濾波器、參數化等化器 biquad 鏈、分割式頻域卷積引擎與高階 1-bit Delta-Sigma 調變器，全數由本程式自行實作，不使用外部 DSP 函式庫。</li>
+                  <li><strong>Rust + Tauri v2</strong>：現代原生執行架構，具備極致低記憶體佔用與待機 0% CPU 表現。</li>
+                  <li><strong>WASAPI Exclusive (cpal / windows-rs)</strong>：Windows 底層獨佔音訊控制，實現位元完美直通輸出。</li>
+                  <li><strong>rooDSP 原生核心 (Rust)</strong>：自研 64-bit 浮點多相 FIR 升頻、Crossfeed、PEQ 參數等化、分割式頻域卷積 (IR) 與 1-bit Delta-Sigma DSD 調變器。</li>
+                  <li><strong>@wasm-audio-decoders/flac</strong>：WebAssembly 高效能本地 FLAC 無損解碼。</li>
+                  <li><strong>music-metadata</strong>：音訊標頭解析與母帶元資料讀取引擎。</li>
                 </ul>
               </div>
               <div class="legal-block" data-i18n-html="about.license.b3">
                 <h4>3. 串流平台 API 授權遵循</h4>
                 <p>
-                  本軟體之線上曲庫功能係透過 KKBOX Open API 開放平台公開介面界接。所有曲目權利、封面圖片及 30 秒音樂試聽片段版權均屬 KKBOX 及各合作唱片公司所有。本程式嚴格遵守其條款，不對 Widevine DRM 加密之付費音訊進行破解或未授權側錄。
+                  本軟體之線上曲庫功能係透過 KKBOX Open API 與 TIDAL 介面整合。所有曲目權利、封面圖片及試聽版權均屬原平台及各唱片公司所有。本程式嚴格遵守其條款，不對 DRM 加密之付費音訊進行破解或未授權側錄。
                 </p>
               </div>
             </div>
@@ -1881,19 +1870,19 @@
               <div class="legal-block" data-i18n-html="about.disclaimer.b1">
                 <h4>1. 音訊硬體輸出與音量防護</h4>
                 <p>
-                  本軟體提供發燒級 DSP 升頻超取樣、1-bit DSD 調變以及 DLNA/UPnP 網路端點推送功能。由於高取樣率（如 384 kHz、DSD256、DSD512）會產生極寬頻率響應與高頻能量，使用者在切換升頻模式或更換 DAC 解碼裝置前，<strong>請務必先將音響擴大機或前級音量調至適當大小</strong>，以避免因硬體設備相容性或突波造成揚聲器、耳機或聽力損傷。開發團隊不對因音響器材操作不當所致之硬體損壞承擔責任。
+                  本軟體提供發燒級 DSP 升頻超取樣、1-bit DSD 調變以及 DLNA/UPnP 網路端點推送功能。高取樣率（如 384 kHz、DSD256、DSD512）會產生極寬頻率響應與高頻能量，切換升頻模式或更換 DAC 解碼裝置前，<strong>請務必先將音響擴大機或前級音量調至適當大小</strong>，以避免因硬體設備相容性或突波造成揚聲器、耳機或聽力損傷。
                 </p>
               </div>
               <div class="legal-block" data-i18n-html="about.disclaimer.b2">
                 <h4>2. 本機音訊檔案安全性</h4>
                 <p>
-                  rooPlayer 在執行音樂庫掃描、資料庫匯入/匯出及播放時，皆以<strong>唯讀 (Read-Only)</strong> 方式讀取您的原始無損音訊檔案。從資料庫移除資料夾僅刪除軟體內部的索引快取，不會刪除您實體硬碟中的任何音訊檔案。然而，使用者仍應對重要音樂母帶檔案建立常規備份。
+                  rooPlayer 在執行音樂庫掃描、資料庫匯入/匯出及播放時，皆以<strong>唯讀 (Read-Only)</strong> 方式讀取您的原始無損音訊檔案。從資料庫移除資料夾僅刪除軟體內部的索引快取，不會刪除您實體硬碟中的任何音訊檔案。
                 </p>
               </div>
               <div class="legal-block" data-i18n-html="about.disclaimer.b3">
                 <h4>3. 軟體現況提供 (AS-IS)</h4>
                 <p>
-                  本軟體依「現況」(AS-IS) 提供，不附帶任何明示或暗示之擔保，包括但不限於特定目的之適用性、不中斷性或無錯誤運作。在適用法律允許的最大範圍內，開發者均不對因使用或無法使用本軟體所產生之任何直接、間接或衍生性損害負責。
+                  本軟體依「現況」(AS-IS) 提供，不附帶任何明示或暗示之擔保，包括但不限於特定目的之適用性、不中斷性或無錯誤運作。
                 </p>
               </div>
             </div>
@@ -1912,27 +1901,27 @@
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s2">
                 <span class="spec-label">PCM 升頻引擎</span>
-                <span class="spec-value">自研 64-bit 浮點 Native DSP Kernel：高階 Hermite 插值與八種濾波器相位（純真還原 FIR、線性 / 最小 / 緩衰減混和、高斯窗長脈衝、高斯最小相位、EXT2 近似、PS-EXT2 直譯 FIR，止帶最深 -180 dB）；多相預計算加速架構；支援 2x / 4x 整數倍頻、96k、192k、384k DXD</span>
+                <span class="spec-value">自研 64-bit 浮點多相 FIR 核心：2x / 4x 整數倍頻、96k / 192k / 384k DXD；純真還原、線性/最小相位、高斯長脈衝、PS-EXT2 等 8 種濾波相位 (止帶達 -180dB)</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s3">
                 <span class="spec-label">DSD 調變器</span>
-                <span class="spec-value">2 / 5 / 7 階諧振噪聲整形 1-bit Delta-Sigma Modulator (2.8224 MHz ~ 22.5792 MHz，標準 Sony DSF 封裝、規格正確 MSB-first 位元順序)；最多 8 工作核心平行調變，段與段之間以真實暖機音訊無縫接續</span>
+                <span class="spec-value">2 / 5 / 7 階諧振噪聲整形 1-bit Delta-Sigma 調變器 (DSD64 ~ DSD512)；多核心平行調變與無縫銜接</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s4">
-                <span class="spec-label">參數化等化器 (PEQ)</span>
-                <span class="spec-value">6 段全參數化 biquad（低架 / 峰值 / 高架 / 低通 / 高通 / 陷波，20 Hz ~ 20 kHz）；5 種音色預設與 6 組自訂命名儲存槽；自動預降防削頂保護；獨立於升頻引擎作用，引擎關閉時於原生採樣率處理</span>
+                <span class="spec-label">專屬 rooDSP</span>
+                <span class="spec-value">動態餘量管理 (-24dB~0dB)、Crossfeed 耳機互饋、6 段 PEQ (6 組自訂槽)、卷積濾波 (IR)、30k/50k 超音波安全防護</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s5">
-                <span class="spec-label">卷積濾波器 (IR)</span>
-                <span class="spec-value">分割式頻域卷積（FFT 4096 / 區塊 2048，支援脈衝響應長度達 262,144  taps）；IR WAV 自動重採樣至播放取樣率、單聲道自動套用雙聲道、響應峰值 &gt; 1 自動衰減防削頂；於 PEQ 之後以 64-bit 浮點處理，線性相位特性完整保留</span>
+                <span class="spec-label">音訊輸出架構</span>
+                <span class="spec-value">WASAPI Exclusive 獨佔模式 (位元完美直通)、DLNA / UPnP MediaRenderer (漸進式 HTTP 串流，支援 DSF 原生直通)</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s6">
-                <span class="spec-label">網路串流架構</span>
-                <span class="spec-value">UPnP A/V Architecture v1.0, DLNA MediaRenderer, HTTP Progressive Streaming with Range & Backpressure Flow Control（邊生成邊推送，轉換慢於實時也不中斷）</span>
+                <span class="spec-label">本地資料庫</span>
+                <span class="spec-value">高效 JSON 索引快取、路徑與元資料智慧去重、我的最愛與播放計數同步</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s7">
-                <span class="spec-label">本地資料庫</span>
-                <span class="spec-value">高速 JSON 快取、路徑/元資料多重自動去重、完整我的最愛與播放計數同步機制</span>
+                <span class="spec-label">視窗與系統架構</span>
+                <span class="spec-value">Rust + Tauri v2 原生視窗、840×680 自適應安全邊界、深淺高對比主題、中英雙語系即時切換</span>
               </div>
             </div>
           </div>

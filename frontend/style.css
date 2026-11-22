@@ -52,7 +52,7 @@
 }
 
 html, body {
-  min-width: 1040px;
+  min-width: 840px;
   min-height: 680px;
 }
 
@@ -62,7 +62,7 @@ body {
   color: var(--text-main);
   overflow: hidden;
   height: 100vh;
-  min-width: 1040px;
+  min-width: 840px;
   min-height: 680px;
   display: flex;
   flex-direction: column;
@@ -90,7 +90,7 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-user-select: none;
   z-index: 1000;
   contain: paint;
-  min-width: 1040px;
+  min-width: 840px;
   flex-shrink: 0;
 }
 
@@ -267,18 +267,19 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   overflow: hidden;
   position: relative;
-  min-width: 1040px;
+  min-width: 840px;
 }
 
 /* Sidebar */
 #sidebar {
-  width: 236px;
+  width: 210px;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   padding: 14px 10px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .nav-group {
@@ -3339,9 +3340,9 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 16px;
   z-index: 1000;
-  min-width: 1040px;
+  min-width: 840px;
   flex-shrink: 0;
 }
 
@@ -3353,8 +3354,10 @@ body.table-col-resizing * {
 .player-left {
   display: flex;
   align-items: center;
-  width: 290px;
-  gap: 12px;
+  width: 210px;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .player-cover-box {
@@ -3419,7 +3422,10 @@ body.table-col-resizing * {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 520px;
+  flex: 1;
+  max-width: 440px;
+  min-width: 260px;
+  margin: 0 8px;
 }
 
 .signal-path-btn {
@@ -3713,12 +3719,14 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: 290px;
-  gap: 12px;
+  width: auto;
+  max-width: 220px;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .volume-slider {
-  width: 90px;
+  width: 76px;
   height: 3.5px;
   -webkit-appearance: none;
   background: rgba(255, 255, 255, 0.12);
@@ -5876,8 +5884,8 @@ body.table-col-resizing * {
 
 .now-playing-grid {
   display: grid;
-  grid-template-columns: 310px 330px 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(220px, 310px) minmax(240px, 330px) minmax(180px, 1fr);
+  gap: 16px;
   flex: 1;
   overflow: hidden;
   min-height: 0;
@@ -9305,7 +9313,7 @@ body.table-col-resizing * {
   flex-direction: column;
   height: 100%;
   width: 100%;
-  min-width: 1040px;
+  min-width: 0;
   overflow: hidden;
   background: var(--bg-main);
 }
@@ -9315,8 +9323,8 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 28px;
-  min-height: 64px;
+  padding: 10px 18px;
+  min-height: 58px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-card);
   flex-shrink: 0;
@@ -9462,15 +9470,15 @@ body.table-col-resizing * {
 }
 
 .muse-sidebar {
-  width: 220px;
+  width: 200px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-subtle);
   background: var(--bg-main);
-  padding: 12px 10px;
+  padding: 10px 8px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .muse-zone-card {
@@ -9752,9 +9760,10 @@ body.table-col-resizing * {
 /* 3. Right Main Pane */
 .muse-main-pane {
   flex: 1;
-  padding: 20px 28px 40px 28px;
+  padding: 16px 20px 32px 20px;
   overflow-y: auto;
   background: var(--bg-card);
+  min-width: 0;
 }
 
 .muse-panel {
