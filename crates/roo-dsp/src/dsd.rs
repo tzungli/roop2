@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, interpolate_intermediate, FirFilter, PolyphaseBank};
+use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, FirFilter, PolyphaseBank};
 
 pub static GAUSS_DITHER_TABLE: std::sync::LazyLock<[f64; 65536]> = std::sync::LazyLock::new(|| {
     let mut table = [0.0f64; 65536];
@@ -453,10 +453,10 @@ impl DsdModulator {
                         let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
                         let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
 
-                        match self.phase_name.as_str() {
-                            "minimum" => (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac)),
-                            "intermediate" => (interpolate_intermediate(p0_l, p1_l, p2_l, p3_l, frac), interpolate_intermediate(p0_r, p1_r, p2_r, p3_r, frac)),
-                            _ => (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac)),
+                        if self.phase_name.contains("min") {
+                            (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac))
+                        } else {
+                            (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac))
                         }
                     };
 
@@ -640,10 +640,10 @@ impl DsdModulator {
                         let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
                         let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
 
-                        match self.phase_name.as_str() {
-                            "minimum" => (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac)),
-                            "intermediate" => (interpolate_intermediate(p0_l, p1_l, p2_l, p3_l, frac), interpolate_intermediate(p0_r, p1_r, p2_r, p3_r, frac)),
-                            _ => (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac)),
+                        if self.phase_name.contains("min") {
+                            (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac))
+                        } else {
+                            (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac))
                         }
                     };
 

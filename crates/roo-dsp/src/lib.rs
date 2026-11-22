@@ -178,8 +178,8 @@ mod tests {
 
         let src_rate = 44100.0;
         let dsd_rate = 2822400.0;
-        let filter = crate::fir::build_poly_ext2_filter(dsd_rate, src_rate);
-        let mut modulator = DsdModulator::new(5, "poly-ext2", DitherType::Gauss1, Some(filter));
+        let filter = crate::fir::build_precise_linear_filter(dsd_rate, src_rate);
+        let mut modulator = DsdModulator::new(5, "precise-linear", DitherType::Gauss1, Some(filter));
 
         let n_src = 44100; // 1s
         let freq = 1000.0;
@@ -195,5 +195,51 @@ mod tests {
         assert!(modulator.s5_l.is_finite() && modulator.s5_l.abs() < 6.0);
         // Verify output bytes have bit density reflecting signal
         assert!(out.iter().any(|&b| b != 0x00 && b != 0xFF));
+    }
+
+    #[test]
+    fn test_roon_src_filters() {
+        let src_rate = 44100.0;
+        let dst_rate = 176400.0; // 4x PCM
+
+        // 1. Precise Linear
+        let p_lin = build_precise_linear_filter(dst_rate, src_rate);
+        assert!(!p_lin.minimum_phase);
+        assert_eq!(p_lin.lo, -p_lin.hi);
+        let half = (p_lin.hi * p_lin.s as i32) as usize;
+        // Verify symmetry: h[half - k] == h[half + k]
+        for k in 1..=10 {
+            let diff = (p_lin.h[half - k] - p_lin.h[half + k]).abs();
+            assert!(diff < 1e-12, "Precise Linear must be symmetric, diff={}", diff);
+        }
+
+        // 2. Precise Minimum
+        let p_min = build_precise_min_filter(dst_rate, src_rate);
+        assert!(p_min.minimum_phase);
+        assert_eq!(p_min.lo, 0);
+        assert!(p_min.hi > 0);
+        // Energy peak is at the very beginning (no pre-ringing, rise time within ~18 samples)
+        let peak_idx = p_min.h.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap().0;
+        assert!(peak_idx < 30, "Minimum phase peak must occur near start (t=0), got idx={}", peak_idx);
+
+        // 3. Smooth Linear
+        let s_lin = build_smooth_linear_filter(dst_rate, src_rate);
+        assert!(!s_lin.minimum_phase);
+        assert_eq!(s_lin.lo, -s_lin.hi);
+        assert!(s_lin.taps < p_lin.taps, "Smooth filter should have shorter impulse span than Precise");
+
+        // 4. Smooth Minimum
+        let s_min = build_smooth_min_filter(dst_rate, src_rate);
+        assert!(s_min.minimum_phase);
+        assert_eq!(s_min.lo, 0);
+
+        // 5. Registry checks
+        let list = REGISTRY.list();
+        assert_eq!(list.len(), 4);
+        let ids: Vec<&str> = list.iter().map(|d| d.id.as_str()).collect();
+        assert!(ids.contains(&"precise-linear"));
+        assert!(ids.contains(&"precise-min"));
+        assert!(ids.contains(&"smooth-linear"));
+        assert!(ids.contains(&"smooth-min"));
     }
 }

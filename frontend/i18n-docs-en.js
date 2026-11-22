@@ -239,74 +239,58 @@
 
     'about.filter_report': `<div class="about-card-title">
               <span class="title-icon">🔬</span>
-              <h3>Filter Phase Acoustic Benchmark Report & DSD Modulation Matching Guide</h3>
+              <h3>Roon Sample Rate Conversion (SRC) Filter Benchmark Report & DSD Modulator Guide</h3>
             </div>
             <div class="manual-item-body" style="font-size: 13px; line-height: 1.7; color: var(--text-sub);">
               <p>
-                In digital audio upsampling and 1-bit DSD modulation architecture, <strong>the upsampling filter is the first line of defense</strong> (responsible for rejecting ultrasonic spectral images generated during oversampling), while <strong>the Delta-Sigma modulator is the second line of defense</strong> (shaping 1-bit quantization noise into ultra-high frequencies). When the pre-filter thoroughly attenuates ultrasonic images, the single-bit comparator operates without intermodulation distortion (IMD), resulting in a pure, pitch-black background and silky high-frequency air.
+                In digital audio sample rate conversion (SRC) and 1-bit DSD modulation architecture, <strong>the SRC filter is the first line of defense</strong> (responsible for rejecting ultrasonic spectral images generated during oversampling), while <strong>the Delta-Sigma modulator is the second line of defense</strong> (shaping quantization noise into ultra-high frequencies). When the pre-filter thoroughly attenuates ultrasonic images, the single-bit comparator operates without intermodulation distortion (IMD), resulting in a pure, pitch-black background and silky high-frequency air.
               </p>
 
-              <h4 style="color: var(--text-main); margin-top: 18px; margin-bottom: 8px;">📊 Benchmarked Specifications and Acoustic Impact of All Filter Phases</h4>
+              <h4 style="color: var(--text-main); margin-top: 18px; margin-bottom: 8px;">📊 Benchmarked Specifications and Acoustic Analysis of the 4 SRC Filters</h4>
               <div style="overflow-x: auto; margin-bottom: 16px;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
                   <thead>
                     <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-main);">
-                      <th style="padding: 8px 10px;">Filter Phase</th>
-                      <th style="padding: 8px 10px;">Type & Structure</th>
+                      <th style="padding: 8px 10px;">SRC Filter</th>
+                      <th style="padding: 8px 10px;">Architecture</th>
                       <th style="padding: 8px 10px;">20kHz Flatness</th>
-                      <th style="padding: 8px 10px;">Image Rejection</th>
+                      <th style="padding: 8px 10px;">Stopband (22.05k)</th>
                       <th style="padding: 8px 10px;">Time-Domain Ringing</th>
                       <th style="padding: 8px 10px;">Acoustic Signature</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #a78bfa;">PS-EXT2 Interpreted FIR</td>
-                      <td style="padding: 8px 10px;">Kaiser-window sinc (3401 taps)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">0.00 dB (Flat)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-189.5 dB (Extreme)</td>
-                      <td style="padding: 8px 10px;">Linear phase (mild symmetric)</td>
-                      <td style="padding: 8px 10px;"><strong>Flagship Studio Monitor</strong>: ultra-low distortion (IMD &lt; -158dB), pitch-black background, razor-sharp imaging contours.</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">Precise, Linear Phase</td>
+                      <td style="padding: 8px 10px;">Steep Kaiser Polyphase FIR</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB (Flat)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-142.55 dB (Extreme)</td>
+                      <td style="padding: 8px 10px;">Symmetric (50% pre / 50% post)</td>
+                      <td style="padding: 8px 10px;"><strong>Roon Default Flagship</strong>: absolute zero phase distortion, strictly constant group delay, pinpoint imaging and micro-detail resolution.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">Gaussian Long FIR</td>
-                      <td style="padding: 8px 10px;">Gauss-window sinc (1621 taps)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-0.10 dB (Excellent)</td>
-                      <td style="padding: 8px 10px;">-112.0 dB (Harmonic)</td>
-                      <td style="padding: 8px 10px; color: #34d399;"><strong>Zero Ringing (Strict)</strong></td>
-                      <td style="padding: 8px 10px;"><strong>Analog Vinyl Character</strong>: completely free of Gibbs oscillations, relaxed and open soundstage, lush fatigue-free vocals.</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #a78bfa;">Precise, Minimum Phase</td>
+                      <td style="padding: 8px 10px;">Cepstral Hilbert Spectral Factorization</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-0.008 dB (Flat)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-140.61 dB (Extreme)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Zero Pre-Ringing (0.00%)</strong></td>
+                      <td style="padding: 8px 10px;"><strong>Punchy Dynamic Attack</strong>: strictly zero pre-ringing, front-loaded impulse energy, tight explosive drum kicks and cohesive acoustic body.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">Gaussian Min-Phase FIR</td>
-                      <td style="padding: 8px 10px;">Complex cepstral folding</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-0.10 dB (Excellent)</td>
-                      <td style="padding: 8px 10px;">-112.0 dB (Harmonic)</td>
-                      <td style="padding: 8px 10px; color: #34d399;"><strong>Zero Pre-Ringing</strong></td>
-                      <td style="padding: 8px 10px;"><strong>Powerful Transient Impact</strong>: zero pre-ringing, rapid post-pulse decay, tight explosive drum kicks and bass attacks.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">EXT2 Approx FIR</td>
-                      <td style="padding: 8px 10px;">Ultra-wide transition (3401 taps)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">0.00 dB (Flat to 25k)</td>
-                      <td style="padding: 8px 10px;">-155.1 dB (Harmonic)</td>
-                      <td style="padding: 8px 10px;">Minimal symmetric ringing</td>
-                      <td style="padding: 8px 10px;"><strong>Expansive Air & Holography</strong>: relaxed transition band for minimal time dispersion, rich airiness and holographic soundstage.</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #34d399;">Pure-Flat Restoration FIR</td>
-                      <td style="padding: 8px 10px;">Optimized Kaiser-window sinc (3401 taps)</td>
-                      <td style="padding: 8px 10px; color: #34d399;"><strong>&lt; 0.0001 dB (Absolute Flat)</strong></td>
-                      <td style="padding: 8px 10px; color: #34d399;">-160.2 dB (Extreme)</td>
-                      <td style="padding: 8px 10px;">Strict symmetric linear phase</td>
-                      <td style="padding: 8px 10px;"><strong>Master Tape Restoration</strong>: 0~21.5kHz zero gain ripple, zero phase coloration, IMD &lt; -162dB, 100% faithful to the original studio master.</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #34d399;">Smooth, Linear Phase</td>
+                      <td style="padding: 8px 10px;">Gaussian Slow Roll-off FIR</td>
+                      <td style="padding: 8px 10px; color: #fbbf24;">-7.90 dB (Gentle slope)</td>
+                      <td style="padding: 8px 10px;">-77.62 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Minimal Ringing (>75% shorter)</strong></td>
+                      <td style="padding: 8px 10px;"><strong>Lush & Open Soundstage</strong>: dramatic reduction in ringing artifacts, silky smooth treble, relaxed natural harmonics.</td>
                     </tr>
                     <tr>
-                      <td style="padding: 8px 10px; font-weight: 600; color: var(--text-muted);">Lightweight Interpolators</td>
-                      <td style="padding: 8px 10px;">Cubic Hermite polynomials</td>
-                      <td style="padding: 8px 10px; color: #fb923c;">-4.46 dB (Gentle rolloff)</td>
-                      <td style="padding: 8px 10px; color: #fb923c;">-15.0 dB (Light)</td>
-                      <td style="padding: 8px 10px;">Minimal 4-point span</td>
-                      <td style="padding: 8px 10px;"><strong>Casual Low-Load</strong>: minimal CPU load; natural ~4.5dB treble softening for non-fatiguing relaxed background listening.</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">Smooth, Minimum Phase</td>
+                      <td style="padding: 8px 10px;">Slow Roll-off + Causal Minimum Phase</td>
+                      <td style="padding: 8px 10px; color: #fbbf24;">-7.90 dB (Gentle slope)</td>
+                      <td style="padding: 8px 10px;">-76.94 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Zero Pre + Ultra-Short Post</strong></td>
+                      <td style="padding: 8px 10px;"><strong>Analog Vinyl Warmth</strong>: aligns with psychoacoustic temporal masking, organically warm and non-fatiguing, vinyl-like musicality.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -314,11 +298,10 @@
 
               <h4 style="color: var(--text-main); margin-top: 18px; margin-bottom: 8px;">🎯 Audiophile Matching Matrix</h4>
               <ul>
-                <li><strong>Bit-Perfect Master Restoration (Recommended)</strong>: <code>Pure-Flat Restoration FIR (Ultra-Flat)</code> ➔ <code>5th Order (CRFB Recommended) / 7th Order</code> ➔ <code>All Sample Rates</code>. Complete zero-coloration passband, zero phase shift, IMD below -162dB; reproduces instruments and vocals with authentic natural timbre.</li>
-                <li><strong>Ultimate Studio Precision</strong>: <code>PS-EXT2 Interpreted FIR</code> ➔ <code>7th Order (Micro-Detail)</code> ➔ <code>DSD256 / DSD512</code>. Delivers -140dB ultrasonic noise suppression and nuanced micro-dynamics, ideal for orchestral works and electrostatic/planar transducers.</li>
-                <li><strong>Lush Audiophile Vocal</strong>: <code>Gaussian Long FIR</code> ➔ <code>5th Order (CRFB Recommended)</code> ➔ <code>DSD128 / DSD256</code>. Combines zero-ringing analog warmth with dual Chebyshev resonant zeros for black backgrounds and smooth vocals.</li>
-                <li><strong>Rock, Pop & Dynamic Attack</strong>: <code>Gaussian Min-Phase FIR</code> ➔ <code>5th Order (CRFB Recommended)</code> ➔ <code>DSD64 / DSD128</code>. Zero pre-ringing transient slam provides explosive punch and driving rhythmic energy.</li>
-                <li><strong>Vintage Analog Vinyl</strong>: <code>Linear Phase / Intermediate</code> ➔ <code>2nd Order (Boser-Wooley)</code> ➔ <code>DSD64</code>. Captures the rich, full-bodied mid-range and organic vintage charm of early SACD masters.</li>
+                <li><strong>Ultimate Master Fidelity (Roon Default)</strong>: <code>Precise, Linear Phase</code> ➔ <code>7th Order (CLANS) / 5th Order</code> ➔ <code>All Sample Rates</code>. Absolute zero phase shift, &gt;140dB stopband rejection, true-to-the-master soundstage.</li>
+                <li><strong>Rhythmic Drive & Dynamic Slam</strong>: <code>Precise, Minimum Phase</code> ➔ <code>7th Order (CLANS) / 5th Order</code> ➔ <code>DSD128 / DSD256</code>. Zero pre-ringing brings unmatched speed, explosive drum impacts, and focused acoustic presence.</li>
+                <li><strong>Warm Audiophile Vocals & Strings</strong>: <code>Smooth, Linear Phase</code> ➔ <code>5th Order (CRFB)</code> ➔ <code>DSD128 / DSD256</code>. 75% shorter ringing duration, silky treble, expansive and airy presentation.</li>
+                <li><strong>Classic Vinyl Analog Musicality</strong>: <code>Smooth, Minimum Phase</code> ➔ <code>5th Order (CRFB)</code> ➔ <code>DSD64 / DSD128</code>. Zero pre-ringing and minimal post-decay eliminate digital harshness for organic, non-fatiguing analog warmth.</li>
               </ul>
             </div>`,
   };

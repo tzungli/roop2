@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 use std::time::Instant;
 use rustfft::{FftPlanner, num_complex::Complex};
-use roo_dsp::{DsdModulator, DitherType, DSD_BLOCK_SIZE, fir::build_poly_ext2_filter};
+use roo_dsp::{DsdModulator, DitherType, DSD_BLOCK_SIZE, fir::build_precise_linear_filter};
 
 fn blackman_harris_window(n: usize) -> Vec<f64> {
     let a0 = 0.35875;
@@ -48,8 +48,8 @@ fn measure_modulator(order: u8, dsd_rate: f64, rate_name: &'static str) -> (ModM
         .collect();
     let right_pcm = left_pcm.clone();
 
-    let filter = build_poly_ext2_filter(dsd_rate, src_rate);
-    let mut modulator = DsdModulator::new(order, "poly-ext2", DitherType::Gauss1, Some(filter));
+    let filter = build_precise_linear_filter(dsd_rate, src_rate);
+    let mut modulator = DsdModulator::new(order, "precise-linear", DitherType::Gauss1, Some(filter));
 
     let samples_per_block = 32768usize;
     let total_dsd_samples = (n_src as f64 * (dsd_rate / src_rate)).round() as usize;

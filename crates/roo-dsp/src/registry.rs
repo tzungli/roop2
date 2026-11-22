@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use crate::fir::{
-    build_gauss_filter, build_hq_poly_sinc_gauss_long_filter, build_hqp_ps_ext2_filter,
-    build_poly_ext2_filter, kaiser_sinc_fir, windowed_sinc_fir_ext, FirFilter,
+    build_precise_linear_filter, build_precise_min_filter, build_smooth_linear_filter,
+    build_smooth_min_filter, kaiser_sinc_fir, windowed_sinc_fir_ext, FirFilter,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,65 +86,30 @@ impl FilterRegistry {
         let mut map = self.plugins.write().unwrap();
         let cores = vec![
             FilterDescriptor {
-                id: "linear".to_string(),
-                label: "線性相位 Hermite 插值".to_string(),
-                sound: "經典自然平衡，音場開闊、細節豐富".to_string(),
-                kind: "interp".to_string(),
-                dsd_safe: true,
-            },
-            FilterDescriptor {
-                id: "minimum".to_string(),
-                label: "最小相位 Hermite 插值".to_string(),
-                sound: "零預響 (Pre-ringing)，打擊樂暫態衝擊力極強、結像鮮明凝聚".to_string(),
-                kind: "interp".to_string(),
-                dsd_safe: true,
-            },
-            FilterDescriptor {
-                id: "intermediate".to_string(),
-                label: "中間相位 (35% 線性 / 65% 最小)".to_string(),
-                sound: "兼具線性開闊與最小相位的扎實低頻，音樂性極佳".to_string(),
-                kind: "interp".to_string(),
-                dsd_safe: true,
-            },
-            FilterDescriptor {
-                id: "poly-sinc-gauss-long".to_string(),
-                label: "poly-sinc-gauss-long (511 Taps)".to_string(),
-                sound: "旗艦級高斯多相 FIR：每相 511 Taps，極致瞬態還原、真實音色與宏大空間感".to_string(),
+                id: "precise-linear".to_string(),
+                label: "精準，線性相位".to_string(),
+                sound: "極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (Roon 預設推薦)".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
             },
             FilterDescriptor {
-                id: "poly-ext2".to_string(),
-                label: "poly-sinc-ext2 (Kaiser 140dB)".to_string(),
-                sound: "超長 Kaiser 濾波器：止帶衰減高達 140dB，背景極致深黑寧靜".to_string(),
+                id: "precise-min".to_string(),
+                label: "精準，最小相位".to_string(),
+                sound: "極陡峭滾降，無預響鈴 (Zero Pre-ringing)，打擊樂瞬態衝擊力極強、結像鮮明凝聚".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
             },
             FilterDescriptor {
-                id: "hqp-ps-ext2".to_string(),
-                label: "hqp-ps-ext2 (Kaiser 180dB)".to_string(),
-                sound: "HQPlayer 級別究極多相 FIR：As=180dB 極限抑噪，細膩絲滑無匹".to_string(),
+                id: "smooth-linear".to_string(),
+                label: "平滑，線性相位".to_string(),
+                sound: "高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
             },
             FilterDescriptor {
-                id: "pure-flat".to_string(),
-                label: "純真還原 FIR (極致平坦)".to_string(),
-                sound: "通帶 0~21.5kHz 絕對平坦（漣波 < 0.0001dB），零染色純淨還原，呈現錄音室母帶真實原貌".to_string(),
-                kind: "fir".to_string(),
-                dsd_safe: true,
-            },
-            FilterDescriptor {
-                id: "gauss-long".to_string(),
-                label: "高斯加窗 sinc (長脈衝線性相位)".to_string(),
-                sound: "高斯柔和滾降，泛音自然流暢，極具類比韻味".to_string(),
-                kind: "fir".to_string(),
-                dsd_safe: true,
-            },
-            FilterDescriptor {
-                id: "gauss-min".to_string(),
-                label: "高斯最小相位 (超快暫態零預響)".to_string(),
-                sound: "經希爾伯特變換的最小相位高斯濾波，瞬態迅猛果斷".to_string(),
+                id: "smooth-min".to_string(),
+                label: "平滑，最小相位".to_string(),
+                sound: "無預響鈴且極低後響鈴，最符合人耳聽覺物理掩蔽效應，類比黑膠般溫潤耐聽".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
             },
@@ -166,20 +131,20 @@ impl FilterRegistry {
 
     pub fn build_filter(&self, fs_out: f64, src_rate: f64, phase_id: &str) -> Option<FirFilter> {
         match phase_id {
-            "poly-sinc-gauss-long" => Some(build_hq_poly_sinc_gauss_long_filter(fs_out, src_rate)),
-            "poly-ext2" => Some(build_poly_ext2_filter(fs_out, src_rate)),
-            "hqp-ps-ext2" => Some(build_hqp_ps_ext2_filter(fs_out, src_rate)),
-            "pure-flat" => Some(kaiser_sinc_fir(fs_out, src_rate, 160.0, 1.07, 0.095)),
-            "gauss-long" => Some(build_gauss_filter(fs_out, src_rate, false)),
-            "gauss-min" => Some(build_gauss_filter(fs_out, src_rate, true)),
-            "linear" => Some(build_poly_ext2_filter(fs_out, src_rate)),
-            "minimum" => Some(build_gauss_filter(fs_out, src_rate, true)),
-            "intermediate" => Some(build_gauss_filter(fs_out, src_rate, false)),
+            "precise-linear" => Some(build_precise_linear_filter(fs_out, src_rate)),
+            "precise-min" => Some(build_precise_min_filter(fs_out, src_rate)),
+            "smooth-linear" => Some(build_smooth_linear_filter(fs_out, src_rate)),
+            "smooth-min" => Some(build_smooth_min_filter(fs_out, src_rate)),
+            // 舊版過渡別名相容
+            "linear" | "pure-flat" | "poly-ext2" | "hqp-ps-ext2" => Some(build_precise_linear_filter(fs_out, src_rate)),
+            "minimum" => Some(build_precise_min_filter(fs_out, src_rate)),
+            "intermediate" | "gauss-long" | "poly-sinc-gauss-long" => Some(build_smooth_linear_filter(fs_out, src_rate)),
+            "gauss-min" => Some(build_smooth_min_filter(fs_out, src_rate)),
             id if id.starts_with("uf-") => {
                 let slots = self.user_slots.read().unwrap();
                 slots.get(id).and_then(|spec| self.build_user_filter(fs_out, src_rate, spec))
             }
-            _ => Some(build_poly_ext2_filter(fs_out, src_rate)),
+            _ => Some(build_precise_linear_filter(fs_out, src_rate)),
         }
     }
 

@@ -477,7 +477,7 @@ impl DspStreamOptions {
 
 fn default_rate() -> u32 { 0 }
 fn default_order() -> u8 { 5 }
-fn default_phase() -> String { "linear".to_string() }
+fn default_phase() -> String { "precise-linear".to_string() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeqConfig {
@@ -745,7 +745,7 @@ mod tests {
             target_rate: 176400,
             dsd_mode: Some("dsd64".to_string()),
             dsd_order: 5,
-            filter_phase: "linear".to_string(),
+            filter_phase: "precise-linear".to_string(),
             peq_json: None,
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),
@@ -773,7 +773,7 @@ mod tests {
             target_rate: 0,
             dsd_mode: Some("dsd64".to_string()),
             dsd_order: 5,
-            filter_phase: "linear".to_string(),
+            filter_phase: "precise-linear".to_string(),
             peq_json: None,
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),
@@ -832,7 +832,7 @@ mod tests {
             target_rate: 0,
             dsd_mode: Some("dsd64".to_string()),
             dsd_order: 5,
-            filter_phase: "linear".to_string(),
+            filter_phase: "precise-linear".to_string(),
             peq_json: None,
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),

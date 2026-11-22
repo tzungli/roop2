@@ -142,27 +142,14 @@ function localDspActive() {
 // filter-plugins/ 放一個檔案，本檔不需要任何修改。IPC 不可用时退回內建清單。
 let filterPlugins = null;
 const FALLBACK_FILTER_PLUGINS = [
-  { id: 'pure-flat', label: '純真還原 FIR (極致平坦)', sound: '通帶 0~21.5kHz 絕對平坦（漣波 < 0.0001dB），零染色純淨還原，呈現錄音室母帶真實原貌', kind: 'fir' },
-  { id: 'linear', label: '線性相位 (零相位失真)', sound: '零相位失真，定位精準', kind: 'interp' },
-  { id: 'minimum', label: '最小相位 (零預響鈴)', sound: '零預響鈴，打擊瞬態凌厲爆發', kind: 'interp' },
-  { id: 'intermediate', label: '混和 / 緩衰減 (溫潤類比)', sound: '極低預響鈴與自然高頻緩衰，溫潤類比聽感', kind: 'interp' },
-  { id: 'gauss-long', label: '高斯長脈衝 FIR (極低鈴振)', sound: '通帶平坦、極低鈴振與鏡像能量', kind: 'fir' },
-  { id: 'gauss-min', label: '高斯最小相位 FIR (零預響鈴)', sound: '預響鈴嚴格為零、瞬態凌厲（些微後衝）', kind: 'fir' },
-  { id: 'poly-ext2', label: 'EXT2 近似 FIR (超寬過渡帶)', sound: '通帶完全平坦無漣波、高頻延伸自然；22k 以上有些許鏡像泄漏（不可聽）', kind: 'fir' },
-  { id: 'hqp-ps-ext2', label: 'PS-EXT2 直譯 FIR (陡峭滾降+極深止帶)', sound: '陡峭滾降、極深止帶；鏡像泄漏僅在超聲頻（不可聽）', kind: 'fir' },
-  { id: 'poly-sinc-gauss-long', label: 'poly-sinc-gauss-long (511 Taps)', sound: '旗艦級高斯多相 FIR：每相 511 Taps，極致瞬態還原、真實音色與宏大空間感', kind: 'fir' }
+  { id: 'precise-linear', label: '精準，線性相位', sound: '極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (Roon 預設推薦)', kind: 'fir' },
+  { id: 'precise-min', label: '精準，最小相位', sound: '極陡峭滾降，無預響鈴 (Zero Pre-ringing)，打擊樂瞬態衝擊力極強、結像鮮明凝聚', kind: 'fir' },
+  { id: 'smooth-linear', label: '平滑，線性相位', sound: '高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢', kind: 'fir' },
+  { id: 'smooth-min', label: '平滑，最小相位', sound: '無預響鈴且極低後響鈴，最符合人耳聽覺物理掩蔽效應，類比黑膠般溫潤耐聽', kind: 'fir' }
 ];
 
 function filterPluginList() {
-  const list = (filterPlugins && filterPlugins.length) ? filterPlugins : FALLBACK_FILTER_PLUGINS;
-  const idx = list.findIndex(p => p.id === 'pure-flat');
-  if (idx > 0) {
-    const copy = [...list];
-    const [pf] = copy.splice(idx, 1);
-    copy.unshift(pf);
-    return copy;
-  }
-  return list;
+  return (filterPlugins && filterPlugins.length) ? filterPlugins : FALLBACK_FILTER_PLUGINS;
 }
 
 function isValidFilterPhaseId(id) {
@@ -171,14 +158,14 @@ function isValidFilterPhaseId(id) {
 
 function filterLabel(id) {
   const p = filterPluginList().find(x => x.id === id);
-  return p ? p.label : '線性相位';
+  return p ? p.label : '精準，線性相位';
 }
 
 // 由插件描述卡生成濾波器按鈕（含聲音特色提示）；active 依目前設定標示。
 function renderFilterPhaseSelector() {
   const sel = document.getElementById('dspPhaseSelector');
   if (!sel) return;
-  const curPhase = state.dsp.filterPhase || 'linear';
+  const curPhase = state.dsp.filterPhase || 'precise-linear';
   sel.innerHTML = '';
   for (const p of filterPluginList()) {
     const btn = document.createElement('button');
@@ -192,7 +179,7 @@ function renderFilterPhaseSelector() {
   if (hint) hint.textContent = filterLabel(curPhase);
 }
 
-// 啟動時向引擎取得插件清單；若存定的濾波器已不存在（插件被移除）自動退回線性相位。
+// 啟動時向引擎取得插件清單；若存定的濾波器已不存在（插件被移除）自動退回精準，線性相位。
 async function loadFilterPluginsUI() {
   if (window.electronAPI && typeof window.electronAPI.listFilterPlugins === 'function') {
     try {
@@ -200,8 +187,8 @@ async function loadFilterPluginsUI() {
       if (Array.isArray(list) && list.length) filterPlugins = list;
     } catch (e) { /* 退回內建清單 */ }
   }
-  if (!isValidFilterPhaseId(state.dsp.filterPhase || 'linear')) {
-    state.dsp.filterPhase = 'linear';
+  if (!isValidFilterPhaseId(state.dsp.filterPhase || 'precise-linear')) {
+    state.dsp.filterPhase = 'precise-linear';
     try { localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp)); } catch (e) {}
   }
   renderFilterPhaseSelector();
@@ -221,7 +208,7 @@ function buildDspOptions(track) {
     sampleRate: engineOn ? calculateTargetSampleRate(srcRate, state.dsp.rateMode) : srcRate,
     dsdMode: engineOn && isDsdRateMode(state.dsp.rateMode) ? state.dsp.rateMode : '',
     dsdOrder: state.dsp.dsdOrder || 5,
-    filterPhase: state.dsp.filterPhase || 'linear',
+    filterPhase: state.dsp.filterPhase || 'precise-linear',
     ultrasonicFilter: (state.dsp && state.dsp.ultrasonicFilter) || '30k',
     dither: (state.dsp && state.dsp.dither) || 'gauss1',
     peq: peqPayload,
@@ -281,14 +268,14 @@ const state = {
         enabled: saved.enabled === true,
         rateMode: saved.rateMode || '4x',
         dsdOrder: [5, 7].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
-        filterPhase: isValidFilterPhaseId(saved.filterPhase) ? saved.filterPhase : 'linear',
+        filterPhase: isValidFilterPhaseId(saved.filterPhase) ? saved.filterPhase : 'precise-linear',
         ultrasonicFilter: ['none', '20k', '30k', '40k', '50k'].includes(saved.ultrasonicFilter) ? saved.ultrasonicFilter : '30k',
         dither: ['none', 'tpdf', 'gauss1'].includes(saved.dither) ? saved.dither : 'gauss1',
         peq: normalizePeqSettings(saved.peq),
         conv: normalizeConvSettings(saved.conv)
       };
     } catch (e) {
-      return { enabled: false, rateMode: '4x', dsdOrder: 5, filterPhase: 'linear', ultrasonicFilter: '30k', dither: 'gauss1', peq: normalizePeqSettings(null), conv: normalizeConvSettings(null) };
+      return { enabled: false, rateMode: '4x', dsdOrder: 5, filterPhase: 'precise-linear', ultrasonicFilter: '30k', dither: 'gauss1', peq: normalizePeqSettings(null), conv: normalizeConvSettings(null) };
     }
   })()
 };
@@ -8175,7 +8162,7 @@ async function playSoxTrack(track, startSec = 0) {
     const isDsd = engineOn && isDsdRateMode(state.dsp.rateMode);
     const dsdMode = isDsd ? state.dsp.rateMode : '';
     const dsdOrder = state.dsp.dsdOrder || 5;
-    const filterPhase = state.dsp.filterPhase || 'linear';
+    const filterPhase = state.dsp.filterPhase || 'precise-linear';
     const ultrasonicFilter = (state.dsp && state.dsp.ultrasonicFilter) || '30k';
 
     const streamUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, targetRate, dsdMode, dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter);
@@ -8307,7 +8294,7 @@ function updateSignalPathUI(track = null) {
   }
 
   const curOrder = state.dsp.dsdOrder || 5;
-  const curPhase = state.dsp.filterPhase || 'linear';
+  const curPhase = state.dsp.filterPhase || 'precise-linear';
 
   const orderPill = document.querySelector(`#dspOrderSelector .dsp-pill[data-order="${curOrder}"]`);
   const dspActiveOrderHint = document.getElementById('dspActiveOrderHint');
@@ -9182,7 +9169,7 @@ function applyMusePreset(presetKey) {
   } else if (presetKey === 'hires') {
     state.dsp.enabled = true;
     state.dsp.rateMode = '4x';
-    state.dsp.filterPhase = 'linear';
+    state.dsp.filterPhase = 'precise-linear';
     state.dsp.dsdOrder = 5;
     state.dsp.ultrasonicFilter = '30k';
   } else if (PEQ_PRESETS[presetKey]) {
@@ -10260,7 +10247,7 @@ function renderUserFilterChips() {
     row.appendChild(empty);
     return;
   }
-  const curPhase = state.dsp.filterPhase || 'linear';
+  const curPhase = state.dsp.filterPhase || 'precise-linear';
   for (const s of ufSlots) {
     const chip = document.createElement('span');
     chip.className = 'uf-chip' + (s.id === curPhase ? ' active' : '');
@@ -11033,7 +11020,7 @@ async function ufDeleteFlow(slotId) {
   }
   ufSlots = Array.isArray(r.slots) ? r.slots : (Array.isArray(r) ? r : ufSlots);
   if (state.dsp.filterPhase === slotId) {
-    state.dsp.filterPhase = 'linear';
+    state.dsp.filterPhase = 'precise-linear';
     try { localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp)); } catch (e) {}
     await loadFilterPluginsUI();
     renderFilterPhaseSelector();
@@ -13447,7 +13434,7 @@ async function runDlnaPrepareHintSelfTest(fixturePath) {
     ok('假 UPnP 裝置已上線', dev.name);
 
     // 開引擎（漸進式 PCM session）才有「記憶體緩衝」階段；選它為輸出裝置
-    state.dsp = Object.assign({}, state.dsp, { enabled: true, rateMode: '96k', filterPhase: 'linear', dsdOrder: 5 });
+    state.dsp = Object.assign({}, state.dsp, { enabled: true, rateMode: '96k', filterPhase: 'precise-linear', dsdOrder: 5 });
     await window.electronAPI.selectDlnaDevice(dev.id).catch(() => {});
     state.activeAudioZone = dev.id;
     state.activeDlnaDevice = dev;
