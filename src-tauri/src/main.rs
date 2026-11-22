@@ -45,7 +45,7 @@ mod win_mem {
 async fn main() {
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction --disable-background-networking --disable-component-update --disk-cache-size=33554432 --media-cache-size=33554432 --js-flags=\"--max-old-space-size=256\" --renderer-process-limit=1"
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,WinHttpAutoProxySupport,NetworkPrediction --disable-background-networking --disable-component-update --disk-cache-size=33554432 --media-cache-size=33554432 --js-flags=\"--max-old-space-size=1024\" --renderer-process-limit=1"
     );
 
     tracing_subscriber::fmt()

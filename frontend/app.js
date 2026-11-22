@@ -11239,6 +11239,9 @@ function openNowPlayingModal() {
       updateNowPlayingPlaybackProgress();
     }, 250);
   }
+  if (typeof window.startNowPlayingSpectrum === 'function') {
+    window.startNowPlayingSpectrum();
+  }
 }
 
 function closeNowPlayingModal() {
@@ -11248,6 +11251,9 @@ function closeNowPlayingModal() {
   if (nowPlayingSyncInterval) {
     clearInterval(nowPlayingSyncInterval);
     nowPlayingSyncInterval = null;
+  }
+  if (typeof window.stopNowPlayingSpectrum === 'function') {
+    window.stopNowPlayingSpectrum();
   }
 }
 
@@ -19493,13 +19499,32 @@ function updateTidalUIStatus() {
     ctx.globalAlpha = 1;
   }
 
+  let animId = null;
+  let isRunning = false;
+
+  function stop() {
+    isRunning = false;
+    if (animId) {
+      cancelAnimationFrame(animId);
+      animId = null;
+    }
+  }
+
+  function start() {
+    if (isRunning) return;
+    if (!canvas.offsetParent) return;
+    isRunning = true;
+    animId = requestAnimationFrame(frame);
+  }
+
   function frame(ts) {
+    if (!isRunning) return;
     if (!canvas.offsetParent) {
-      // When spectrum modal is not visible, throttle check to every 500ms to save CPU & memory
-      setTimeout(() => requestAnimationFrame(frame), 500);
+      // Completely halt animation loop when modal is closed to allow WebView2 to sleep
+      stop();
       return;
     }
-    requestAnimationFrame(frame);
+    animId = requestAnimationFrame(frame);
     if (!canvas.clientWidth || canvas.clientWidth !== cw || canvas.clientHeight !== ch) resize();
     if (!cw || !ch || !ctx) return; // modal closed: no drawing, no fetching
     if (state.isPlaying && !fetching && ts - lastFetch > 90) {
@@ -19513,7 +19538,22 @@ function updateTidalUIStatus() {
     }
     draw();
   }
-  requestAnimationFrame(frame);
+
+  window.startNowPlayingSpectrum = start;
+  window.stopNowPlayingSpectrum = stop;
+
+  // Observe modal visibility changes to automatically start/stop without polling
+  const npModal = document.getElementById('nowPlayingModal');
+  if (npModal && window.MutationObserver) {
+    const observer = new MutationObserver(() => {
+      if (npModal.style.display !== 'none' && npModal.offsetParent !== null) {
+        start();
+      } else {
+        stop();
+      }
+    });
+    observer.observe(npModal, { attributes: true, attributeFilter: ['style', 'class'] });
+  }
 })();
 
 // Start application
