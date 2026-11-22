@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use roo_dsp::{
     build_dsf_header, DsdModulator, DitherType,
-    get_dsd_rate, PeqBand, PeqChain, REGISTRY,
+    PeqBand, PeqChain, REGISTRY,
 };
 use roo_decoder::read_pcm_samples;
 use anyhow::{bail, Result};
@@ -23,6 +23,32 @@ pub struct DspStreamOptions {
     pub conv_json: Option<String>,
     #[serde(default)]
     pub ultrasonic_filter: Option<String>,
+    #[serde(default)]
+    pub dop: Option<bool>,
+}
+
+impl DspStreamOptions {
+    pub fn cache_key(&self) -> String {
+        let peq = self.peq_json.as_deref().unwrap_or("").trim();
+        let conv = self.conv_json.as_deref().unwrap_or("").trim();
+        let dsd = self.dsd_mode.as_deref().unwrap_or("").trim();
+        let ultra = self.ultrasonic_filter.as_deref().unwrap_or("").trim();
+        let dop = self.dop.unwrap_or(true);
+
+        format!(
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            self.file_path,
+            (self.start_sec * 10.0).round() as i64,
+            self.target_rate,
+            dsd,
+            self.dsd_order,
+            self.filter_phase,
+            ultra,
+            peq,
+            conv,
+            dop
+        )
+    }
 }
 
 fn default_rate() -> u32 { 0 }
@@ -80,7 +106,18 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         }
 
         let dsd_mode_str = opts.dsd_mode.as_ref().unwrap();
-        let dsd_rate = get_dsd_rate(dsd_mode_str);
+        let use_dop = opts.dop.unwrap_or(true);
+
+        let dsd_multiplier: u32 = match dsd_mode_str.to_lowercase().as_str() {
+            "dsd128" | "dsd256" | "dsd512" if use_dop => 128, // Clamp DLNA DoP to DSD128 (352.8k/384k)
+            "dsd128" => 128,
+            "dsd256" => 256,
+            "dsd512" => 512,
+            _ => 64,
+        };
+        let base_rate: u32 = if src_rate % 48000 == 0 { 48000 } else { 44100 };
+        let dsd_rate: u32 = base_rate * dsd_multiplier;
+
         let ratio = dsd_rate as f64 / src_rate as f64;
         let inv_ratio = 1.0 / ratio;
 
@@ -92,21 +129,83 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         let num_blocks = (total_dsd_samples + samples_per_block - 1) / samples_per_block;
 
         let data_bytes = num_blocks * 4096 * 2;
-        let total_file_bytes = 92 + data_bytes as u64;
-
-        let mut out_buf = Vec::with_capacity(total_file_bytes as usize);
-        let dsf_header = build_dsf_header(total_file_bytes, dsd_rate, (num_blocks * samples_per_block) as u64, 4096);
-        out_buf.extend_from_slice(&dsf_header);
-
         let mut block_data = vec![0u8; data_bytes];
         modulator.run_blocks(&left, &right, left.len(), 0, num_blocks, inv_ratio, &mut block_data);
-        out_buf.extend_from_slice(&block_data);
 
-        Ok(GeneratedStream {
-            mime_type: "audio/x-dsf",
-            total_bytes: total_file_bytes,
-            data: Arc::new(out_buf),
-        })
+        if use_dop {
+            // Pack DSD stream into DoP (DSD over PCM Standard v1.1) 24-bit stereo WAV container
+            let carrier_rate: u32 = dsd_rate / 16;
+            let num_frames = (total_dsd_samples + 15) / 16;
+            let pcm_data_size = num_frames as u64 * 6;
+            let total_file_bytes = 44 + pcm_data_size;
+
+            let mut out_buf = Vec::with_capacity(total_file_bytes as usize);
+            // RIFF header
+            out_buf.extend_from_slice(b"RIFF");
+            out_buf.extend_from_slice(&((36 + pcm_data_size) as u32).to_le_bytes());
+            out_buf.extend_from_slice(b"WAVE");
+            // fmt chunk
+            out_buf.extend_from_slice(b"fmt ");
+            out_buf.extend_from_slice(&16u32.to_le_bytes()); // Chunk size 16
+            out_buf.extend_from_slice(&1u16.to_le_bytes()); // Format 1 = PCM
+            out_buf.extend_from_slice(&2u16.to_le_bytes()); // 2 channels
+            out_buf.extend_from_slice(&carrier_rate.to_le_bytes()); // Sample rate (176400 or 352800)
+            out_buf.extend_from_slice(&(carrier_rate * 6).to_le_bytes()); // Byte rate
+            out_buf.extend_from_slice(&6u16.to_le_bytes()); // Block align = 6
+            out_buf.extend_from_slice(&24u16.to_le_bytes()); // 24 bits per sample
+            // data chunk
+            out_buf.extend_from_slice(b"data");
+            out_buf.extend_from_slice(&(pcm_data_size as u32).to_le_bytes());
+
+            let mut frame_count = 0usize;
+            'dop_loop: for b in 0..num_blocks {
+                let left_off = b * 8192;
+                let right_off = left_off + 4096;
+
+                for k in 0..2048 {
+                    if frame_count >= num_frames {
+                        break 'dop_loop;
+                    }
+
+                    let marker = if frame_count % 2 == 0 { 0x05u8 } else { 0xFAu8 };
+
+                    // Left channel (3 bytes: Byte 0 = LSB, Byte 1 = MID, Byte 2 = MSB/marker)
+                    let l0 = block_data[left_off + k * 2];
+                    let l1 = block_data[left_off + k * 2 + 1];
+                    out_buf.push(l1.reverse_bits());
+                    out_buf.push(l0.reverse_bits());
+                    out_buf.push(marker);
+
+                    // Right channel (3 bytes: Byte 0 = LSB, Byte 1 = MID, Byte 2 = MSB/marker)
+                    let r0 = block_data[right_off + k * 2];
+                    let r1 = block_data[right_off + k * 2 + 1];
+                    out_buf.push(r1.reverse_bits());
+                    out_buf.push(r0.reverse_bits());
+                    out_buf.push(marker);
+
+                    frame_count += 1;
+                }
+            }
+
+            Ok(GeneratedStream {
+                mime_type: "audio/wav",
+                total_bytes: total_file_bytes,
+                data: Arc::new(out_buf),
+            })
+        } else {
+            // Raw DSF format
+            let total_file_bytes = 92 + data_bytes as u64;
+            let mut out_buf = Vec::with_capacity(total_file_bytes as usize);
+            let dsf_header = build_dsf_header(total_file_bytes, dsd_rate, (num_blocks * samples_per_block) as u64, 4096);
+            out_buf.extend_from_slice(&dsf_header);
+            out_buf.extend_from_slice(&block_data);
+
+            Ok(GeneratedStream {
+                mime_type: "audio/x-dsf",
+                total_bytes: total_file_bytes,
+                data: Arc::new(out_buf),
+            })
+        }
     } else {
         // PCM path: if target_rate is 0 or matches source, keep original rate (bit-perfect pass-through)
         let target_rate = if opts.target_rate == 0 { src_rate } else { opts.target_rate };
@@ -234,7 +333,36 @@ mod tests {
         }
         std::fs::write(&temp_wav, &wav_data).unwrap();
 
-        let opts = DspStreamOptions {
+        // 1. Test DoP WAV generation (default for DLNA streaming)
+        let opts_dop = DspStreamOptions {
+            file_path: temp_wav.to_string_lossy().to_string(),
+            start_sec: 0.0,
+            target_rate: 176400,
+            dsd_mode: Some("dsd64".to_string()),
+            dsd_order: 5,
+            filter_phase: "linear".to_string(),
+            peq_json: None,
+            conv_json: None,
+            ultrasonic_filter: Some("30k".to_string()),
+            dop: Some(true),
+        };
+
+        let res_dop = generate_audio_stream(&opts_dop);
+        assert!(res_dop.is_ok());
+        let stream_dop = res_dop.unwrap();
+        assert_eq!(stream_dop.mime_type, "audio/wav");
+        assert!(stream_dop.total_bytes > 44);
+        assert_eq!(&stream_dop.data[0..4], b"RIFF");
+        assert_eq!(&stream_dop.data[8..12], b"WAVE");
+        // Verify DoP marker in the first frame (byte offset 44 + 2 for Left MSB, offset 44 + 5 for Right MSB)
+        assert_eq!(stream_dop.data[44 + 2], 0x05);
+        assert_eq!(stream_dop.data[44 + 5], 0x05);
+        // Verify DoP marker in the second frame (byte offset 44 + 6 + 2 = 52, 44 + 6 + 5 = 55)
+        assert_eq!(stream_dop.data[44 + 6 + 2], 0xFA);
+        assert_eq!(stream_dop.data[44 + 6 + 5], 0xFA);
+
+        // 2. Test raw DSF generation
+        let opts_dsf = DspStreamOptions {
             file_path: temp_wav.to_string_lossy().to_string(),
             start_sec: 0.0,
             target_rate: 0,
@@ -244,16 +372,27 @@ mod tests {
             peq_json: None,
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),
+            dop: Some(false),
         };
 
-        let res = generate_audio_stream(&opts);
-
+        let res_dsf = generate_audio_stream(&opts_dsf);
         let _ = std::fs::remove_file(temp_wav);
-        assert!(res.is_ok());
-        let stream = res.unwrap();
-        assert_eq!(stream.mime_type, "audio/x-dsf");
-        assert!(stream.total_bytes > 0);
-        assert_eq!(&stream.data[0..4], b"DSD ");
+        assert!(res_dsf.is_ok());
+        let stream_dsf = res_dsf.unwrap();
+        assert_eq!(stream_dsf.mime_type, "audio/x-dsf");
+        assert!(stream_dsf.total_bytes > 0);
+        assert_eq!(&stream_dsf.data[0..4], b"DSD ");
+
+        // 3. Test canonical cache_key equivalence (None vs Some(""))
+        let mut opts1 = opts_dop.clone();
+        opts1.peq_json = None;
+        opts1.conv_json = None;
+
+        let mut opts2 = opts_dop.clone();
+        opts2.peq_json = Some("".to_string());
+        opts2.conv_json = Some("  ".to_string());
+
+        assert_eq!(opts1.cache_key(), opts2.cache_key());
     }
 }
 

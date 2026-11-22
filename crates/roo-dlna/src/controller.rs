@@ -42,14 +42,11 @@ impl UpnpController {
         let album_esc = xml_escape(album);
         let stream_url_esc = xml_escape(stream_url);
 
-        let res_tags = if is_dsd {
+        let is_raw_dsf = is_dsd && stream_url.contains("dop=false");
+        let res_tags = if is_raw_dsf {
             format!(
-                "<res protocolInfo=\"http-get:*:audio/x-dsf:DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000\">{}</res>\
-                <res protocolInfo=\"http-get:*:audio/dsf:DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000\">{}</res>\
-                <res protocolInfo=\"http-get:*:audio/x-dsf:*\">{}</res>\
-                <res protocolInfo=\"http-get:*:audio/dsf:*\">{}</res>\
-                <res protocolInfo=\"http-get:*:audio/dsd:*\">{}</res>",
-                stream_url_esc, stream_url_esc, stream_url_esc, stream_url_esc, stream_url_esc
+                "<res protocolInfo=\"http-get:*:audio/x-dsf:DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000\">{}</res>",
+                stream_url_esc
             )
         } else {
             format!("<res protocolInfo=\"http-get:*:audio/wav:*\">{}</res>", stream_url_esc)

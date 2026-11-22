@@ -79,7 +79,7 @@ impl DlnaManager {
             let _ = tx.send(true);
         }
 
-        let is_dsd = stream_url.contains("dsd-stream") || stream_url.contains("dsd_mode=dsd");
+        let is_raw_dsf = (stream_url.contains("dsd-stream") || stream_url.contains("dsd_mode=dsd")) && stream_url.contains("dop=false");
 
         // 1. Ensure transport is stopped first to avoid error 705 (Transport locked)
         let _ = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
@@ -94,21 +94,17 @@ impl DlnaManager {
             artist,
             album,
             cover_url,
-            is_dsd,
+            is_raw_dsf,
         ).await;
 
         if let Err(ref e) = set_res {
-            if is_dsd {
-                eprintln!("[DLNA] Device rejected DSD SetAVTransportURI: {}. Retrying with PCM fallback...", e);
-                let pcm_url = stream_url
-                    .replace("dsd_mode=dsd64", "dsd_mode=")
-                    .replace("dsd_mode=dsd128", "dsd_mode=")
-                    .replace("dsd_mode=dsd256", "dsd_mode=")
-                    .replace("dsd_mode=dsd512", "dsd_mode=");
+            if is_raw_dsf {
+                eprintln!("[DLNA] Device rejected raw DSF SetAVTransportURI: {}. Retrying with DoP WAV fallback...", e);
+                let dop_url = stream_url.replace("dop=false", "dop=true");
                 set_res = self.controller.set_av_transport_uri(
                     &dev.av_transport_url,
                     &dev.av_transport_service_type,
-                    &pcm_url,
+                    &dop_url,
                     title,
                     artist,
                     album,

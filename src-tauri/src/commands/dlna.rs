@@ -122,7 +122,7 @@ pub async fn dlna_play_track(
         };
 
     let stream_url = format!(
-        "http://{}:39840/sox-stream?file_path={}&start_sec={}&target_rate={}&dsd_mode={}&dsd_order={}&filter_phase={}&peq_json={}&conv_json={}&ultrasonic_filter={}",
+        "http://{}:39840/sox-stream?file_path={}&start_sec={}&target_rate={}&dsd_mode={}&dsd_order={}&filter_phase={}&peq_json={}&conv_json={}&ultrasonic_filter={}&dop=true",
         local_ip,
         urlencoding::encode(file_path),
         start,
@@ -148,6 +148,7 @@ pub async fn dlna_play_track(
             peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
             conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
             ultrasonic_filter: Some(ultrasonic_filter.clone()),
+            dop: Some(true),
         };
         let _ = tokio::task::spawn_blocking(move || {
             roo_streamer::prewarm_stream(&opts)

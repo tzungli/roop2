@@ -16,11 +16,7 @@ pub static STREAM_CACHE: std::sync::LazyLock<RwLock<HashMap<String, Arc<Generate
     std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
 pub fn prewarm_stream(opts: &DspStreamOptions) -> Result<Arc<GeneratedStream>> {
-    let cache_key = format!(
-        "{}:{}:{}:{}:{}:{:?}:{:?}",
-        opts.file_path, opts.start_sec, opts.target_rate, opts.dsd_mode.as_deref().unwrap_or(""),
-        opts.filter_phase, opts.peq_json, opts.conv_json
-    );
+    let cache_key = opts.cache_key();
 
     {
         let read = STREAM_CACHE.read().unwrap();
@@ -248,6 +244,9 @@ async fn handle_dsd_stream(
     if opts.dsd_mode.is_none() {
         opts.dsd_mode = Some("dsd64".to_string());
     }
+    if opts.dop.is_none() {
+        opts.dop = Some(false);
+    }
     handle_stream(Query(opts), headers, State(state)).await
 }
 
@@ -256,11 +255,7 @@ async fn handle_stream(
     headers: HeaderMap,
     State(_state): State<Arc<StreamServerState>>,
 ) -> Response {
-    let cache_key = format!(
-        "{}:{}:{}:{}:{}:{:?}:{:?}",
-        opts.file_path, opts.start_sec, opts.target_rate, opts.dsd_mode.as_deref().unwrap_or(""),
-        opts.filter_phase, opts.peq_json, opts.conv_json
-    );
+    let cache_key = opts.cache_key();
 
     let stream = {
         let read_cache = STREAM_CACHE.read().unwrap();
