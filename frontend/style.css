@@ -2974,7 +2974,101 @@ body.table-col-resizing * {
 
 .detail-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
+}
+
+.detail-actions #btnPlayAlbumNow,
+.detail-actions #btnShuffleAlbum,
+.detail-actions #btnFavAlbumDetail {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  max-width: 38px;
+  max-height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.detail-actions #btnPlayAlbumNow svg,
+.detail-actions #btnShuffleAlbum svg,
+.detail-actions #btnFavAlbumDetail svg {
+  display: block;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.detail-actions #btnPlayAlbumNow {
+  background-color: var(--accent-purple);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px var(--accent-purple-glow);
+}
+
+.detail-actions #btnPlayAlbumNow:hover {
+  background-color: #9d7bf5;
+  transform: scale(1.08);
+}
+
+.detail-actions #btnShuffleAlbum,
+.detail-actions #btnFavAlbumDetail {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-sub);
+  border: 1px solid var(--border-color);
+}
+
+.detail-actions #btnShuffleAlbum:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.14);
+  transform: scale(1.08);
+}
+
+.detail-actions #btnFavAlbumDetail:hover {
+  color: #f43f5e;
+  background-color: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.35);
+  transform: scale(1.08);
+}
+
+.detail-actions #btnFavAlbumDetail.active {
+  color: #f43f5e;
+  border-color: rgba(244, 63, 94, 0.5);
+  background-color: rgba(244, 63, 94, 0.16);
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] .detail-actions #btnShuffleAlbum,
+[data-theme="light"] .detail-actions #btnFavAlbumDetail {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #64748b;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .detail-actions #btnShuffleAlbum:hover {
+  color: #0f172a;
+  background-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .detail-actions #btnFavAlbumDetail:hover {
+  color: #f43f5e;
+  background-color: rgba(244, 63, 94, 0.08);
+  border-color: rgba(244, 63, 94, 0.35);
+}
+
+[data-theme="light"] .detail-actions #btnFavAlbumDetail.active {
+  color: #f43f5e;
+  background-color: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.45);
 }
 
 .album-detail-tracklist h3 {
@@ -7076,7 +7170,6 @@ body.table-col-resizing * {
   text-decoration: underline;
 }
 
-#btnFavAlbumDetail,
 #btnFavArtistDetail {
   display: inline-flex;
   align-items: center;

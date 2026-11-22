@@ -1648,14 +1648,19 @@ function toggleAlbumFavorite(album, triggerBtn = null) {
 
   if (triggerBtn) {
     triggerBtn.classList.toggle('active', nowFav);
-    const labelSpan = triggerBtn.querySelector('span');
-    if (labelSpan) {
-      labelSpan.textContent = nowFav ? '已在最愛專輯' : '加入最愛專輯';
-      triggerBtn.innerHTML = `${getHeartSvg(nowFav, 15)} <span>${labelSpan.textContent}</span>`;
+    if (triggerBtn.id === 'btnFavAlbumDetail') {
+      triggerBtn.innerHTML = getHeartSvg(nowFav, 18);
+      triggerBtn.title = nowFav ? '取消最愛專輯' : '加入最愛專輯';
     } else {
-      triggerBtn.innerHTML = getHeartSvg(nowFav, 15);
+      const labelSpan = triggerBtn.querySelector('span');
+      if (labelSpan) {
+        labelSpan.textContent = nowFav ? '已在最愛專輯' : '加入最愛專輯';
+        triggerBtn.innerHTML = `${getHeartSvg(nowFav, 15)} <span>${labelSpan.textContent}</span>`;
+      } else {
+        triggerBtn.innerHTML = getHeartSvg(nowFav, 18);
+      }
+      triggerBtn.title = nowFav ? '取消最愛專輯' : '加入最愛專輯';
     }
-    triggerBtn.title = nowFav ? '取消最愛專輯' : '加入最愛專輯';
   }
 
   saveFavorites();
@@ -1845,7 +1850,8 @@ function syncAllFavoriteUIs() {
     if (btnFavAlbum) {
       const isFav = isAlbumFavorite(state.activeAlbumDetail);
       btnFavAlbum.classList.toggle('active', isFav);
-      btnFavAlbum.innerHTML = `${getHeartSvg(isFav, 15)} <span>${isFav ? '已在最愛專輯' : '加入最愛專輯'}</span>`;
+      btnFavAlbum.innerHTML = getHeartSvg(isFav, 18);
+      btnFavAlbum.title = isFav ? '取消最愛專輯' : '加入最愛專輯';
     }
   }
 
@@ -7417,7 +7423,8 @@ function openAlbumDetail(album) {
   if (btnFavAlbum) {
     const isFav = isAlbumFavorite(album);
     btnFavAlbum.classList.toggle('active', isFav);
-    btnFavAlbum.innerHTML = `${getHeartSvg(isFav, 15)} <span>${isFav ? '已在最愛專輯' : '加入最愛專輯'}</span>`;
+    btnFavAlbum.innerHTML = getHeartSvg(isFav, 18);
+    btnFavAlbum.title = isFav ? '取消最愛專輯' : '加入最愛專輯';
     btnFavAlbum.onclick = (e) => {
       e.stopPropagation();
       toggleAlbumFavorite(album, btnFavAlbum);
