@@ -21,6 +21,8 @@ pub struct DspStreamOptions {
     pub filter_phase: String,
     pub peq_json: Option<String>,
     pub conv_json: Option<String>,
+    #[serde(default)]
+    pub ultrasonic_filter: Option<String>,
 }
 
 fn default_rate() -> u32 { 0 }
@@ -70,6 +72,13 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
     let is_dsd = opts.dsd_mode.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
 
     if is_dsd {
+        // Apply ultrasonic noise protection filter if configured (e.g. 20k, 30k, 40k, 50k)
+        if let Some(mode) = &opts.ultrasonic_filter {
+            if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
+                roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
+            }
+        }
+
         let dsd_mode_str = opts.dsd_mode.as_ref().unwrap();
         let dsd_rate = get_dsd_rate(dsd_mode_str);
         let ratio = dsd_rate as f64 / src_rate as f64;
@@ -101,7 +110,7 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
     } else {
         // PCM path: if target_rate is 0 or matches source, keep original rate (bit-perfect pass-through)
         let target_rate = if opts.target_rate == 0 { src_rate } else { opts.target_rate };
-        let (up_l, up_r) = if target_rate == src_rate {
+        let (mut up_l, mut up_r) = if target_rate == src_rate {
             (left, right)
         } else {
             let ratio = target_rate as f64 / src_rate as f64;
@@ -142,6 +151,13 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
                 (l_vec, r_vec)
             }
         };
+
+        // Apply ultrasonic noise protection filter on PCM upsampled stream (e.g. 20k, 30k, 40k, 50k)
+        if let Some(mode) = &opts.ultrasonic_filter {
+            if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(target_rate as f64, mode) {
+                roo_dsp::apply_ultrasonic_filter(&coeffs, &mut up_l, &mut up_r);
+            }
+        }
 
         let out_frames = up_l.len();
         // Write 24-bit stereo WAV

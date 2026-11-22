@@ -48,6 +48,7 @@ pub async fn audio_get_sox_stream_url(
     filter_phase: Option<String>,
     peq_json: Option<String>,
     conv_json: Option<String>,
+    ultrasonic_filter: Option<String>,
 ) -> Result<String, String> {
     let start = start_sec.unwrap_or(0.0);
     let rate = sample_rate.unwrap_or(192000);
@@ -56,9 +57,10 @@ pub async fn audio_get_sox_stream_url(
     let phase = filter_phase.unwrap_or_else(|| "linear".to_string());
     let peq = peq_json.unwrap_or_default();
     let conv = conv_json.unwrap_or_default();
+    let ultra = ultrasonic_filter.unwrap_or_else(|| "30k".to_string());
 
     let url = format!(
-        "http://127.0.0.1:39840/sox-stream?file_path={}&start_sec={}&target_rate={}&dsd_mode={}&dsd_order={}&filter_phase={}&peq_json={}&conv_json={}",
+        "http://127.0.0.1:39840/sox-stream?file_path={}&start_sec={}&target_rate={}&dsd_mode={}&dsd_order={}&filter_phase={}&peq_json={}&conv_json={}&ultrasonic_filter={}",
         urlencoding::encode(&file_path),
         start,
         rate,
@@ -66,7 +68,8 @@ pub async fn audio_get_sox_stream_url(
         dsd_o,
         urlencoding::encode(&phase),
         urlencoding::encode(&peq),
-        urlencoding::encode(&conv)
+        urlencoding::encode(&conv),
+        urlencoding::encode(&ultra)
     );
     Ok(url)
 }

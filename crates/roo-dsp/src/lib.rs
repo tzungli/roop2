@@ -125,4 +125,25 @@ mod tests {
             assert!(p.ys_db.iter().all(|&y| y.is_finite()));
         }
     }
+
+    #[test]
+    fn test_ultrasonic_protection_filter() {
+        // At 192kHz, 30k and 50k should produce valid 2nd-order Butterworth filters
+        let c30 = build_ultrasonic_filter_coeffs(192000.0, "30k").expect("30k filter at 192kHz");
+        assert!(c30.b0 > 0.0 && c30.b1 > 0.0 && c30.b2 > 0.0);
+
+        let c50 = build_ultrasonic_filter_coeffs(192000.0, "50k").expect("50k filter at 192kHz");
+        assert!(c50.b0 > 0.0 && c50.b1 > 0.0 && c50.b2 > 0.0);
+
+        // At 44.1kHz, 30k and 50k are above Nyquist (0.45 * 44100 = 19845) -> None
+        assert!(build_ultrasonic_filter_coeffs(44100.0, "30k").is_none());
+        assert!(build_ultrasonic_filter_coeffs(44100.0, "50k").is_none());
+
+        // Apply filter to test signal
+        let mut left = vec![1.0; 256];
+        let mut right = vec![1.0; 256];
+        apply_ultrasonic_filter(&c30, &mut left, &mut right);
+        assert!(left.iter().all(|&v| v.is_finite()));
+        assert!(right.iter().all(|&v| v.is_finite()));
+    }
 }

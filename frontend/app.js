@@ -7599,8 +7599,9 @@ async function playSoxTrack(track, startSec = 0) {
     const dsdMode = isDsd ? state.dsp.rateMode : '';
     const dsdOrder = state.dsp.dsdOrder || 5;
     const filterPhase = state.dsp.filterPhase || 'linear';
+    const ultrasonicFilter = (state.dsp && state.dsp.ultrasonicFilter) || '30k';
 
-    const streamUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, targetRate, dsdMode, dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson());
+    const streamUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, targetRate, dsdMode, dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter);
     if (!streamUrl) {
       playerArtist.textContent = '無法建立 SoX 升頻串流服務';
       return;
@@ -7612,7 +7613,7 @@ async function playSoxTrack(track, startSec = 0) {
       const srcRate = track.sampleRate || 44100;
       const exRate = exclusiveChooseRate(srcRate, targetRate);
       if (exRate) {
-        const exUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, exRate, '', dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson());
+        const exUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, exRate, '', dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter);
         if (exUrl && await exclusiveStartStream(track, startSec, exUrl, exRate)) {
           state.isPlaying = true;
           updatePlayPauseBtnUI();
