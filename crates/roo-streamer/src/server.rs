@@ -92,10 +92,8 @@ impl StreamServer {
 
     pub async fn run(&self) -> Result<()> {
         let app = Router::new()
-            .route("/stream/:token/audio.dsf", get(handle_stream_token))
-            .route("/stream/:token/audio.wav", get(handle_stream_token))
             .route("/stream/:token/:filename", get(handle_stream_token))
-            .route("/cover/:token/cover.jpg", get(handle_cover_token))
+            .route("/stream/:token", get(handle_stream_token_simple))
             .route("/cover/:token/:filename", get(handle_cover_token))
             .route("/cover/:token", get(handle_cover_token_simple))
             .route("/sox-stream", get(handle_stream))
@@ -328,13 +326,25 @@ async fn handle_stream_token(
     headers: HeaderMap,
     State(_state): State<Arc<StreamServerState>>,
 ) -> Response {
-    if let Some(session) = get_progressive_session(&token) {
+    handle_stream_for_token(&token, headers).await
+}
+
+async fn handle_stream_token_simple(
+    axum::extract::Path(token): axum::extract::Path<String>,
+    headers: HeaderMap,
+    State(_state): State<Arc<StreamServerState>>,
+) -> Response {
+    handle_stream_for_token(&token, headers).await
+}
+
+async fn handle_stream_for_token(token: &str, headers: HeaderMap) -> Response {
+    if let Some(session) = get_progressive_session(token) {
         return serve_progressive_stream(&session, &headers).await;
     }
 
     let stream = {
         let read = STREAM_CACHE.read().unwrap();
-        read.get(&token).cloned()
+        read.get(token).cloned()
     };
     match stream {
         Some(s) => serve_stream_data(&s, &headers),
@@ -411,7 +421,7 @@ async fn serve_progressive_stream(
 
         let written = state.bytes_written.load(std::sync::atomic::Ordering::Acquire);
         let available = written.saturating_sub(state.current_pos);
-        let to_read = (state.end_pos + 1 - state.current_pos).min(available).min(64 * 1024) as usize;
+        let to_read = (state.end_pos + 1 - state.current_pos).min(available).min(128 * 1024) as usize;
 
         if to_read == 0 {
             return None;
