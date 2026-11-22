@@ -63,10 +63,15 @@ fn dlna_image_response(status: StatusCode, mime: &str, data: Vec<u8>) -> Respons
     headers.insert(header::CACHE_CONTROL, "public, max-age=2592000, immutable".parse().unwrap());
     headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
     headers.insert("transferMode.dlna.org", "Interactive".parse().unwrap());
-    headers.insert(
-        "contentFeatures.dlna.org",
-        "DLNA.ORG_PN=JPEG_MED;DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=00900000000000000000000000000000".parse().unwrap(),
-    );
+    let dlna_pn = if mime.contains("png") {
+        "PNG_MED"
+    } else {
+        "JPEG_MED"
+    };
+    let dlna_features = format!("DLNA.ORG_PN={};DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=00900000000000000000000000000000", dlna_pn);
+    if let Ok(val) = dlna_features.parse() {
+        headers.insert("contentFeatures.dlna.org", val);
+    }
     resp
 }
 
@@ -322,3 +327,15 @@ fn parse_range_header(s: &str, total: u64) -> Option<(u64, u64)> {
 
     Some((start, end))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dlna_image_response() {
+        let resp = dlna_image_response(StatusCode::OK, "image/jpeg", vec![1, 2, 3]);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+}
+

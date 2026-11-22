@@ -93,16 +93,16 @@ pub async fn dlna_play_track(
 
     let cover_url = if !raw_cover.is_empty() {
         if raw_cover.starts_with("http://") || raw_cover.starts_with("https://") {
-            Some(format!("http://{}:39840/cover?url={}", local_ip, urlencoding::encode(raw_cover)))
+            Some(format!("http://{}:39840/cover?url={}&size=360", local_ip, urlencoding::encode(raw_cover)))
         } else {
             let clean = raw_cover
                 .trim_start_matches("media://")
                 .trim_start_matches("file:///")
                 .trim_start_matches("file://");
-            Some(format!("http://{}:39840/cover?path={}", local_ip, urlencoding::encode(clean)))
+            Some(format!("http://{}:39840/cover?path={}&size=360", local_ip, urlencoding::encode(clean)))
         }
     } else if !file_path.is_empty() {
-        Some(format!("http://{}:39840/cover?file_path={}", local_ip, urlencoding::encode(file_path)))
+        Some(format!("http://{}:39840/cover?file_path={}&size=360", local_ip, urlencoding::encode(file_path)))
     } else {
         None
     };

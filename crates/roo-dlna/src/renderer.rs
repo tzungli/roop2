@@ -97,10 +97,15 @@ impl DlnaManager {
             is_dsd,
         ).await?;
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(80)).await;
 
-        // 3. Trigger Play
-        self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await?;
+        // 3. Trigger Play (with brief retry if transport is still transitioning)
+        let mut play_res = self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await;
+        if play_res.is_err() {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            play_res = self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await;
+        }
+        play_res?;
 
         // 4. Seek if starting at offset
         if start_sec > 0.0 {

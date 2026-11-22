@@ -48,38 +48,79 @@ impl UpnpController {
         let album_esc = xml_escape(album);
         let stream_url_esc = xml_escape(stream_url);
 
-        let album_art_elements = if let Some(curl) = cover_url {
+        // Build Level 1: Standard compliant UPnP DIDL-Lite
+        // Uses single <upnp:albumArtURI> without foreign namespaces for broad compatibility with
+        // Linkplay / T8, WiiM, BubbleUPnP, Yamaha, Denon, and standard UPnP renderers.
+        let mut optional_meta = String::new();
+        if !artist_esc.is_empty() {
+            optional_meta.push_str(&format!("<upnp:artist>{}</upnp:artist>", artist_esc));
+        }
+        if !album_esc.is_empty() {
+            optional_meta.push_str(&format!("<upnp:album>{}</upnp:album>", album_esc));
+        }
+        if let Some(curl) = cover_url {
             if !curl.trim().is_empty() {
-                let curl_esc = xml_escape(curl.trim());
-                format!(
-                    "<upnp:albumArtURI dlna:profileID=\"JPEG_MED\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">{}</upnp:albumArtURI>\
-                    <upnp:albumArtURI dlna:profileID=\"JPEG_TN\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">{}</upnp:albumArtURI>\
-                    <upnp:albumArtURI>{}</upnp:albumArtURI>",
-                    curl_esc, curl_esc, curl_esc
-                )
-            } else {
-                String::new()
+                optional_meta.push_str(&format!("<upnp:albumArtURI>{}</upnp:albumArtURI>", xml_escape(curl.trim())));
             }
-        } else {
-            String::new()
-        };
+        }
 
-        let didl_raw = format!(
-            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">\
+        let didl_rich = format!(
+            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">\
             <item id=\"0\" parentID=\"0\" restricted=\"1\">\
             <dc:title>{}</dc:title>\
             <dc:creator>{}</dc:creator>\
-            <upnp:artist>{}</upnp:artist>\
-            <upnp:album>{}</upnp:album>\
             {}\
             <upnp:class>object.item.audioItem.musicTrack</upnp:class>\
             <res protocolInfo=\"{}\">{}</res>\
             </item>\
             </DIDL-Lite>",
-            title_esc, artist_esc, artist_esc, album_esc, album_art_elements, protocol_info, stream_url_esc
+            title_esc, artist_esc, optional_meta, protocol_info, stream_url_esc
         );
 
-        let didl_escaped = xml_escape(&didl_raw);
+        // Attempt 1: Standard Rich Metadata (Title, Artist, Album, Cover Art)
+        match self.send_set_av_transport_uri(control_url, st, stream_url, &didl_rich).await {
+            Ok(_) => return Ok(()),
+            Err(e1) => {
+                eprintln!("[DLNA] SetAVTransportURI with rich metadata failed: {}. Retrying with basic metadata...", e1);
+            }
+        }
+
+        // Attempt 2: Basic Metadata (Title + Creator only - verified working on all devices)
+        let didl_basic = format!(
+            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">\
+            <item id=\"0\" parentID=\"0\" restricted=\"1\">\
+            <dc:title>{}</dc:title>\
+            <dc:creator>{}</dc:creator>\
+            <upnp:class>object.item.audioItem.musicTrack</upnp:class>\
+            <res protocolInfo=\"{}\">{}</res>\
+            </item>\
+            </DIDL-Lite>",
+            title_esc, artist_esc, protocol_info, stream_url_esc
+        );
+
+        match self.send_set_av_transport_uri(control_url, st, stream_url, &didl_basic).await {
+            Ok(_) => return Ok(()),
+            Err(e2) => {
+                eprintln!("[DLNA] SetAVTransportURI with basic metadata failed: {}. Retrying with empty metadata...", e2);
+            }
+        }
+
+        // Attempt 3: Empty metadata (universal UPnP specification fallback)
+        self.send_set_av_transport_uri(control_url, st, stream_url, "").await
+    }
+
+    async fn send_set_av_transport_uri(
+        &self,
+        control_url: &str,
+        service_type: &str,
+        stream_url: &str,
+        didl_raw: &str,
+    ) -> Result<()> {
+        let didl_escaped = if didl_raw.is_empty() {
+            String::new()
+        } else {
+            xml_escape(didl_raw)
+        };
         let current_uri_escaped = xml_escape(stream_url);
 
         let body = format!(
@@ -93,10 +134,10 @@ impl UpnpController {
             </u:SetAVTransportURI>\
             </s:Body>\
             </s:Envelope>",
-            st, current_uri_escaped, didl_escaped
+            service_type, current_uri_escaped, didl_escaped
         );
 
-        self.soap_action(control_url, &format!("{}#SetAVTransportURI", st), &body).await
+        self.soap_action(control_url, &format!("{}#SetAVTransportURI", service_type), &body).await
     }
 
     pub async fn play(&self, control_url: &str, service_type: &str) -> Result<()> {
