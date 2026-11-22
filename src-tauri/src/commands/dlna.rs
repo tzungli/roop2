@@ -135,6 +135,25 @@ pub async fn dlna_play_track(
         urlencoding::encode(&ultrasonic_filter)
     );
 
+    // If DSD upsampling or high-rate DSP is requested, prewarm stream into memory cache
+    // so the DLNA renderer receives an immediate response upon connecting, avoiding socket timeout.
+    if !dsd_mode.is_empty() || target_rate > 0 {
+        let opts = roo_streamer::DspStreamOptions {
+            file_path: file_path.to_string(),
+            start_sec: start,
+            target_rate,
+            dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
+            dsd_order,
+            filter_phase: filter_phase.clone(),
+            peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
+            conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
+            ultrasonic_filter: Some(ultrasonic_filter.clone()),
+        };
+        let _ = tokio::task::spawn_blocking(move || {
+            roo_streamer::prewarm_stream(&opts)
+        }).await;
+    }
+
     let app_clone = app.clone();
     let app_clone2 = app.clone();
     let res = manager.play(

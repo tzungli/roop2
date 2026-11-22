@@ -156,7 +156,7 @@ pub fn decimate_dsf_to_pcm(path: &str, start_sec: f64, max_duration_sec: f64) ->
             for bit in 0..decimate_ratio {
                 let bit_pos = start_bit + bit;
                 let byte_idx = bit_pos / 8;
-                let bit_shift = 7 - (bit_pos % 8);
+                let bit_shift = bit_pos % 8;
 
                 let bit_l = (block_pair[byte_idx] >> bit_shift) & 1;
                 sum_l += if bit_l != 0 { 1 } else { -1 };

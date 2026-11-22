@@ -37,16 +37,23 @@ impl UpnpController {
             service_type.trim()
         };
 
-        let protocol_info = if is_dsd {
-            "http-get:*:audio/x-dsf:*"
-        } else {
-            "http-get:*:audio/wav:*"
-        };
-
         let title_esc = xml_escape(title);
         let artist_esc = xml_escape(artist);
         let album_esc = xml_escape(album);
         let stream_url_esc = xml_escape(stream_url);
+
+        let res_tags = if is_dsd {
+            format!(
+                "<res protocolInfo=\"http-get:*:audio/x-dsf:DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000\">{}</res>\
+                <res protocolInfo=\"http-get:*:audio/dsf:DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000\">{}</res>\
+                <res protocolInfo=\"http-get:*:audio/x-dsf:*\">{}</res>\
+                <res protocolInfo=\"http-get:*:audio/dsf:*\">{}</res>\
+                <res protocolInfo=\"http-get:*:audio/dsd:*\">{}</res>",
+                stream_url_esc, stream_url_esc, stream_url_esc, stream_url_esc, stream_url_esc
+            )
+        } else {
+            format!("<res protocolInfo=\"http-get:*:audio/wav:*\">{}</res>", stream_url_esc)
+        };
 
         // Build Level 1: Standard compliant UPnP DIDL-Lite
         // Uses single <upnp:albumArtURI> without foreign namespaces for broad compatibility with
@@ -71,10 +78,10 @@ impl UpnpController {
             <dc:creator>{}</dc:creator>\
             {}\
             <upnp:class>object.item.audioItem.musicTrack</upnp:class>\
-            <res protocolInfo=\"{}\">{}</res>\
+            {}\
             </item>\
             </DIDL-Lite>",
-            title_esc, artist_esc, optional_meta, protocol_info, stream_url_esc
+            title_esc, artist_esc, optional_meta, res_tags
         );
 
         // Attempt 1: Standard Rich Metadata (Title, Artist, Album, Cover Art)
@@ -92,10 +99,10 @@ impl UpnpController {
             <dc:title>{}</dc:title>\
             <dc:creator>{}</dc:creator>\
             <upnp:class>object.item.audioItem.musicTrack</upnp:class>\
-            <res protocolInfo=\"{}\">{}</res>\
+            {}\
             </item>\
             </DIDL-Lite>",
-            title_esc, artist_esc, protocol_info, stream_url_esc
+            title_esc, artist_esc, res_tags
         );
 
         match self.send_set_av_transport_uri(control_url, st, stream_url, &didl_basic).await {

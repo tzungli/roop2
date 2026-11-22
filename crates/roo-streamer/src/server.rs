@@ -12,9 +12,34 @@ use tower_http::cors::CorsLayer;
 use crate::session::{generate_audio_stream, DspStreamOptions, GeneratedStream};
 use anyhow::Result;
 
-pub struct StreamServerState {
-    cache: RwLock<HashMap<String, Arc<GeneratedStream>>>,
+pub static STREAM_CACHE: std::sync::LazyLock<RwLock<HashMap<String, Arc<GeneratedStream>>>> =
+    std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
+
+pub fn prewarm_stream(opts: &DspStreamOptions) -> Result<Arc<GeneratedStream>> {
+    let cache_key = format!(
+        "{}:{}:{}:{}:{}:{:?}:{:?}",
+        opts.file_path, opts.start_sec, opts.target_rate, opts.dsd_mode.as_deref().unwrap_or(""),
+        opts.filter_phase, opts.peq_json, opts.conv_json
+    );
+
+    {
+        let read = STREAM_CACHE.read().unwrap();
+        if let Some(s) = read.get(&cache_key) {
+            return Ok(s.clone());
+        }
+    }
+
+    let gen = generate_audio_stream(opts)?;
+    let arc_s = Arc::new(gen);
+    let mut write = STREAM_CACHE.write().unwrap();
+    if write.len() > 2 {
+        write.clear();
+    }
+    write.insert(cache_key, arc_s.clone());
+    Ok(arc_s)
 }
+
+pub struct StreamServerState;
 
 pub struct StreamServer {
     port: u16,
@@ -25,9 +50,7 @@ impl StreamServer {
     pub fn new(port: u16) -> Self {
         Self {
             port,
-            state: Arc::new(StreamServerState {
-                cache: RwLock::new(HashMap::new()),
-            }),
+            state: Arc::new(StreamServerState),
         }
     }
 
@@ -231,7 +254,7 @@ async fn handle_dsd_stream(
 async fn handle_stream(
     Query(opts): Query<DspStreamOptions>,
     headers: HeaderMap,
-    State(state): State<Arc<StreamServerState>>,
+    State(_state): State<Arc<StreamServerState>>,
 ) -> Response {
     let cache_key = format!(
         "{}:{}:{}:{}:{}:{:?}:{:?}",
@@ -240,7 +263,7 @@ async fn handle_stream(
     );
 
     let stream = {
-        let read_cache = state.cache.read().unwrap();
+        let read_cache = STREAM_CACHE.read().unwrap();
         read_cache.get(&cache_key).cloned()
     };
 
@@ -249,8 +272,8 @@ async fn handle_stream(
         None => match generate_audio_stream(&opts) {
             Ok(gen) => {
                 let arc_s = Arc::new(gen);
-                let mut write_cache = state.cache.write().unwrap();
-                if !write_cache.is_empty() {
+                let mut write_cache = STREAM_CACHE.write().unwrap();
+                if write_cache.len() > 2 {
                     write_cache.clear();
                 }
                 write_cache.insert(cache_key, arc_s.clone());
@@ -266,6 +289,26 @@ async fn handle_stream(
     let total_len = stream.total_bytes;
     let range_header = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
 
+    let is_dsd = stream.mime_type.contains("dsf") || stream.mime_type.contains("dsd");
+    let mime_type = if is_dsd {
+        let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()).unwrap_or("");
+        if accept.contains("audio/dsf") {
+            "audio/dsf"
+        } else if accept.contains("audio/dsd") {
+            "audio/dsd"
+        } else {
+            "audio/x-dsf"
+        }
+    } else {
+        "audio/wav"
+    };
+
+    let dlna_features = if is_dsd {
+        "DLNA.ORG_PN=DSF;DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000"
+    } else {
+        "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
+    };
+
     if let Some(range_str) = range_header {
         if let Some(range) = parse_range_header(range_str, total_len) {
             let start = range.0 as usize;
@@ -280,7 +323,7 @@ async fn handle_stream(
 
             let mut resp = (StatusCode::PARTIAL_CONTENT, slice).into_response();
             let headers_mut = resp.headers_mut();
-            headers_mut.insert(header::CONTENT_TYPE, stream.mime_type.parse().unwrap());
+            headers_mut.insert(header::CONTENT_TYPE, mime_type.parse().unwrap());
             headers_mut.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
             headers_mut.insert(
                 header::CONTENT_RANGE,
@@ -290,7 +333,7 @@ async fn handle_stream(
             headers_mut.insert("transferMode.dlna.org", "Streaming".parse().unwrap());
             headers_mut.insert(
                 "contentFeatures.dlna.org",
-                "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000".parse().unwrap(),
+                dlna_features.parse().unwrap(),
             );
             return resp;
         }
@@ -298,13 +341,13 @@ async fn handle_stream(
 
     let mut resp = (StatusCode::OK, (*stream.data).clone()).into_response();
     let headers_mut = resp.headers_mut();
-    headers_mut.insert(header::CONTENT_TYPE, stream.mime_type.parse().unwrap());
+    headers_mut.insert(header::CONTENT_TYPE, mime_type.parse().unwrap());
     headers_mut.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
     headers_mut.insert(header::CONTENT_LENGTH, total_len.to_string().parse().unwrap());
     headers_mut.insert("transferMode.dlna.org", "Streaming".parse().unwrap());
     headers_mut.insert(
         "contentFeatures.dlna.org",
-        "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000".parse().unwrap(),
+        dlna_features.parse().unwrap(),
     );
     resp
 }

@@ -202,3 +202,58 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dsd_stream_generation() {
+        // Create a 1-second 44.1kHz stereo WAV file in temp
+        let temp_wav = std::env::temp_dir().join("test_dsd_stream.wav");
+        let num_samples = 44100usize;
+        let mut wav_data = Vec::new();
+        wav_data.extend_from_slice(b"RIFF");
+        let data_size = (num_samples * 4) as u32;
+        wav_data.extend_from_slice(&((36 + data_size) as u32).to_le_bytes());
+        wav_data.extend_from_slice(b"WAVE");
+        wav_data.extend_from_slice(b"fmt ");
+        wav_data.extend_from_slice(&16u32.to_le_bytes());
+        wav_data.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        wav_data.extend_from_slice(&2u16.to_le_bytes()); // 2 channels
+        wav_data.extend_from_slice(&44100u32.to_le_bytes());
+        wav_data.extend_from_slice(&(44100u32 * 4).to_le_bytes());
+        wav_data.extend_from_slice(&4u16.to_le_bytes());
+        wav_data.extend_from_slice(&16u16.to_le_bytes()); // 16-bit
+        wav_data.extend_from_slice(b"data");
+        wav_data.extend_from_slice(&data_size.to_le_bytes());
+        for i in 0..num_samples {
+            let val = ((i as f64 * 440.0 * 2.0 * std::f64::consts::PI / 44100.0).sin() * 10000.0) as i16;
+            wav_data.extend_from_slice(&val.to_le_bytes());
+            wav_data.extend_from_slice(&val.to_le_bytes());
+        }
+        std::fs::write(&temp_wav, &wav_data).unwrap();
+
+        let opts = DspStreamOptions {
+            file_path: temp_wav.to_string_lossy().to_string(),
+            start_sec: 0.0,
+            target_rate: 0,
+            dsd_mode: Some("dsd64".to_string()),
+            dsd_order: 5,
+            filter_phase: "linear".to_string(),
+            peq_json: None,
+            conv_json: None,
+            ultrasonic_filter: Some("30k".to_string()),
+        };
+
+        let res = generate_audio_stream(&opts);
+
+        let _ = std::fs::remove_file(temp_wav);
+        assert!(res.is_ok());
+        let stream = res.unwrap();
+        assert_eq!(stream.mime_type, "audio/x-dsf");
+        assert!(stream.total_bytes > 0);
+        assert_eq!(&stream.data[0..4], b"DSD ");
+    }
+}
+

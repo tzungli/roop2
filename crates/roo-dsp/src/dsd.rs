@@ -1,7 +1,30 @@
 use std::f64::consts::PI;
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, interpolate_intermediate, FirFilter, PolyphaseBank};
+
+pub static GAUSS_DITHER_TABLE: std::sync::LazyLock<[f64; 65536]> = std::sync::LazyLock::new(|| {
+    let mut table = [0.0f64; 65536];
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0x123456789abcdef0);
+    for i in (0..65536).step_by(2) {
+        let u1: f64 = rng.gen::<f64>().max(1e-12);
+        let u2: f64 = rng.gen::<f64>();
+        let r = (-2.0 * u1.ln()).sqrt() * 1e-5;
+        let theta = 2.0 * PI * u2;
+        table[i] = r * theta.cos();
+        table[i + 1] = r * theta.sin();
+    }
+    table
+});
+
+pub static TPDF_DITHER_TABLE: std::sync::LazyLock<[f64; 65536]> = std::sync::LazyLock::new(|| {
+    let mut table = [0.0f64; 65536];
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0xabcdef0123456789);
+    for i in 0..65536 {
+        table[i] = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
+    }
+    table
+});
 
 pub const DSD_BLOCK_SIZE: usize = 4096;
 pub const DSD_SAMPLES_PER_BLOCK: usize = DSD_BLOCK_SIZE * 8; // 32768 samples per channel block
@@ -328,7 +351,10 @@ impl DsdModulator {
         let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
 
         let use_fir = self.gf.is_some();
-        let mut rng = rand::thread_rng();
+        let dither_mode = self.dither_type;
+        let gauss_table = if dither_mode == DitherType::Gauss1 { Some(&*GAUSS_DITHER_TABLE) } else { None };
+        let tpdf_table = if dither_mode == DitherType::Tpdf { Some(&*TPDF_DITHER_TABLE) } else { None };
+        let mut dither_idx: usize = (start_bit * 137) & 0xffff;
 
         let mut cur_idx = 0;
         let mut cur_phi = 0;
@@ -336,6 +362,20 @@ impl DsdModulator {
             cur_idx = start_bit / w_period;
             cur_phi = start_bit - cur_idx * w_period;
         }
+
+        let mut p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
+        let mut p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
+        let mut p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
+        let mut p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
+        let mut m1_l = 0.5 * (p2_l - p0_l);
+        let mut m2_l = 0.5 * (p3_l - p1_l);
+
+        let mut p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
+        let mut p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
+        let mut p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
+        let mut p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
+        let mut m1_r = 0.5 * (p2_r - p0_r);
+        let mut m2_r = 0.5 * (p3_r - p1_r);
 
         for b in 0..num_blocks {
             let left_off = b * 2 * DSD_BLOCK_SIZE;
@@ -373,30 +413,27 @@ impl DsdModulator {
                             (0.0, 0.0)
                         }
                     } else if let Some(tab) = &w_tab {
-                        let idx = cur_idx;
                         let o = cur_phi * 4;
                         cur_phi += 1;
                         if cur_phi == w_period {
                             cur_phi = 0;
                             cur_idx += 1;
+                            p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
+                            p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
+                            p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
+                            p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
+                            m1_l = 0.5 * (p2_l - p0_l);
+                            m2_l = 0.5 * (p3_l - p1_l);
+
+                            p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
+                            p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
+                            p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
+                            p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
+                            m1_r = 0.5 * (p2_r - p0_r);
+                            m2_r = 0.5 * (p3_r - p1_r);
                         }
 
-                        let p1_l = if idx < in_len { left[idx] } else { 0.0 };
-                        let p2_l = if idx + 1 < in_len { left[idx + 1] } else { 0.0 };
-                        let p0_l = if idx > 0 && idx - 1 < in_len { left[idx - 1] } else { p1_l };
-                        let p3_l = if idx + 2 < in_len { left[idx + 2] } else { p2_l };
-
-                        let m1_l = 0.5 * (p2_l - p0_l);
-                        let m2_l = 0.5 * (p3_l - p1_l);
                         let y_l_interp = tab[o] * p1_l + tab[o + 1] * m1_l + tab[o + 2] * p2_l + tab[o + 3] * m2_l;
-
-                        let p1_r = if idx < in_len { right[idx] } else { 0.0 };
-                        let p2_r = if idx + 1 < in_len { right[idx + 1] } else { 0.0 };
-                        let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
-                        let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
-
-                        let m1_r = 0.5 * (p2_r - p0_r);
-                        let m2_r = 0.5 * (p3_r - p1_r);
                         let y_r_interp = tab[o] * p1_r + tab[o + 1] * m1_r + tab[o + 2] * p2_r + tab[o + 3] * m2_r;
 
                         (y_l_interp.clamp(-1.0, 1.0), y_r_interp.clamp(-1.0, 1.0))
@@ -430,28 +467,23 @@ impl DsdModulator {
                     s4_l = (s4_l * 0.999999 + c4 * s3_l - g2 * s5_l).clamp(-clamp, clamp);
                     s5_l = (s5_l * 0.999999 + c5 * s4_l).clamp(-clamp, clamp);
 
-                    let (dither_l, dither_r) = match self.dither_type {
-                        DitherType::Gauss1 => {
-                            let u1_l: f64 = rng.gen::<f64>().max(1e-12);
-                            let u2_l: f64 = rng.gen();
-                            let dl = (-2.0 * u1_l.ln()).sqrt() * (2.0 * PI * u2_l).cos() * 1e-5;
-
-                            let u1_r: f64 = rng.gen::<f64>().max(1e-12);
-                            let u2_r: f64 = rng.gen();
-                            let dr = (-2.0 * u1_r.ln()).sqrt() * (2.0 * PI * u2_r).cos() * 1e-5;
-                            (dl, dr)
-                        }
-                        DitherType::Tpdf => {
-                            let dl = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
-                            let dr = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
-                            (dl, dr)
-                        }
-                        DitherType::None => (0.0, 0.0),
+                    let (dither_l, dither_r) = if let Some(gtab) = gauss_table {
+                        let dl = gtab[dither_idx];
+                        let dr = gtab[(dither_idx + 1) & 0xffff];
+                        dither_idx = (dither_idx + 2) & 0xffff;
+                        (dl, dr)
+                    } else if let Some(ttab) = tpdf_table {
+                        let dl = ttab[dither_idx];
+                        let dr = ttab[(dither_idx + 1) & 0xffff];
+                        dither_idx = (dither_idx + 2) & 0xffff;
+                        (dl, dr)
+                    } else {
+                        (0.0, 0.0)
                     };
 
                     let sigma_l = u_l + a1 * s1_l + a2 * s2_l + a3 * s3_l + a4 * s4_l + a5 * s5_l + dither_l;
                     y_l = if sigma_l >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_l = (byte_val_l << 1) | (if y_l > 0.0 { 1 } else { 0 });
+                    if y_l > 0.0 { byte_val_l |= 1 << bit; }
 
                     let u_r = raw_r * scale;
                     s1_r = (s1_r * 0.999999 + c1 * (u_r - y_r)).clamp(-clamp, clamp);
@@ -462,7 +494,7 @@ impl DsdModulator {
 
                     let sigma_r = u_r + a1 * s1_r + a2 * s2_r + a3 * s3_r + a4 * s4_r + a5 * s5_r + dither_r;
                     y_r = if sigma_r >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_r = (byte_val_r << 1) | (if y_r > 0.0 { 1 } else { 0 });
+                    if y_r > 0.0 { byte_val_r |= 1 << bit; }
                 }
 
                 out[left_off + byte_idx] = byte_val_l;
@@ -504,7 +536,10 @@ impl DsdModulator {
         let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
 
         let use_fir = self.gf.is_some();
-        let mut rng = rand::thread_rng();
+        let dither_mode = self.dither_type;
+        let gauss_table = if dither_mode == DitherType::Gauss1 { Some(&*GAUSS_DITHER_TABLE) } else { None };
+        let tpdf_table = if dither_mode == DitherType::Tpdf { Some(&*TPDF_DITHER_TABLE) } else { None };
+        let mut dither_idx: usize = (start_bit * 137) & 0xffff;
 
         let mut cur_idx = 0;
         let mut cur_phi = 0;
@@ -512,6 +547,20 @@ impl DsdModulator {
             cur_idx = start_bit / w_period;
             cur_phi = start_bit - cur_idx * w_period;
         }
+
+        let mut p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
+        let mut p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
+        let mut p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
+        let mut p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
+        let mut m1_l = 0.5 * (p2_l - p0_l);
+        let mut m2_l = 0.5 * (p3_l - p1_l);
+
+        let mut p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
+        let mut p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
+        let mut p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
+        let mut p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
+        let mut m1_r = 0.5 * (p2_r - p0_r);
+        let mut m2_r = 0.5 * (p3_r - p1_r);
 
         for b in 0..num_blocks {
             let left_off = b * 2 * DSD_BLOCK_SIZE;
@@ -549,30 +598,27 @@ impl DsdModulator {
                             (0.0, 0.0)
                         }
                     } else if let Some(tab) = &w_tab {
-                        let idx = cur_idx;
                         let o = cur_phi * 4;
                         cur_phi += 1;
                         if cur_phi == w_period {
                             cur_phi = 0;
                             cur_idx += 1;
+                            p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
+                            p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
+                            p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
+                            p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
+                            m1_l = 0.5 * (p2_l - p0_l);
+                            m2_l = 0.5 * (p3_l - p1_l);
+
+                            p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
+                            p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
+                            p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
+                            p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
+                            m1_r = 0.5 * (p2_r - p0_r);
+                            m2_r = 0.5 * (p3_r - p1_r);
                         }
 
-                        let p1_l = if idx < in_len { left[idx] } else { 0.0 };
-                        let p2_l = if idx + 1 < in_len { left[idx + 1] } else { 0.0 };
-                        let p0_l = if idx > 0 && idx - 1 < in_len { left[idx - 1] } else { p1_l };
-                        let p3_l = if idx + 2 < in_len { left[idx + 2] } else { p2_l };
-
-                        let m1_l = 0.5 * (p2_l - p0_l);
-                        let m2_l = 0.5 * (p3_l - p1_l);
                         let y_l_interp = tab[o] * p1_l + tab[o + 1] * m1_l + tab[o + 2] * p2_l + tab[o + 3] * m2_l;
-
-                        let p1_r = if idx < in_len { right[idx] } else { 0.0 };
-                        let p2_r = if idx + 1 < in_len { right[idx + 1] } else { 0.0 };
-                        let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
-                        let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
-
-                        let m1_r = 0.5 * (p2_r - p0_r);
-                        let m2_r = 0.5 * (p3_r - p1_r);
                         let y_r_interp = tab[o] * p1_r + tab[o + 1] * m1_r + tab[o + 2] * p2_r + tab[o + 3] * m2_r;
 
                         (y_l_interp.clamp(-1.0, 1.0), y_r_interp.clamp(-1.0, 1.0))
@@ -608,28 +654,23 @@ impl DsdModulator {
                     s6_l = (s6_l * 0.999999 + c6 * s5_l - g3 * s7_l).clamp(-clamp, clamp);
                     s7_l = (s7_l * 0.999999 + c7 * s6_l).clamp(-clamp, clamp);
 
-                    let (dither_l, dither_r) = match self.dither_type {
-                        DitherType::Gauss1 => {
-                            let u1_l: f64 = rng.gen::<f64>().max(1e-12);
-                            let u2_l: f64 = rng.gen();
-                            let dl = (-2.0 * u1_l.ln()).sqrt() * (2.0 * PI * u2_l).cos() * 1e-5;
-
-                            let u1_r: f64 = rng.gen::<f64>().max(1e-12);
-                            let u2_r: f64 = rng.gen();
-                            let dr = (-2.0 * u1_r.ln()).sqrt() * (2.0 * PI * u2_r).cos() * 1e-5;
-                            (dl, dr)
-                        }
-                        DitherType::Tpdf => {
-                            let dl = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
-                            let dr = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
-                            (dl, dr)
-                        }
-                        DitherType::None => (0.0, 0.0),
+                    let (dither_l, dither_r) = if let Some(gtab) = gauss_table {
+                        let dl = gtab[dither_idx];
+                        let dr = gtab[(dither_idx + 1) & 0xffff];
+                        dither_idx = (dither_idx + 2) & 0xffff;
+                        (dl, dr)
+                    } else if let Some(ttab) = tpdf_table {
+                        let dl = ttab[dither_idx];
+                        let dr = ttab[(dither_idx + 1) & 0xffff];
+                        dither_idx = (dither_idx + 2) & 0xffff;
+                        (dl, dr)
+                    } else {
+                        (0.0, 0.0)
                     };
 
                     let sigma_l = u_l + a1 * s1_l + a2 * s2_l + a3 * s3_l + a4 * s4_l + a5 * s5_l + a6 * s6_l + a7 * s7_l + dither_l;
                     y_l = if sigma_l >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_l = (byte_val_l << 1) | (if y_l > 0.0 { 1 } else { 0 });
+                    if y_l > 0.0 { byte_val_l |= 1 << bit; }
 
                     let u_r = raw_r * scale;
                     s1_r = (s1_r * 0.999999 + c1 * (u_r - y_r)).clamp(-clamp, clamp);
@@ -642,7 +683,7 @@ impl DsdModulator {
 
                     let sigma_r = u_r + a1 * s1_r + a2 * s2_r + a3 * s3_r + a4 * s4_r + a5 * s5_r + a6 * s6_r + a7 * s7_r + dither_r;
                     y_r = if sigma_r >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_r = (byte_val_r << 1) | (if y_r > 0.0 { 1 } else { 0 });
+                    if y_r > 0.0 { byte_val_r |= 1 << bit; }
                 }
 
                 out[left_off + byte_idx] = byte_val_l;

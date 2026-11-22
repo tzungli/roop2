@@ -86,7 +86,7 @@ impl DlnaManager {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // 2. Set AVTransport URI with proper metadata (including title, artist, album, cover art)
-        self.controller.set_av_transport_uri(
+        let mut set_res = self.controller.set_av_transport_uri(
             &dev.av_transport_url,
             &dev.av_transport_service_type,
             stream_url,
@@ -95,7 +95,29 @@ impl DlnaManager {
             album,
             cover_url,
             is_dsd,
-        ).await?;
+        ).await;
+
+        if let Err(ref e) = set_res {
+            if is_dsd {
+                eprintln!("[DLNA] Device rejected DSD SetAVTransportURI: {}. Retrying with PCM fallback...", e);
+                let pcm_url = stream_url
+                    .replace("dsd_mode=dsd64", "dsd_mode=")
+                    .replace("dsd_mode=dsd128", "dsd_mode=")
+                    .replace("dsd_mode=dsd256", "dsd_mode=")
+                    .replace("dsd_mode=dsd512", "dsd_mode=");
+                set_res = self.controller.set_av_transport_uri(
+                    &dev.av_transport_url,
+                    &dev.av_transport_service_type,
+                    &pcm_url,
+                    title,
+                    artist,
+                    album,
+                    cover_url,
+                    false,
+                ).await;
+            }
+            set_res?;
+        }
 
         tokio::time::sleep(Duration::from_millis(80)).await;
 
