@@ -7819,9 +7819,9 @@ body.table-col-resizing * {
 .about-app-logo {
   width: 90px;
   height: 90px;
-  border-radius: 4px;
-  object-fit: cover;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(124, 58, 237, 0.35);
+  border-radius: 8px;
+  object-fit: contain;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
 }
 

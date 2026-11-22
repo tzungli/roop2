@@ -90,6 +90,9 @@ async fn main() {
     tauri::Builder::default()
         .setup(|app| {
             if let Some(win) = app.get_webview_window("main") {
+                if let Some(icon) = app.default_window_icon() {
+                    let _ = win.set_icon(icon.clone());
+                }
                 let _ = win.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
                     width: 840.0,
                     height: 680.0,
