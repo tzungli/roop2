@@ -3774,6 +3774,8 @@ dependencies = [
  "anyhow",
  "axum",
  "image",
+ "lofty",
+ "reqwest 0.12.28",
  "roo-decoder",
  "roo-dsp",
  "serde",

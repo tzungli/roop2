@@ -52,25 +52,113 @@ impl StreamServer {
     }
 }
 
+fn dlna_image_response(status: StatusCode, mime: &str, data: Vec<u8>) -> Response {
+    let mut resp = (status, data).into_response();
+    let headers = resp.headers_mut();
+    if let Ok(hv) = mime.parse() {
+        headers.insert(header::CONTENT_TYPE, hv);
+    } else {
+        headers.insert(header::CONTENT_TYPE, "image/jpeg".parse().unwrap());
+    }
+    headers.insert(header::CACHE_CONTROL, "public, max-age=2592000, immutable".parse().unwrap());
+    headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
+    headers.insert("transferMode.dlna.org", "Interactive".parse().unwrap());
+    headers.insert(
+        "contentFeatures.dlna.org",
+        "DLNA.ORG_PN=JPEG_MED;DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=00900000000000000000000000000000".parse().unwrap(),
+    );
+    resp
+}
+
 #[derive(serde::Deserialize)]
 struct CoverQuery {
-    path: String,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    file_path: Option<String>,
     #[serde(default)]
     size: Option<u32>,
 }
 
 async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
-    let p = std::path::Path::new(&q.path);
-    if !p.exists() {
-        return StatusCode::NOT_FOUND.into_response();
+    let target_size = q.size.unwrap_or(360);
+
+    // 1. Remote HTTP/HTTPS URL proxy for DLNA devices
+    let remote_url = q.url.as_deref().or_else(|| {
+        q.path.as_deref().filter(|p| p.starts_with("http://") || p.starts_with("https://"))
+    });
+
+    if let Some(url) = remote_url {
+        if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build() {
+            if let Ok(resp) = client.get(url).send().await {
+                if resp.status().is_success() {
+                    let ctype = resp.headers().get(header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("image/jpeg")
+                        .to_string();
+                    if let Ok(bytes) = resp.bytes().await {
+                        return dlna_image_response(StatusCode::OK, &ctype, bytes.to_vec());
+                    }
+                }
+            }
+        }
     }
 
-    let target_size = q.size.unwrap_or(360);
+    // 2. Resolve local file path
+    let mut resolved_image_path = None;
+
+    if let Some(raw_path) = q.path.as_deref() {
+        let clean = raw_path
+            .trim_start_matches("media://")
+            .trim_start_matches("file:///")
+            .trim_start_matches("file://");
+        let p = std::path::Path::new(clean);
+        if p.exists() && p.is_file() {
+            resolved_image_path = Some(p.to_path_buf());
+        }
+    }
+
+    // 3. Fallback: check track folder or embedded picture in audio file
+    if resolved_image_path.is_none() {
+        if let Some(track_path_str) = q.file_path.as_deref() {
+            let tp = std::path::Path::new(track_path_str);
+            if let Some(parent) = tp.parent() {
+                let candidates = ["cover.jpg", "folder.jpg", "front.jpg", "Cover.jpg", "Folder.jpg", "cover.png", "folder.png"];
+                for c in candidates {
+                    let cand_path = parent.join(c);
+                    if cand_path.exists() && cand_path.is_file() {
+                        resolved_image_path = Some(cand_path);
+                        break;
+                    }
+                }
+            }
+
+            // Embedded picture fallback via lofty
+            if resolved_image_path.is_none() && tp.exists() && tp.is_file() {
+                use lofty::file::TaggedFileExt;
+                if let Ok(tagged_file) = lofty::probe::Probe::open(tp).and_then(|pr| pr.read().map_err(Into::into)) {
+                    let tag = tagged_file.primary_tag().or_else(|| tagged_file.first_tag());
+                    if let Some(t) = tag {
+                        if let Some(pic) = t.pictures().first() {
+                            let data = pic.data().to_vec();
+                            return dlna_image_response(StatusCode::OK, "image/jpeg", data);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let Some(p) = resolved_image_path else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
 
     // If size == 0, serve original file directly
     if target_size == 0 {
-        if let Ok(data) = std::fs::read(p) {
-            let p_lower = q.path.to_lowercase();
+        if let Ok(data) = std::fs::read(&p) {
+            let p_lower = p.to_string_lossy().to_lowercase();
             let mime = if p_lower.ends_with(".png") {
                 "image/png"
             } else if p_lower.ends_with(".webp") {
@@ -78,92 +166,50 @@ async fn handle_cover(Query(q): Query<CoverQuery>) -> Response {
             } else {
                 "image/jpeg"
             };
-            return (
-                StatusCode::OK,
-                [
-                    (header::CONTENT_TYPE, mime),
-                    (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-                ],
-                data,
-            ).into_response();
+            return dlna_image_response(StatusCode::OK, mime, data);
         }
         return StatusCode::NOT_FOUND.into_response();
     }
 
     // Check if thumbnail already exists on disk (e.g. {stem}_thumb360.jpg)
-    let parent = p.parent().unwrap_or(p);
+    let parent = p.parent().unwrap_or(&p);
     let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("thumb");
     let thumb_name = format!("{}_thumb{}.jpg", stem, target_size);
     let thumb_path = parent.join(thumb_name);
 
     if thumb_path.exists() {
         if let Ok(data) = std::fs::read(&thumb_path) {
-            return (
-                StatusCode::OK,
-                [
-                    (header::CONTENT_TYPE, "image/jpeg"),
-                    (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-                ],
-                data,
-            ).into_response();
+            return dlna_image_response(StatusCode::OK, "image/jpeg", data);
         }
     }
 
     // Read original
-    let Ok(orig_data) = std::fs::read(p) else {
+    let Ok(orig_data) = std::fs::read(&p) else {
         return StatusCode::NOT_FOUND.into_response();
     };
 
     // If original file is already very small (< 40 KB), serve directly
     if orig_data.len() < 40 * 1024 {
-        return (
-            StatusCode::OK,
-            [
-                (header::CONTENT_TYPE, "image/jpeg"),
-                (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-            ],
-            orig_data,
-        ).into_response();
+        return dlna_image_response(StatusCode::OK, "image/jpeg", orig_data);
     }
 
     // Downscale using image crate
     if let Ok(img) = image::load_from_memory(&orig_data) {
         let (w, h) = (img.width(), img.height());
         if w <= target_size && h <= target_size {
-            return (
-                StatusCode::OK,
-                [
-                    (header::CONTENT_TYPE, "image/jpeg"),
-                    (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-                ],
-                orig_data,
-            ).into_response();
+            return dlna_image_response(StatusCode::OK, "image/jpeg", orig_data);
         }
 
         let thumb = img.thumbnail(target_size, target_size);
         let mut out = Vec::new();
         if thumb.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Jpeg).is_ok() {
             let _ = std::fs::write(&thumb_path, &out);
-            return (
-                StatusCode::OK,
-                [
-                    (header::CONTENT_TYPE, "image/jpeg"),
-                    (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-                ],
-                out,
-            ).into_response();
+            return dlna_image_response(StatusCode::OK, "image/jpeg", out);
         }
     }
 
     // Fallback: serve original
-    (
-        StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "image/jpeg"),
-            (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-        ],
-        orig_data,
-    ).into_response()
+    dlna_image_response(StatusCode::OK, "image/jpeg", orig_data)
 }
 
 async fn handle_dsd_stream(

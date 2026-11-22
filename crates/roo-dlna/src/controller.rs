@@ -27,6 +27,8 @@ impl UpnpController {
         stream_url: &str,
         title: &str,
         artist: &str,
+        album: &str,
+        cover_url: Option<&str>,
         is_dsd: bool,
     ) -> Result<()> {
         let st = if service_type.trim().is_empty() {
@@ -43,18 +45,38 @@ impl UpnpController {
 
         let title_esc = xml_escape(title);
         let artist_esc = xml_escape(artist);
+        let album_esc = xml_escape(album);
         let stream_url_esc = xml_escape(stream_url);
 
+        let album_art_elements = if let Some(curl) = cover_url {
+            if !curl.trim().is_empty() {
+                let curl_esc = xml_escape(curl.trim());
+                format!(
+                    "<upnp:albumArtURI dlna:profileID=\"JPEG_MED\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">{}</upnp:albumArtURI>\
+                    <upnp:albumArtURI dlna:profileID=\"JPEG_TN\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">{}</upnp:albumArtURI>\
+                    <upnp:albumArtURI>{}</upnp:albumArtURI>",
+                    curl_esc, curl_esc, curl_esc
+                )
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
         let didl_raw = format!(
-            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">\
+            "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns:dlna=\"urn:schemas-dlna-org:metadata-1-0/\">\
             <item id=\"0\" parentID=\"0\" restricted=\"1\">\
             <dc:title>{}</dc:title>\
             <dc:creator>{}</dc:creator>\
+            <upnp:artist>{}</upnp:artist>\
+            <upnp:album>{}</upnp:album>\
+            {}\
             <upnp:class>object.item.audioItem.musicTrack</upnp:class>\
             <res protocolInfo=\"{}\">{}</res>\
             </item>\
             </DIDL-Lite>",
-            title_esc, artist_esc, protocol_info, stream_url_esc
+            title_esc, artist_esc, artist_esc, album_esc, album_art_elements, protocol_info, stream_url_esc
         );
 
         let didl_escaped = xml_escape(&didl_raw);

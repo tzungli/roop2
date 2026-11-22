@@ -7807,9 +7807,10 @@ async function playCurrentTrack() {
       const dspOptions = buildDspOptions(track);
 
       const enrichedTrack = getEnrichedTrack(track);
-      beginDlnaPrepareUi(state.activeDlnaDevice.name); // 立刻顯示準備提示（引擎調變、記憶體緩衝、裝置開播）
+      clearDlnaPrepareUi();
       window.electronAPI.playDlnaTrack(state.activeDlnaDevice.id, enrichedTrack, 0, dspOptions).then(res => {
         if (res && res.success) {
+          clearDlnaPrepareUi();
           state.isPlaying = true;
           state.activeSpectrumToken = res.token || null; // DSP sessions carry a spectrum window; direct streams return null data and the visualizer hides itself
           updatePlayPauseBtnUI();
@@ -11881,33 +11882,11 @@ function dlnaPrepareCopy(info) {
 
 function updateDlnaPrepareStrip(info) {
   const strip = document.getElementById('dlnaBufferStrip');
-  const stageEl = document.getElementById('dlnaBufferStage');
-  const fillEl = document.getElementById('dlnaBufferFill');
-  const metaEl = document.getElementById('dlnaBufferMeta');
-  if (!strip || !stageEl || !fillEl || !metaEl) return;
-  const copy = dlnaPrepareCopy(info);
-  strip.style.display = 'flex';
-  strip.classList.toggle('indeterminate', copy.ratio === null);
-  stageEl.textContent = copy.stage;
-  metaEl.textContent = copy.meta;
-  fillEl.style.width = copy.ratio === null ? '0%' : `${Math.round(copy.ratio * 100)}%`;
-  if (playerArtist && copy.artist) playerArtist.textContent = copy.artist;
+  if (strip) strip.style.display = 'none';
 }
 
 function beginDlnaPrepareUi(deviceName) {
-  dlnaPreparing = true;
-  dlnaPrepareInfo = { stage: 'preparing', elapsedMs: 0, deviceName: deviceName || '' };
-  if (playerArtist && !dlnaArtistBackup) dlnaArtistBackup = playerArtist.textContent;
-  updateDlnaPrepareStrip(dlnaPrepareInfo);
-  if (dlnaPrepareWatchdog) clearTimeout(dlnaPrepareWatchdog);
-  // 安全網：裝置一直沒有回報開播就不要讓提示卡住，並明確告訴使用者下一步該做什麼
-  dlnaPrepareWatchdog = setTimeout(() => {
-    dlnaPrepareWatchdog = null;
-    if (!dlnaPreparing) return;
-    const waited = ((Number(dlnaPrepareInfo && dlnaPrepareInfo.elapsedMs) || 0) / 1000).toFixed(1);
-    clearDlnaPrepareUi();
-    showToast(`⚠️ 串流準備超過 ${(DLNA_PREPARE_WATCHDOG_MS / 1000).toFixed(0)} 秒（已等 ${waited} 秒）仍未開播：請確認 ${dlnaPrepareInfo && dlnaPrepareInfo.deviceName ? dlnaPrepareInfo.deviceName : '該裝置'} 是否允許外部串流，或再按一次播放鍵重新送出曲目。`);
-  }, DLNA_PREPARE_WATCHDOG_MS);
+  clearDlnaPrepareUi();
 }
 
 function clearDlnaPrepareUi() {
@@ -11924,20 +11903,20 @@ function clearDlnaPrepareUi() {
     const fillEl = document.getElementById('dlnaBufferFill');
     if (fillEl) fillEl.style.width = '0%';
   }
-  if (playerArtist && dlnaArtistBackup) {
-    playerArtist.textContent = dlnaArtistBackup;
-    dlnaArtistBackup = '';
+  if (playerArtist) {
+    const track = state.queue && state.queue[state.currentTrackIndex];
+    if (track && track.artist && track.title) {
+      playerArtist.textContent = `${track.artist} • ${track.title}`;
+    } else if (dlnaArtistBackup) {
+      playerArtist.textContent = dlnaArtistBackup;
+    }
   }
+  dlnaArtistBackup = '';
 }
 
 if (window.electronAPI && window.electronAPI.onDlnaPrepareStatus) {
   window.electronAPI.onDlnaPrepareStatus((info) => {
-    if (!info) return;
-    if (info.stage === 'playing' || info.stage === 'failed') { clearDlnaPrepareUi(); return; }
-    // 主行程回報即代表正在準備（seek／換下一首也會走同一條路徑）
-    if (!dlnaPreparing) beginDlnaPrepareUi(info.deviceName);
-    dlnaPrepareInfo = Object.assign({}, dlnaPrepareInfo || {}, info);
-    updateDlnaPrepareStrip(dlnaPrepareInfo);
+    clearDlnaPrepareUi();
   });
 }
 
@@ -17727,6 +17706,10 @@ function dlnaResetPosClock(sec) {
 
 function handleDlnaProgress(prog) {
   if (state.activeAudioZone === 'local' || !prog) return;
+
+  if (dlnaPreparing) {
+    clearDlnaPrepareUi();
+  }
 
   const currentSec = prog.currentSec || 0;
   const maxSec = Math.max(currentSec, prog.maxSec || 0, state.dlnaMaxProgressSec || 0);

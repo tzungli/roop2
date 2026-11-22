@@ -79,7 +79,9 @@ pub async fn dlna_play_track(
 ) -> Result<serde_json::Value, String> {
     let title = track.get("title").and_then(|v| v.as_str()).unwrap_or("Track");
     let artist = track.get("artist").and_then(|v| v.as_str()).unwrap_or("Artist");
+    let album = track.get("album").and_then(|v| v.as_str()).unwrap_or("Album");
     let file_path = track.get("filePath").or_else(|| track.get("path")).and_then(|v| v.as_str()).unwrap_or("");
+    let raw_cover = track.get("cover").or_else(|| track.get("coverPath")).and_then(|v| v.as_str()).unwrap_or("");
     let start = start_sec.unwrap_or(0.0);
 
     let dev = manager.get_devices().into_iter().find(|d| d.id == device_id);
@@ -88,6 +90,22 @@ pub async fn dlna_play_track(
         .unwrap_or_default();
 
     let local_ip = resolve_local_ip_for_target(&target_ip_or_host);
+
+    let cover_url = if !raw_cover.is_empty() {
+        if raw_cover.starts_with("http://") || raw_cover.starts_with("https://") {
+            Some(format!("http://{}:39840/cover?url={}", local_ip, urlencoding::encode(raw_cover)))
+        } else {
+            let clean = raw_cover
+                .trim_start_matches("media://")
+                .trim_start_matches("file:///")
+                .trim_start_matches("file://");
+            Some(format!("http://{}:39840/cover?path={}", local_ip, urlencoding::encode(clean)))
+        }
+    } else if !file_path.is_empty() {
+        Some(format!("http://{}:39840/cover?file_path={}", local_ip, urlencoding::encode(file_path)))
+    } else {
+        None
+    };
 
     let (target_rate, dsd_mode, dsd_order, filter_phase, peq_json, conv_json, ultrasonic_filter) =
         if let Some(opts) = &dsp_options {
@@ -124,6 +142,8 @@ pub async fn dlna_play_track(
         &stream_url,
         title,
         artist,
+        album,
+        cover_url.as_deref(),
         start,
         move |pos, dur, state| {
             let _ = app_clone.emit("dlna:progress", serde_json::json!({

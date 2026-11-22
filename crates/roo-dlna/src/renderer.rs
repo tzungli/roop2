@@ -63,6 +63,8 @@ impl DlnaManager {
         stream_url: &str,
         title: &str,
         artist: &str,
+        album: &str,
+        cover_url: Option<&str>,
         start_sec: f64,
         on_progress: impl Fn(f64, f64, &str) + Send + Sync + 'static,
         on_ended: impl Fn() + Send + Sync + 'static,
@@ -83,13 +85,15 @@ impl DlnaManager {
         let _ = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // 2. Set AVTransport URI with proper metadata
+        // 2. Set AVTransport URI with proper metadata (including title, artist, album, cover art)
         self.controller.set_av_transport_uri(
             &dev.av_transport_url,
             &dev.av_transport_service_type,
             stream_url,
             title,
             artist,
+            album,
+            cover_url,
             is_dsd,
         ).await?;
 
