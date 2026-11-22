@@ -280,7 +280,7 @@ const state = {
       return {
         enabled: saved.enabled === true,
         rateMode: saved.rateMode || '4x',
-        dsdOrder: [2, 5, 7].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
+        dsdOrder: [5, 7].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
         filterPhase: isValidFilterPhaseId(saved.filterPhase) ? saved.filterPhase : 'linear',
         ultrasonicFilter: ['none', '20k', '30k', '40k', '50k'].includes(saved.ultrasonicFilter) ? saved.ultrasonicFilter : '30k',
         dither: ['none', 'tpdf', 'gauss1'].includes(saved.dither) ? saved.dither : 'gauss1',

@@ -268,7 +268,7 @@ pub enum DitherType {
 }
 
 pub struct DsdModulator {
-    pub order: u8, // 2, 5, or 7
+    pub order: u8, // 5 or 7
     pub dither_type: DitherType,
     pub gf: Option<FirFilter>,
     pub poly_phases: Option<PolyphaseBank>,
@@ -287,7 +287,7 @@ impl DsdModulator {
     pub fn new(order: u8, phase_name: &str, dither: DitherType, gf: Option<FirFilter>) -> Self {
         let poly_phases = gf.as_ref().and_then(|f| f.poly_phases.clone().or_else(|| crate::fir::build_fir_phases(f)));
         Self {
-            order: match order { 2 => 2, 7 => 7, _ => 5 },
+            order: match order { 7 => 7, _ => 5 },
             dither_type: dither,
             gf,
             poly_phases,
@@ -319,177 +319,11 @@ impl DsdModulator {
         out: &mut [u8],
     ) {
         match self.order {
-            2 => self.run_blocks2(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
             7 => self.run_blocks7(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
             _ => self.run_blocks5(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
         }
     }
 
-    fn run_blocks2(
-        &mut self,
-        left: &[f64],
-        right: &[f64],
-        in_len: usize,
-        start_bit: usize,
-        num_blocks: usize,
-        inv_ratio: f64,
-        out: &mut [u8],
-    ) {
-        let mut s1_l = self.s1_l; let mut s2_l = self.s2_l; let mut y_l = self.y_l;
-        let mut s1_r = self.s1_r; let mut s2_r = self.s2_r; let mut y_r = self.y_r;
-
-        let ratio = 1.0 / inv_ratio;
-        let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
-        let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
-        let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
-
-        let use_fir = self.gf.is_some();
-        let dither_mode = self.dither_type;
-        let gauss_table = if dither_mode == DitherType::Gauss1 { Some(&*GAUSS_DITHER_TABLE) } else { None };
-        let tpdf_table = if dither_mode == DitherType::Tpdf { Some(&*TPDF_DITHER_TABLE) } else { None };
-        let mut dither_idx: usize = (start_bit * 137) & 0xffff;
-
-        let mut cur_idx = 0;
-        let mut cur_phi = 0;
-        if w_period > 0 {
-            cur_idx = start_bit / w_period;
-            cur_phi = start_bit - cur_idx * w_period;
-        }
-
-        let mut p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
-        let mut p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
-        let mut p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
-        let mut p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
-        let mut m1_l = 0.5 * (p2_l - p0_l);
-        let mut m2_l = 0.5 * (p3_l - p1_l);
-
-        let mut p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
-        let mut p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
-        let mut p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
-        let mut p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
-        let mut m1_r = 0.5 * (p2_r - p0_r);
-        let mut m2_r = 0.5 * (p3_r - p1_r);
-
-        for b in 0..num_blocks {
-            let left_off = b * 2 * DSD_BLOCK_SIZE;
-            let right_off = left_off + DSD_BLOCK_SIZE;
-            let start_sample_idx = start_bit + b * DSD_SAMPLES_PER_BLOCK;
-
-            for byte_idx in 0..DSD_BLOCK_SIZE {
-                let mut byte_val_l = 0u8;
-                let mut byte_val_r = 0u8;
-                let base_sample = start_sample_idx + (byte_idx << 3);
-
-                for bit in 0..8 {
-                    let out_idx = base_sample + bit;
-                    let (raw_l, raw_r) = if use_fir {
-                        if let (Some(gf), Some(phases)) = (&self.gf, &self.poly_phases) {
-                            let phi = out_idx % phases.p;
-                            let entry = &phases.entries[phi];
-                            let k_base = entry.k0 + (out_idx / phases.p) as i32 * phases.q as i32;
-                            let t = entry.t;
-                            if k_base >= 0 && (k_base as usize + t) <= in_len {
-                                let mut acc_l = 0.0;
-                                let mut acc_r = 0.0;
-                                let start = k_base as usize;
-                                for j in 0..t {
-                                    let k = start + j;
-                                    acc_l += left[k] * entry.g[j];
-                                    acc_r += right[k] * entry.g[j];
-                                }
-                                (acc_l, acc_r)
-                            } else {
-                                (fir_sample(left, in_len, out_idx, ratio, gf), fir_sample(right, in_len, out_idx, ratio, gf))
-                            }
-                        } else if let Some(gf) = &self.gf {
-                            (fir_sample(left, in_len, out_idx, ratio, gf), fir_sample(right, in_len, out_idx, ratio, gf))
-                        } else {
-                            (0.0, 0.0)
-                        }
-                    } else if let Some(tab) = &w_tab {
-                        let o = cur_phi * 4;
-                        cur_phi += 1;
-                        if cur_phi == w_period {
-                            cur_phi = 0;
-                            cur_idx += 1;
-                            p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
-                            p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
-                            p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
-                            p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
-                            m1_l = 0.5 * (p2_l - p0_l);
-                            m2_l = 0.5 * (p3_l - p1_l);
-
-                            p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
-                            p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
-                            p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
-                            p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
-                            m1_r = 0.5 * (p2_r - p0_r);
-                            m2_r = 0.5 * (p3_r - p1_r);
-                        }
-
-                        let y_l_interp = tab[o] * p1_l + tab[o + 1] * m1_l + tab[o + 2] * p2_l + tab[o + 3] * m2_l;
-                        let y_r_interp = tab[o] * p1_r + tab[o + 1] * m1_r + tab[o + 2] * p2_r + tab[o + 3] * m2_r;
-
-                        (y_l_interp.clamp(-1.0, 1.0), y_r_interp.clamp(-1.0, 1.0))
-                    } else {
-                        let t_src = out_idx as f64 * inv_ratio;
-                        let idx = t_src.floor() as usize;
-                        let frac = t_src - idx as f64;
-
-                        let p1_l = if idx < in_len { left[idx] } else { 0.0 };
-                        let p2_l = if idx + 1 < in_len { left[idx + 1] } else { 0.0 };
-                        let p0_l = if idx > 0 && idx - 1 < in_len { left[idx - 1] } else { p1_l };
-                        let p3_l = if idx + 2 < in_len { left[idx + 2] } else { p2_l };
-
-                        let p1_r = if idx < in_len { right[idx] } else { 0.0 };
-                        let p2_r = if idx + 1 < in_len { right[idx + 1] } else { 0.0 };
-                        let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
-                        let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
-
-                        match self.phase_name.as_str() {
-                            "minimum" => (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac)),
-                            "intermediate" => (interpolate_intermediate(p0_l, p1_l, p2_l, p3_l, frac), interpolate_intermediate(p0_r, p1_r, p2_r, p3_r, frac)),
-                            _ => (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac)),
-                        }
-                    };
-
-                    let (dither_l, dither_r) = if let Some(gtab) = gauss_table {
-                        let dl = gtab[dither_idx];
-                        let dr = gtab[(dither_idx + 1) & 0xffff];
-                        dither_idx = (dither_idx + 2) & 0xffff;
-                        (dl, dr)
-                    } else if let Some(ttab) = tpdf_table {
-                        let dl = ttab[dither_idx];
-                        let dr = ttab[(dither_idx + 1) & 0xffff];
-                        dither_idx = (dither_idx + 2) & 0xffff;
-                        (dl, dr)
-                    } else {
-                        (0.0, 0.0)
-                    };
-
-                    // 2nd-Order Boser-Wooley SDM
-                    let u_l = raw_l * 0.50;
-                    s1_l = (s1_l * 0.999999 + u_l - y_l).clamp(-3.0, 3.0);
-                    s2_l = (s2_l * 0.999999 + s1_l - 0.5 * y_l).clamp(-3.0, 3.0);
-                    y_l = if s2_l + dither_l >= 0.0 { 1.0 } else { -1.0 };
-                    // Sony DSF Spec: MSB-first
-                    byte_val_l = (byte_val_l << 1) | (if y_l > 0.0 { 1 } else { 0 });
-
-                    let u_r = raw_r * 0.50;
-                    s1_r = (s1_r * 0.999999 + u_r - y_r).clamp(-3.0, 3.0);
-                    s2_r = (s2_r * 0.999999 + s1_r - 0.5 * y_r).clamp(-3.0, 3.0);
-                    y_r = if s2_r + dither_r >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_r = (byte_val_r << 1) | (if y_r > 0.0 { 1 } else { 0 });
-                }
-
-                out[left_off + byte_idx] = byte_val_l;
-                out[right_off + byte_idx] = byte_val_r;
-            }
-        }
-
-        self.s1_l = s1_l; self.s2_l = s2_l; self.y_l = y_l;
-        self.s1_r = s1_r; self.s2_r = s2_r; self.y_r = y_r;
-    }
 
     fn run_blocks5(
         &mut self,
