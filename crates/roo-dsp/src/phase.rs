@@ -84,7 +84,7 @@ where
         h[j] = (buf[t0].re + fr * (buf[next_idx].re - buf[t0].re)) * g;
     }
 
-    FirFilter {
+    let mut filter = FirFilter {
         h,
         s,
         lo: 0,
@@ -95,5 +95,8 @@ where
         src_rate,
         minimum_phase: true,
         taps: budget,
-    }
+        poly_phases: None,
+    };
+    filter.poly_phases = crate::fir::build_fir_phases(&filter);
+    filter
 }

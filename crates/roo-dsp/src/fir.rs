@@ -3,14 +3,18 @@ use serde::{Deserialize, Serialize};
 
 #[inline]
 pub fn bessel_i0(x: f64) -> f64 {
-    let ax = x.abs();
-    if ax < 3.75 {
-        let y = (x / 3.75) * (x / 3.75);
-        1.0 + y * (3.5156229 + y * (3.0899424 + y * (1.2067492 + y * (0.2659732 + y * (0.0360768 + y * 0.0045813)))))
-    } else {
-        let y = 3.75 / ax;
-        (ax.exp() / ax.sqrt()) * (0.39894228 + y * (0.01328592 + y * (0.00225319 + y * (-0.00157565 + y * (0.00916281 + y * (-0.02057706 + y * (0.02635537 + y * (-0.01647633 + y * 0.00392377))))))))
+    let mut sum = 1.0;
+    let mut term = 1.0;
+    let half_x = x / 2.0;
+    for k in 1..=60 {
+        term *= half_x / k as f64;
+        let t2 = term * term;
+        sum += t2;
+        if t2 < sum * 1e-17 {
+            break;
+        }
     }
+    sum
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +90,20 @@ pub fn get_hermite_tab(period: usize) -> Vec<f64> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhaseEntry {
+    pub k0: i32,
+    pub t: usize,
+    pub g: Vec<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolyphaseBank {
+    pub p: usize,
+    pub q: usize,
+    pub entries: Vec<PhaseEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FirFilter {
     pub h: Vec<f64>,
     pub s: usize,
@@ -97,23 +115,10 @@ pub struct FirFilter {
     pub src_rate: f64,
     pub minimum_phase: bool,
     pub taps: usize,
+    pub poly_phases: Option<PolyphaseBank>,
 }
 
-#[derive(Debug, Clone)]
-pub struct PhaseEntry {
-    pub k0: i32,
-    pub t: usize,
-    pub g: Vec<f64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PolyphaseBank {
-    pub p: usize,
-    pub q: usize,
-    pub entries: Vec<PhaseEntry>,
-}
-
-fn gcd(mut a: usize, mut b: usize) -> usize {
+pub fn gcd(mut a: usize, mut b: usize) -> usize {
     while b != 0 {
         let t = b;
         b = a % b;
@@ -123,89 +128,145 @@ fn gcd(mut a: usize, mut b: usize) -> usize {
 }
 
 pub fn build_fir_phases(gf: &FirFilter) -> Option<PolyphaseBank> {
-    let s = gf.s.max(1);
-    let ratio = gf.ratio;
-    if ratio <= 0.0 {
+    let fs_out = gf.fs_out.round() as usize;
+    let src_rate = gf.src_rate.round() as usize;
+    if fs_out == 0 || src_rate == 0 {
         return None;
     }
-    let p_raw = (ratio * s as f64).round() as usize;
-    let q_raw = s;
-    let g = gcd(p_raw, q_raw);
-    let p = p_raw / g;
-    let q = q_raw / g;
+    let g = gcd(fs_out, src_rate);
+    let p = fs_out / g;
+    let q = src_rate / g;
 
-    if p > 512 {
+    if p < 1 || p > 4096 {
         return None;
     }
 
     let h = &gf.h;
-    let n = h.len();
-    let lo = gf.lo;
-    let hi = gf.hi;
+    let s = gf.s as i64;
+    let lo = gf.lo as i64;
+    let hi = gf.hi as i64;
+    let max_j = (hi - lo) * s;
+    let p_i64 = p as i64;
+    let q_i64 = q as i64;
+
     let mut entries = Vec::with_capacity(p);
 
     for phi in 0..p {
-        let mut k_lo = i32::MAX;
-        let mut k_hi = i32::MIN;
+        let phi_i64 = phi as i64;
+        let k0 = (((phi_i64 - hi) * q_i64) as f64 / p_i64 as f64).ceil() as i64;
+        let a = phi_i64 * q_i64 - k0 * p_i64 - lo * q_i64; // exact integer = (t0 - lo) * Q
+        let t = (a / p_i64) + 1;
 
-        let mut k = ((lo as f64 - phi as f64 * q as f64 / p as f64).floor() as i32) - 1;
-        while k <= hi + 2 {
-            let j = (k as f64 * p as f64 + phi as f64 * q as f64) * (s as f64 / p as f64) - (lo as f64 * s as f64);
-            let j_int = j.floor() as i32;
-            if j_int >= 0 && (j_int as usize) < n - 1 {
-                if k < k_lo { k_lo = k; }
-                if k > k_hi { k_hi = k; }
-            }
-            k += 1;
-        }
-
-        if k_lo > k_hi {
-            entries.push(PhaseEntry { k0: 0, t: 0, g: Vec::new() });
+        if t < 1 || t > 8192 {
+            entries.push(PhaseEntry {
+                k0: 0,
+                t: 0,
+                g: Vec::new(),
+            });
             continue;
         }
 
-        let t_len = (k_hi - k_lo + 1) as usize;
-        let mut g_vec = vec![0.0; t_len];
+        let n0 = s * a;
+        let sp = s * p_i64;
+        let t_usize = t as usize;
+        let mut g_vec = vec![0.0f64; t_usize];
 
-        for (idx, cur_k) in (k_lo..=k_hi).enumerate() {
-            let j = (cur_k as f64 * p as f64 + phi as f64 * q as f64) * (s as f64 / p as f64) - (lo as f64 * s as f64);
-            let j0 = j.floor() as usize;
-            let fr = j - j0 as f64;
-            if j0 < n - 1 {
-                g_vec[idx] = h[j0] + fr * (h[j0 + 1] - h[j0]);
+        for j in 0..t_usize {
+            let num = n0 - (j as i64) * sp;
+            let mut j0 = num / q_i64;
+            if j0 < 0 {
+                j0 = 0;
+            } else if j0 > max_j {
+                j0 = max_j;
+            }
+            let rem = num - j0 * q_i64;
+            let j0_u = j0 as usize;
+            if rem <= 0 {
+                g_vec[j] = if j0_u < h.len() { h[j0_u] } else { 0.0 };
+            } else {
+                let h0 = if j0_u < h.len() { h[j0_u] } else { 0.0 };
+                let h1 = if j0_u + 1 < h.len() { h[j0_u + 1] } else { h0 };
+                g_vec[j] = h0 + (rem as f64 / q as f64) * (h1 - h0);
             }
         }
 
-        entries.push(PhaseEntry { k0: k_lo, t: t_len, g: g_vec });
+        entries.push(PhaseEntry {
+            k0: k0 as i32,
+            t: t_usize,
+            g: g_vec,
+        });
     }
 
-    Some(PolyphaseBank { p, q, entries })
+    Some(PolyphaseBank {
+        p,
+        q,
+        entries,
+    })
 }
 
 #[inline]
 pub fn fir_sample(input: &[f64], in_len: usize, out_idx: usize, ratio: f64, gf: &FirFilter) -> f64 {
-    let t_src = out_idx as f64 / ratio;
-    let k_center = t_src.floor() as i32;
-    let sub = t_src - k_center as f64;
-    let s = gf.s as f64;
+    // Fast path: contiguous polyphase scan with precomputed bank
+    if let Some(ph) = &gf.poly_phases {
+        let phi = out_idx % ph.p;
+        let entry = &ph.entries[phi];
+        let k_base = entry.k0 + (out_idx / ph.p) as i32 * ph.q as i32;
+        let t = entry.t;
+        if k_base >= 0 && (k_base as usize + t) <= in_len {
+            let mut acc = 0.0;
+            let start = k_base as usize;
+            for j in 0..t {
+                acc += input[start + j] * entry.g[j];
+            }
+            return acc;
+        }
+    }
+
     let h = &gf.h;
-    let n = h.len();
+    let s = gf.s as f64;
     let lo = gf.lo;
     let hi = gf.hi;
-    let half_s = -lo as f64 * s;
+
+    let mut k_start = ((out_idx as f64 - hi as f64) / ratio).ceil() as i32;
+    let mut k_end = ((out_idx as f64 - lo as f64) / ratio).floor() as i32;
+    if k_start < 0 {
+        k_start = 0;
+    }
+    if k_end > in_len.saturating_sub(1) as i32 {
+        k_end = in_len.saturating_sub(1) as i32;
+    }
+    if k_start > k_end {
+        return 0.0;
+    }
 
     let mut acc = 0.0;
-    for k in (k_center + lo)..=(k_center + hi) {
-        if k >= 0 && (k as usize) < in_len {
-            let t = sub - (k - k_center) as f64;
-            let j = t * s + half_s;
-            let j0 = j.floor() as i32;
-            let fr = j - j0 as f64;
-            if j0 >= 0 && (j0 as usize) < n - 1 {
-                let j_u = j0 as usize;
-                let c = h[j_u] + fr * (h[j_u + 1] - h[j_u]);
-                acc += input[k as usize] * c;
+    if gf.integer_ratio {
+        let r = ratio.round() as i32;
+        let mut m = out_idx as i32 - k_start * r - lo;
+        for k in k_start..=k_end {
+            if m >= 0 && (m as usize) < h.len() {
+                acc += input[k as usize] * h[m as usize];
             }
+            m -= r;
+        }
+    } else {
+        let mut t = out_idx as f64 - k_start as f64 * ratio;
+        let max_j = (hi - lo) as f64 * s;
+        for k in k_start..=k_end {
+            let mut j = (t - lo as f64) * s;
+            if j < 0.0 {
+                j = 0.0;
+            } else if j > max_j {
+                j = max_j;
+            }
+            let j0 = j.floor() as usize;
+            let frac = j - j0 as f64;
+            if j0 + 1 < h.len() {
+                acc += input[k as usize] * (h[j0] + frac * (h[j0 + 1] - h[j0]));
+            } else if j0 < h.len() {
+                acc += input[k as usize] * h[j0];
+            }
+            t -= ratio;
         }
     }
     acc
@@ -247,7 +308,7 @@ pub fn kaiser_sinc_fir(fs_out: f64, src_rate: f64, as_db: f64, fc_factor: f64, t
         *x *= g;
     }
 
-    FirFilter {
+    let mut filter = FirFilter {
         h,
         s,
         lo: -l,
@@ -258,7 +319,10 @@ pub fn kaiser_sinc_fir(fs_out: f64, src_rate: f64, as_db: f64, fc_factor: f64, t
         src_rate,
         minimum_phase: false,
         taps: (2 * half + 1) as usize,
-    }
+        poly_phases: None,
+    };
+    filter.poly_phases = build_fir_phases(&filter);
+    filter
 }
 
 pub fn build_poly_ext2_filter(fs_out: f64, src_rate: f64) -> FirFilter {
@@ -299,7 +363,7 @@ pub fn build_hq_poly_sinc_gauss_long_filter(fs_out: f64, src_rate: f64) -> FirFi
         *x *= g;
     }
 
-    FirFilter {
+    let mut filter = FirFilter {
         h,
         s,
         lo: -l,
@@ -310,7 +374,10 @@ pub fn build_hq_poly_sinc_gauss_long_filter(fs_out: f64, src_rate: f64) -> FirFi
         src_rate,
         minimum_phase: false,
         taps: (2 * half + 1) as usize,
-    }
+        poly_phases: None,
+    };
+    filter.poly_phases = build_fir_phases(&filter);
+    filter
 }
 
 pub fn build_gauss_filter(fs_out: f64, src_rate: f64, minimum_phase: bool) -> FirFilter {
@@ -344,7 +411,7 @@ pub fn build_gauss_filter(fs_out: f64, src_rate: f64, minimum_phase: bool) -> Fi
             *x *= g;
         }
 
-        FirFilter {
+        let mut filter = FirFilter {
             h,
             s,
             lo: -l,
@@ -355,7 +422,10 @@ pub fn build_gauss_filter(fs_out: f64, src_rate: f64, minimum_phase: bool) -> Fi
             src_rate,
             minimum_phase: false,
             taps: (2 * half + 1) as usize,
-        }
+            poly_phases: None,
+        };
+        filter.poly_phases = build_fir_phases(&filter);
+        filter
     } else {
         crate::phase::minimum_phase_from_tap_fn(fs_out, src_rate, l, s, &gauss_tap)
     }
@@ -448,7 +518,7 @@ pub fn windowed_sinc_fir_ext(
         *x *= g;
     }
 
-    FirFilter {
+    let mut filter = FirFilter {
         h,
         s,
         lo: -l,
@@ -459,5 +529,8 @@ pub fn windowed_sinc_fir_ext(
         src_rate,
         minimum_phase: false,
         taps: (2 * half + 1) as usize,
-    }
+        poly_phases: None,
+    };
+    filter.poly_phases = build_fir_phases(&filter);
+    filter
 }

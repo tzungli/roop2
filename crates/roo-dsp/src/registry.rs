@@ -172,11 +172,14 @@ impl FilterRegistry {
             "pure-flat" => Some(kaiser_sinc_fir(fs_out, src_rate, 160.0, 1.07, 0.095)),
             "gauss-long" => Some(build_gauss_filter(fs_out, src_rate, false)),
             "gauss-min" => Some(build_gauss_filter(fs_out, src_rate, true)),
+            "linear" => Some(build_poly_ext2_filter(fs_out, src_rate)),
+            "minimum" => Some(build_gauss_filter(fs_out, src_rate, true)),
+            "intermediate" => Some(build_gauss_filter(fs_out, src_rate, false)),
             id if id.starts_with("uf-") => {
                 let slots = self.user_slots.read().unwrap();
                 slots.get(id).and_then(|spec| self.build_user_filter(fs_out, src_rate, spec))
             }
-            _ => None, // "linear", "minimum", "intermediate" are polynomial interpolators
+            _ => Some(build_poly_ext2_filter(fs_out, src_rate)),
         }
     }
 
