@@ -151,6 +151,10 @@
           <span class="nav-label">網路資料夾設定</span>
           <span class="badge" id="netFolderCountBadge">0</span>
         </button>
+        <button class="nav-item" data-view="dsp" id="navItemDsp">
+          <span class="nav-icon">🎛️</span>
+          <span class="nav-label">MUSE 聲音控制 (DSP)</span>
+        </button>
         <button class="nav-item" data-view="about">
           <span class="nav-icon">📖</span>
           <span class="nav-label">說明</span>
@@ -2023,6 +2027,598 @@
 
         </div>
       </section>
+
+      <!-- 12. MUSE PRECISION AUDIO CONTROL (ROON-STYLE FULL PAGE VIEW) -->
+      <section id="viewDsp" class="content-view">
+        <div class="muse-container">
+          <!-- Top Navigation & Preset Bar -->
+          <div class="muse-top-bar">
+            <div class="muse-brand">
+              <span class="muse-logo">MUSE</span>
+              <span class="muse-sublogo">PRECISION AUDIO CONTROL</span>
+            </div>
+
+            <div class="muse-preset-picker">
+              <span class="muse-preset-label">預設值</span>
+              <div class="muse-preset-dropdown-wrap">
+                <button class="muse-preset-btn" id="musePresetBtn" type="button">
+                  <span id="museCurrentPresetName">沒有預設值</span>
+                  <span class="muse-caret">▾</span>
+                </button>
+                <div class="muse-preset-menu" id="musePresetMenu" style="display: none;">
+                  <div class="muse-menu-item active" data-preset="none">沒有預設值 (平直)</div>
+                  <div class="muse-menu-item" data-preset="warm">發燒溫暖厚實</div>
+                  <div class="muse-menu-item" data-preset="bright">明亮通透空氣感</div>
+                  <div class="muse-menu-item" data-preset="vocal">人聲突出甜美</div>
+                  <div class="muse-menu-item" data-preset="bass">深沉低頻下潛</div>
+                  <div class="muse-menu-item" data-preset="hires">8x 升頻極致</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="muse-top-actions">
+              <button class="muse-icon-btn" id="btnMuseSettings" title="MUSE 處理偏好設定" type="button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2-Column Split Body -->
+          <div class="muse-body">
+            <!-- Left Column: Filter & Processing Chain Navigation -->
+            <div class="muse-sidebar">
+              <!-- Zone Header Card -->
+              <div class="muse-zone-card">
+                <div class="muse-zone-info">
+                  <span class="muse-zone-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
+                  </span>
+                  <span class="muse-zone-name" id="museZoneName">System Output</span>
+                </div>
+                <button class="muse-back-btn" id="btnMuseBack" title="返回上一頁" type="button">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Fixed Processing Block 1: Headroom Management -->
+              <div class="muse-chain-card" data-tab="headroom" id="museCardHeadroom">
+                <div class="muse-card-body">
+                  <div class="muse-card-title">動態範圍餘量管理</div>
+                  <div class="muse-card-toggle-wrap">
+                    <label class="muse-switch" onclick="event.stopPropagation()">
+                      <input type="checkbox" id="toggleMuseHeadroom">
+                      <span class="muse-slider"></span>
+                    </label>
+                    <span class="muse-toggle-text" id="museHeadroomStatus">停用</span>
+                  </div>
+                </div>
+                <button class="muse-chevron-btn" type="button">›</button>
+              </div>
+
+              <!-- Fixed Processing Block 2: Sample Rate Conversion -->
+              <div class="muse-chain-card" data-tab="src" id="museCardSrc">
+                <div class="muse-card-body">
+                  <div class="muse-card-title">取樣率轉換</div>
+                  <div class="muse-card-toggle-wrap">
+                    <label class="muse-switch" onclick="event.stopPropagation()">
+                      <input type="checkbox" id="toggleMuseSrc">
+                      <span class="muse-slider"></span>
+                    </label>
+                    <span class="muse-toggle-text" id="museSrcStatus">停用</span>
+                  </div>
+                </div>
+                <button class="muse-chevron-btn" type="button">›</button>
+              </div>
+
+              <!-- Filter Section Header -->
+              <div class="muse-section-head">
+                <span class="muse-section-title">濾波器</span>
+                <div class="muse-bypass-all-wrap">
+                  <span class="muse-bypass-label">略過所有濾波器</span>
+                  <label class="muse-switch">
+                    <input type="checkbox" id="toggleMuseBypassAll">
+                    <span class="muse-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Reorderable Filters List -->
+              <div class="muse-filter-list" id="museFilterList">
+                <!-- Filter 1: Crossfeed -->
+                <div class="muse-chain-card muse-filter-item" data-tab="crossfeed" id="museCardCrossfeed">
+                  <span class="muse-drag-grip" title="拖曳排序">⋮⋮</span>
+                  <span class="muse-filter-circle-icon crossfeed-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                  </span>
+                  <div class="muse-card-body">
+                    <div class="muse-card-title">Crossfeed</div>
+                    <div class="muse-card-toggle-wrap">
+                      <label class="muse-switch" onclick="event.stopPropagation()">
+                        <input type="checkbox" id="toggleMuseCrossfeed">
+                        <span class="muse-slider"></span>
+                      </label>
+                      <span class="muse-toggle-text" id="museCrossfeedStatus">停用</span>
+                    </div>
+                  </div>
+                  <button class="muse-chevron-btn" type="button">›</button>
+                </div>
+
+                <!-- Filter 2: 參數等化器 (PEQ) Active by default -->
+                <div class="muse-chain-card muse-filter-item active" data-tab="peq" id="museCardPeq">
+                  <span class="muse-drag-grip" title="拖曳排序">⋮⋮</span>
+                  <span class="muse-filter-circle-icon peq-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 7-7 6 14 10 14 3-7 3-7"></path></svg>
+                  </span>
+                  <div class="muse-card-body">
+                    <div class="muse-card-title">參數等化器</div>
+                    <div class="muse-card-toggle-wrap">
+                      <label class="muse-switch" onclick="event.stopPropagation()">
+                        <input type="checkbox" id="toggleMusePeq">
+                        <span class="muse-slider"></span>
+                      </label>
+                      <span class="muse-toggle-text" id="musePeqStatus">停用</span>
+                    </div>
+                  </div>
+                  <button class="muse-chevron-btn" type="button">›</button>
+                </div>
+
+                <!-- Filter 3: 卷積濾波器 (Convolution) -->
+                <div class="muse-chain-card muse-filter-item" data-tab="conv" id="museCardConv">
+                  <span class="muse-drag-grip" title="拖曳排序">⋮⋮</span>
+                  <span class="muse-filter-circle-icon conv-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"></path></svg>
+                  </span>
+                  <div class="muse-card-body">
+                    <div class="muse-card-title">卷積濾波器 (IR)</div>
+                    <div class="muse-card-toggle-wrap">
+                      <label class="muse-switch" onclick="event.stopPropagation()">
+                        <input type="checkbox" id="toggleMuseConv">
+                        <span class="muse-slider"></span>
+                      </label>
+                      <span class="muse-toggle-text" id="museConvStatus">停用</span>
+                    </div>
+                  </div>
+                  <button class="muse-chevron-btn" type="button">›</button>
+                </div>
+              </div>
+
+              <!-- + Add Filter button -->
+              <div class="muse-add-filter-container">
+                <button class="muse-add-filter-button" id="btnMuseAddFilter" type="button">
+                  <span class="muse-plus-icon">+</span>
+                  <span>新增濾波器</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Right Column: Detail Editor Panels -->
+            <div class="muse-main-pane">
+              <!-- Panel 1: 參數等化器 (PEQ) Active by Default -->
+              <div class="muse-panel active" id="musePanelPeq">
+                <!-- Panel Header -->
+                <div class="muse-panel-header">
+                  <div class="muse-panel-title-wrap">
+                    <span class="muse-panel-header-icon peq-wave-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 7-7 6 14 10 14 3-7 3-7"></path></svg>
+                    </span>
+                    <div>
+                      <h2 class="muse-panel-title">參數等化器</h2>
+                      <div class="muse-panel-preset-wrap">
+                        <button class="muse-sub-preset-btn" id="btnMuseEqPreset" type="button">
+                          <span id="museEqPresetLabel">儲存/載入 EQ</span>
+                          <span class="muse-caret">▾</span>
+                        </button>
+                        <div class="muse-eq-preset-menu" id="museEqPresetMenu" style="display: none;">
+                          <div class="muse-menu-item" data-eq-preset="flat">平直 (預設)</div>
+                          <div class="muse-menu-item" data-eq-preset="warm">溫暖厚實</div>
+                          <div class="muse-menu-item" data-eq-preset="bright">明亮通透</div>
+                          <div class="muse-menu-item" data-eq-preset="vocal">人聲突出</div>
+                          <div class="muse-menu-item" data-eq-preset="bass">低頻飽和</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <button class="muse-remove-filter-btn" id="btnMuseRemovePeq" type="button">✕ 移除濾波器</button>
+                </div>
+
+                <!-- Frequency Response Curve Graph Container -->
+                <div class="muse-graph-card">
+                  <div class="muse-graph-stage">
+                    <canvas id="musePeqCanvas" width="920" height="320"></canvas>
+                    <!-- Zoom Controls -->
+                    <div class="muse-graph-zoom-controls">
+                      <button class="muse-zoom-btn" id="btnMuseZoomIn" title="放大縱軸解析度" type="button">+</button>
+                      <button class="muse-zoom-btn" id="btnMuseZoomOut" title="縮小縱軸解析度" type="button">−</button>
+                    </div>
+                    <!-- Right Vertical Slider / Level Track -->
+                    <div class="muse-vertical-track-wrap">
+                      <div class="muse-vtrack">
+                        <div class="muse-vthumb" id="museVThumb"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Band Parameter Editor -->
+                <div class="muse-band-editor">
+                  <!-- Row 1: Band Selector and Enable Switch -->
+                  <div class="muse-band-header-row">
+                    <div class="muse-band-selector-wrap">
+                      <span class="muse-band-dot" id="museBandDotIndicator" style="background-color: #22d3ee;"></span>
+                      <select id="museBandSelector" class="muse-select-clean">
+                        <option value="0">頻帶 1</option>
+                        <option value="1">頻帶 2</option>
+                        <option value="2">頻帶 3</option>
+                        <option value="3">頻帶 4</option>
+                        <option value="4">頻帶 5</option>
+                        <option value="5">頻帶 6</option>
+                      </select>
+                    </div>
+                    <div class="muse-band-enable-wrap">
+                      <label class="muse-switch">
+                        <input type="checkbox" id="museCurrentBandToggle" checked>
+                        <span class="muse-slider"></span>
+                      </label>
+                      <span class="muse-toggle-label-text">啟用</span>
+                    </div>
+                  </div>
+
+                  <!-- Row 2: Frequency (頻率) -->
+                  <div class="muse-param-row">
+                    <span class="muse-param-label">頻率</span>
+                    <div class="muse-param-slider-cell">
+                      <input type="range" class="muse-range-slider" id="museFreqSlider" min="0" max="1000" value="230">
+                    </div>
+                    <div class="muse-param-input-box">
+                      <input type="number" class="muse-number-input" id="museFreqInput" min="20" max="20000" value="100">
+                      <span class="muse-unit">Hz</span>
+                    </div>
+                  </div>
+
+                  <!-- Row 3: Gain (增益) -->
+                  <div class="muse-param-row">
+                    <span class="muse-param-label">增益(Gain,dB)</span>
+                    <div class="muse-param-slider-cell">
+                      <input type="range" class="muse-range-slider" id="museGainSlider" min="-24" max="24" step="0.5" value="0">
+                    </div>
+                    <div class="muse-param-input-box">
+                      <input type="number" class="muse-number-input" id="museGainInput" min="-24" max="24" step="0.5" value="0">
+                      <span class="muse-unit">dB</span>
+                    </div>
+                  </div>
+
+                  <!-- Row 4: Q-Value (Q值) -->
+                  <div class="muse-param-row">
+                    <span class="muse-param-label">Q值</span>
+                    <div class="muse-param-slider-cell">
+                      <input type="range" class="muse-range-slider" id="museQSlider" min="0" max="100" value="25">
+                    </div>
+                    <div class="muse-param-input-box">
+                      <input type="number" class="muse-number-input" id="museQInput" min="0.1" max="10.0" step="0.05" value="1.0">
+                    </div>
+                  </div>
+
+                  <!-- Row 5: Filter Type (類型) -->
+                  <div class="muse-param-row muse-type-row">
+                    <span class="muse-param-label">類型</span>
+                    <div class="muse-type-select-cell">
+                      <select id="museTypeSelect" class="muse-select-clean muse-type-dropdown">
+                        <option value="lowshelf">低架濾波 (Low Shelf)</option>
+                        <option value="peaking">峰值 (Peak / Bell)</option>
+                        <option value="highshelf">高架濾波 (High Shelf)</option>
+                        <option value="lowpass">低通濾波 (Low Pass)</option>
+                        <option value="highpass">高通濾波 (High Pass)</option>
+                        <option value="notch">陷波 (Notch)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Preset Slots Row & Notes -->
+                  <div class="muse-slot-section">
+                    <div class="peq-slot-row" id="peqSlotRow"></div>
+                    <div class="peq-meta-row" style="margin-top: 10px;">
+                      <span class="peq-headroom-note" id="peqHeadroomNote">自動預降 0.0 dB（保護電路不削頂）</span>
+                      <span class="peq-live-note">設定即時套用到播放中的曲目</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel 2: 取樣率轉換 (Sample Rate Conversion / Sox & DSD) -->
+              <div class="muse-panel" id="musePanelSrc" style="display: none;">
+                <div class="muse-panel-header">
+                  <div class="muse-panel-title-wrap">
+                    <span class="muse-panel-header-icon src-icon">🎛️</span>
+                    <div>
+                      <h2 class="muse-panel-title">取樣率轉換 (Sample Rate Conversion)</h2>
+                      <div class="muse-panel-desc">發燒級 64 位元浮點即時超取樣升頻與 1-bit DSD 調變，拓展音場細節與瞬態還原</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dsp-sox-body" id="dspSoxBody" style="margin-top: 20px;">
+                  <!-- Target Sample Rate Selection (PCM) -->
+                  <div class="dsp-option-group">
+                    <div class="dsp-option-label">
+                      <span>PCM 升頻取樣規格 (PCM Upsampling)</span>
+                      <span class="dsp-hint-badge" id="dspActiveRateHint">4x 整數倍頻</span>
+                    </div>
+                    <div class="dsp-pill-selector" id="dspRateSelector">
+                      <button class="dsp-pill active" data-rate-mode="4x" title="44.1k➔176.4k, 48k➔192k (發燒推薦：整數倍頻相位最純淨)">4x 整數倍頻 (推薦)</button>
+                      <button class="dsp-pill" data-rate-mode="2x" title="44.1k➔88.2k, 48k➔96k (整數 2 倍超取樣)">2x 整數倍頻</button>
+                      <button class="dsp-pill" data-rate-mode="192k" title="固定升頻至 192 kHz / 24-bit">固定 192 kHz</button>
+                      <button class="dsp-pill" data-rate-mode="384k" title="固定升頻至 384 kHz / 24-bit (DXD 頂級解碼)">固定 384 kHz</button>
+                      <button class="dsp-pill" data-rate-mode="96k" title="固定升頻至 96 kHz / 24-bit">固定 96 kHz</button>
+                    </div>
+                  </div>
+
+                  <!-- Target DSD Modulation Selection -->
+                  <div class="dsp-option-group">
+                    <div class="dsp-option-label">
+                      <span>1-bit DSD 調變升頻 (PCM ➔ 1-bit DSD SDM Modulator)</span>
+                      <span class="dsp-hint-badge dsd-badge-color" id="dspActiveDsdHint">可選 DSD 格式</span>
+                    </div>
+                    <div class="dsp-pill-selector" id="dspDsdRateSelector">
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd64" title="PCM ➔ DSD64 (1-bit / 2.8224 MHz 或 3.072 MHz 超高頻噪聲整形調變)">DSD64 (2.8 MHz)</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd128" title="PCM ➔ DSD128 (1-bit / 5.6448 MHz 或 6.144 MHz 雙倍 DSD 調變)">DSD128 (5.6 MHz)</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd256" title="PCM ➔ DSD256 (1-bit / 11.2896 MHz 或 12.288 MHz 四倍 DSD 調變)">DSD256 (11.2 MHz)</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd512" title="PCM ➔ DSD512 (1-bit / 22.5792 MHz 或 24.576 MHz 極限發燒 DSD 調變)">DSD512 (22.5 MHz)</button>
+                    </div>
+                  </div>
+
+                  <!-- DSD Modulator Order Selection -->
+                  <div class="dsp-option-group" id="dspOrderGroup">
+                    <div class="dsp-option-label">
+                      <span>調變器階數 (Modulator Order)</span>
+                      <span class="dsp-hint-badge dsd-badge-color" id="dspActiveOrderHint">5 階 (CRFB 發燒推薦)</span>
+                    </div>
+                    <div class="dsp-pill-selector" id="dspOrderSelector">
+                      <button class="dsp-pill pill-dsd" data-order="2" title="2 階 Boser-Wooley 經典調變 (溫潤厚實，類比黑膠感)">2 階 (經典溫潤)</button>
+                      <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB 發燒推薦)</button>
+                      <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CRFB 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (極致微動態)</button>
+                    </div>
+                  </div>
+
+                  <!-- Ultrasonic Noise Protection Filter -->
+                  <div class="dsp-option-group" id="dspUltrasonicGroup">
+                    <div class="dsp-option-label">
+                      <span>🛡️ 超音波噪聲防護濾波 (Ultrasonic Filter)</span>
+                      <span class="dsp-hint-badge dsd-badge-color" id="dspActiveUltrasonicHint">30 kHz (預設推薦)</span>
+                    </div>
+                    <div class="dsp-pill-selector" id="dspUltrasonicSelector">
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="none" title="關閉超音波防護 (無濾波)">關閉 (None)</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="20k" title="20 kHz 截止：強效防護，徹底隔絕超高頻，適合敏感型 DAC 或老晶片">20 kHz</button>
+                      <button class="dsp-pill pill-dsd active" data-ultrasonic="30k" title="30 kHz 截止 (預設推薦)：發燒黃金平衡，兼具極限空氣感與超音波噪聲徹底阻隔">30 kHz (預設推薦)</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="40k" title="40 kHz 截止：寬廣高頻延伸，有效降低 DAC 射頻互調失真">40 kHz</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="50k" title="50 kHz 截止：極限解析保留，消除超高頻發散噪聲">50 kHz</button>
+                    </div>
+                  </div>
+
+                  <!-- Quantization Dither Selection -->
+                  <div class="dsp-option-group" id="dspDitherGroup">
+                    <div class="dsp-option-label">
+                      <span>✨ 量化抖動 (Quantization Dither)</span>
+                      <span class="dsp-hint-badge" id="dspActiveDitherHint">Gauss1 (高斯溫潤)</span>
+                    </div>
+                    <div class="dsp-pill-selector" id="dspDitherSelector">
+                      <button class="dsp-pill active" data-dither="gauss1" title="Gauss1：高斯機率密度分佈抖動 (HQPlayer 同款演算法，徹底打散極限環，背景溫潤深黑)">Gauss1 (高斯溫潤 - 推薦)</button>
+                      <button class="dsp-pill" data-dither="tpdf" title="TPDF：標準三角形機率密度抖動 (經典錄音室標準，線性純淨無諧波失真)">TPDF (三角形分佈)</button>
+                      <button class="dsp-pill" data-dither="none" title="關閉抖動 (無 Dither)">關閉 (None)</button>
+                    </div>
+                  </div>
+
+                  <!-- Filter Phase Selection -->
+                  <div class="dsp-option-group" id="dspPhaseGroup">
+                    <div class="dsp-option-label">
+                      <div style="display: inline-flex; align-items: center; gap: 6px;">
+                        <span>濾波器相位 (Filter Phase)</span>
+                        <button type="button" class="dsp-guide-link" id="btnFilterGuideLink" title="檢視各濾波器相位的實測規格、音質影響與發燒搭配指南">📖 搭配指南</button>
+                      </div>
+                      <span class="dsp-hint-badge" id="dspActivePhaseHint">線性相位 (零相位失真)</span>
+                    </div>
+                    <div class="dsp-pill-selector" id="dspPhaseSelector"></div>
+                  </div>
+
+                  <!-- User Filter Toolbox -->
+                  <div class="user-filter-strip" id="userFilterStrip">
+                    <div class="user-filter-strip-head">
+                      <span class="user-filter-strip-title">🛠️ 自訂濾波器</span>
+                      <span class="user-filter-strip-actions">
+                        <button class="uf-mini-btn" id="ufNewBtn">＋ 新建</button>
+                        <button class="uf-mini-btn uf-manage-btn" id="ufManageBtn">⚙ 管理</button>
+                      </span>
+                    </div>
+                    <div class="user-filter-chips" id="ufChipRow"><span class="uf-chips-empty">尚無自訂濾波器 — 點「＋ 新建」於安全範圍內設計專屬濾波器</span></div>
+
+                    <!-- Inline editor panel -->
+                    <div class="uf-panel" id="ufEditorPanel" style="display: none;">
+                      <div class="uf-panel-head">
+                        <span id="ufEditorTitle">新建濾波器</span>
+                        <button class="uf-mini-btn" id="ufCloseEditor">收合 ✕</button>
+                      </div>
+                      <div class="uf-form-col">
+                        <div class="uf-grid2">
+                          <div class="uf-field">
+                            <label for="ufNameInput">名稱</label>
+                            <input type="text" id="ufNameInput" class="form-control" maxlength="40" placeholder="例如：暖聲緩降" style="width:100%;box-sizing:border-box;">
+                          </div>
+                          <div class="uf-field">
+                            <label for="ufSlotSelect">儲存槽</label>
+                            <select id="ufSlotSelect" class="form-control" style="width:100%;box-sizing:border-box;"></select>
+                          </div>
+                        </div>
+                        <div class="uf-field">
+                          <label for="ufSoundInput">聲音特色描述（顯示於濾波器按鈕滑鼠提示）</label>
+                          <input type="text" id="ufSoundInput" class="form-control" maxlength="80" placeholder="例如：高頻柔化、鈴振不可聽" style="width:100%;box-sizing:border-box;">
+                        </div>
+                        <div class="uf-field">
+                          <label title="窗函數決定「過渡帶寬度」與「鏡像抑制深度」的取捨">窗函數 <span class="uf-info">ⓘ</span></label>
+                          <div id="ufWindowSeg">
+                            <div class="uf-seg-group">餘弦窗（固定性格）</div>
+                            <div class="uf-seg">
+                              <button class="uf-seg-btn" data-window="hann">Hann</button>
+                              <button class="uf-seg-btn" data-window="hamming">Hamming</button>
+                              <button class="uf-seg-btn" data-window="blackman">Blackman</button>
+                              <button class="uf-seg-btn active" data-window="blackmanHarris">Blackman-Harris</button>
+                              <button class="uf-seg-btn" data-window="nuttall">Nuttall</button>
+                              <button class="uf-seg-btn" data-window="blackmanNuttall">Blackman-Nuttall</button>
+                            </div>
+                            <div class="uf-seg-group">參數窗（滑桿可調）</div>
+                            <div class="uf-seg">
+                              <button class="uf-seg-btn" data-window="kaiser">Kaiser</button>
+                              <button class="uf-seg-btn" data-window="chebyshev">Chebyshev</button>
+                              <button class="uf-seg-btn" data-window="gauss">Gauss</button>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="uf-field" id="ufAsRow" style="display:none;">
+                          <label>止帶深度 <span class="uf-val" id="ufAsVal">100 dB</span></label>
+                          <input type="range" id="ufAsSlider" min="40" max="180" step="5" value="100">
+                        </div>
+                        <div class="uf-field" id="ufSigmaRow" style="display:none;">
+                          <label>Gauss 窗寬 σ <span class="uf-val" id="ufSigmaVal">0.30 ×L</span></label>
+                          <input type="range" id="ufSigmaSlider" min="20" max="50" step="1" value="30">
+                        </div>
+                        <div class="uf-grid2">
+                          <div class="uf-field">
+                            <label>截止延伸 <span class="uf-val" id="ufCutVal">1.13 ×源Nyq</span></label>
+                            <input type="range" id="ufCutSlider" min="80" max="135" step="1" value="113">
+                          </div>
+                          <div class="uf-field">
+                            <label>濾波長度 <span class="uf-val" id="ufTapVal">96 taps</span> <span class="uf-load" id="ufLoadBadge">低負荷</span></label>
+                            <input type="range" id="ufTapSlider" min="16" max="512" step="8" value="96">
+                          </div>
+                        </div>
+                        <div class="uf-field">
+                          <label>相位性格</label>
+                          <div class="uf-seg" id="ufPhaseSeg">
+                            <button class="uf-seg-btn active" data-phase="linear">線性相位</button>
+                            <button class="uf-seg-btn" data-phase="minimum">最小相位 (零預響鈴)</button>
+                          </div>
+                        </div>
+                        <div class="uf-editor-actions">
+                          <button class="uf-mini-btn uf-save-btn" id="ufSaveBtn">💾 儲存並套用</button>
+                          <button class="uf-mini-btn uf-delete-btn" id="ufDeleteBtn" style="display:none;">刪除</button>
+                        </div>
+                      </div>
+                      <div class="uf-preview-col">
+                        <div class="uf-preview-title">頻率響應預覽 <span class="uf-preview-note" id="ufPreviewCtxNote"></span></div>
+                        <canvas id="ufPreviewCanvas" width="380" height="190"></canvas>
+                        <div class="uf-preview-legend">綠＝可聽音頻保留區・黃虛線＝濾波器截止點・琥珀＝過渡帶・紅＝升頻鏡像被抑制</div>
+                      </div>
+                    </div>
+
+                    <!-- Inline manage panel -->
+                    <div class="uf-panel" id="ufManagePanel" style="display: none;">
+                      <div class="uf-panel-head">
+                        <span>自訂濾波器管理</span>
+                        <button class="uf-mini-btn" id="ufCloseManage">收合 ✕</button>
+                      </div>
+                      <div id="ufManageList" class="uf-manage-list"></div>
+                      <div class="uf-manage-hint">自訂濾波器以純參數儲存，引擎自動做安全驗證與夾限。</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel 3: 動態範圍餘量管理 (Headroom Management) -->
+              <div class="muse-panel" id="musePanelHeadroom" style="display: none;">
+                <div class="muse-panel-header">
+                  <div class="muse-panel-title-wrap">
+                    <span class="muse-panel-header-icon headroom-icon">🛡️</span>
+                    <div>
+                      <h2 class="muse-panel-title">動態範圍餘量管理 (Headroom Management)</h2>
+                      <div class="muse-panel-desc">防止 DSP 等化、升頻插值與濾波產生的幀間峰值（Inter-sample Overs）導致數位削頂破音失真</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="muse-headroom-body" style="margin-top: 24px; max-width: 680px;">
+                  <div class="muse-param-row">
+                    <span class="muse-param-label">預設動態餘量</span>
+                    <div class="muse-param-slider-cell">
+                      <input type="range" class="muse-range-slider" id="museHeadroomGainSlider" min="-12" max="0" step="0.5" value="-3">
+                    </div>
+                    <div class="muse-param-input-box">
+                      <input type="number" class="muse-number-input" id="museHeadroomGainInput" min="-12" max="0" step="0.5" value="-3">
+                      <span class="muse-unit">dB</span>
+                    </div>
+                  </div>
+
+                  <div class="muse-headroom-info-card" style="margin-top: 20px; padding: 16px; border-radius: 8px; background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.15);">
+                    <div style="font-weight: 600; margin-bottom: 8px;">💡 為什麼需要動態餘量管理？</div>
+                    <p style="font-size: 13px; line-height: 1.6; margin: 0; color: var(--text-muted);">
+                      在數位升頻 (Upsampling) 或 PEQ 增益處理時，波形重構後的峰值可能會超越 0 dBFS，造成 DAC 解碼晶片內部的運放發生硬性數位削頂。設定 -3.0 dB 至 -4.0 dB 的動態範圍餘量，可徹底避免削頂失真，呈現最純淨的微動態層次。
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel 4: Crossfeed -->
+              <div class="muse-panel" id="musePanelCrossfeed" style="display: none;">
+                <div class="muse-panel-header">
+                  <div class="muse-panel-title-wrap">
+                    <span class="muse-panel-header-icon crossfeed-icon">🎧</span>
+                    <div>
+                      <h2 class="muse-panel-title">Crossfeed (耳機立體聲互饋)</h2>
+                      <div class="muse-panel-desc">模擬兩聲道雙耳互饋音場，消除耳機極端左右分離度所造成的「腦中效應」與聽覺疲勞</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="muse-crossfeed-body" style="margin-top: 24px; max-width: 680px;">
+                  <div class="dsp-option-group">
+                    <div class="dsp-option-label"><span>Crossfeed 演算法預設模式</span></div>
+                    <div class="dsp-pill-selector" id="museCrossfeedPresetSelector">
+                      <button class="dsp-pill active" data-cf="chumoy">Chu Moy 經典互饋 (自然類比)</button>
+                      <button class="dsp-pill" data-cf="bauer">Bauer 錄音室標準</button>
+                      <button class="dsp-pill" data-cf="meier">Jan Meier 現代低失真</button>
+                    </div>
+                  </div>
+
+                  <div class="muse-param-row" style="margin-top: 20px;">
+                    <span class="muse-param-label">互饋強度 (Level)</span>
+                    <div class="muse-param-slider-cell">
+                      <input type="range" class="muse-range-slider" id="museCrossfeedLevelSlider" min="1" max="10" value="5">
+                    </div>
+                    <div class="muse-param-input-box">
+                      <input type="number" class="muse-number-input" id="museCrossfeedLevelInput" min="1" max="10" value="5">
+                      <span class="muse-unit">級</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel 5: 卷積濾波器 (Convolution IR) -->
+              <div class="muse-panel" id="musePanelConv" style="display: none;">
+                <div class="muse-panel-header">
+                  <div class="muse-panel-title-wrap">
+                    <span class="muse-panel-header-icon conv-icon">🌊</span>
+                    <div>
+                      <h2 class="muse-panel-title">卷積濾波器 (Convolution IR 脈衝響應)</h2>
+                      <div class="muse-panel-desc">載入脈衝響應 WAV 做分割式頻域卷積（房間校正 FIR / 喇叭・耳機校正）</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="conv-editor" id="convEditor" style="display: block; margin-top: 20px;">
+                  <div class="dsp-pill-selector" id="convActionRow">
+                    <button class="dsp-pill" id="convPickIr">📂 載入 IR 檔案…</button>
+                    <button class="dsp-pill" id="convRemoveIr" style="display: none;">移除 IR</button>
+                  </div>
+                  <div class="conv-info" id="convInfo" style="margin-top: 14px;">尚未載入 IR。請選擇 16/24/32-bit WAV 脈衝響應檔（單聲道自動套用到左右聲道）。</div>
+                  <div class="conv-hint" style="margin-top: 10px;">DSD 來源自動經 88.2k 降頻路徑套用卷積 ・ 引擎 DSD 模式下 DSF 直通優先（不套卷積） ・ 設定即時套用到播放中的曲目</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -2264,371 +2860,8 @@
     </div>
   </div>
 
-  <!-- Audiophile Signal Path Modal (標誌性訊號路徑追蹤功能) -->
-  <div id="signalPathModal" class="modal-overlay" style="display: none;">
-    <div class="modal-content signal-path-container">
-      <button class="btn-close-modal" id="btnCloseSignalPath">✕</button>
-      <div class="signal-path-header">
-        <span class="signal-dot purple" id="signalPathDot"></span>
-        <h2>Signal Path (音訊路徑)</h2>
-        <span class="signal-status-pill" id="signalPathStatusPill">LOSSLESS BIT-PERFECT</span>
-      </div>
-
-      <div class="signal-path-columns">
-        <!-- Left Column: Audio Signal Path Stages -->
-        <div class="signal-path-col-left">
-          <div class="signal-col-header">
-            <span class="signal-col-title">即時訊號串流路徑</span>
-          </div>
-          <div class="signal-stages">
-            <div class="signal-stage">
-              <div class="stage-icon">💿</div>
-              <div class="stage-info">
-                <div class="stage-title" id="signalSourceTitle">FLAC 96kHz 24bit</div>
-                <div class="stage-desc" id="signalSourceDesc">原始母帶音訊源 (Bit-Perfect Lossless)</div>
-              </div>
-            </div>
-
-            <!-- Dynamic SoX DSP Resampler Stage -->
-            <div class="signal-arrow sox-dsp-element" id="signalSoxArrow" style="display: none;">↓</div>
-            <div class="signal-stage sox-dsp-element sox-stage-highlight" id="signalSoxStage" style="display: none;">
-              <div class="stage-icon">🎛️</div>
-              <div class="stage-info">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div class="stage-title" id="signalSoxTitle">Native DSP Engine</div>
-                  <span class="stage-badge-dsp">DSP ACTIVE</span>
-                </div>
-                <div class="stage-desc" id="signalSoxDesc">高解析度即時升頻：44.1 kHz ➔ 176.4 kHz (4x 整數倍頻)</div>
-              </div>
-            </div>
-
-            <!-- Dynamic PEQ (Parametric Equalizer) Stage: JS repositions it to the exact point
-                 of the chain where the engine applies it (before DSD modulation / after PCM upsampling) -->
-            <div class="signal-arrow peq-dsp-element" id="signalPeqArrow" style="display: none;">↓</div>
-            <div class="signal-stage peq-dsp-element" id="signalPeqStage" style="display: none;">
-              <div class="stage-icon">🎚️</div>
-              <div class="stage-info">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div class="stage-title" id="signalPeqTitle">參數化等化器 (PEQ)</div>
-                  <span class="stage-badge-peq">EQ ACTIVE</span>
-                </div>
-                <div class="stage-desc" id="signalPeqDesc">參數化等化器：N 段作用中</div>
-              </div>
-            </div>
-
-            <!-- Dynamic Convolution (IR) Stage: JS repositions it to the exact point of the chain
-                 where the engine applies it (after PEQ: after upsampling / on source PCM / native rate) -->
-            <div class="signal-arrow conv-dsp-element" id="signalConvArrow" style="display: none;">↓</div>
-            <div class="signal-stage conv-dsp-element" id="signalConvStage" style="display: none;">
-              <div class="stage-icon">🌊</div>
-              <div class="stage-info">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div class="stage-title" id="signalConvTitle">卷積濾波器 (IR)</div>
-                  <span class="stage-badge-conv">IR ACTIVE</span>
-                </div>
-                <div class="stage-desc" id="signalConvDesc">分割式頻域卷積：IR 作用中</div>
-              </div>
-            </div>
-
-            <!-- Dynamic Ultrasonic Filter Stage -->
-            <div class="signal-arrow ultrasonic-dsp-element" id="signalUltrasonicArrow" style="display: none;">↓</div>
-            <div class="signal-stage ultrasonic-dsp-element" id="signalUltrasonicStage" style="display: none;">
-              <div class="stage-icon">🛡️</div>
-              <div class="stage-info">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div class="stage-title" id="signalUltrasonicTitle">超音波噪聲防護濾波</div>
-                  <span class="stage-badge-dsp">PROTECTION ACTIVE</span>
-                </div>
-                <div class="stage-desc" id="signalUltrasonicDesc">30 kHz 截止：平滑切除超聲頻量化雜訊，杜絕 DAC 運放過載</div>
-              </div>
-            </div>
-
-            <div class="signal-arrow">↓</div>
-            <div class="signal-stage">
-              <div class="stage-icon">⚡</div>
-              <div class="stage-info">
-                <div class="stage-title" id="signalEngineTitle">rooPlayer Core Audio Engine</div>
-                <div class="stage-desc" id="signalEngineDesc">64-bit 浮點無損混音核心，零採樣損失處理</div>
-              </div>
-            </div>
-            <div class="signal-arrow">↓</div>
-            <div class="signal-stage">
-              <div class="stage-icon" id="signalOutputIcon">🔊</div>
-              <div class="stage-info">
-                <div class="stage-title" id="signalOutputTitle">Windows WASAPI Exclusive / DirectSound</div>
-                <div class="stage-desc" id="signalOutputDesc">輸出至本機預設音訊裝置</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Upsampling DSP Engine Settings -->
-        <div class="signal-path-col-right">
-          <div class="dsp-sox-card">
-            <div class="dsp-sox-header">
-              <div class="dsp-sox-title-wrap">
-                <span class="dsp-sox-icon">🎛️</span>
-                <div>
-                  <div class="dsp-sox-title">升頻引擎設定</div>
-                  <div class="dsp-sox-desc">發燒級 64 位元浮點即時超取樣升頻濾波器，拓展音場細節與瞬態還原</div>
-                </div>
-              </div>
-              <label class="switch-toggle" title="啟用/關閉 升頻引擎">
-                <input type="checkbox" id="toggleSoxDsp">
-                <span class="slider-round"></span>
-              </label>
-            </div>
-
-            <div class="dsp-sox-body" id="dspSoxBody">
-              <!-- Target Sample Rate Selection (PCM) -->
-              <div class="dsp-option-group">
-                <div class="dsp-option-label">
-                  <span>PCM 升頻取樣規格 (PCM Upsampling)</span>
-                  <span class="dsp-hint-badge" id="dspActiveRateHint">4x 整數倍頻</span>
-                </div>
-                <div class="dsp-pill-selector" id="dspRateSelector">
-                  <button class="dsp-pill active" data-rate-mode="4x" title="44.1k➔176.4k, 48k➔192k (發燒推薦：整數倍頻相位最純淨)">4x 整數倍頻 (推薦)</button>
-                  <button class="dsp-pill" data-rate-mode="2x" title="44.1k➔88.2k, 48k➔96k (整數 2 倍超取樣)">2x 整數倍頻</button>
-                  <button class="dsp-pill" data-rate-mode="192k" title="固定升頻至 192 kHz / 24-bit">固定 192 kHz</button>
-                  <button class="dsp-pill" data-rate-mode="384k" title="固定升頻至 384 kHz / 24-bit (DXD 頂級解碼)">固定 384 kHz</button>
-                  <button class="dsp-pill" data-rate-mode="96k" title="固定升頻至 96 kHz / 24-bit">固定 96 kHz</button>
-                </div>
-              </div>
-
-              <!-- Target DSD Modulation Selection -->
-              <div class="dsp-option-group">
-                <div class="dsp-option-label">
-                  <span>1-bit DSD 調變升頻 (PCM ➔ 1-bit DSD SDM Modulator)</span>
-                  <span class="dsp-hint-badge dsd-badge-color" id="dspActiveDsdHint">可選 DSD 格式</span>
-                </div>
-                <div class="dsp-pill-selector" id="dspDsdRateSelector">
-                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd64" title="PCM ➔ DSD64 (1-bit / 2.8224 MHz 或 3.072 MHz 超高頻噪聲整形調變)">DSD64 (2.8 MHz)</button>
-                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd128" title="PCM ➔ DSD128 (1-bit / 5.6448 MHz 或 6.144 MHz 雙倍 DSD 調變)">DSD128 (5.6 MHz)</button>
-                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd256" title="PCM ➔ DSD256 (1-bit / 11.2896 MHz 或 12.288 MHz 四倍 DSD 調變)">DSD256 (11.2 MHz)</button>
-                  <button class="dsp-pill pill-dsd" data-rate-mode="dsd512" title="PCM ➔ DSD512 (1-bit / 22.5792 MHz 或 24.576 MHz 極限發燒 DSD 調變)">DSD512 (22.5 MHz)</button>
-                </div>
-              </div>
-
-              <!-- DSD Modulator Order Selection -->
-              <div class="dsp-option-group" id="dspOrderGroup">
-                <div class="dsp-option-label">
-                  <span>調變器階數 (Modulator Order)</span>
-                  <span class="dsp-hint-badge dsd-badge-color" id="dspActiveOrderHint">5 階 (CRFB 發燒推薦)</span>
-                </div>
-                <div class="dsp-pill-selector" id="dspOrderSelector">
-                  <button class="dsp-pill pill-dsd" data-order="2" title="2 階 Boser-Wooley 經典調變 (溫潤厚實，類比黑膠感)">2 階 (經典溫潤)</button>
-                  <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB 發燒推薦)</button>
-                  <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CRFB 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (極致微動態)</button>
-                </div>
-              </div>
-
-              <!-- Ultrasonic Noise Protection Filter (類似 HQPlayer Filter 20k/30k/40k/50k) -->
-              <div class="dsp-option-group" id="dspUltrasonicGroup">
-                <div class="dsp-option-label">
-                  <span>🛡️ 超音波噪聲防護濾波 (Ultrasonic Filter)</span>
-                  <span class="dsp-hint-badge dsd-badge-color" id="dspActiveUltrasonicHint">30 kHz (預設推薦)</span>
-                </div>
-                <div class="dsp-pill-selector" id="dspUltrasonicSelector">
-                  <button class="dsp-pill pill-dsd" data-ultrasonic="none" title="關閉超音波防護 (無濾波)">關閉 (None)</button>
-                  <button class="dsp-pill pill-dsd" data-ultrasonic="20k" title="20 kHz 截止：強效防護，徹底隔絕超高頻，適合敏感型 DAC 或老晶片">20 kHz</button>
-                  <button class="dsp-pill pill-dsd active" data-ultrasonic="30k" title="30 kHz 截止 (預設推薦)：發燒黃金平衡，兼具極限空氣感與超音波噪聲徹底阻隔">30 kHz (預設推薦)</button>
-                  <button class="dsp-pill pill-dsd" data-ultrasonic="40k" title="40 kHz 截止：寬廣高頻延伸，有效降低 DAC 射頻互調失真">40 kHz</button>
-                  <button class="dsp-pill pill-dsd" data-ultrasonic="50k" title="50 kHz 截止：極限解析保留，消除超高頻發散噪聲">50 kHz</button>
-                </div>
-              </div>
-
-              <!-- Quantization Dither Selection (含 HQPlayer Gauss1 演算法) -->
-              <div class="dsp-option-group" id="dspDitherGroup">
-                <div class="dsp-option-label">
-                  <span>✨ 量化抖動 (Quantization Dither)</span>
-                  <span class="dsp-hint-badge" id="dspActiveDitherHint">Gauss1 (高斯溫潤)</span>
-                </div>
-                <div class="dsp-pill-selector" id="dspDitherSelector">
-                  <button class="dsp-pill active" data-dither="gauss1" title="Gauss1：高斯機率密度分佈抖動 (HQPlayer 同款演算法，徹底打散極限環，背景溫潤深黑)">Gauss1 (高斯溫潤 - 推薦)</button>
-                  <button class="dsp-pill" data-dither="tpdf" title="TPDF：標準三角形機率密度抖動 (經典錄音室標準，線性純淨無諧波失真)">TPDF (三角形分佈)</button>
-                  <button class="dsp-pill" data-dither="none" title="關閉抖動 (無 Dither)">關閉 (None)</button>
-                </div>
-              </div>
-
-              <!-- Filter Phase Selection (按鈕由濾波器插件註冊表動態生成，見 app.js renderFilterPhaseSelector) -->
-              <div class="dsp-option-group" id="dspPhaseGroup">
-                <div class="dsp-option-label">
-                  <div style="display: inline-flex; align-items: center; gap: 6px;">
-                    <span>濾波器相位 (Filter Phase)</span>
-                    <button type="button" class="dsp-guide-link" id="btnFilterGuideLink" title="檢視各濾波器相位的實測規格、音質影響與發燒搭配指南">📖 搭配指南</button>
-                  </div>
-                  <span class="dsp-hint-badge" id="dspActivePhaseHint">線性相位 (零相位失真)</span>
-                </div>
-                <div class="dsp-pill-selector" id="dspPhaseSelector"></div>
-              </div>
-
-              <!-- User Filter Toolbox (使用者自訂濾波槽：純參數 JSON，安全範圍由引擎夾限；
-                   編輯器與管理直接在條列內展開，所有操作同一視窗完成) -->
-              <div class="user-filter-strip" id="userFilterStrip">
-                <div class="user-filter-strip-head">
-                  <span class="user-filter-strip-title">🛠️ 自訂濾波器</span>
-                  <span class="user-filter-strip-actions">
-                    <button class="uf-mini-btn" id="ufNewBtn">＋ 新建</button>
-                    <button class="uf-mini-btn uf-manage-btn" id="ufManageBtn">⚙ 管理</button>
-                  </span>
-                </div>
-                <div class="user-filter-chips" id="ufChipRow"><span class="uf-chips-empty">尚無自訂濾波器 — 點「＋ 新建」於安全範圍內設計專屬濾波器</span></div>
-
-                <!-- Inline editor panel -->
-                <div class="uf-panel" id="ufEditorPanel" style="display: none;">
-                  <div class="uf-panel-head">
-                    <span id="ufEditorTitle">新建濾波器</span>
-                    <button class="uf-mini-btn" id="ufCloseEditor">收合 ✕</button>
-                  </div>
-                  <div class="uf-form-col">
-                    <div class="uf-grid2">
-                      <div class="uf-field">
-                        <label for="ufNameInput">名稱</label>
-                        <input type="text" id="ufNameInput" class="form-control" maxlength="40" placeholder="例如：暖聲緩降" style="width:100%;box-sizing:border-box;">
-                      </div>
-                      <div class="uf-field">
-                        <label for="ufSlotSelect">儲存槽</label>
-                        <select id="ufSlotSelect" class="form-control" style="width:100%;box-sizing:border-box;"></select>
-                      </div>
-                    </div>
-                    <div class="uf-field">
-                      <label for="ufSoundInput">聲音特色描述（顯示於濾波器按鈕滑鼠提示）</label>
-                      <input type="text" id="ufSoundInput" class="form-control" maxlength="80" placeholder="例如：高頻柔化、鈴振不可聽" style="width:100%;box-sizing:border-box;">
-                    </div>
-                    <div class="uf-field">
-                      <label title="窗函數決定「過渡帶寬度」與「鏡像抑制深度」的取捨：過渡越窄=高頻越精準鮮明；止帶越深=背景越黑、鏡像泄漏越不可聽">窗函數 <span class="uf-info">ⓘ 對聲音的影響</span></label>
-                      <div id="ufWindowSeg">
-                        <div class="uf-seg-group">餘弦窗（固定性格）</div>
-                        <div class="uf-seg">
-                          <button class="uf-seg-btn" data-window="hann" title="Hann：過渡帶窄，高頻轉折精準鮮明；止帶較淺(-31dB)，些微鏡像泄漏通常在超聲頻不可聽">Hann</button>
-                          <button class="uf-seg-btn" data-window="hamming" title="Hamming：與 Hann 相近但鏡像抑制較深(-42dB)；高頻聽感些微明亮">Hamming</button>
-                          <button class="uf-seg-btn" data-window="blackman" title="Blackman：過渡帶較寬，高頻以柔和斜率緩降、聽感溫潤；鏡像泄漏 -58dB 不可聽">Blackman</button>
-                          <button class="uf-seg-btn active" data-window="blackmanHarris" title="Blackman-Harris：止帶極深(-92dB)、鏡像完全不可聽；過渡帶略寬於 Blackman，整體乾淨透明">Blackman-Harris</button>
-                          <button class="uf-seg-btn" data-window="nuttall" title="Nuttall：過渡帶與 Blackman-Harris 同寬，但旁瓣隨頻率衰減更快——鏡像帶抑制再深約 12dB，遠處背景更黑">Nuttall</button>
-                          <button class="uf-seg-btn" data-window="blackmanNuttall" title="Blackman-Nuttall：Nuttall 家族的平衡版，旁瓣峰值略低；鏡像抑制略淺於 Nuttall，其餘特性相近">Blackman-Nuttall</button>
-                        </div>
-                        <div class="uf-seg-group">參數窗（滑桿可調）</div>
-                        <div class="uf-seg">
-                          <button class="uf-seg-btn" data-window="kaiser" title="Kaiser：用下方「止帶深度」滑桿自由取捨——60dB 溫潤柔和，140dB 以上參考級乾淨">Kaiser</button>
-                          <button class="uf-seg-btn" data-window="chebyshev" title="Chebyshev（等漣波）：用下方「止帶深度」滑桿——止帶平坦恰在設定深度；高止帶設定下緊接轉折處的抑制比 Kaiser 更深，截止聽感最銳利">Chebyshev</button>
-                          <button class="uf-seg-btn" data-window="gauss" title="Gauss：完全無旁瓣漣波（高斯頻譜單調滾降）——零鏡像泄漏、零鈴振；用下方「Gauss 窗寬 σ」滑桿取捨：σ 小止帶深且柔，σ 大截止直接">Gauss</button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="uf-field" id="ufAsRow" style="display:none;">
-                      <label title="止帶深度＝鏡像與雜訊被壓低多少 dB：數值越小過渡帶越窄高頻越鮮明(聽感偏直接)；越大背景越黑高頻越柔(聽感偏潤色)">止帶深度 <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufAsVal">100 dB</span></label>
-                      <input type="range" id="ufAsSlider" min="40" max="180" step="5" value="100">
-                    </div>
-                    <div class="uf-field" id="ufSigmaRow" style="display:none;">
-                      <label title="σ 是窗寬相對濾波長度的比例：σ 越小窗越窄、止帶越深背景越黑，但過渡帶變寬、高頻更早開始滾降；σ 越大截止越直接鮮明，但截斷使止帶變淺">Gauss 窗寬 σ <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufSigmaVal">0.30 ×L</span></label>
-                      <input type="range" id="ufSigmaSlider" min="20" max="50" step="1" value="30">
-                    </div>
-                    <div class="uf-grid2">
-                      <div class="uf-field">
-                        <label title="截止延伸＝濾波器對源高頻的處理性格：低於 1.0× 高頻先柔和滾降(類比味、最安全)；1.0~1.2× 平衡；1.2× 以上最大化超頻延伸與透明度，但過渡帶變寬、鏡像抑制變淺">截止延伸 <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufCutVal">1.13 ×源Nyq</span></label>
-                        <input type="range" id="ufCutSlider" min="80" max="135" step="1" value="113">
-                      </div>
-                      <div class="uf-field">
-                        <label title="濾波長度＝過渡帶陡度與鈴振長度：較短高頻漸進滾降、鈴振短而自然(省 CPU)；較長滾降陡峭精準、背景更靜，但預鈴振較長">濾波長度 <span class="uf-info">ⓘ</span> <span class="uf-val" id="ufTapVal">96 taps</span> <span class="uf-load" id="ufLoadBadge">低負荷</span></label>
-                        <input type="range" id="ufTapSlider" min="16" max="512" step="8" value="96">
-                      </div>
-                    </div>
-                    <div class="uf-field">
-                      <label>相位性格 <span class="uf-info">ⓘ 對聲音的影響</span></label>
-                      <div class="uf-seg" id="ufPhaseSeg">
-                        <button class="uf-seg-btn active" data-phase="linear" title="線性相位：零相位失真，定位、音場與形體最精準；代價是預鈴振對稱分佈在瞬態之前(鈴振敏感者可察)">線性相位</button>
-                        <button class="uf-seg-btn" data-phase="minimum" title="最小相位：預鈴振嚴格為零，鼓擊與瞬態領先凌厲(多數人認為更自然)；代價是些微高頻相位偏移">最小相位 (零預響鈴)</button>
-                      </div>
-                    </div>
-                    <div class="uf-editor-actions">
-                      <button class="uf-mini-btn uf-save-btn" id="ufSaveBtn">💾 儲存並套用</button>
-                      <button class="uf-mini-btn uf-delete-btn" id="ufDeleteBtn" style="display:none;">刪除</button>
-                    </div>
-                  </div>
-                  <div class="uf-preview-col">
-                    <div class="uf-preview-title">頻率響應預覽 <span class="uf-preview-note" id="ufPreviewCtxNote"></span></div>
-                    <canvas id="ufPreviewCanvas" width="380" height="190" title="黃色截止線可直接左右拖曳＝調整截止延伸；綠區原音保留、琥珀為過渡帶、紅區鏡像被抑制"></canvas>
-                    <div class="uf-preview-legend">綠＝可聽音頻保留區・黃虛線＝濾波器截止點（圖上可直接拖曳）・琥珀＝過渡帶（高頻滾降位置）・紅＝升頻鏡像被抑制的區域</div>
-                  </div>
-                </div>
-
-                <!-- Inline manage panel -->
-                <div class="uf-panel" id="ufManagePanel" style="display: none;">
-                  <div class="uf-panel-head">
-                    <span>自訂濾波器管理</span>
-                    <button class="uf-mini-btn" id="ufCloseManage">收合 ✕</button>
-                  </div>
-                  <div id="ufManageList" class="uf-manage-list"></div>
-                  <div class="uf-manage-hint">自訂濾波器以純參數儲存，引擎自動做安全驗證與夾限；任何異常自動退回線性相位，不影響播放穩定。</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Parametric Equalizer Card: fully independent of the upsampling engine.
-               Acts whenever its own switch is on (with the engine off it runs at the native sample rate). -->
-          <div class="dsp-sox-card peq-card" id="peqCard">
-            <div class="dsp-sox-header">
-              <div class="dsp-sox-title-wrap">
-                <span class="dsp-sox-icon">🎚️</span>
-                <div>
-                  <div class="dsp-sox-title">參數化等化器 (Parametric EQ) <span class="dsp-hint-badge" id="dspActivePeqHint">關閉</span></div>
-                  <div class="dsp-sox-desc">獨立於升頻引擎的音色調整：引擎開或關皆可作用（引擎關閉時於原生採樣率處理；最多 6 段；自動預降保護電路不削頂）</div>
-                </div>
-              </div>
-              <label class="switch-toggle" title="啟用/關閉 參數化等化器">
-                <input type="checkbox" id="togglePeq">
-                <span class="slider-round"></span>
-              </label>
-            </div>
-            <div id="peqEditor" class="peq-editor" style="display: none;">
-              <div class="dsp-pill-selector" id="peqPresetSelector">
-                <button class="dsp-pill active" data-peq-preset="flat" title="不改變原始音色（全部頻段關閉）">平直</button>
-                <button class="dsp-pill" data-peq-preset="warm" title="低頻飽和、中低頻厚實、柔化高頻毛刺">溫暖厚實</button>
-                <button class="dsp-pill" data-peq-preset="bright" title="高頻通透與空氣感、收束渾濁低頻">明亮通透</button>
-                <button class="dsp-pill" data-peq-preset="vocal" title="人聲存在感與咬字清晰度提升">人聲突出</button>
-                <button class="dsp-pill" data-peq-preset="bass" title="低頻下潛與飽和增加、中頻保持乾淨">低頻飽和</button>
-              </div>
-              <div class="peq-slot-row" id="peqSlotRow"></div>
-              <div class="peq-slot-hint">點空白格 → 輸入名稱 Enter 儲存目前設定 ・ 點儲存格載入 ・ 雙擊更名 ・ ✕ 刪除（两步確認）</div>
-              <canvas id="peqCurveCanvas" class="peq-curve" width="560" height="150"></canvas>
-              <div class="peq-meta-row">
-                <span class="peq-headroom-note" id="peqHeadroomNote">自動預降 0.0 dB（保護電路不削頂）</span>
-                <span class="peq-live-note">設定即時套用到播放中的曲目</span>
-              </div>
-              <div class="peq-band-list" id="peqBandList"></div>
-            </div>
-          </div>
-
-          <!-- Convolution (IR) Card: independent stage like PEQ, applied after PEQ in the chain.
-               Loads a Roon-style impulse response and applies partitioned frequency-domain filtering. -->
-          <div class="dsp-sox-card conv-card" id="convCard">
-            <div class="dsp-sox-header">
-              <div class="dsp-sox-title-wrap">
-                <span class="dsp-sox-icon">🌊</span>
-                <div>
-                  <div class="dsp-sox-title">卷積濾波器 (IR 脈衝響應) <span class="dsp-hint-badge" id="dspActiveConvHint">關閉</span></div>
-                  <div class="dsp-sox-desc">載入脈衝響應 WAV 做分割式頻域卷積（房間校正 FIR / 喇叭・耳機校正）；於 PEQ 之後以 PCM 域處理，線性相位不改變</div>
-                </div>
-              </div>
-              <label class="switch-toggle" title="啟用/關閉 卷積濾波器">
-                <input type="checkbox" id="toggleConv">
-                <span class="slider-round"></span>
-              </label>
-            </div>
-            <div id="convEditor" class="conv-editor" style="display: none;">
-              <div class="dsp-pill-selector" id="convActionRow">
-                <button class="dsp-pill" id="convPickIr">📂 載入 IR 檔案…</button>
-                <button class="dsp-pill" id="convRemoveIr" style="display: none;">移除 IR</button>
-              </div>
-              <div class="conv-info" id="convInfo">尚未載入 IR。請選擇 16/24/32-bit WAV 脈衝響應檔（單聲道自動套用到左右聲道）。</div>
-              <div class="conv-hint">DSD 來源自動經 88.2k 降頻路徑套用卷積 ・ 引擎 DSD 模式下 DSF 直通優先（不套卷積） ・ 設定即時套用到播放中的曲目</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Deprecated Signal Path Modal Container (Dormant stub for legacy test safety) -->
+  <div id="signalPathModal" style="display: none;"></div>
 
   <!-- Audio Output Devices / Zones Modal (DLNA / UPnP Discovery) -->
   <div id="audioDeviceModal" class="modal-overlay" style="display: none;">

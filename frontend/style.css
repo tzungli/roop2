@@ -9247,3 +9247,853 @@ body.table-col-resizing * {
 }
 
 
+
+
+/* ==========================================================================
+   ROON MUSE PRECISION AUDIO CONTROL (DEDICATED FULL-PAGE DSP VIEW)
+   ========================================================================== */
+#viewDsp {
+  padding: 0 !important;
+  height: 100%;
+  display: none;
+  flex-direction: column;
+}
+
+#viewDsp.active {
+  display: flex !important;
+}
+
+.muse-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-main);
+}
+
+/* 1. Muse Top Bar */
+.muse-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 28px;
+  min-height: 64px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.muse-brand {
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+.muse-logo {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", serif;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-main);
+  line-height: 1.1;
+}
+
+.muse-sublogo {
+  font-size: 9.5px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.muse-preset-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.muse-preset-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 1px;
+}
+
+.muse-preset-dropdown-wrap {
+  position: relative;
+}
+
+.muse-preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.muse-preset-btn:hover {
+  background: var(--bg-hover);
+  color: #a855f7;
+}
+
+.muse-caret {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.muse-preset-menu,
+.muse-eq-preset-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--popover-bg, #181a24);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  min-width: 190px;
+  padding: 6px;
+}
+
+.muse-eq-preset-menu {
+  left: 0;
+  transform: none;
+}
+
+.muse-menu-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background 0.15s, color 0.15s;
+}
+
+.muse-menu-item:hover {
+  background: var(--bg-hover);
+  color: #a855f7;
+}
+
+.muse-menu-item.active {
+  color: #a855f7;
+  font-weight: 600;
+  background: rgba(168, 85, 247, 0.08);
+}
+
+.muse-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.muse-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.muse-icon-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+/* 2. Split Body (Left Sidebar & Right Editor) */
+.muse-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.muse-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-main);
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.muse-zone-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.muse-zone-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.muse-zone-icon {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.muse-back-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-hover);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.muse-back-btn:hover {
+  background: #a855f7;
+  color: #ffffff;
+  border-color: #a855f7;
+  transform: scale(1.05);
+}
+
+.muse-chain-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+  user-select: none;
+}
+
+.muse-chain-card:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: var(--bg-hover);
+}
+
+.muse-chain-card.active {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.08);
+  box-shadow: 0 0 0 1px #a855f7;
+}
+
+.muse-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.muse-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.muse-card-toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.muse-toggle-text {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.muse-chevron-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 0 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.muse-chain-card.active .muse-chevron-btn {
+  color: #a855f7;
+}
+
+.muse-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px 6px 4px;
+  margin-top: 6px;
+}
+
+.muse-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.muse-bypass-all-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.muse-bypass-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.muse-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.muse-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.muse-drag-grip {
+  color: var(--text-muted);
+  font-size: 13px;
+  letter-spacing: -2px;
+  cursor: grab;
+  opacity: 0.6;
+  padding: 0 2px;
+}
+
+.muse-filter-circle-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  flex-shrink: 0;
+  border: 1px solid var(--border-subtle);
+}
+
+.muse-filter-circle-icon.peq-icon {
+  color: #22d3ee;
+}
+
+.muse-filter-circle-icon.crossfeed-icon {
+  color: #a855f7;
+}
+
+.muse-filter-circle-icon.conv-icon {
+  color: #38bdf8;
+}
+
+.muse-add-filter-container {
+  margin-top: 10px;
+  padding: 4px 0;
+}
+
+.muse-add-filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #6366f1;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.muse-add-filter-button:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.muse-plus-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Muse Pill Switches */
+.muse-switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.muse-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.muse-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: rgba(148, 163, 184, 0.28);
+  transition: 0.2s;
+  border-radius: 18px;
+}
+
+.muse-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  transition: 0.2s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.muse-switch input:checked + .muse-slider {
+  background-color: #6366f1;
+}
+
+.muse-switch input:checked + .muse-slider:before {
+  transform: translateX(16px);
+}
+
+/* 3. Right Main Pane */
+.muse-main-pane {
+  flex: 1;
+  padding: 24px 36px 48px 36px;
+  overflow-y: auto;
+  background: var(--bg-card);
+}
+
+.muse-panel {
+  display: none;
+}
+
+.muse-panel.active {
+  display: block;
+}
+
+.muse-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.muse-panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.muse-panel-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+  border: 1px solid var(--border-subtle);
+  font-size: 20px;
+}
+
+.muse-panel-header-icon.peq-wave-icon {
+  color: #22d3ee;
+}
+
+.muse-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.muse-panel-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.muse-panel-preset-wrap {
+  position: relative;
+  margin-top: 3px;
+}
+
+.muse-sub-preset-btn {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.muse-sub-preset-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+.muse-remove-filter-btn {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.muse-remove-filter-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* 4. Sleek Frequency Response Curve Graph Card */
+.muse-graph-card {
+  position: relative;
+  background: #17181f;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.muse-graph-stage {
+  position: relative;
+  width: 100%;
+}
+
+#musePeqCanvas {
+  display: block;
+  width: 100%;
+  height: 320px;
+  cursor: default;
+}
+
+.muse-graph-zoom-controls {
+  position: absolute;
+  top: 14px;
+  right: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+
+.muse-zoom-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.muse-zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+}
+
+.muse-vertical-track-wrap {
+  position: absolute;
+  right: 8px;
+  top: 14px;
+  bottom: 34px;
+  width: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.muse-vtrack {
+  width: 3px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+  position: relative;
+}
+
+.muse-vthumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1f2029;
+  border: 2px solid #ffffff;
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  cursor: ns-resize;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* 5. Band Parameter Controls (Exact replication of Roon MUSE) */
+.muse-band-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 920px;
+}
+
+.muse-band-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.muse-band-selector-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.muse-band-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.muse-band-enable-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.muse-toggle-label-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.muse-param-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.muse-param-label {
+  width: 130px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.muse-param-slider-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.muse-range-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.4);
+  outline: none;
+  transition: background 0.15s;
+}
+
+.muse-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1e1e24;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s;
+}
+
+.muse-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.muse-param-input-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 95px;
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+
+.muse-number-input {
+  width: 62px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-main);
+  color: var(--text-main);
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.muse-number-input:focus {
+  border-color: #6366f1;
+}
+
+.muse-unit {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.muse-type-row {
+  display: flex;
+  align-items: center;
+}
+
+.muse-type-select-cell {
+  flex: 1;
+}
+
+.muse-select-clean {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-main);
+  color: var(--text-main);
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  padding: 6px 12px;
+  transition: border-color 0.15s;
+}
+
+.muse-select-clean:focus {
+  border-color: #6366f1;
+}
+
+.muse-slot-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+/* Light Mode Overrides for MUSE */
+[data-theme="light"] .muse-top-bar {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .muse-sidebar {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .muse-zone-card,
+[data-theme="light"] .muse-chain-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .muse-chain-card.active {
+  background: #f5f3ff;
+  border-color: #8b5cf6;
+}
+
+[data-theme="light"] .muse-main-pane {
+  background: #ffffff;
+}
+
+[data-theme="light"] .muse-graph-card {
+  background: #171821;
+  border-color: #2b2e3b;
+}
+
+[data-theme="light"] .muse-range-slider {
+  background: #cbd5e1;
+}
+
+[data-theme="light"] .muse-range-slider::-webkit-slider-thumb {
+  background: #1e293b;
+  border: 2px solid #ffffff;
+}
+
+[data-theme="light"] .muse-number-input,
+[data-theme="light"] .muse-select-clean {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}

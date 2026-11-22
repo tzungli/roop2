@@ -2155,6 +2155,9 @@ function renderViewIfNeeded(viewId) {
     case 'tidal':
       onOpenTidalView();
       break;
+    case 'dsp':
+      renderDspView();
+      break;
     default:
       break;
   }
@@ -7699,6 +7702,10 @@ function updateSignalPathUI(track = null) {
 
   if (toggleSoxDsp) toggleSoxDsp.checked = !!(state.dsp && state.dsp.enabled);
   if (dspSoxCard) dspSoxCard.classList.toggle('active', !!(state.dsp && state.dsp.enabled));
+  const toggleMuseSrc = document.getElementById('toggleMuseSrc');
+  if (toggleMuseSrc) toggleMuseSrc.checked = !!(state.dsp && state.dsp.enabled);
+  const museSrcStatus = document.getElementById('museSrcStatus');
+  if (museSrcStatus) museSrcStatus.textContent = (state.dsp && state.dsp.enabled) ? '啟用' : '停用';
 
   const curRateMode = (state.dsp && state.dsp.rateMode) || '4x';
 
@@ -8357,6 +8364,764 @@ function drawPeqCurve() {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+
+  // Also update full-page MUSE PEQ visualizer in real time
+  try { drawMusePeqCanvas(); } catch (e) {}
+}
+
+// ----------------- Roon MUSE Precision Audio Control Subsystem -----------------
+let museActiveBandIdx = 0;
+let museZoomDb = 24; // Default matches Roon screenshot (-24dB to +12dB)
+const MUSE_BAND_COLORS = ['#22d3ee', '#f472b6', '#a855f7', '#facc15', '#818cf8', '#fb923c'];
+
+function drawMusePeqCanvas() {
+  const canvas = document.getElementById('musePeqCanvas');
+  if (!canvas || !canvas.getContext) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth || 920;
+  const H = canvas.clientHeight || 320;
+  const pw = Math.max(1, Math.round(W * dpr));
+  const ph = Math.max(1, Math.round(H * dpr));
+  if (canvas.width !== pw || canvas.height !== ph) {
+    canvas.width = pw;
+    canvas.height = ph;
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  // Deep dark high-contrast display background (matching Roon)
+  ctx.fillStyle = '#171821';
+  ctx.fillRect(0, 0, W, H);
+
+  const fMin = 20, fMax = 20000;
+  const xMin = 50, xMax = W - 36;
+  const xOf = f => xMin + (Math.log10(Math.max(fMin, Math.min(fMax, f)) / fMin) / Math.log10(fMax / fMin)) * (xMax - xMin);
+
+  const dbMin = -museZoomDb, dbMax = museZoomDb / 2;
+  const yMin = 22, yMax = H - 32;
+  const yOf = db => yMin + (1 - (Math.max(dbMin, Math.min(dbMax, db)) - dbMin) / (dbMax - dbMin)) * (yMax - yMin);
+
+  // Frequency grid lines & labels along bottom (Roon octave frequencies)
+  const freqLabels = [
+    [32, '32'], [64, '64'], [125, '125'], [250, '250'], [500, '500'],
+    [1000, '1k'], [2000, '2k'], [4000, '4k'], [8000, '8k'], [16000, '16k']
+  ];
+  ctx.font = '10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'center';
+  for (const [f, label] of freqLabels) {
+    const x = xOf(f);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, yMin);
+    ctx.lineTo(x, yMax);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillText(label, x, H - 12);
+  }
+
+  // dB grid lines & labels along left (+12dB down to -24dB)
+  const step = museZoomDb === 6 ? 1 : (museZoomDb === 12 ? 2 : 3);
+  for (let db = dbMax; db >= dbMin; db -= step) {
+    const y = yOf(db);
+    const isZero = db === 0;
+
+    ctx.strokeStyle = isZero ? '#ffffff' : 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = isZero ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(xMin - 4, y);
+    ctx.lineTo(xMax + 4, y);
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = isZero ? '#ffffff' : 'rgba(255, 255, 255, 0.45)';
+    ctx.font = isZero ? 'bold 10.5px -apple-system, sans-serif' : '10px -apple-system, sans-serif';
+    ctx.fillText((db > 0 ? `+${db}` : `${db}`) + 'dB', 8, y + 3.5);
+  }
+
+  // Compute Frequency Response Curve using Biquad Filters
+  const peq = state.dsp && state.dsp.peq;
+  const fs = 48000;
+  const activeBands = (peq && peq.enabled) ? peq.bands.filter(b => b.on) : [];
+  const coeffs = activeBands.map(b => peqUiBiquad(b.type, fs, b.freq, b.gain, b.q)).filter(Boolean);
+
+  const N = 400;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const f = fMin * Math.pow(fMax / fMin, i / N);
+    const db = coeffs.length ? peqUiMagDb(coeffs, f, fs) : 0;
+    pts.push([xOf(f), yOf(db)]);
+  }
+
+  if (pts.length) {
+    // Fill under curve
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], yOf(0));
+    for (const [x, y] of pts) ctx.lineTo(x, y);
+    ctx.lineTo(pts[pts.length - 1][0], yOf(0));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
+    ctx.fill();
+
+    // Solid prominent white curve line (exact Roon aesthetic)
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (const [x, y] of pts) ctx.lineTo(x, y);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+  }
+
+  // Draw Colored Interactive Band Nodes
+  if (peq && Array.isArray(peq.bands)) {
+    for (let i = 0; i < peq.bands.length; i++) {
+      const b = peq.bands[i];
+      if (!b) continue;
+      const x = xOf(b.freq);
+      const y = PEQ_GAIN_TYPES.includes(b.type) ? yOf(b.gain) : yOf(0);
+      const color = MUSE_BAND_COLORS[i % MUSE_BAND_COLORS.length];
+      const isSelected = i === museActiveBandIdx;
+
+      if (isSelected) {
+        // Outer concentric ring with glow (selected band)
+        ctx.beginPath();
+        ctx.arc(x, y, 9, 0, Math.PI * 2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x, y, 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = '#171821';
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+    }
+  }
+}
+
+function syncMuseBandEditor() {
+  if (!state.dsp || !state.dsp.peq || !Array.isArray(state.dsp.peq.bands)) return;
+  const band = state.dsp.peq.bands[museActiveBandIdx];
+  if (!band) return;
+
+  const museBandSelector = document.getElementById('museBandSelector');
+  if (museBandSelector) museBandSelector.value = String(museActiveBandIdx);
+
+  const dot = document.getElementById('museBandDotIndicator');
+  if (dot) dot.style.backgroundColor = MUSE_BAND_COLORS[museActiveBandIdx % MUSE_BAND_COLORS.length];
+
+  const museCurrentBandToggle = document.getElementById('museCurrentBandToggle');
+  if (museCurrentBandToggle) museCurrentBandToggle.checked = !!band.on;
+
+  const museFreqSlider = document.getElementById('museFreqSlider');
+  const museFreqInput = document.getElementById('museFreqInput');
+  if (museFreqSlider) museFreqSlider.value = peqFreqToSlider(band.freq);
+  if (museFreqInput) museFreqInput.value = Math.round(band.freq);
+
+  const museGainSlider = document.getElementById('museGainSlider');
+  const museGainInput = document.getElementById('museGainInput');
+  const hasGain = PEQ_GAIN_TYPES.includes(band.type);
+  if (museGainSlider) {
+    museGainSlider.disabled = !hasGain;
+    museGainSlider.value = band.gain;
+    const row = museGainSlider.closest('.muse-param-row');
+    if (row) row.style.opacity = hasGain ? '1' : '0.4';
+  }
+  if (museGainInput) {
+    museGainInput.disabled = !hasGain;
+    museGainInput.value = band.gain;
+  }
+
+  const museQSlider = document.getElementById('museQSlider');
+  const museQInput = document.getElementById('museQInput');
+  if (museQSlider) museQSlider.value = peqQToSlider(band.q);
+  if (museQInput) museQInput.value = (band.q || 1.0).toFixed(2);
+
+  const museTypeSelect = document.getElementById('museTypeSelect');
+  if (museTypeSelect) museTypeSelect.value = band.type || 'peaking';
+}
+
+function switchMuseTab(tabName) {
+  document.querySelectorAll('.muse-sidebar .muse-chain-card').forEach(c => {
+    c.classList.toggle('active', c.getAttribute('data-tab') === tabName);
+  });
+
+  const panelMap = {
+    peq: 'musePanelPeq',
+    src: 'musePanelSrc',
+    headroom: 'musePanelHeadroom',
+    crossfeed: 'musePanelCrossfeed',
+    conv: 'musePanelConv'
+  };
+
+  document.querySelectorAll('.muse-main-pane .muse-panel').forEach(p => {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
+
+  const targetId = panelMap[tabName] || 'musePanelPeq';
+  const targetPanel = document.getElementById(targetId);
+  if (targetPanel) {
+    targetPanel.classList.add('active');
+    targetPanel.style.display = 'block';
+  }
+
+  if (tabName === 'peq') {
+    drawMusePeqCanvas();
+  }
+}
+
+function applyMusePreset(presetKey) {
+  const nameMap = {
+    none: '沒有預設值',
+    warm: '發燒溫暖厚實',
+    bright: '明亮通透空氣感',
+    vocal: '人聲突出甜美',
+    bass: '深沉低頻下潛',
+    hires: '8x 升頻極致'
+  };
+  const curNameEl = document.getElementById('museCurrentPresetName');
+  if (curNameEl) curNameEl.textContent = nameMap[presetKey] || '沒有預設值';
+
+  if (presetKey === 'none') {
+    state.dsp.peq.bands.forEach(b => { b.on = false; b.gain = 0; });
+    state.dsp.peq.enabled = false;
+    state.dsp.peq.preset = 'flat';
+  } else if (presetKey === 'hires') {
+    state.dsp.enabled = true;
+    state.dsp.rateMode = '4x';
+    state.dsp.filterPhase = 'linear';
+    state.dsp.dsdOrder = 5;
+    state.dsp.ultrasonicFilter = '30k';
+  } else if (PEQ_PRESETS[presetKey]) {
+    const pb = PEQ_PRESETS[presetKey];
+    state.dsp.peq.bands.forEach((b, i) => {
+      if (pb[i]) {
+        b.on = pb[i].on; b.type = pb[i].type; b.freq = pb[i].freq; b.gain = pb[i].gain; b.q = pb[i].q;
+      } else {
+        b.on = false;
+      }
+    });
+    state.dsp.peq.enabled = true;
+    state.dsp.peq.preset = presetKey;
+  }
+
+  renderDspView();
+  peqScheduleReapply();
+}
+
+function setupMuseCanvasEvents() {
+  const canvas = document.getElementById('musePeqCanvas');
+  if (!canvas) return;
+
+  let isDragging = false;
+
+  const getCanvasCoords = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = (canvas.width / (window.devicePixelRatio || 1)) / rect.width;
+    const scaleY = (canvas.height / (window.devicePixelRatio || 1)) / rect.height;
+    return [
+      (e.clientX - rect.left) * scaleX,
+      (e.clientY - rect.top) * scaleY
+    ];
+  };
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const [mx, my] = getCanvasCoords(e);
+    const bands = state.dsp.peq.bands;
+    const W = canvas.clientWidth || 920;
+    const H = canvas.clientHeight || 320;
+    const fMin = 20, fMax = 20000;
+    const xMin = 50, xMax = W - 36;
+    const xOf = f => xMin + (Math.log10(Math.max(fMin, Math.min(fMax, f)) / fMin) / Math.log10(fMax / fMin)) * (xMax - xMin);
+
+    const dbMin = -museZoomDb, dbMax = museZoomDb / 2;
+    const yMin = 22, yMax = H - 32;
+    const yOf = db => yMin + (1 - (Math.max(dbMin, Math.min(dbMax, db)) - dbMin) / (dbMax - dbMin)) * (yMax - yMin);
+
+    for (let i = 0; i < PEQ_BAND_COUNT; i++) {
+      const b = bands[i];
+      if (!b) continue;
+      const bx = xOf(b.freq);
+      const by = PEQ_GAIN_TYPES.includes(b.type) ? yOf(b.gain) : yOf(0);
+      if (Math.hypot(mx - bx, my - by) <= 15) {
+        museActiveBandIdx = i;
+        isDragging = true;
+        syncMuseBandEditor();
+        drawMusePeqCanvas();
+        return;
+      }
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) {
+      const dspView = document.getElementById('viewDsp');
+      if (dspView && dspView.classList.contains('active')) {
+        const rect = canvas.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const [mx, my] = getCanvasCoords(e);
+          const bands = state.dsp.peq.bands;
+          const W = canvas.clientWidth || 920;
+          const H = canvas.clientHeight || 320;
+          const fMin = 20, fMax = 20000;
+          const xMin = 50, xMax = W - 36;
+          const xOf = f => xMin + (Math.log10(Math.max(fMin, Math.min(fMax, f)) / fMin) / Math.log10(fMax / fMin)) * (xMax - xMin);
+          const dbMin = -museZoomDb, dbMax = museZoomDb / 2;
+          const yMin = 22, yMax = H - 32;
+          const yOf = db => yMin + (1 - (Math.max(dbMin, Math.min(dbMax, db)) - dbMin) / (dbMax - dbMin)) * (yMax - yMin);
+          let hover = false;
+          for (let i = 0; i < PEQ_BAND_COUNT; i++) {
+            const b = bands[i];
+            if (!b) continue;
+            const by = PEQ_GAIN_TYPES.includes(b.type) ? yOf(b.gain) : yOf(0);
+            if (Math.hypot(mx - xOf(b.freq), my - by) <= 15) {
+              hover = true;
+              break;
+            }
+          }
+          canvas.style.cursor = hover ? 'grab' : 'default';
+        }
+      }
+      return;
+    }
+
+    const [mx, my] = getCanvasCoords(e);
+    const W = canvas.clientWidth || 920;
+    const H = canvas.clientHeight || 320;
+    const fMin = 20, fMax = 20000;
+    const xMin = 50, xMax = W - 36;
+    const fOf = x => fMin * Math.pow(fMax / fMin, Math.max(0, Math.min(1, (x - xMin) / (xMax - xMin))));
+
+    const dbMin = -museZoomDb, dbMax = museZoomDb / 2;
+    const yMin = 22, yMax = H - 32;
+    const dbOf = y => dbMin + (1 - (Math.max(yMin, Math.min(yMax, y)) - yMin) / (yMax - yMin)) * (dbMax - dbMin);
+
+    const band = state.dsp.peq.bands[museActiveBandIdx];
+    if (band) {
+      band.freq = Math.round(fOf(mx));
+      if (PEQ_GAIN_TYPES.includes(band.type)) {
+        band.gain = Math.max(-24, Math.min(24, Math.round(dbOf(my) * 2) / 2));
+      }
+      state.dsp.peq.preset = 'custom';
+      syncMuseBandEditor();
+      drawMusePeqCanvas();
+      updatePeqHeadroomNote();
+      peqScheduleReapply();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+  });
+}
+
+function setupMuseBandEditorEvents() {
+  const museBandSelector = document.getElementById('museBandSelector');
+  const museCurrentBandToggle = document.getElementById('museCurrentBandToggle');
+  const museFreqSlider = document.getElementById('museFreqSlider');
+  const museFreqInput = document.getElementById('museFreqInput');
+  const museGainSlider = document.getElementById('museGainSlider');
+  const museGainInput = document.getElementById('museGainInput');
+  const museQSlider = document.getElementById('museQSlider');
+  const museQInput = document.getElementById('museQInput');
+  const museTypeSelect = document.getElementById('museTypeSelect');
+
+  if (museBandSelector) {
+    museBandSelector.addEventListener('change', () => {
+      museActiveBandIdx = parseInt(museBandSelector.value, 10) || 0;
+      syncMuseBandEditor();
+      drawMusePeqCanvas();
+    });
+  }
+
+  if (museCurrentBandToggle) {
+    museCurrentBandToggle.addEventListener('change', () => {
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band) {
+        band.on = museCurrentBandToggle.checked;
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        updatePeqHeadroomNote();
+        updatePeqHint();
+        peqScheduleReapply();
+      }
+    });
+  }
+
+  if (museFreqSlider && museFreqInput) {
+    museFreqSlider.addEventListener('input', () => {
+      const f = peqFreqFromSlider(parseInt(museFreqSlider.value, 10));
+      museFreqInput.value = Math.round(f);
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band) {
+        band.freq = Math.round(f);
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        peqScheduleReapply();
+      }
+    });
+    museFreqInput.addEventListener('change', () => {
+      let f = Number(museFreqInput.value) || 1000;
+      f = Math.max(20, Math.min(20000, f));
+      museFreqInput.value = f;
+      museFreqSlider.value = peqFreqToSlider(f);
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band) {
+        band.freq = f;
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        peqScheduleReapply();
+      }
+    });
+  }
+
+  if (museGainSlider && museGainInput) {
+    museGainSlider.addEventListener('input', () => {
+      const g = parseFloat(museGainSlider.value) || 0;
+      museGainInput.value = g;
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band && PEQ_GAIN_TYPES.includes(band.type)) {
+        band.gain = g;
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        updatePeqHeadroomNote();
+        peqScheduleReapply();
+      }
+    });
+    museGainInput.addEventListener('change', () => {
+      let g = parseFloat(museGainInput.value) || 0;
+      g = Math.max(-24, Math.min(24, g));
+      museGainInput.value = g;
+      museGainSlider.value = g;
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band && PEQ_GAIN_TYPES.includes(band.type)) {
+        band.gain = g;
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        updatePeqHeadroomNote();
+        peqScheduleReapply();
+      }
+    });
+  }
+
+  if (museQSlider && museQInput) {
+    museQSlider.addEventListener('input', () => {
+      const q = peqQFromSlider(parseInt(museQSlider.value, 10));
+      museQInput.value = q.toFixed(2);
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band) {
+        band.q = parseFloat(q.toFixed(2));
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        peqScheduleReapply();
+      }
+    });
+    museQInput.addEventListener('change', () => {
+      let q = parseFloat(museQInput.value) || 1.0;
+      q = Math.max(0.1, Math.min(10.0, q));
+      museQInput.value = q.toFixed(2);
+      museQSlider.value = peqQToSlider(q);
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band) {
+        band.q = q;
+        state.dsp.peq.preset = 'custom';
+        drawMusePeqCanvas();
+        peqScheduleReapply();
+      }
+    });
+  }
+
+  if (museTypeSelect) {
+    museTypeSelect.addEventListener('change', () => {
+      const band = state.dsp.peq.bands[museActiveBandIdx];
+      if (band) {
+        band.type = museTypeSelect.value;
+        state.dsp.peq.preset = 'custom';
+        syncMuseBandEditor();
+        drawMusePeqCanvas();
+        updatePeqHeadroomNote();
+        peqScheduleReapply();
+      }
+    });
+  }
+}
+
+function initMuseControls() {
+  // Sidebar tab switching
+  const tabs = document.querySelectorAll('.muse-sidebar .muse-chain-card[data-tab]');
+  tabs.forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.muse-switch') || e.target.closest('input')) return;
+      const tabName = card.getAttribute('data-tab');
+      switchMuseTab(tabName);
+    });
+  });
+
+  // Back button in zone header
+  const btnMuseBack = document.getElementById('btnMuseBack');
+  if (btnMuseBack) {
+    btnMuseBack.addEventListener('click', () => {
+      if (state.historyIndex > 0) {
+        state.historyIndex--;
+        applyView(state.history[state.historyIndex], false);
+      } else {
+        navigateTo('overview');
+      }
+    });
+  }
+
+  // Left sidebar toggles
+  const toggleMuseHeadroom = document.getElementById('toggleMuseHeadroom');
+  if (toggleMuseHeadroom) {
+    toggleMuseHeadroom.addEventListener('change', () => {
+      state.dsp.headroomEnabled = toggleMuseHeadroom.checked;
+      const statusEl = document.getElementById('museHeadroomStatus');
+      if (statusEl) statusEl.textContent = toggleMuseHeadroom.checked ? '啟用' : '停用';
+      peqScheduleReapply();
+    });
+  }
+
+  const toggleMuseSrc = document.getElementById('toggleMuseSrc');
+  if (toggleMuseSrc) {
+    toggleMuseSrc.addEventListener('change', () => {
+      state.dsp.enabled = toggleMuseSrc.checked;
+      const toggleSoxDsp = document.getElementById('toggleSoxDsp');
+      if (toggleSoxDsp) toggleSoxDsp.checked = state.dsp.enabled;
+      const statusEl = document.getElementById('museSrcStatus');
+      if (statusEl) statusEl.textContent = toggleMuseSrc.checked ? '啟用' : '停用';
+      localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      updateSignalPathUI();
+      peqScheduleReapply();
+    });
+  }
+
+  const toggleMuseCrossfeed = document.getElementById('toggleMuseCrossfeed');
+  if (toggleMuseCrossfeed) {
+    toggleMuseCrossfeed.addEventListener('change', () => {
+      state.dsp.crossfeedEnabled = toggleMuseCrossfeed.checked;
+      const statusEl = document.getElementById('museCrossfeedStatus');
+      if (statusEl) statusEl.textContent = toggleMuseCrossfeed.checked ? '啟用' : '停用';
+      peqScheduleReapply();
+    });
+  }
+
+  const toggleMusePeq = document.getElementById('toggleMusePeq');
+  if (toggleMusePeq) {
+    toggleMusePeq.addEventListener('change', () => {
+      state.dsp.peq.enabled = toggleMusePeq.checked;
+      const statusEl = document.getElementById('musePeqStatus');
+      if (statusEl) statusEl.textContent = toggleMusePeq.checked ? '啟用' : '停用';
+      drawMusePeqCanvas();
+      updatePeqHeadroomNote();
+      updatePeqHint();
+      peqScheduleReapply();
+    });
+  }
+
+  const toggleMuseConv = document.getElementById('toggleMuseConv');
+  if (toggleMuseConv) {
+    toggleMuseConv.addEventListener('change', () => {
+      if (!state.dsp.conv) state.dsp.conv = { enabled: false, irPath: null };
+      state.dsp.conv.enabled = toggleMuseConv.checked;
+      const statusEl = document.getElementById('museConvStatus');
+      if (statusEl) statusEl.textContent = toggleMuseConv.checked ? '啟用' : '停用';
+      localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      peqScheduleReapply();
+    });
+  }
+
+  const toggleMuseBypassAll = document.getElementById('toggleMuseBypassAll');
+  if (toggleMuseBypassAll) {
+    toggleMuseBypassAll.addEventListener('change', () => {
+      const bypass = toggleMuseBypassAll.checked;
+      if (bypass) {
+        state.dsp._savedEnabled = state.dsp.enabled;
+        state.dsp._savedPeqEnabled = state.dsp.peq ? state.dsp.peq.enabled : false;
+        state.dsp._savedConvEnabled = state.dsp.conv ? state.dsp.conv.enabled : false;
+        state.dsp.enabled = false;
+        if (state.dsp.peq) state.dsp.peq.enabled = false;
+        if (state.dsp.conv) state.dsp.conv.enabled = false;
+      } else {
+        if (state.dsp._savedEnabled !== undefined) state.dsp.enabled = state.dsp._savedEnabled;
+        if (state.dsp.peq && state.dsp._savedPeqEnabled !== undefined) state.dsp.peq.enabled = state.dsp._savedPeqEnabled;
+        if (state.dsp.conv && state.dsp._savedConvEnabled !== undefined) state.dsp.conv.enabled = state.dsp._savedConvEnabled;
+      }
+      renderDspView();
+      peqScheduleReapply();
+    });
+  }
+
+  // Top Preset Dropdown
+  const musePresetBtn = document.getElementById('musePresetBtn');
+  const musePresetMenu = document.getElementById('musePresetMenu');
+  if (musePresetBtn && musePresetMenu) {
+    musePresetBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      musePresetMenu.style.display = musePresetMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    musePresetMenu.querySelectorAll('.muse-menu-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const preset = item.getAttribute('data-preset');
+        applyMusePreset(preset);
+        musePresetMenu.style.display = 'none';
+      });
+    });
+  }
+
+  // PEQ Header Controls
+  const btnMuseEqPreset = document.getElementById('btnMuseEqPreset');
+  const museEqPresetMenu = document.getElementById('museEqPresetMenu');
+  if (btnMuseEqPreset && museEqPresetMenu) {
+    btnMuseEqPreset.addEventListener('click', (e) => {
+      e.stopPropagation();
+      museEqPresetMenu.style.display = museEqPresetMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    museEqPresetMenu.querySelectorAll('.muse-menu-item[data-eq-preset]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pKey = item.getAttribute('data-eq-preset');
+        if (pKey === 'flat') {
+          state.dsp.peq.bands.forEach(b => { b.on = false; b.gain = 0; });
+        } else if (PEQ_PRESETS[pKey]) {
+          const pb = PEQ_PRESETS[pKey];
+          state.dsp.peq.bands.forEach((b, i) => {
+            if (pb[i]) {
+              b.on = pb[i].on; b.type = pb[i].type; b.freq = pb[i].freq; b.gain = pb[i].gain; b.q = pb[i].q;
+            } else {
+              b.on = false;
+            }
+          });
+        }
+        state.dsp.peq.preset = pKey;
+        state.dsp.peq.enabled = true;
+        const toggleMusePeq = document.getElementById('toggleMusePeq');
+        if (toggleMusePeq) toggleMusePeq.checked = true;
+        const pStatus = document.getElementById('musePeqStatus');
+        if (pStatus) pStatus.textContent = '啟用';
+        syncMuseBandEditor();
+        drawMusePeqCanvas();
+        updatePeqHeadroomNote();
+        updatePeqHint();
+        peqScheduleReapply();
+        museEqPresetMenu.style.display = 'none';
+      });
+    });
+  }
+
+  const btnMuseRemovePeq = document.getElementById('btnMuseRemovePeq');
+  if (btnMuseRemovePeq) {
+    btnMuseRemovePeq.addEventListener('click', () => {
+      state.dsp.peq.enabled = false;
+      const toggleMusePeq = document.getElementById('toggleMusePeq');
+      if (toggleMusePeq) toggleMusePeq.checked = false;
+      const statusEl = document.getElementById('musePeqStatus');
+      if (statusEl) statusEl.textContent = '停用';
+      drawMusePeqCanvas();
+      updatePeqHeadroomNote();
+      updatePeqHint();
+      peqScheduleReapply();
+    });
+  }
+
+  // Zoom controls
+  const btnMuseZoomIn = document.getElementById('btnMuseZoomIn');
+  if (btnMuseZoomIn) {
+    btnMuseZoomIn.addEventListener('click', () => {
+      if (museZoomDb === 24) museZoomDb = 12;
+      else if (museZoomDb === 12) museZoomDb = 6;
+      drawMusePeqCanvas();
+    });
+  }
+  const btnMuseZoomOut = document.getElementById('btnMuseZoomOut');
+  if (btnMuseZoomOut) {
+    btnMuseZoomOut.addEventListener('click', () => {
+      if (museZoomDb === 6) museZoomDb = 12;
+      else if (museZoomDb === 12) museZoomDb = 24;
+      drawMusePeqCanvas();
+    });
+  }
+
+  // Canvas and Band editor event listeners
+  setupMuseCanvasEvents();
+  setupMuseBandEditorEvents();
+
+  // Close menus on outside click
+  document.addEventListener('click', () => {
+    if (musePresetMenu) musePresetMenu.style.display = 'none';
+    if (museEqPresetMenu) museEqPresetMenu.style.display = 'none';
+  });
+}
+
+function renderDspView() {
+  const zoneNameEl = document.getElementById('museZoneName');
+  if (zoneNameEl) {
+    zoneNameEl.textContent = state.activeAudioZone !== 'local' && state.activeDlnaDevice ? state.activeDlnaDevice.name : 'System Output';
+  }
+
+  const toggleMuseHeadroom = document.getElementById('toggleMuseHeadroom');
+  if (toggleMuseHeadroom) {
+    toggleMuseHeadroom.checked = !!state.dsp.headroomEnabled;
+    const statusEl = document.getElementById('museHeadroomStatus');
+    if (statusEl) statusEl.textContent = toggleMuseHeadroom.checked ? '啟用' : '停用';
+  }
+
+  const toggleMuseSrc = document.getElementById('toggleMuseSrc');
+  if (toggleMuseSrc) {
+    toggleMuseSrc.checked = !!(state.dsp && state.dsp.enabled);
+    const statusEl = document.getElementById('museSrcStatus');
+    if (statusEl) statusEl.textContent = toggleMuseSrc.checked ? '啟用' : '停用';
+  }
+
+  const toggleMuseCrossfeed = document.getElementById('toggleMuseCrossfeed');
+  if (toggleMuseCrossfeed) {
+    toggleMuseCrossfeed.checked = !!state.dsp.crossfeedEnabled;
+    const statusEl = document.getElementById('museCrossfeedStatus');
+    if (statusEl) statusEl.textContent = toggleMuseCrossfeed.checked ? '啟用' : '停用';
+  }
+
+  const toggleMusePeq = document.getElementById('toggleMusePeq');
+  if (toggleMusePeq) {
+    toggleMusePeq.checked = !!(state.dsp && state.dsp.peq && state.dsp.peq.enabled);
+    const statusEl = document.getElementById('musePeqStatus');
+    if (statusEl) statusEl.textContent = toggleMusePeq.checked ? '啟用' : '停用';
+  }
+
+  const toggleMuseConv = document.getElementById('toggleMuseConv');
+  if (toggleMuseConv) {
+    toggleMuseConv.checked = !!(state.dsp && state.dsp.conv && state.dsp.conv.enabled);
+    const statusEl = document.getElementById('museConvStatus');
+    if (statusEl) statusEl.textContent = toggleMuseConv.checked ? '啟用' : '停用';
+  }
+
+  const curNameEl = document.getElementById('museCurrentPresetName');
+  if (curNameEl) {
+    const p = state.dsp.peq ? state.dsp.peq.preset : 'flat';
+    const nameMap = { flat: '沒有預設值', warm: '發燒溫暖厚實', bright: '明亮通透空氣感', vocal: '人聲突出甜美', bass: '深沉低頻下潛', custom: '自訂 EQ' };
+    curNameEl.textContent = nameMap[p] || '沒有預設值';
+  }
+
+  syncMuseBandEditor();
+  drawMusePeqCanvas();
+  updatePeqHeadroomNote();
+  updatePeqHint();
+  buildPeqSlotRow();
 }
 
 function updatePeqHeadroomNote() {
@@ -8463,6 +9228,10 @@ function syncPeqModalUI() {
   const peqCard = document.getElementById('peqCard');
   if (peqCard) peqCard.classList.toggle('active', peq.enabled);
   if (cb) cb.checked = peq.enabled;
+  const toggleMusePeq = document.getElementById('toggleMusePeq');
+  if (toggleMusePeq) toggleMusePeq.checked = peq.enabled;
+  const pStatus = document.getElementById('musePeqStatus');
+  if (pStatus) pStatus.textContent = peq.enabled ? '啟用' : '停用';
   if (editor) editor.style.display = peq.enabled ? 'block' : 'none';
   document.querySelectorAll('#peqPresetSelector .dsp-pill').forEach(p =>
     p.classList.toggle('active', peq.enabled && peq.preset !== 'custom' && p.getAttribute('data-peq-preset') === peq.preset));
@@ -8470,6 +9239,8 @@ function syncPeqModalUI() {
   buildPeqSlotRow();
   updatePeqHeadroomNote();
   updatePeqHint();
+  drawMusePeqCanvas();
+  syncMuseBandEditor();
 }
 
 // ----------------- User PEQ Slots: 6 named saved setups (localStorage) -----------------
@@ -8718,6 +9489,10 @@ function syncConvModalUI() {
   const active = !!(conv.enabled && conv.irPath);
 
   if (cb) cb.checked = !!conv.enabled;
+  const toggleMuseConv = document.getElementById('toggleMuseConv');
+  if (toggleMuseConv) toggleMuseConv.checked = !!conv.enabled;
+  const cStatus = document.getElementById('museConvStatus');
+  if (cStatus) cStatus.textContent = conv.enabled ? '啟用' : '停用';
   if (card) card.classList.toggle('active', !!conv.enabled);
   if (editor) editor.style.display = conv.enabled ? 'block' : 'none';
   if (badge) {
@@ -10021,6 +10796,9 @@ function initDspControls() {
 
   // User Filter Toolbox (自訂濾波槽：條列在濾波器按鈕列下方)
   initUserFilterControls();
+
+  // MUSE Precision Audio Control (Roon-style full page interface)
+  initMuseControls();
 }
 
 // ========================================================
@@ -11431,10 +12209,7 @@ function initRoonSignalPathControls() {
   const openDspModalHandler = (e) => {
     e.stopPropagation();
     toggleRoonSignalPathPopover(false);
-    if (signalPathModal) {
-      updateSignalPathUI();
-      signalPathModal.style.display = 'flex';
-    }
+    navigateTo('dsp');
   };
 
   if (btnSignalPopoverMore) {
