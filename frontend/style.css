@@ -1,11 +1,11 @@
 :root, [data-theme="dark"] {
-  --bg-main: #0c0d10;
-  --bg-sidebar: #08090b;
-  --bg-card: rgba(255, 255, 255, 0.024);
-  --bg-card-hover: rgba(255, 255, 255, 0.05);
-  --bg-header: #08090b;
+  --bg-main: #14161f;
+  --bg-sidebar: #090a0d;
+  --bg-card: rgba(255, 255, 255, 0.028);
+  --bg-card-hover: rgba(255, 255, 255, 0.055);
+  --bg-header: #090a0d;
   --bg-player: #08090b;
-  --border-color: rgba(255, 255, 255, 0.055);
+  --border-color: rgba(255, 255, 255, 0.065);
   --border-highlight: rgba(121, 82, 214, 0.45);
   --text-main: #f5f5f7;
   --text-sub: #8a8d9b;
@@ -15,7 +15,7 @@
   --accent-cyan: #0ea5e9;
   --accent-gold: #f59e0b;
   --accent-green: #10b981;
-  --modal-bg: #101116;
+  --modal-bg: #141620;
   --hero-title-color: #f5f5f7;
   --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
@@ -3319,12 +3319,18 @@ body.table-col-resizing * {
 #playerBar {
   height: 84px;
   background-color: var(--bg-player);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
   z-index: 1000;
+}
+
+[data-theme="light"] #playerBar {
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
 }
 
 .player-left {
@@ -5758,7 +5764,7 @@ body.table-col-resizing * {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: #0c0d10;
+  background-color: var(--modal-bg);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
