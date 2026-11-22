@@ -10304,11 +10304,16 @@ function seekPlaybackTo(targetSec) {
   updateNowPlayingPlaybackProgress();
 }
 
+const CTRL_PLAY_SVG = `<svg class="ctrl-svg-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none; margin-left:2px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
+const CTRL_PAUSE_SVG = `<svg class="ctrl-svg-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none;"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
+
+const NP_PLAY_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none; margin-left:2px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
+const NP_PAUSE_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none;"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
+
 function updatePlayPauseBtnUI() {
-  const icon = state.isPlaying ? '⏸' : '▶';
-  if (btnPlayPause) btnPlayPause.textContent = icon;
+  if (btnPlayPause) btnPlayPause.innerHTML = state.isPlaying ? CTRL_PAUSE_SVG : CTRL_PLAY_SVG;
   const npBtn = document.getElementById('btnNowPlayingPlayPause');
-  if (npBtn) npBtn.textContent = icon;
+  if (npBtn) npBtn.innerHTML = state.isPlaying ? NP_PAUSE_SVG : NP_PLAY_SVG;
 }
 
 function updateNowPlayingModalContent() {
@@ -10729,18 +10734,22 @@ function cycleRepeatMode() {
   updateRepeatUI();
 }
 
+const REPEAT_ALL_SVG = `<svg class="ctrl-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+
+const REPEAT_ONE_SVG = `<svg class="ctrl-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><path d="M11 10.5h1.5v4" stroke-width="2.2"/><path d="M10.5 11.8l1.5-1.3" stroke-width="2.2"/></svg>`;
+
 function updateRepeatUI() {
   if (state.repeatMode === 'off') {
-    btnRepeat.textContent = '🔁';
+    btnRepeat.innerHTML = REPEAT_ALL_SVG;
     btnRepeat.classList.remove('active', 'repeat-one');
     btnRepeat.title = '循環模式：關閉 (點擊切換為全部循環)';
   } else if (state.repeatMode === 'all') {
-    btnRepeat.textContent = '🔁';
+    btnRepeat.innerHTML = REPEAT_ALL_SVG;
     btnRepeat.classList.add('active');
     btnRepeat.classList.remove('repeat-one');
     btnRepeat.title = '循環模式：清單循環 (點擊切換為單曲循環)';
   } else if (state.repeatMode === 'one') {
-    btnRepeat.textContent = '🔂';
+    btnRepeat.innerHTML = REPEAT_ONE_SVG;
     btnRepeat.classList.add('active', 'repeat-one');
     btnRepeat.title = '循環模式：單曲循環 (點擊關閉循環)';
   }

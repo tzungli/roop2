@@ -3490,10 +3490,25 @@ body.table-col-resizing * {
   user-select: none;
 }
 
+.ctrl-btn svg {
+  display: block;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
 .ctrl-btn:hover {
   color: #ffffff;
-  background-color: rgba(255, 255, 255, 0.06);
-  transform: scale(1.05);
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.08);
+}
+
+[data-theme="light"] .ctrl-btn {
+  color: #64748b;
+}
+
+[data-theme="light"] .ctrl-btn:hover {
+  color: #0f172a;
+  background-color: rgba(0, 0, 0, 0.06);
 }
 
 .ctrl-btn.active {
