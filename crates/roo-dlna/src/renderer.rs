@@ -52,6 +52,11 @@ impl DlnaManager {
         devs.iter().find(|d| d.id == sel).cloned()
     }
 
+    pub fn get_device(&self, device_id: &str) -> Option<DlnaDevice> {
+        let devs = self.devices.read().unwrap();
+        devs.iter().find(|d| d.id == device_id).cloned()
+    }
+
     pub async fn play(
         &self,
         device_id: &str,
@@ -59,13 +64,10 @@ impl DlnaManager {
         title: &str,
         artist: &str,
         start_sec: f64,
-        on_progress: impl Fn(f64, f64) + Send + Sync + 'static,
+        on_progress: impl Fn(f64, f64, &str) + Send + Sync + 'static,
+        on_ended: impl Fn() + Send + Sync + 'static,
     ) -> Result<()> {
-        let dev = {
-            let devs = self.devices.read().unwrap();
-            devs.iter().find(|d| d.id == device_id).cloned()
-        };
-        let dev = match dev {
+        let dev = match self.get_device(device_id) {
             Some(d) => d,
             None => bail!("Device not found: {}", device_id),
         };
@@ -75,25 +77,72 @@ impl DlnaManager {
             let _ = tx.send(true);
         }
 
-        self.controller.set_av_transport_uri(&dev.av_transport_url, stream_url, title, artist).await?;
-        if start_sec > 0.0 {
-            let _ = self.controller.seek(&dev.av_transport_url, start_sec).await;
-        }
-        self.controller.play(&dev.av_transport_url).await?;
+        let is_dsd = stream_url.contains("dsd-stream") || stream_url.contains("dsd_mode=dsd");
 
-        // Start position poll loop
+        // 1. Ensure transport is stopped first to avoid error 705 (Transport locked)
+        let _ = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // 2. Set AVTransport URI with proper metadata
+        self.controller.set_av_transport_uri(
+            &dev.av_transport_url,
+            &dev.av_transport_service_type,
+            stream_url,
+            title,
+            artist,
+            is_dsd,
+        ).await?;
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // 3. Trigger Play
+        self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await?;
+
+        // 4. Seek if starting at offset
+        if start_sec > 0.0 {
+            let ctrl = self.controller.clone();
+            let av_url = dev.av_transport_url.clone();
+            let svc_type = dev.av_transport_service_type.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                let _ = ctrl.seek(&av_url, &svc_type, start_sec).await;
+            });
+        }
+
+        // 5. Start position and state polling loop
         let (tx, rx) = watch::channel(false);
         *self.stop_tx.write().unwrap() = Some(tx);
 
         let ctrl = self.controller.clone();
         let av_url = dev.av_transport_url.clone();
+        let svc_type = dev.av_transport_service_type.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(500));
+            let mut was_playing = false;
+            let mut play_seconds = 0;
+
             while !*rx.borrow() {
                 interval.tick().await;
-                if let Ok((pos, dur)) = ctrl.get_position_info(&av_url).await {
-                    on_progress(pos, dur);
+                if let Ok((pos, dur)) = ctrl.get_position_info(&av_url, &svc_type).await {
+                    let state = ctrl.get_transport_info(&av_url, &svc_type).await
+                        .unwrap_or_else(|_| "PLAYING".to_string());
+
+                    if state == "PLAYING" || pos > 0.0 {
+                        was_playing = true;
+                        play_seconds += 1;
+                    }
+
+                    on_progress(pos, dur, &state);
+
+                    let state_upper = state.to_uppercase();
+                    let finished_by_state = was_playing && play_seconds > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT");
+                    let finished_by_time = dur > 5.0 && pos >= (dur - 1.0);
+
+                    if finished_by_state || finished_by_time {
+                        on_ended();
+                        break;
+                    }
                 }
             }
         });
@@ -103,12 +152,12 @@ impl DlnaManager {
 
     pub async fn pause(&self, device_id: &str) -> Result<()> {
         let dev = self.get_device_by_id(device_id)?;
-        self.controller.pause(&dev.av_transport_url).await
+        self.controller.pause(&dev.av_transport_url, &dev.av_transport_service_type).await
     }
 
     pub async fn resume(&self, device_id: &str) -> Result<()> {
         let dev = self.get_device_by_id(device_id)?;
-        self.controller.play(&dev.av_transport_url).await
+        self.controller.play(&dev.av_transport_url, &dev.av_transport_service_type).await
     }
 
     pub async fn stop(&self, device_id: &str) -> Result<()> {
@@ -116,17 +165,17 @@ impl DlnaManager {
             let _ = tx.send(true);
         }
         let dev = self.get_device_by_id(device_id)?;
-        self.controller.stop(&dev.av_transport_url).await
+        self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await
     }
 
     pub async fn seek(&self, device_id: &str, seconds: f64) -> Result<()> {
         let dev = self.get_device_by_id(device_id)?;
-        self.controller.seek(&dev.av_transport_url, seconds).await
+        self.controller.seek(&dev.av_transport_url, &dev.av_transport_service_type, seconds).await
     }
 
     pub async fn set_volume(&self, device_id: &str, volume: u32) -> Result<()> {
         let dev = self.get_device_by_id(device_id)?;
-        self.controller.set_volume(&dev.rendering_control_url, volume).await
+        self.controller.set_volume(&dev.rendering_control_url, &dev.rendering_control_service_type, volume).await
     }
 
     fn get_device_by_id(&self, device_id: &str) -> Result<DlnaDevice> {

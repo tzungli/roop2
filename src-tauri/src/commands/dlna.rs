@@ -1,6 +1,44 @@
 use tauri::{AppHandle, Emitter, State};
 use roo_dlna::{discover_dlna_devices, probe_device_ip, DlnaDevice, DlnaManager};
 
+pub fn resolve_local_ip_for_target(target_host_or_ip: &str) -> String {
+    let host = if let Ok(url) = reqwest::Url::parse(target_host_or_ip) {
+        url.host_str().unwrap_or(target_host_or_ip).to_string()
+    } else if let Some((h, _)) = target_host_or_ip.split_once(':') {
+        h.to_string()
+    } else {
+        target_host_or_ip.to_string()
+    };
+
+    if !host.is_empty() && host != "127.0.0.1" && host != "localhost" {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            let target_sock = format!("{}:1900", host);
+            if socket.connect(&target_sock).is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    let ip = addr.ip();
+                    if !ip.is_loopback() && !ip.is_unspecified() {
+                        return ip.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    // Secondary fallback: probe towards a common reachable address
+    if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = socket.local_addr() {
+                let ip = addr.ip();
+                if !ip.is_loopback() && !ip.is_unspecified() {
+                    return ip.to_string();
+                }
+            }
+        }
+    }
+
+    "127.0.0.1".to_string()
+}
+
 #[tauri::command]
 pub async fn dlna_get_devices(manager: State<'_, DlnaManager>) -> Result<Vec<DlnaDevice>, String> {
     Ok(manager.get_devices())
@@ -37,32 +75,87 @@ pub async fn dlna_play_track(
     device_id: String,
     track: serde_json::Value,
     start_sec: Option<f64>,
-    _dsp_options: Option<serde_json::Value>,
+    dsp_options: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let title = track.get("title").and_then(|v| v.as_str()).unwrap_or("Track");
     let artist = track.get("artist").and_then(|v| v.as_str()).unwrap_or("Artist");
     let file_path = track.get("filePath").or_else(|| track.get("path")).and_then(|v| v.as_str()).unwrap_or("");
     let start = start_sec.unwrap_or(0.0);
 
+    let dev = manager.get_devices().into_iter().find(|d| d.id == device_id);
+    let target_ip_or_host = dev.as_ref()
+        .map(|d| if !d.ip.is_empty() { d.ip.clone() } else { d.location.clone() })
+        .unwrap_or_default();
+
+    let local_ip = resolve_local_ip_for_target(&target_ip_or_host);
+
+    let (target_rate, dsd_mode, dsd_order, filter_phase, peq_json, conv_json, ultrasonic_filter) =
+        if let Some(opts) = &dsp_options {
+            let rate = opts.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let dsd_m = opts.get("dsdMode").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let dsd_o = opts.get("dsdOrder").and_then(|v| v.as_u64()).unwrap_or(5) as u8;
+            let phase = opts.get("filterPhase").and_then(|v| v.as_str()).unwrap_or("linear").to_string();
+            let peq = opts.get("peq").map(|v| v.to_string()).unwrap_or_default();
+            let conv = opts.get("conv").map(|v| v.to_string()).unwrap_or_default();
+            let ultra = opts.get("ultrasonicFilter").and_then(|v| v.as_str()).unwrap_or("30k").to_string();
+            (rate, dsd_m, dsd_o, phase, peq, conv, ultra)
+        } else {
+            (0, String::new(), 5, "linear".to_string(), String::new(), String::new(), "30k".to_string())
+        };
+
     let stream_url = format!(
-        "http://127.0.0.1:39840/sox-stream?file_path={}&start_sec={}",
+        "http://{}:39840/sox-stream?file_path={}&start_sec={}&target_rate={}&dsd_mode={}&dsd_order={}&filter_phase={}&peq_json={}&conv_json={}&ultrasonic_filter={}",
+        local_ip,
         urlencoding::encode(file_path),
-        start
+        start,
+        target_rate,
+        urlencoding::encode(&dsd_mode),
+        dsd_order,
+        urlencoding::encode(&filter_phase),
+        urlencoding::encode(&peq_json),
+        urlencoding::encode(&conv_json),
+        urlencoding::encode(&ultrasonic_filter)
     );
 
     let app_clone = app.clone();
-    let res = manager.play(&device_id, &stream_url, title, artist, start, move |pos, dur| {
-        let _ = app_clone.emit("dlna:progress", serde_json::json!({
-            "positionSec": pos,
-            "durationSec": dur,
-            "relTime": format!("{:.1}", pos),
-            "trackDuration": format!("{:.1}", dur)
-        }));
-    }).await;
+    let app_clone2 = app.clone();
+    let res = manager.play(
+        &device_id,
+        &stream_url,
+        title,
+        artist,
+        start,
+        move |pos, dur, state| {
+            let _ = app_clone.emit("dlna:progress", serde_json::json!({
+                "currentSec": pos,
+                "positionSec": pos,
+                "durationSec": dur,
+                "maxSec": pos,
+                "relTime": format!("{:.1}", pos),
+                "trackDuration": format!("{:.1}", dur),
+                "state": state
+            }));
+        },
+        move || {
+            let _ = app_clone2.emit("dlna:trackEnded", ());
+        },
+    ).await;
 
     match res {
-        Ok(_) => Ok(serde_json::json!({ "ok": true })),
-        Err(e) => Ok(serde_json::json!({ "ok": false, "msg": e.to_string() })),
+        Ok(_) => Ok(serde_json::json!({
+            "success": true,
+            "ok": true,
+            "token": format!("{}:{}:{}", file_path, start, target_rate)
+        })),
+        Err(e) => {
+            tracing::error!("DLNA play failed: {}", e);
+            Ok(serde_json::json!({
+                "success": false,
+                "ok": false,
+                "error": e.to_string(),
+                "msg": e.to_string()
+            }))
+        }
     }
 }
 

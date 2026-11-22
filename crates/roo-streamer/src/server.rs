@@ -206,6 +206,7 @@ async fn handle_stream(
                 arc_s
             }
             Err(e) => {
+                tracing::error!("DSP streaming generation failed for {}: {}", opts.file_path, e);
                 return (StatusCode::INTERNAL_SERVER_ERROR, format!("DSP processing error: {}", e)).into_response();
             }
         },
@@ -218,7 +219,7 @@ async fn handle_stream(
         if let Some(range) = parse_range_header(range_str, total_len) {
             let start = range.0 as usize;
             let end = range.1 as usize;
-            let slice_len = end - start + 1;
+            let slice_len = end.saturating_sub(start) + 1;
 
             if start >= stream.data.len() || end >= stream.data.len() || start > end {
                 return StatusCode::RANGE_NOT_SATISFIABLE.into_response();
@@ -235,6 +236,11 @@ async fn handle_stream(
                 format!("bytes {}-{}/{}", start, end, total_len).parse().unwrap(),
             );
             headers_mut.insert(header::CONTENT_LENGTH, slice_len.to_string().parse().unwrap());
+            headers_mut.insert("transferMode.dlna.org", "Streaming".parse().unwrap());
+            headers_mut.insert(
+                "contentFeatures.dlna.org",
+                "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000".parse().unwrap(),
+            );
             return resp;
         }
     }
@@ -244,6 +250,11 @@ async fn handle_stream(
     headers_mut.insert(header::CONTENT_TYPE, stream.mime_type.parse().unwrap());
     headers_mut.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
     headers_mut.insert(header::CONTENT_LENGTH, total_len.to_string().parse().unwrap());
+    headers_mut.insert("transferMode.dlna.org", "Streaming".parse().unwrap());
+    headers_mut.insert(
+        "contentFeatures.dlna.org",
+        "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000".parse().unwrap(),
+    );
     resp
 }
 
