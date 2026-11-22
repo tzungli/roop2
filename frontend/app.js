@@ -9063,6 +9063,14 @@ function initMuseControls() {
   setupMuseCanvasEvents();
   setupMuseBandEditorEvents();
 
+  // Redraw PEQ canvas on window resize if DSP view is active
+  window.addEventListener('resize', () => {
+    const dspView = document.getElementById('viewDsp');
+    if (dspView && dspView.classList.contains('active')) {
+      drawMusePeqCanvas();
+    }
+  });
+
   // Close menus on outside click
   document.addEventListener('click', () => {
     if (musePresetMenu) musePresetMenu.style.display = 'none';
