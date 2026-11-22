@@ -323,23 +323,25 @@ async fn resolve_cover_response(q: CoverQuery) -> Response {
 
 async fn handle_stream_token(
     axum::extract::Path((token, _filename)): axum::extract::Path<(String, String)>,
+    method: axum::http::Method,
     headers: HeaderMap,
     State(_state): State<Arc<StreamServerState>>,
 ) -> Response {
-    handle_stream_for_token(&token, headers).await
+    handle_stream_for_token(&token, method, headers).await
 }
 
 async fn handle_stream_token_simple(
     axum::extract::Path(token): axum::extract::Path<String>,
+    method: axum::http::Method,
     headers: HeaderMap,
     State(_state): State<Arc<StreamServerState>>,
 ) -> Response {
-    handle_stream_for_token(&token, headers).await
+    handle_stream_for_token(&token, method, headers).await
 }
 
-async fn handle_stream_for_token(token: &str, headers: HeaderMap) -> Response {
+async fn handle_stream_for_token(token: &str, method: axum::http::Method, headers: HeaderMap) -> Response {
     if let Some(session) = get_progressive_session(token) {
-        return serve_progressive_stream(&session, &headers).await;
+        return serve_progressive_stream(&session, method, &headers).await;
     }
 
     let stream = {
@@ -354,6 +356,7 @@ async fn handle_stream_for_token(token: &str, headers: HeaderMap) -> Response {
 
 async fn serve_progressive_stream(
     session: &Arc<ProgressiveSession>,
+    method: axum::http::Method,
     headers: &HeaderMap,
 ) -> Response {
     let total_len = session.total_bytes;
@@ -361,6 +364,18 @@ async fn serve_progressive_stream(
     let is_dsd = session.mime_type.contains("dsf") || session.mime_type.contains("dsd");
     let mime_type = if is_dsd { "audio/x-dsf" } else { "audio/wav" };
     let dlna_features = "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";
+
+    if method == axum::http::Method::HEAD {
+        let mut resp = StatusCode::OK.into_response();
+        let headers_mut = resp.headers_mut();
+        headers_mut.insert(header::CONTENT_TYPE, mime_type.parse().unwrap());
+        headers_mut.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
+        headers_mut.insert(header::CONTENT_LENGTH, total_len.to_string().parse().unwrap());
+        headers_mut.insert("transferMode.dlna.org", "Streaming".parse().unwrap());
+        headers_mut.insert("contentFeatures.dlna.org", dlna_features.parse().unwrap());
+        headers_mut.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+        return resp;
+    }
 
     let (status, start, end) = if let Some(range_str) = range_header {
         if let Some((s, e)) = parse_range_header(range_str, total_len) {
@@ -378,6 +393,7 @@ async fn serve_progressive_stream(
         file_path: std::path::PathBuf,
         current_pos: u64,
         end_pos: u64,
+        total_len: u64,
         bytes_written: Arc<std::sync::atomic::AtomicU64>,
         is_completed: Arc<std::sync::atomic::AtomicBool>,
         is_cancelled: Arc<std::sync::atomic::AtomicBool>,
@@ -388,6 +404,7 @@ async fn serve_progressive_stream(
         file_path: session.temp_file_path.clone(),
         current_pos: start,
         end_pos: end,
+        total_len,
         bytes_written: session.bytes_written.clone(),
         is_completed: session.is_completed.clone(),
         is_cancelled: session.is_cancelled.clone(),
@@ -399,28 +416,37 @@ async fn serve_progressive_stream(
             return None;
         }
 
-        loop {
-            if state.is_cancelled.load(std::sync::atomic::Ordering::Relaxed) {
-                return None;
-            }
-            let written = state.bytes_written.load(std::sync::atomic::Ordering::Acquire);
-            if state.current_pos < written {
-                break;
-            }
-            if state.is_completed.load(std::sync::atomic::Ordering::Acquire) {
-                if state.current_pos >= written {
+        let is_tail_probe = state.end_pos >= state.total_len.saturating_sub(256 * 1024)
+            && state.current_pos >= state.total_len.saturating_sub(256 * 1024);
+
+        if !is_tail_probe {
+            loop {
+                if state.is_cancelled.load(std::sync::atomic::Ordering::Relaxed) {
                     return None;
                 }
-                break;
+                let written = state.bytes_written.load(std::sync::atomic::Ordering::Acquire);
+                if state.current_pos < written {
+                    break;
+                }
+                if state.is_completed.load(std::sync::atomic::Ordering::Acquire) {
+                    if state.current_pos >= written {
+                        return None;
+                    }
+                    break;
+                }
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_millis(500),
+                    state.notify.notified(),
+                ).await;
             }
-            let _ = tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                state.notify.notified(),
-            ).await;
         }
 
         let written = state.bytes_written.load(std::sync::atomic::Ordering::Acquire);
-        let available = written.saturating_sub(state.current_pos);
+        let available = if is_tail_probe {
+            state.end_pos + 1 - state.current_pos
+        } else {
+            written.saturating_sub(state.current_pos)
+        };
         let to_read = (state.end_pos + 1 - state.current_pos).min(available).min(128 * 1024) as usize;
 
         if to_read == 0 {
@@ -445,7 +471,14 @@ async fn serve_progressive_stream(
                 state.current_pos += bytes_len;
                 Some((Ok::<bytes::Bytes, std::io::Error>(bytes::Bytes::from(bytes)), state))
             }
-            _ => None,
+            Ok(Err(e)) => {
+                tracing::warn!("Progressive stream read error at pos {}: {}", curr_pos, e);
+                None
+            }
+            Err(e) => {
+                tracing::warn!("Progressive stream spawn_blocking error at pos {}: {}", curr_pos, e);
+                None
+            }
         }
     });
 

@@ -128,7 +128,18 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         ));
 
         let header = build_dsf_header(total_file_bytes, dsd_rate, (num_blocks * samples_per_block) as u64, 4096);
-        std::fs::write(&temp_file_path, &header)?;
+        {
+            use std::io::{Seek, SeekFrom, Write};
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(&temp_file_path)?;
+            file.set_len(total_file_bytes)?;
+            file.seek(SeekFrom::Start(0))?;
+            file.write_all(&header)?;
+            file.flush()?;
+        }
 
         let gf = REGISTRY.build_filter(dsd_rate as f64, src_rate as f64, &opts.filter_phase);
         let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, DitherType::Gauss1, gf);
@@ -137,8 +148,9 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         let mut initial_data = vec![0u8; initial_blocks * 8192];
         if initial_blocks > 0 {
             modulator.run_blocks(&left, &right, left.len(), 0, initial_blocks, inv_ratio, &mut initial_data);
-            use std::io::Write;
-            let mut file = std::fs::OpenOptions::new().append(true).open(&temp_file_path)?;
+            use std::io::{Seek, SeekFrom, Write};
+            let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&temp_file_path)?;
+            file.seek(SeekFrom::Start(92))?;
             file.write_all(&initial_data)?;
             file.flush()?;
         }
@@ -169,10 +181,14 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             let bg_notify = notify;
 
             std::thread::spawn(move || {
-                use std::io::Write;
-                let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&bg_file_path) else {
+                use std::io::{Seek, SeekFrom, Write};
+                let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(&bg_file_path) else {
                     return;
                 };
+                let start_offset = 92 + (initial_blocks * 8192) as u64;
+                if file.seek(SeekFrom::Start(start_offset)).is_err() {
+                    return;
+                }
 
                 let batch_blocks = 32usize;
                 let mut curr_block = initial_blocks;
@@ -228,7 +244,18 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         header.extend_from_slice(b"data");
         header.extend_from_slice(&(data_size as u32).to_le_bytes());
 
-        std::fs::write(&temp_file_path, &header)?;
+        {
+            use std::io::{Seek, SeekFrom, Write};
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(&temp_file_path)?;
+            file.set_len(total_file_bytes)?;
+            file.seek(SeekFrom::Start(0))?;
+            file.write_all(&header)?;
+            file.flush()?;
+        }
 
         let initial_frames = out_frames.min(target_rate as usize * 2);
         let gf = REGISTRY.build_filter(target_rate as f64, src_rate as f64, &opts.filter_phase);
@@ -270,10 +297,13 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             initial_bytes.push(((sr >> 16) & 0xFF) as u8);
         }
 
-        use std::io::Write;
-        let mut file = std::fs::OpenOptions::new().append(true).open(&temp_file_path)?;
-        file.write_all(&initial_bytes)?;
-        file.flush()?;
+        {
+            use std::io::{Seek, SeekFrom, Write};
+            let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&temp_file_path)?;
+            file.seek(SeekFrom::Start(44))?;
+            file.write_all(&initial_bytes)?;
+            file.flush()?;
+        }
 
         let bytes_written = Arc::new(AtomicU64::new(44 + initial_bytes.len() as u64));
         let is_completed = Arc::new(AtomicBool::new(initial_frames >= out_frames));
@@ -301,10 +331,14 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             let bg_notify = notify;
 
             std::thread::spawn(move || {
-                use std::io::Write;
-                let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&bg_file_path) else {
+                use std::io::{Seek, SeekFrom, Write};
+                let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(&bg_file_path) else {
                     return;
                 };
+                let start_offset = 44 + (initial_frames * 6) as u64;
+                if file.seek(SeekFrom::Start(start_offset)).is_err() {
+                    return;
+                }
 
                 let batch_frames = 16384usize;
                 let mut curr_frame = initial_frames;

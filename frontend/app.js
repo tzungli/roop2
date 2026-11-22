@@ -17676,6 +17676,7 @@ function dlnaSmoothedPosSec() {
 
 function dlnaResetPosClock(sec) {
   state.dlnaCurrentSec = Number(sec) || 0;
+  state.dlnaMaxProgressSec = Number(sec) || 0;
   const now = performance.now();
   dlnaPosEstSec = state.dlnaCurrentSec;
   dlnaPosEstMs = now;
@@ -17693,13 +17694,15 @@ function handleDlnaProgress(prog) {
   }
 
   const currentSec = prog.currentSec || 0;
-  const maxSec = Math.max(currentSec, prog.maxSec || 0, state.dlnaMaxProgressSec || 0);
-  state.dlnaMaxProgressSec = maxSec;
-
   const track = state.queue[state.currentTrackIndex];
   const totalSec = prog.durationSec > 0 ? prog.durationSec : (track ? track.duration : 0);
 
-  dlnaSetAuthoritativePos(currentSec); // state.dlnaCurrentSec = 權威值（頻譜與進度用推算值）
+  if (currentSec > 0 && currentSec <= totalSec + 5) {
+    state.dlnaMaxProgressSec = Math.max(currentSec, state.dlnaMaxProgressSec || 0);
+  }
+  const maxSec = state.dlnaMaxProgressSec || currentSec;
+
+  dlnaSetAuthoritativePos(currentSec);
   state.dlnaTotalSec = totalSec;
 
   if (totalSec > 0) {
@@ -17709,10 +17712,10 @@ function handleDlnaProgress(prog) {
     currentTimeLabel.textContent = formatDuration(shownSec);
     totalTimeLabel.textContent = formatDuration(totalSec);
 
-    // Front-end safety guard: trigger next track when playback reaches end or when device stops near end
+    // Front-end safety guard: trigger next track ONLY when playback genuinely progressed and reaches end
     const stateUpper = String(prog.state || '').toUpperCase();
-    const reachedEnd = (totalSec > 5 && maxSec >= totalSec - 1.2);
-    const stoppedNearEnd = (totalSec > 5 && (stateUpper === 'STOPPED' || stateUpper === 'NO_MEDIA_PRESENT') && (maxSec >= totalSec - 4.5 || maxSec >= totalSec * 0.94));
+    const reachedEnd = (totalSec > 5 && maxSec >= totalSec - 1.2 && currentSec > 3);
+    const stoppedNearEnd = (totalSec > 5 && (stateUpper === 'STOPPED' || stateUpper === 'NO_MEDIA_PRESENT') && (maxSec >= totalSec - 4.5 || maxSec >= totalSec * 0.94) && maxSec > 5);
 
     if (state.isPlaying && (reachedEnd || stoppedNearEnd) && !isTrackEndingHandled) {
       console.log(`[DLNA Frontend Guard] Current track reached duration (curr=${currentSec}s, max=${maxSec}/${totalSec}s, state=${stateUpper}), triggering onTrackEnded`);

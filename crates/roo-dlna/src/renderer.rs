@@ -147,6 +147,7 @@ impl DlnaManager {
             let mut interval = tokio::time::interval(Duration::from_millis(500));
             let mut was_playing = false;
             let mut play_seconds = 0;
+            let mut near_end_count = 0;
 
             while !*rx.borrow() {
                 interval.tick().await;
@@ -154,18 +155,28 @@ impl DlnaManager {
                     let state = ctrl.get_transport_info(&av_url, &svc_type).await
                         .unwrap_or_else(|_| "PLAYING".to_string());
 
-                    if state == "PLAYING" || pos > 0.0 {
+                    let state_upper = state.to_uppercase();
+                    if state_upper == "PLAYING" || pos > 0.0 {
                         was_playing = true;
                         play_seconds += 1;
                     }
 
                     on_progress(pos, dur, &state);
 
-                    let state_upper = state.to_uppercase();
-                    let finished_by_state = was_playing && play_seconds > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT");
-                    let finished_by_time = dur > 5.0 && pos >= (dur - 1.0);
+                    // A track has finished only if it was genuinely playing AND:
+                    // 1. Explicitly reported STOPPED or NO_MEDIA_PRESENT after playing for > 4s
+                    // 2. Or reached duration for at least 2 consecutive ticks after playing for > 4s
+                    let finished_by_state = was_playing && play_seconds > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT" || state_upper == "COMPLETED");
+                    
+                    if was_playing && play_seconds > 4 && dur > 5.0 && pos >= (dur - 1.5) {
+                        near_end_count += 1;
+                    } else {
+                        near_end_count = 0;
+                    }
+                    let finished_by_time = near_end_count >= 2;
 
                     if finished_by_state || finished_by_time {
+                        tracing::info!("Track finished on DLNA renderer (state={}, pos={}, dur={})", state, pos, dur);
                         on_ended();
                         break;
                     }
