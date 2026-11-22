@@ -16382,6 +16382,31 @@ function setupScannerEvents() {
     }
   });
 
+  function mergeScannedTracksIntoLibrary(result, targetFolder) {
+    if (!result || !result.tracks) return;
+    // Discard demo placeholder tracks once real tracks exist
+    const nonDemoExisting = (state.tracks || []).filter(t => !t.isDemo && !String(t.id).startsWith('demo_'));
+    
+    // Result tracks are all tracks currently in SQLite database
+    let mergedTracks = [...result.tracks];
+    // Preserve any existing tracks (e.g. streaming TIDAL/KKBOX or other in-memory tracks) not present in result
+    for (const tr of nonDemoExisting) {
+      const key = tr.filePath || tr.path || tr.id;
+      if (key && !mergedTracks.some(t => (t.filePath || t.path || t.id) === key)) {
+        mergedTracks.push(tr);
+      }
+    }
+
+    state.tracks = mergedTracks;
+    state.folders = result.folders || state.folders || [];
+    const fPath = result.folderPath || targetFolder;
+    if (fPath && !state.folders.includes(fPath)) {
+      state.folders.push(fPath);
+    }
+    rebuildLibraryCollections();
+    renderAll();
+  }
+
   btnSelectFolder.addEventListener('click', async () => {
     if (!window.electronAPI) {
       alert('請在 Electron 桌面環境中執行此功能');
@@ -16401,13 +16426,7 @@ function setupScannerEvents() {
       const result = await window.electronAPI.scanFolder(folderPath);
 
       if (result && result.tracks) {
-        state.tracks = result.tracks;
-        state.folders = result.folders || state.folders;
-        if (result.folderPath && !state.folders.includes(result.folderPath)) {
-          state.folders.push(result.folderPath);
-        }
-        rebuildLibraryCollections();
-        renderAll();
+        mergeScannedTracksIntoLibrary(result, folderPath);
 
         scanStatusLabel.textContent = `掃描完成！本資料夾新增/更新 ${result.newCount || 0} 首，目前音樂庫總計 ${state.tracks.length} 首音訊。`;
         scanPercentLabel.textContent = '100%';
@@ -16599,13 +16618,7 @@ function setupScannerEvents() {
     try {
       const result = await window.electronAPI.scanFolder(targetUncPath);
       if (result && result.tracks) {
-        state.tracks = result.tracks;
-        state.folders = result.folders || state.folders;
-        if (result.folderPath && !state.folders.includes(result.folderPath)) {
-          state.folders.push(result.folderPath);
-        }
-        rebuildLibraryCollections();
-        renderAll();
+        mergeScannedTracksIntoLibrary(result, targetUncPath);
 
         if (netScanStatusLabel) netScanStatusLabel.textContent = `SAMBA 掃描完成！本資料夾新增/更新 ${result.newCount || 0} 首，音樂庫總計 ${state.tracks.length} 首音訊。`;
         if (netScanPercentLabel) netScanPercentLabel.textContent = '100%';
@@ -17078,8 +17091,17 @@ window.rescanSpecificFolder = async function(folderPath) {
   try {
     const result = await window.electronAPI.scanFolder(folderPath);
     if (result && result.tracks) {
-      state.tracks = result.tracks;
-      state.folders = result.folders || state.folders;
+      const nonDemoExisting = (state.tracks || []).filter(t => !t.isDemo && !String(t.id).startsWith('demo_'));
+      let mergedTracks = [...result.tracks];
+      for (const tr of nonDemoExisting) {
+        const key = tr.filePath || tr.path || tr.id;
+        if (key && !mergedTracks.some(t => (t.filePath || t.path || t.id) === key)) {
+          mergedTracks.push(tr);
+        }
+      }
+
+      state.tracks = mergedTracks;
+      state.folders = result.folders || state.folders || [];
       rebuildLibraryCollections();
       renderAll();
       scanProgressBox.style.display = 'none';
@@ -17095,8 +17117,24 @@ window.removeSpecificFolder = async function(folderPath) {
   if (!confirm(`確定要從資料庫中移除「${folderPath}」嗎？（硬碟中的音樂檔案不會被刪除）`)) return;
   const result = await window.electronAPI.removeFolder(folderPath);
   if (result) {
-    state.tracks = result.tracks || [];
-    state.folders = result.folders || [];
+    let remainingTracks = result.tracks;
+    if (!remainingTracks) {
+      const normF = (folderPath || '').toLowerCase().replace(/\\/g, '/');
+      remainingTracks = (state.tracks || []).filter(t => {
+        if (!t.filePath) return true;
+        return !t.filePath.toLowerCase().replace(/\\/g, '/').startsWith(normF);
+      });
+    } else {
+      // Keep any streaming tracks that were in memory
+      const streamingTracks = (state.tracks || []).filter(t => t.isTidal || t.isKkbox);
+      for (const st of streamingTracks) {
+        if (!remainingTracks.some(t => t.id === st.id)) {
+          remainingTracks.push(st);
+        }
+      }
+    }
+    state.tracks = remainingTracks;
+    state.folders = result.folders || (state.folders || []).filter(f => f !== folderPath);
     rebuildLibraryCollections();
     renderAll();
   }

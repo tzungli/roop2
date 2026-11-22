@@ -257,6 +257,9 @@
       if (res && Array.isArray(res.tracks)) {
         res.tracks.forEach(normalizeShimTrack);
       }
+      if (res && Array.isArray(res.scannedTracks)) {
+        res.scannedTracks.forEach(normalizeShimTrack);
+      }
       return res;
     },
     onScanProgress: (callback) => listen('library:scanProgress', callback),
