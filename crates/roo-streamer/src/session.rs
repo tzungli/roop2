@@ -173,14 +173,14 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         }
     }
 
-    let is_dsd = opts.dsd_mode.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
-    if is_dsd {
-        if let Some(mode) = &opts.ultrasonic_filter {
-            if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
-                roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
-            }
+    // 4. Apply ultrasonic noise protection filter if configured (e.g. 20k, 30k, 40k, 50k)
+    if let Some(mode) = &opts.ultrasonic_filter {
+        if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
+            roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
         }
     }
+
+    let is_dsd = opts.dsd_mode.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
     let left = Arc::new(left);
     let right = Arc::new(right);
 
@@ -518,16 +518,17 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         }
     }
 
+    // Apply ultrasonic noise protection filter on input if configured (e.g. 20k, 30k, 40k, 50k)
+    if let Some(mode) = &opts.ultrasonic_filter {
+        if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
+            roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
+        }
+    }
+
     // 3. Check if DSD modulation requested
     let is_dsd = opts.dsd_mode.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
 
     if is_dsd {
-        // Apply ultrasonic noise protection filter if configured (e.g. 20k, 30k, 40k, 50k)
-        if let Some(mode) = &opts.ultrasonic_filter {
-            if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
-                roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
-            }
-        }
 
         let dsd_mode_str = opts.dsd_mode.as_ref().unwrap();
         let use_dop = opts.dop.unwrap_or(false);

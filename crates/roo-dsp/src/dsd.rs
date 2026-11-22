@@ -209,7 +209,7 @@ pub fn build_ultrasonic_filter_coeffs(sample_rate: f64, mode: &str) -> Option<Ul
         "50k" => 50000.0,
         _ => return None,
     };
-    if fc >= 0.45 * sample_rate {
+    if fc >= 0.48 * sample_rate {
         return None;
     }
 
