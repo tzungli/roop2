@@ -362,7 +362,16 @@ async fn serve_progressive_stream(
     let total_len = session.total_bytes;
     let range_header = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
     let is_dsd = session.mime_type.contains("dsf") || session.mime_type.contains("dsd");
-    let mime_type = if is_dsd { "audio/x-dsf" } else { "audio/wav" };
+    let mime_type = if is_dsd {
+        let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()).unwrap_or("");
+        if accept.contains("audio/dsf") && !accept.contains("audio/x-dsf") {
+            "audio/dsf"
+        } else {
+            "audio/x-dsf"
+        }
+    } else {
+        session.mime_type
+    };
     let dlna_features = "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";
 
     if method == axum::http::Method::HEAD {
@@ -554,9 +563,14 @@ fn serve_stream_data(stream: &GeneratedStream, headers: &HeaderMap) -> Response 
 
     let is_dsd = stream.mime_type.contains("dsf") || stream.mime_type.contains("dsd");
     let mime_type = if is_dsd {
-        "audio/x-dsf"
+        let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()).unwrap_or("");
+        if accept.contains("audio/dsf") && !accept.contains("audio/x-dsf") {
+            "audio/dsf"
+        } else {
+            "audio/x-dsf"
+        }
     } else {
-        "audio/wav"
+        stream.mime_type
     };
 
     let dlna_features = "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";

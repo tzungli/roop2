@@ -277,4 +277,12 @@ mod tests {
         assert_eq!(rc_url, "http://192.168.1.88:8080/upnp/control/rendering");
         assert_eq!(rc_st, "urn:schemas-upnp-org:service:RenderingControl:1");
     }
+
+    #[tokio::test]
+    async fn test_live_discover() {
+        let devs = discover_dlna_devices(2).await.unwrap_or_default();
+        for d in &devs {
+            println!("DEVICE: name={}, ip={}, model={}, loc={}", d.name, d.ip, d.model, d.location);
+        }
+    }
 }

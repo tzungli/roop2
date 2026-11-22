@@ -8129,12 +8129,10 @@ function getDsdMhz(mode) {
 
 function calculateTargetSampleRate(sourceRate = 44100, rateMode = '4x') {
   const src = Number(sourceRate) || 44100;
-  if (rateMode === 'dsd64') {
-    return (src % 48000 === 0) ? 192000 : 176400;
-  }
-  if (['dsd128', 'dsd256', 'dsd512'].includes(rateMode)) {
-    return (src % 48000 === 0) ? 384000 : 352800;
-  }
+  if (rateMode === 'dsd64') return 2822400;
+  if (rateMode === 'dsd128') return 5644800;
+  if (rateMode === 'dsd256') return 11289600;
+  if (rateMode === 'dsd512') return 22579200;
   if (rateMode === '192k') return 192000;
   if (rateMode === '384k') return 384000;
   if (rateMode === '96k') return 96000;

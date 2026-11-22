@@ -21,12 +21,15 @@ pub struct ProgressiveSession {
     pub is_completed: Arc<AtomicBool>,
     pub is_cancelled: Arc<AtomicBool>,
     pub notify: Arc<tokio::sync::Notify>,
+    pub is_temp_file: bool,
 }
 
 impl Drop for ProgressiveSession {
     fn drop(&mut self) {
         self.is_cancelled.store(true, Ordering::Relaxed);
-        let _ = std::fs::remove_file(&self.temp_file_path);
+        if self.is_temp_file {
+            let _ = std::fs::remove_file(&self.temp_file_path);
+        }
     }
 }
 
@@ -52,6 +55,29 @@ pub fn cancel_progressive_stream(token: &str) {
         session.is_cancelled.store(true, Ordering::Relaxed);
         session.notify.notify_waiters();
     }
+}
+
+pub fn register_direct_file_stream(
+    token: &str,
+    file_path: &std::path::Path,
+    mime_type: &'static str,
+) -> Result<Arc<ProgressiveSession>> {
+    cancel_progressive_stream(token);
+    let meta = std::fs::metadata(file_path)?;
+    let total_bytes = meta.len();
+    let session = Arc::new(ProgressiveSession {
+        token: token.to_string(),
+        temp_file_path: file_path.to_path_buf(),
+        mime_type,
+        total_bytes,
+        bytes_written: Arc::new(AtomicU64::new(total_bytes)),
+        is_completed: Arc::new(AtomicBool::new(true)),
+        is_cancelled: Arc::new(AtomicBool::new(false)),
+        notify: Arc::new(tokio::sync::Notify::new()),
+        is_temp_file: false,
+    });
+    PROGRESSIVE_SESSIONS.write().unwrap().insert(token.to_string(), session.clone());
+    Ok(session)
 }
 
 fn render_pcm_range_helper(
@@ -148,6 +174,13 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
     }
 
     let is_dsd = opts.dsd_mode.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+    if is_dsd {
+        if let Some(mode) = &opts.ultrasonic_filter {
+            if let Some(coeffs) = roo_dsp::build_ultrasonic_filter_coeffs(src_rate as f64, mode) {
+                roo_dsp::apply_ultrasonic_filter(&coeffs, &mut left, &mut right);
+            }
+        }
+    }
     let left = Arc::new(left);
     let right = Arc::new(right);
 
@@ -159,8 +192,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             "dsd512" => 512,
             _ => 64,
         };
-        let base_rate: u32 = if src_rate % 48000 == 0 { 48000 } else { 44100 };
-        let dsd_rate: u32 = base_rate * dsd_multiplier;
+        let dsd_rate: u32 = 44100 * dsd_multiplier;
         let ratio = dsd_rate as f64 / src_rate as f64;
         let inv_ratio = 1.0 / ratio;
 
@@ -222,6 +254,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             is_completed: is_completed.clone(),
             is_cancelled: is_cancelled.clone(),
             notify: notify.clone(),
+            is_temp_file: true,
         });
 
         PROGRESSIVE_SESSIONS.write().unwrap().insert(token.to_string(), session.clone());
@@ -345,6 +378,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             is_completed: is_completed.clone(),
             is_cancelled: is_cancelled.clone(),
             notify: notify.clone(),
+            is_temp_file: true,
         });
 
         PROGRESSIVE_SESSIONS.write().unwrap().insert(token.to_string(), session.clone());
@@ -505,8 +539,7 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
             "dsd512" => 512,
             _ => 64,
         };
-        let base_rate: u32 = if src_rate % 48000 == 0 { 48000 } else { 44100 };
-        let dsd_rate: u32 = base_rate * dsd_multiplier;
+        let dsd_rate: u32 = 44100 * dsd_multiplier;
 
         let ratio = dsd_rate as f64 / src_rate as f64;
         let inv_ratio = 1.0 / ratio;

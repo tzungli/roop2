@@ -125,14 +125,19 @@ pub async fn dlna_play_track(
             (0, String::new(), 5, "linear".to_string(), String::new(), String::new(), "30k".to_string())
         };
 
-    let is_dsd = !dsd_mode.is_empty();
-    let dsd_hz: Option<u32> = if is_dsd {
+    let is_native_dsf = file_path.to_lowercase().ends_with(".dsf");
+    let is_dsd_upsample = !dsd_mode.is_empty();
+    let is_dsd = is_dsd_upsample || is_native_dsf;
+    let dsd_hz: Option<u32> = if is_dsd_upsample {
         match dsd_mode.to_lowercase().as_str() {
             "dsd128" => Some(5644800),
             "dsd256" => Some(11289600),
             "dsd512" => Some(22579200),
             _ => Some(2822400),
         }
+    } else if is_native_dsf {
+        let track_rate = track.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(2822400) as u32;
+        Some(if track_rate > 0 { track_rate } else { 2822400 })
     } else {
         None
     };
@@ -140,31 +145,42 @@ pub async fn dlna_play_track(
     let stream_filename = if is_dsd { "audio.dsf" } else { "audio.wav" };
     let stream_url = format!("http://{}:39840/stream/{}/{}", local_ip, stream_token, stream_filename);
 
-    let opts = roo_streamer::DspStreamOptions {
-        file_path: file_path.to_string(),
-        start_sec: start,
-        target_rate,
-        dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
-        dsd_order,
-        filter_phase: filter_phase.clone(),
-        peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
-        conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
-        ultrasonic_filter: Some(ultrasonic_filter.clone()),
-        dop: Some(false), // Native DSD (DSF), NOT DoP!
-    };
-
-    // Cancel any prior progressive stream sessions and start progressive stream session
+    // Cancel any prior progressive stream sessions
     roo_streamer::cancel_all_progressive_streams();
 
-    let token_clone = stream_token.clone();
-    let opts_clone = opts.clone();
-    let start_res = tokio::task::spawn_blocking(move || {
-        roo_streamer::start_progressive_stream(&opts_clone, &token_clone)
-    }).await.map_err(|e| e.to_string())?;
+    if is_native_dsf && !is_dsd_upsample && peq_json.is_empty() && conv_json.is_empty() {
+        if let Err(e) = roo_streamer::register_direct_file_stream(
+            &stream_token,
+            std::path::Path::new(file_path),
+            "audio/x-dsf",
+        ) {
+            tracing::error!("Failed to register direct DSF stream: {}", e);
+            return Err(e.to_string());
+        }
+    } else {
+        let opts = roo_streamer::DspStreamOptions {
+            file_path: file_path.to_string(),
+            start_sec: start,
+            target_rate,
+            dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
+            dsd_order,
+            filter_phase: filter_phase.clone(),
+            peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
+            conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
+            ultrasonic_filter: Some(ultrasonic_filter.clone()),
+            dop: Some(false), // Native DSD (DSF), NOT DoP!
+        };
 
-    if let Err(e) = start_res {
-        tracing::error!("Failed to start progressive stream: {}", e);
-        return Err(e.to_string());
+        let token_clone = stream_token.clone();
+        let opts_clone = opts.clone();
+        let start_res = tokio::task::spawn_blocking(move || {
+            roo_streamer::start_progressive_stream(&opts_clone, &token_clone)
+        }).await.map_err(|e| e.to_string())?;
+
+        if let Err(e) = start_res {
+            tracing::error!("Failed to start progressive stream: {}", e);
+            return Err(e.to_string());
+        }
     }
 
     let app_clone = app.clone();
