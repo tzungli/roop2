@@ -1757,14 +1757,19 @@ function toggleArtistFavorite(artistName, triggerBtn = null) {
   }
   if (triggerBtn) {
     triggerBtn.classList.toggle('active', nowFav);
-    const labelSpan = triggerBtn.querySelector('span');
-    if (labelSpan) {
-      labelSpan.textContent = nowFav ? '已在最愛演出者' : '加入最愛演出者';
-      triggerBtn.innerHTML = `${getStarSvg(nowFav, 15)} <span>${labelSpan.textContent}</span>`;
+    if (triggerBtn.id === 'btnFavArtistDetail') {
+      triggerBtn.innerHTML = getStarSvg(nowFav, 18);
+      triggerBtn.title = nowFav ? '取消最愛演出者' : '加入最愛演出者';
     } else {
-      triggerBtn.innerHTML = getStarSvg(nowFav, 14);
+      const labelSpan = triggerBtn.querySelector('span');
+      if (labelSpan) {
+        labelSpan.textContent = nowFav ? '已在最愛演出者' : '加入最愛演出者';
+        triggerBtn.innerHTML = `${getStarSvg(nowFav, 15)} <span>${labelSpan.textContent}</span>`;
+      } else {
+        triggerBtn.innerHTML = getStarSvg(nowFav, 18);
+      }
+      triggerBtn.title = nowFav ? '取消最愛演出者' : '加入最愛演出者';
     }
-    triggerBtn.title = nowFav ? '取消最愛演出者' : '加入最愛演出者';
   }
   saveFavorites();
   syncAllFavoriteUIs();
@@ -1861,7 +1866,8 @@ function syncAllFavoriteUIs() {
     if (btnFavArtist) {
       const isFav = isArtistFavorite(state.currentArtistDetail);
       btnFavArtist.classList.toggle('active', isFav);
-      btnFavArtist.innerHTML = `${getStarSvg(isFav, 15)} <span>${isFav ? '已在最愛演出者' : '加入最愛演出者'}</span>`;
+      btnFavArtist.innerHTML = getStarSvg(isFav, 18);
+      btnFavArtist.title = isFav ? '取消最愛演出者' : '加入最愛演出者';
     }
   }
 
@@ -3981,10 +3987,11 @@ async function openArtistDetail(artistName) {
   if (btnFavArtist) {
     const isFav = isArtistFavorite(artistName);
     btnFavArtist.classList.toggle('active', isFav);
-    btnFavArtist.innerHTML = `${getStarSvg(isFav, 15)} <span>${isFav ? '已在最愛演出者' : '加入最愛演出者'}</span>`;
+    btnFavArtist.innerHTML = getStarSvg(isFav, 18);
+    btnFavArtist.title = isFav ? '取消最愛演出者' : '加入最愛演出者';
     btnFavArtist.onclick = (e) => {
       e.stopPropagation();
-      toggleArtistFavorite(artistName);
+      toggleArtistFavorite(artistName, btnFavArtist);
     };
   }
 

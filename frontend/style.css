@@ -5717,8 +5717,108 @@ body.table-col-resizing * {
 
 .artist-detail-actions {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
+}
+
+.artist-detail-actions #btnPlayAllArtistTracks,
+.artist-detail-actions #btnShuffleArtistTracks,
+.artist-detail-actions #btnFavArtistDetail,
+.artist-detail-actions #btnOpenWikipedia {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  max-width: 38px;
+  max-height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.artist-detail-actions #btnPlayAllArtistTracks svg,
+.artist-detail-actions #btnShuffleArtistTracks svg,
+.artist-detail-actions #btnFavArtistDetail svg,
+.artist-detail-actions #btnOpenWikipedia svg {
+  display: block;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.artist-detail-actions #btnPlayAllArtistTracks {
+  background-color: var(--accent-purple);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px var(--accent-purple-glow);
+}
+
+.artist-detail-actions #btnPlayAllArtistTracks:hover {
+  background-color: #9d7bf5;
+  transform: scale(1.08);
+}
+
+.artist-detail-actions #btnShuffleArtistTracks,
+.artist-detail-actions #btnFavArtistDetail,
+.artist-detail-actions #btnOpenWikipedia {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-sub);
+  border: 1px solid var(--border-color);
+}
+
+.artist-detail-actions #btnShuffleArtistTracks:hover,
+.artist-detail-actions #btnOpenWikipedia:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.14);
+  transform: scale(1.08);
+}
+
+.artist-detail-actions #btnFavArtistDetail:hover {
+  color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  transform: scale(1.08);
+}
+
+.artist-detail-actions #btnFavArtistDetail.active {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.5);
+  background-color: rgba(245, 158, 11, 0.16);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] .artist-detail-actions #btnShuffleArtistTracks,
+[data-theme="light"] .artist-detail-actions #btnFavArtistDetail,
+[data-theme="light"] .artist-detail-actions #btnOpenWikipedia {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #64748b;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .artist-detail-actions #btnShuffleArtistTracks:hover,
+[data-theme="light"] .artist-detail-actions #btnOpenWikipedia:hover {
+  color: #0f172a;
+  background-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .artist-detail-actions #btnFavArtistDetail:hover {
+  color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="light"] .artist-detail-actions #btnFavArtistDetail.active {
+  color: #d97706;
+  background-color: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
 }
 
 .artist-section-block {
@@ -7170,23 +7270,6 @@ body.table-col-resizing * {
   text-decoration: underline;
 }
 
-#btnFavArtistDetail {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-#btnFavAlbumDetail.active {
-  color: #f43f5e;
-  border-color: rgba(244, 63, 94, 0.4);
-  background: rgba(244, 63, 94, 0.12);
-}
-
-#btnFavArtistDetail.active {
-  color: #f59e0b;
-  border-color: rgba(245, 158, 11, 0.4);
-  background: rgba(245, 158, 11, 0.12);
-}
 
 .genre-filter-banner {
   display: flex;
