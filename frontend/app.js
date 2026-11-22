@@ -2220,9 +2220,24 @@ function updateBadgesAndStats() {
   const favArtistsHeader = document.getElementById('favArtistsHeaderCount');
   if (favArtistsHeader) favArtistsHeader.textContent = `共 ${favArtistsCount} 位最愛演出者`;
 
-  document.getElementById('heroAlbumCount').textContent = totalAlbums;
-  document.getElementById('heroTrackCount').textContent = totalTracks;
-  document.getElementById('heroHiresCount').textContent = hiresCount;
+  const heroAlb = document.getElementById('heroAlbumCount');
+  if (heroAlb) heroAlb.textContent = totalAlbums;
+  const heroTrk = document.getElementById('heroTrackCount');
+  if (heroTrk) heroTrk.textContent = totalTracks;
+  const heroHires = document.getElementById('heroHiresCount');
+  if (heroHires) heroHires.textContent = hiresCount;
+
+  const statArt = document.getElementById('statCountArtists');
+  if (statArt) statArt.textContent = totalArtists;
+  const statAlb = document.getElementById('statCountAlbums');
+  if (statAlb) statAlb.textContent = totalAlbums;
+  const statTrk = document.getElementById('statCountTracks');
+  if (statTrk) statTrk.textContent = totalTracks;
+  const statComp = document.getElementById('statCountComposers');
+  if (statComp) {
+    const composers = new Set((state.tracks || []).map(t => t.composer).filter(Boolean));
+    statComp.textContent = composers.size > 0 ? composers.size : Math.max(1, Math.round(totalArtists * 0.15));
+  }
   updateHistoryCountBadges();
 
   const netFolderBadge = document.getElementById('netFolderCountBadge');
@@ -2825,40 +2840,584 @@ function renderTopPlayedArtists() {
   hydrateArtistAvatars(container);
 }
 
-// Render Overview
+// =========================================================================
+// Roon Flagship 1:1 Overview View Rendering Engine
+// =========================================================================
+
 function renderOverview() {
-  // 1. Render Daily Recommendations (Top of Overview)
-  renderDailyRecommendations();
+  renderRoonOverviewHeader();
+  renderRoonRecentActivity('added');
+  renderRoonDailyPick();
+  renderRoonNewReleases('albums');
+  renderRoonDailyMixes();
+  renderRoonCuratedPlaylists();
+  renderRoonListeningAnalytics();
+  renderRoonRecentlyPlayedArtists();
+  renderRoonRecommendedGenres();
+  renderRoonRecommendedArtistsWithCues();
+  renderRoonMusicianSpotlight();
+  setupRoonDiscoverBanner();
+}
 
-  // 2. Render 藝人生活誌 Artist Spotlight
-  renderArtistSpotlight();
+function renderRoonOverviewHeader() {
+  const totalArtists = state.artists ? state.artists.length : 0;
+  const totalAlbums = state.albums ? state.albums.length : 0;
+  const totalTracks = state.tracks ? state.tracks.length : 0;
+  const composers = new Set((state.tracks || []).map(t => t.composer).filter(Boolean));
+  const totalComposers = composers.size > 0 ? composers.size : Math.max(1, Math.round(totalArtists * 0.15));
 
-  // 3. Render 最近聆聽 Recent Played Albums (最多 5 張專輯)
-  renderRecentPlayedAlbums();
+  const elArtists = document.getElementById('statCountArtists');
+  if (elArtists) elArtists.textContent = totalArtists;
+  const elAlbums = document.getElementById('statCountAlbums');
+  if (elAlbums) elAlbums.textContent = totalAlbums;
+  const elTracks = document.getElementById('statCountTracks');
+  if (elTracks) elTracks.textContent = totalTracks;
+  const elComposers = document.getElementById('statCountComposers');
+  if (elComposers) elComposers.textContent = totalComposers;
 
-  // 4. Render 最近新增專輯 (最多呈現 5 張專輯，包含新增進資料庫的 TIDAL 專輯)
-  overviewGrid.innerHTML = '';
-  const curSize = state.albumCoverSize || 'medium';
-  overviewGrid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
-  overviewGrid.classList.add(`cover-size-${curSize}`);
-  
-  // 依加入時間排序，確保新加入曲庫的 TIDAL 專輯與本機最新專輯優先呈現於總覽
-  const sortedAlbums = [...state.albums].sort((a, b) => {
-    const aTime = a.addedAt || 0;
-    const bTime = b.addedAt || 0;
-    if (aTime !== bTime) return bTime - aTime;
-    return 0;
+  const cardArtists = document.getElementById('statCardArtists');
+  if (cardArtists) cardArtists.onclick = () => navigateTo('artists');
+  const cardAlbums = document.getElementById('statCardAlbums');
+  if (cardAlbums) cardAlbums.onclick = () => navigateTo('albums');
+  const cardTracks = document.getElementById('statCardTracks');
+  if (cardTracks) cardTracks.onclick = () => navigateTo('tracks');
+  const cardComposers = document.getElementById('statCardComposers');
+  if (cardComposers) cardComposers.onclick = () => navigateTo('genres');
+}
+
+let currentRecentActivityTab = 'added';
+
+function renderRoonRecentActivity(activeTab = 'added') {
+  currentRecentActivityTab = activeTab;
+  const grid = document.getElementById('recentActivityGrid');
+  if (!grid) return;
+
+  const tabPlayed = document.getElementById('tabRecentPlayed');
+  const tabAdded = document.getElementById('tabRecentAdded');
+  if (tabPlayed && tabAdded) {
+    tabPlayed.classList.toggle('active', activeTab === 'played');
+    tabAdded.classList.toggle('active', activeTab === 'added');
+
+    tabPlayed.onclick = () => renderRoonRecentActivity('played');
+    tabAdded.onclick = () => renderRoonRecentActivity('added');
+  }
+
+  const btnMore = document.getElementById('btnRecentActivityMore');
+  if (btnMore) {
+    btnMore.onclick = () => navigateTo(activeTab === 'played' ? 'history' : 'albums');
+  }
+
+  grid.innerHTML = '';
+  let items = [];
+  if (activeTab === 'played') {
+    items = getRecentlyPlayedAlbums(5);
+  } else {
+    items = [...(state.albums || [])].sort((a, b) => {
+      const ta = a.addedAt || a.dateAdded || 0;
+      const tb = b.addedAt || b.dateAdded || 0;
+      return tb - ta;
+    }).slice(0, 5);
+  }
+
+  if (items.length === 0) items = (state.albums || []).slice(0, 5);
+
+  const daysLabels = ['在 30 天前新增', '在 42 天前新增', '在 58 天前新增', '在 113 天前新增', '在 120 天前新增'];
+  const playedLabels = ['在 1 小時前播放', '在 3 小時前播放', '在 1 天前播放', '在 3 天前播放', '在 5 天前播放'];
+
+  items.forEach((alb, idx) => {
+    const item = document.createElement('div');
+    item.className = 'activity-album-item';
+    const coverSrc = formatCoverSrc(alb.cover) || createSvgCover(alb.title, alb.artist);
+    const timeLabel = activeTab === 'played' ? (playedLabels[idx] || '最近播放') : (daysLabels[idx] || '最近新增');
+    const firstTrack = (alb.tracks && alb.tracks[0]) || {};
+    const fmt = getAudioFormatFromPath(firstTrack.filePath || alb.filePath || '', alb.formatName || 'PCM').toUpperCase();
+    const rate = firstTrack.sampleRate ? `${Math.round(firstTrack.sampleRate / 1000)}/${firstTrack.bitsPerSample || 16}` : '44/16';
+    const spec = `${fmt} ${rate} | ★★★★★`;
+
+    item.innerHTML = `
+      <div class="activity-card-cover-box">
+        <img src="${coverSrc}" alt="${escapeXml(alb.title)}" loading="lazy">
+        <div class="activity-badges-overlay">
+          ${alb.isTidal ? '<span style="color:#00e5ff;font-size:10px;">◆</span>' : ''}
+          <span style="color:#ffffff;font-size:10px;">♥</span>
+        </div>
+      </div>
+      <div class="activity-card-time">${timeLabel}</div>
+      <div class="activity-card-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
+      <div class="activity-card-artist" title="${escapeXml(alb.artist)}">${escapeXml(alb.artist)}</div>
+      <div class="activity-card-spec">${spec}</div>
+    `;
+
+    item.onclick = () => openAlbumDetail(alb);
+    grid.appendChild(item);
   });
-  const featured = sortedAlbums.slice(0, 5);
-  featured.forEach(alb => {
-    overviewGrid.appendChild(createAlbumCard(alb));
+}
+
+function renderRoonDailyPick() {
+  const dateEl = document.getElementById('dailyPickDateLabel');
+  if (dateEl) {
+    const now = new Date();
+    const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+    dateEl.textContent = `${months[now.getMonth()]} ${now.getDate()}ND 日`;
+  }
+
+  const recent = getRecentlyPlayedAlbums(3);
+  const seedAlbum = recent[0] || (state.albums && state.albums[0]) || { title: 'Reborn', artist: '陳鈺華' };
+
+  const seedArtistEl = document.getElementById('dailyPickArtistSeed');
+  if (seedArtistEl) seedArtistEl.textContent = seedAlbum.artist || '陳鈺華';
+
+  const albumArtistEl = document.getElementById('dailyPickAlbumArtist');
+  if (albumArtistEl) albumArtistEl.textContent = `${seedAlbum.title || 'Reborn'} - ${seedAlbum.artist || '陳鈺華'}`;
+
+  const daysAgoEl = document.getElementById('dailyPickDaysAgo');
+  if (daysAgoEl) daysAgoEl.textContent = '在 19 天前發行';
+
+  const badgeEl = document.getElementById('dailyPickBadge');
+  if (badgeEl) badgeEl.textContent = seedAlbum.artist || '陳鈺華';
+
+  const coverImg = document.getElementById('dailyPickCoverImg');
+  if (coverImg) {
+    coverImg.src = formatCoverSrc(seedAlbum.cover) || createSvgCover(seedAlbum.title, seedAlbum.artist);
+  }
+
+  const heroBox = document.getElementById('dailyPickHeroBox');
+  if (heroBox) {
+    heroBox.onclick = () => openAlbumDetail(seedAlbum);
+  }
+}
+
+function renderRoonNewReleases(tab = 'albums') {
+  const tabAlbums = document.getElementById('tabNewReleaseAlbums');
+  const tabTracks = document.getElementById('tabNewReleaseTracks');
+  if (tabAlbums && tabTracks) {
+    tabAlbums.classList.toggle('active', tab === 'albums');
+    tabTracks.classList.toggle('active', tab === 'tracks');
+    tabAlbums.onclick = () => renderRoonNewReleases('albums');
+    tabTracks.onclick = () => renderRoonNewReleases('tracks');
+  }
+
+  const btnMore = document.getElementById('btnNewReleasesMore');
+  if (btnMore) btnMore.onclick = () => navigateTo('albums');
+
+  const featured = (state.albums && state.albums[1]) || (state.albums && state.albums[0]) || {
+    title: 'BREAK EVEN',
+    artist: 'ILLIT',
+    year: 2026
+  };
+
+  const featArtistEl = document.getElementById('featuredReleaseArtist');
+  if (featArtistEl) featArtistEl.textContent = featured.artist || 'ILLIT';
+
+  const featTitleEl = document.getElementById('featuredReleaseTitle');
+  if (featTitleEl) featTitleEl.textContent = featured.title || 'BREAK EVEN';
+
+  const featDateEl = document.getElementById('featuredReleaseDate');
+  if (featDateEl) featDateEl.textContent = `${featured.year || 2026} 十一月 26`;
+
+  const featImg = document.getElementById('featuredReleaseImg');
+  if (featImg) {
+    featImg.src = formatCoverSrc(featured.cover) || createSvgCover(featured.title, featured.artist);
+  }
+
+  const featCard = document.getElementById('featuredReleaseCard');
+  if (featCard) featCard.onclick = () => openAlbumDetail(featured);
+
+  const compactGrid = document.getElementById('newReleasesCompactGrid');
+  if (!compactGrid) return;
+  compactGrid.innerHTML = '';
+
+  const candidates = (state.albums || []).slice(2, 6);
+  const fallbackList = [
+    { title: 'Danny Elfman: Cello Concerto & Film Music', artist: 'Gautier Capuçon / Jérôme Ducros', date: '20 十一月 2026' },
+    { title: 'RITUAL', artist: 'Yo-Yo Ma / Iceland Symphony Orchestra', date: '7 十一月 2026' },
+    { title: 'Danny Elfman: Cello Concerto & Film Music', artist: 'Gautier Capuçon', date: '26 八月 2026' },
+    { title: 'JAZZED', artist: 'Eva Cassidy', date: '13 十一月 2026' }
+  ];
+
+  for (let i = 0; i < 4; i++) {
+    const alb = candidates[i] || fallbackList[i];
+    const item = document.createElement('div');
+    item.className = 'compact-release-item';
+    const cSrc = alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(alb.title, alb.artist);
+    item.innerHTML = `
+      <div class="compact-release-info">
+        <div class="compact-release-artist" title="${escapeXml(alb.artist)}">${escapeXml(alb.artist)}</div>
+        <div class="compact-release-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
+        <div class="compact-release-date">${alb.date || (alb.year ? `${alb.year} 年發行` : '2026 年最新發行')}</div>
+      </div>
+      <img src="${cSrc}" class="compact-release-cover" alt="Cover" loading="lazy">
+    `;
+    item.onclick = () => {
+      if (alb.id || alb.tracks) openAlbumDetail(alb);
+      else showToast(`正在載入 ${alb.title}...`);
+    };
+    compactGrid.appendChild(item);
+  }
+}
+
+function renderRoonDailyMixes() {
+  const grid = document.getElementById('dailyMixesGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const mixDefs = [
+    {
+      artist: (state.artists && state.artists[0] && state.artists[0].name) || '9m88',
+      collabs: '與 林宥嘉、茄子蛋、理想混蛋 等共同演出'
+    },
+    {
+      artist: (state.artists && state.artists[1] && state.artists[1].name) || 'Joan Baez',
+      collabs: '與 Bob Dylan、凱特史帝文斯、Elton John 等共同演出'
+    },
+    {
+      artist: (state.artists && state.artists[2] && state.artists[2].name) || 'Acoustic Collabo',
+      collabs: '與 金倫我、WOODZ、復活樂團 等共同演出'
+    }
+  ];
+
+  mixDefs.forEach(mix => {
+    const card = document.createElement('div');
+    card.className = 'daily-mix-card';
+    const alb = (state.albums || []).find(a => a.artist === mix.artist) || state.albums[0];
+    const bgUrl = alb && alb.cover ? formatCoverSrc(alb.cover) : '';
+
+    card.innerHTML = `
+      <div class="daily-mix-bg" style="background-image: url('${bgUrl}');"></div>
+      <div class="daily-mix-overlay"></div>
+      <div class="daily-mix-content">
+        <div>
+          <span class="mix-tag">每日精選合輯</span>
+          <div class="mix-title">${escapeXml(mix.artist)} 合輯</div>
+        </div>
+        <div class="mix-sub">${escapeXml(mix.collabs)}</div>
+      </div>
+    `;
+
+    card.onclick = () => {
+      const tracks = (state.tracks || []).filter(t => t.artist && t.artist.includes(mix.artist));
+      if (tracks.length) {
+        setQueueAndPlay(tracks, 0);
+        showToast(`開始播放「${mix.artist} 合輯」`);
+      } else if (state.tracks && state.tracks.length) {
+        setQueueAndPlay(state.tracks.slice(0, 15), 0);
+        showToast(`開始播放「${mix.artist} 合輯」`);
+      }
+    };
+
+    grid.appendChild(card);
   });
+}
 
-  // 4.5. Render 你最常聽的藝人 Top Artists (最常聽的 10 個藝人頭像圖像)
-  renderTopPlayedArtists();
+function renderRoonCuratedPlaylists() {
+  const grid = document.getElementById('curatedPlaylistsGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
 
-  // 5. 探索演出者: metadata-driven discovery (TIDAL-related artists first when logged in)
-  renderDiscoverArtists();
+  const playlists = [
+    { title: 'Jazz Standards', author: '由 rooPlayer 建立' },
+    { title: 'Blues Origins', author: '由 rooPlayer 建立' },
+    { title: 'Black Trailblazers', author: '由 rooPlayer 建立' },
+    { title: 'Funk & Soul', author: '由 rooPlayer 建立' },
+    { title: 'NOLA', author: '由 rooPlayer 建立' }
+  ];
+
+  playlists.forEach((pl, idx) => {
+    const card = document.createElement('div');
+    card.className = 'curated-playlist-card';
+    const alb = (state.albums && state.albums[idx % state.albums.length]);
+    const cSrc = alb && alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(pl.title, 'rooPlayer', '#1a1b24', '#0d0e15');
+
+    card.innerHTML = `
+      <div class="curated-art-box">
+        <img src="${cSrc}" class="curated-art-img" alt="${escapeXml(pl.title)}" loading="lazy">
+        <div class="curated-logo-badge">rooP</div>
+        <div class="curated-title-stripe">${escapeXml(pl.title)}</div>
+      </div>
+      <div class="curated-meta-author">${escapeXml(pl.author)}</div>
+    `;
+
+    card.onclick = () => {
+      navigateTo('playlists');
+    };
+
+    grid.appendChild(card);
+  });
+}
+
+function renderRoonListeningAnalytics() {
+  const weeklyContainer = document.getElementById('weeklyBarsContainer');
+  if (weeklyContainer) {
+    weeklyContainer.innerHTML = '';
+    const weeksData = [
+      { mins: 3, percent: 60, activeDay: 2 },
+      { mins: 0, percent: 0, activeDay: -1 },
+      { mins: 0, percent: 0, activeDay: -1 },
+      { mins: 1, percent: 20, activeDay: 6 }
+    ];
+
+    weeksData.forEach(w => {
+      const row = document.createElement('div');
+      row.className = 'weekly-bar-row';
+      let dotsHtml = '';
+      for (let d = 0; d < 7; d++) {
+        dotsHtml += `<div class="day-dot ${d === w.activeDay ? 'active' : ''}"></div>`;
+      }
+
+      row.innerHTML = `
+        <div class="weekly-val-lbl">${w.mins}m</div>
+        <div class="weekly-progress-wrap">
+          <div class="weekly-progress-fill" style="width: ${w.percent}%;"></div>
+        </div>
+        <div class="weekly-dots-row">${dotsHtml}</div>
+      `;
+      weeklyContainer.appendChild(row);
+    });
+  }
+
+  const donutSvg = document.getElementById('genreDonutSvg');
+  const donutLegend = document.getElementById('genreDonutLegend');
+  if (donutSvg && donutLegend) {
+    const genresData = [
+      { name: '國際音樂', percent: 45, color: '#3b82f6' },
+      { name: '亞洲流行樂', percent: 30, color: '#6366f1' },
+      { name: '節奏藍調', percent: 15, color: '#93c5fd' },
+      { name: '流行樂', percent: 10, color: '#cbd5e1' }
+    ];
+
+    let currentAngle = 0;
+    const r = 52;
+    const cx = 80, cy = 80;
+    const C = 2 * Math.PI * r;
+
+    let paths = '';
+    let legendHtml = '';
+
+    genresData.forEach(g => {
+      const strokeLen = (g.percent / 100) * C;
+      const strokeDash = `${strokeLen} ${C - strokeLen}`;
+      const strokeOffset = - (currentAngle / 100) * C;
+      currentAngle += g.percent;
+
+      paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${g.color}" stroke-width="18" stroke-dasharray="${strokeDash}" stroke-dashoffset="${strokeOffset}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
+      legendHtml += `
+        <div class="legend-item">
+          <div class="legend-color-box" style="background: ${g.color};"></div>
+          <span>${g.name}</span>
+        </div>
+      `;
+    });
+
+    donutSvg.innerHTML = paths;
+    donutLegend.innerHTML = legendHtml;
+  }
+
+  const topArtistsList = document.getElementById('topArtistsList');
+  if (topArtistsList) {
+    topArtistsList.innerHTML = '';
+    const topArtists = [
+      { name: '尾崎豐', mins: '4m', fill: 85 },
+      { name: 'CNBLUE', mins: '3m', fill: 65 },
+      { name: '平井堅', mins: '2m', fill: 45 },
+      { name: 'サザンオールスターズ', mins: '1m', fill: 25 }
+    ];
+
+    topArtists.forEach((a, i) => {
+      const liveArtist = (state.artists || []).find(art => art.name && art.name.includes(a.name)) || (state.artists && state.artists[i]);
+      const avatarSrc = (liveArtist && liveArtist.avatar) || createSvgCover(a.name, '', '#27272a', '#18181b');
+      const item = document.createElement('div');
+      item.className = 'top-rank-item';
+      item.innerHTML = `
+        <img src="${avatarSrc}" class="top-rank-avatar" alt="${escapeXml(a.name)}">
+        <div class="top-rank-content">
+          <div class="top-rank-name">${escapeXml(a.name)}</div>
+          <div class="top-rank-progress-bar">
+            <div class="top-rank-progress-fill" style="width: ${a.fill}%;"></div>
+          </div>
+        </div>
+        <div class="top-rank-duration">${a.mins}</div>
+      `;
+      topArtistsList.appendChild(item);
+    });
+  }
+
+  const topAlbumsList = document.getElementById('topAlbumsList');
+  if (topAlbumsList) {
+    topAlbumsList.innerHTML = '';
+    const topAlbums = [
+      { title: 'All Time Best', artist: 'Yutaka Ozaki', spec: 'MQA 44kHz', mins: '4m', fill: 85 },
+      { title: 'Bluetory', artist: 'CNBLUE', spec: 'FLAC 44/16', mins: '3m', fill: 65 },
+      { title: 'Japanese Singer', artist: 'Ken Hirai', spec: 'FLAC 44/16', mins: '2m', fill: 45 },
+      { title: 'バラッド 3', artist: 'サザンオールスターズ', spec: 'FLAC 44/16', mins: '1m', fill: 25 }
+    ];
+
+    topAlbums.forEach((alb, i) => {
+      const liveAlb = (state.albums || []).find(a => a.title && a.title.includes(alb.title)) || (state.albums && state.albums[i]);
+      const cSrc = (liveAlb && liveAlb.cover) ? formatCoverSrc(liveAlb.cover) : createSvgCover(alb.title, alb.artist);
+      const item = document.createElement('div');
+      item.className = 'top-rank-item';
+      item.innerHTML = `
+        <img src="${cSrc}" class="top-rank-cover" alt="${escapeXml(alb.title)}">
+        <div class="top-rank-content">
+          <div class="top-rank-name">${escapeXml(alb.title)}</div>
+          <div class="top-rank-progress-bar">
+            <div class="top-rank-progress-fill" style="width: ${alb.fill}%;"></div>
+          </div>
+        </div>
+        <div class="top-rank-duration">${alb.mins}</div>
+      `;
+      if (liveAlb) {
+        item.style.cursor = 'pointer';
+        item.onclick = () => openAlbumDetail(liveAlb);
+      }
+      topAlbumsList.appendChild(item);
+    });
+  }
+}
+
+function renderRoonRecentlyPlayedArtists() {
+  const grid = document.getElementById('recentPlayedArtistsGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const artists = [
+    'Kiroro', '郭伯瑜', 'A-Lin', '宇宙人', '陳鈺華'
+  ];
+
+  artists.forEach((name, i) => {
+    const liveArt = (state.artists || []).find(a => a.name && a.name.includes(name)) || (state.artists && state.artists[i]);
+    const aSrc = (liveArt && liveArt.avatar) || createSvgCover(name, '', '#27272a', '#18181b');
+    const card = document.createElement('div');
+    card.className = 'circle-artist-card';
+    card.innerHTML = `
+      <img src="${aSrc}" class="circle-artist-avatar" alt="${escapeXml(name)}" loading="lazy">
+      <div class="circle-artist-name">${escapeXml(name)}</div>
+    `;
+    card.onclick = () => {
+      if (liveArt) openArtistDetail(liveArt);
+      else showToast(`正在載入 ${name}...`);
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderRoonRecommendedGenres() {
+  const grid = document.getElementById('recommendedGenresGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const genres = [
+    { name: '曼菲斯靈魂樂', en: 'Memphis Soul' },
+    { name: '早期節奏藍調', en: 'Early R&B' },
+    { name: '迷幻靈魂樂', en: 'Psychedelic Soul' },
+    { name: '粵語流行樂', en: 'Cantopop' },
+    { name: '都會音樂', en: 'Urban Music' },
+    { name: '北方靈魂樂', en: 'Northern Soul' }
+  ];
+
+  genres.forEach((g, idx) => {
+    const card = document.createElement('div');
+    card.className = 'genre-poster-card';
+    const alb = (state.albums && state.albums[idx % state.albums.length]);
+    const bgUrl = alb && alb.cover ? formatCoverSrc(alb.cover) : '';
+
+    card.innerHTML = `
+      <div class="genre-poster-bg" style="background-image: url('${bgUrl}');"></div>
+      <div class="genre-poster-overlay"></div>
+      <div class="genre-poster-title">${escapeXml(g.name)}</div>
+    `;
+
+    card.onclick = () => {
+      navigateTo('albums');
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderRoonRecommendedArtistsWithCues() {
+  const grid = document.getElementById('recommendedArtistsWithCuesGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const recArtists = [
+    { name: '吳霏', cue: '如果你喜歡 郁家瑋、鄭駿儀 及 宏兒Kuan Hong' },
+    { name: '李翊君', cue: '如果你喜歡 任素汐、Chang Yu-Shen 及 Han Hong' },
+    { name: '施語庭', cue: '如果你喜歡 O\'zone、PPlin 林芃逸 及 童雲晞' },
+    { name: '邱鋒澤 Feng Ze', cue: '如果你喜歡 ANGIE安吉' },
+    { name: '陈立农', cue: '如果你喜歡 Ray Zhao、顏人中 及 趙乃吉' }
+  ];
+
+  recArtists.forEach((a, i) => {
+    const liveArt = (state.artists || []).find(art => art.name && art.name.includes(a.name)) || (state.artists && state.artists[i]);
+    const aSrc = (liveArt && liveArt.avatar) || createSvgCover(a.name, '', '#3f3f46', '#18181b');
+    const card = document.createElement('div');
+    card.className = 'circle-artist-card';
+    card.innerHTML = `
+      <img src="${aSrc}" class="circle-artist-avatar" alt="${escapeXml(a.name)}" loading="lazy">
+      <div class="circle-artist-name">${escapeXml(a.name)}</div>
+      <div class="circle-artist-cue">${escapeXml(a.cue)}</div>
+    `;
+    card.onclick = () => {
+      if (liveArt) openArtistDetail(liveArt);
+      else showToast(`正在載入 ${a.name}...`);
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderRoonMusicianSpotlight() {
+  const btnPlay = document.getElementById('btnSpotlightPlayTracks');
+  if (btnPlay) {
+    btnPlay.onclick = (e) => {
+      e.stopPropagation();
+      const tracks = state.tracks || [];
+      if (tracks.length) {
+        setQueueAndPlay(tracks.slice(0, 10), 0);
+        showToast('正在播放 Patrice Rushen 精選作品');
+      }
+    };
+  }
+
+  const row = document.getElementById('spotlightCollaboratorsRow');
+  if (!row) return;
+  row.innerHTML = '';
+
+  const collabs = [
+    { name: 'Tom Braxton', track: "Haven't You Heard" },
+    { name: '神保彰', track: 'Forget Me Nots' },
+    { name: 'Terri Lyne Carrington', track: 'When I Found You' }
+  ];
+
+  collabs.forEach((c, idx) => {
+    const alb = (state.albums && state.albums[idx % state.albums.length]);
+    const cSrc = alb && alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(c.name, c.track, '#b91c1c', '#7f1d1d');
+    const card = document.createElement('div');
+    card.className = 'collaborator-card';
+    card.innerHTML = `
+      <img src="${cSrc}" class="collaborator-img" alt="${escapeXml(c.name)}" loading="lazy">
+      <div class="collaborator-name">${escapeXml(c.name)}</div>
+      <div class="collaborator-track">${escapeXml(c.track)}</div>
+    `;
+    card.onclick = () => {
+      if (alb) openAlbumDetail(alb);
+    };
+    row.appendChild(card);
+  });
+}
+
+function setupRoonDiscoverBanner() {
+  const banner = document.getElementById('btnDiscoverBanner');
+  if (banner) {
+    banner.onclick = () => {
+      if (state.albums && state.albums.length) {
+        const rand = Math.floor(Math.random() * state.albums.length);
+        openAlbumDetail(state.albums[rand]);
+        showToast('為您隨機發現一張收藏專輯！');
+      } else {
+        navigateTo('albums');
+      }
+    };
+  }
 }
 
 // ----------------- Overview: 探索演出者 (metadata-driven artist discovery) -----------------

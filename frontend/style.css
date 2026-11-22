@@ -434,69 +434,1241 @@ h1, h2, h3, h4, h5, h6 {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ----------------- Overview View ----------------- */
-.hero-banner {
-  position: relative;
-  border-radius: 3px;
-  background: linear-gradient(135deg, #13141f 0%, #0c0d13 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 18px 24px;
+/* ----------------- Roon Flagship 1:1 Overview View ----------------- */
+.roon-overview-header {
   margin-bottom: 24px;
-  overflow: hidden;
-  box-shadow: none !important;
-  transition: background 0.4s ease;
 }
 
-.hero-overlay {
+.roon-greeting {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 20px 0;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
+}
+
+.roon-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.roon-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.roon-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.stat-icon-wrap {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-val {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.1;
+}
+
+.stat-lbl {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 3px;
+}
+
+/* 1.2 Recent Activity (Roon Signature Blue Block) */
+.roon-section-banner {
+  border-radius: 8px;
+  padding: 22px 24px;
+  margin-bottom: 32px;
+}
+
+.roon-recent-activity-card {
+  background: linear-gradient(135deg, #2f40b5 0%, #3a4ecd 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(47, 64, 181, 0.25);
+}
+
+.roon-banner-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.roon-tab-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.roon-banner-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.roon-banner-tab {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.roon-banner-tab:hover {
+  color: #ffffff;
+}
+
+.roon-banner-tab.active {
+  color: #ffffff;
+}
+
+.roon-banner-tab.active::after {
+  content: '';
   position: absolute;
-  top: 0;
+  bottom: -4px;
   left: 0;
   right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at 85% 15%, rgba(121, 82, 214, 0.08) 0%, transparent 60%);
-  pointer-events: none;
-  z-index: 1;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 2px;
 }
 
-.hero-content {
+.roon-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roon-nav-arrow-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.roon-nav-arrow-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.roon-btn-more {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.roon-btn-more:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.roon-activity-album-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.activity-album-item {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.activity-album-item:hover {
+  transform: translateY(-3px);
+}
+
+.activity-card-cover-box {
   position: relative;
+  width: 100%;
+  aspect-ratio: 1/1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1a1b24;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.activity-card-cover-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.activity-badges-overlay {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
   z-index: 2;
 }
 
-.hero-tag {
-  font-size: 10px;
+.activity-card-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 3px;
+  font-weight: 500;
+}
+
+.activity-card-title {
+  font-size: 13.5px;
   font-weight: 700;
-  color: #a78bfa;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  display: inline-block;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-bottom: 2px;
 }
 
-.hero-title {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 2px 0 6px 0;
-  color: var(--hero-title-color, var(--text-main));
-  letter-spacing: -0.4px;
-  line-height: 1.25;
+.activity-card-artist {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
 }
 
-.hero-desc {
-  font-size: 13px;
-  color: var(--text-sub);
-  max-width: 650px;
+.activity-card-spec {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+/* 1.3 Daily Pick (3D Stacked Hero) */
+.roon-daily-pick-section {
+  margin-bottom: 36px;
+}
+
+.roon-section-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.roon-context-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roon-mini-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.roon-avatar-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.roon-context-text {
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+.roon-context-text strong {
+  color: var(--text-main);
+}
+
+.roon-daily-pick-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+  border-radius: 8px;
+  padding: 36px 42px;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(29, 78, 216, 0.25);
+  cursor: pointer;
+}
+
+.roon-pick-left {
+  flex: 1;
+  min-width: 0;
+  z-index: 2;
+}
+
+.roon-pick-date {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.roon-pick-title {
+  font-size: 38px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  margin: 0 0 10px 0;
+  line-height: 1.1;
+}
+
+.roon-pick-album {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.roon-pick-days {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.stacked-covers-wrap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin-right: 30px;
+}
+
+.stacked-cover {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 6px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  background-size: cover;
+  background-position: center;
+}
+
+.stacked-cover.cover-back {
+  top: -12px;
+  right: -12px;
+  transform: rotate(8deg);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.stacked-cover.cover-mid {
+  top: -4px;
+  right: -4px;
+  transform: rotate(4deg);
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.stacked-cover.cover-front {
+  top: 6px;
+  right: 6px;
+  transform: rotate(-2deg);
+  background: #000;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.stacked-cover.cover-front img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stacked-cover-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 1.4 New Releases Layout */
+.roon-section-block {
+  margin-bottom: 36px;
+}
+
+.roon-section-head-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.roon-block-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.roon-head-tabs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.roon-sub-tab {
+  background: transparent;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 2px;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.roon-sub-tab:hover {
+  color: var(--text-main);
+}
+
+.roon-sub-tab.active {
+  color: var(--text-main);
+}
+
+.roon-sub-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--text-main);
+  border-radius: 2px;
+}
+
+.roon-new-releases-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+}
+
+.roon-featured-release-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.roon-featured-release-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.featured-release-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.featured-artist-title-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.featured-artist-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.featured-album-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-sub);
+  margin: 4px 0;
+}
+
+.featured-release-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.featured-release-img {
+  width: 90px;
+  height: 90px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.featured-release-desc {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-sub);
+  margin: 0;
+}
+
+.roon-compact-releases-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.compact-release-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.compact-release-item:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.compact-release-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.compact-release-artist {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-release-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0;
+}
+
+.compact-release-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.compact-release-cover {
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 1.5 Daily Mixes Grid */
+.roon-daily-mixes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.daily-mix-card {
+  position: relative;
+  height: 180px;
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.daily-mix-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.daily-mix-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: grayscale(40%) contrast(110%);
+  z-index: 1;
+}
+
+.daily-mix-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(26, 32, 64, 0.82) 0%, rgba(15, 18, 38, 0.94) 100%);
+  z-index: 2;
+}
+
+.daily-mix-content {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.mix-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.mix-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 4px 0 2px 0;
+}
+
+.mix-sub {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.75);
   line-height: 1.4;
 }
 
-.hero-stats {
+/* 1.6 Curated Playlists */
+.roon-playlists-curated-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.curated-playlist-card {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.curated-playlist-card:hover {
+  transform: translateY(-3px);
+}
+
+.curated-art-box {
+  position: relative;
+  aspect-ratio: 1/1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #14151e;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.curated-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(100%);
+  display: block;
+}
+
+.curated-logo-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.curated-title-stripe {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.curated-meta-author {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* 1.7 Analytics Section */
+.roon-analytics-section {
+  margin-bottom: 36px;
+}
+
+.roon-listening-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 24px 30px;
+  display: flex;
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.listening-time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 130px;
+  text-align: center;
+}
+
+.clock-icon-wrap {
+  color: #6366f1;
+  margin-bottom: 6px;
+}
+
+.listening-time-val {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.listening-time-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.weekly-timeline-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.days-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.week-dots-header {
+  display: flex;
+  gap: 16px;
+  margin-right: 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.weekly-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 16px;
+}
+
+.weekly-progress-wrap {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.weekly-progress-fill {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 4px;
+}
+
+.weekly-val-lbl {
+  font-size: 11px;
+  color: var(--text-sub);
+  width: 32px;
+  text-align: right;
+}
+
+.weekly-dots-row {
+  display: flex;
+  gap: 16px;
+  margin-right: 14px;
+}
+
+.day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.day-dot.active {
+  width: 8px;
+  height: 8px;
+  background: #6366f1;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.6);
+  transform: translateY(-1px);
+}
+
+.roon-breakdown-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.roon-breakdown-head h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.breakdown-filter-select {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.roon-breakdown-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.breakdown-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.breakdown-card .card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.breakdown-card .card-head h4 {
+  font-size: 14.5px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.card-more-btn {
+  background: transparent;
+  border: none;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.card-more-btn:hover {
+  color: var(--text-main);
+}
+
+.donut-chart-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 150px;
+  margin: 6px 0;
+}
+
+.donut-chart {
+  width: 140px;
+  height: 140px;
+}
+
+.genre-donut-legend {
   display: flex;
   flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.legend-color-box {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.top-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.top-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-rank-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.top-rank-cover {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.top-rank-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.top-rank-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-rank-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.top-rank-progress-fill {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 2px;
+}
+
+.top-rank-duration {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 1.8 Circle Artists Row */
+.roon-circle-artists-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+}
+
+.circle-artist-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+}
+
+.circle-artist-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.circle-artist-avatar:hover {
+  transform: scale(1.06);
+}
+
+.circle-artist-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.circle-artist-cue {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  max-width: 140px;
+}
+
+/* 1.9 Recommended Genres Dual-Tone Posters */
+.roon-genres-poster-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.genre-poster-card {
+  position: relative;
+  height: 150px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-align: center;
+}
+
+.genre-poster-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: grayscale(100%) contrast(120%);
+  transition: transform 0.3s;
+}
+
+.genre-poster-card:hover .genre-poster-bg {
+  transform: scale(1.05);
+}
+
+.genre-poster-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 24, 45, 0.7);
+}
+
+.genre-poster-title {
+  position: relative;
+  z-index: 2;
+  font-size: 26px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  padding: 0 16px;
+}
+
+/* 1.11 Featured Musician Spotlight Banner */
+.roon-musician-spotlight-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #d32f2f 0%, #e53935 60%, #f44336 100%);
+  border-radius: 8px;
+  padding: 36px 40px;
+  margin-bottom: 36px;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(211, 47, 47, 0.25);
+}
+
+.spotlight-left-brand {
+  flex: 1;
+  min-width: 0;
+}
+
+.spotlight-tagline {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 6px;
+}
+
+.spotlight-artist-name {
+  font-size: 42px;
+  font-weight: 700;
+  font-family: "Georgia", "Times New Roman", serif;
+  color: #ffffff;
+  margin: 0 0 18px 0;
+  letter-spacing: -0.5px;
+}
+
+.spotlight-play-btn {
+  background: #ffffff;
+  color: #d32f2f;
+  border: none;
+  padding: 9px 22px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.spotlight-play-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+.spotlight-collaborators-row {
+  display: flex;
+  gap: 16px;
+  margin-left: 30px;
+}
+
+.collaborator-card {
+  width: 130px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.collaborator-card:hover {
+  transform: translateY(-2px);
+}
+
+.collaborator-img {
+  width: 120px;
+  height: 120px;
+  border-radius: 4px;
+  object-fit: cover;
+  margin-bottom: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.collaborator-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collaborator-track {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 1.12 Discover Banner */
+.roon-discover-banner {
+  background: linear-gradient(135deg, #2f40b5 0%, #394ebd 100%);
+  border-radius: 8px;
+  padding: 28px 36px;
+  margin-bottom: 40px;
+  cursor: pointer;
+  color: #ffffff;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.roon-discover-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(47, 64, 181, 0.35);
+}
+
+.discover-title {
+  font-size: 32px;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+}
+
+.discover-subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 0;
+}
+
+/* Light Mode Overrides for Roon Overview */
+[data-theme="light"] .roon-stat-card,
+[data-theme="light"] .roon-featured-release-card,
+[data-theme="light"] .compact-release-item,
+[data-theme="light"] .roon-listening-summary-card,
+[data-theme="light"] .breakdown-card {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .weekly-progress-wrap,
+[data-theme="light"] .top-rank-progress-bar {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .stat-pill {

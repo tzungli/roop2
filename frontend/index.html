@@ -174,141 +174,324 @@
         </button>
       </div>
 
-      <!-- 1. OVERVIEW VIEW -->
+      <!-- 1. OVERVIEW VIEW (ROON 1:1 REPLICATION) -->
       <section id="viewOverview" class="content-view active">
-        <div class="hero-banner" id="overviewHeroBanner">
-          <div class="hero-overlay"></div>
-          <div class="hero-content">
-            <span class="hero-tag">AUDIOPHILE MEDIA HUB</span>
-            <h1 class="hero-title">高解析音樂殿堂</h1>
-            <div class="hero-stats">
-              <div class="stat-pill"><span id="heroAlbumCount">0</span> 專輯</div>
-              <div class="stat-pill"><span id="heroTrackCount">0</span> 曲目</div>
-              <div class="stat-pill highlight"><span id="heroHiresCount">0</span> Hi-Res 無損音樂</div>
-              <div class="stat-pill" id="heroHistoryPill" style="cursor: pointer;" title="點擊檢視播放紀錄">🕒 <span id="heroHistoryCount">0</span> 播放紀錄</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 最近聆聽 Recent Played (顯示最近聽的 5 張專輯) -->
-        <div class="section-block" id="recentAlbumsSection" style="margin-bottom: 32px;">
-          <div class="section-header">
-            <div class="section-title-wrap">
-              <h2>🕒 最近聆聽 Recent Played</h2>
-              <button class="section-action-btn" id="btnSeeAllHistory" title="檢視完整播放紀錄">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
+        <!-- 1.1 Greeting & Library Stats Header -->
+        <div class="roon-overview-header">
+          <h1 class="roon-greeting" id="roonGreetingTitle">哈囉！<span id="roonUsername">tzungli</span></h1>
+          <div class="roon-stats-grid">
+            <div class="roon-stat-card" id="statCardArtists" role="button" title="檢視藝術家">
+              <div class="stat-icon-wrap">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-              </button>
-            </div>
-          </div>
-          <div class="album-grid" id="recentAlbumsGrid">
-            <!-- Injected via JS -->
-          </div>
-        </div>
-
-        <!-- 最近新增專輯 (依加入時間排序的本機最新匯入與 TIDAL 線上專輯) -->
-        <div class="section-block" style="margin-top: 32px; margin-bottom: 32px;">
-          <div class="section-header">
-            <div class="section-title-wrap">
-              <h2>🆕 最近新增專輯</h2>
-              <button class="section-action-btn" id="btnSeeAllAlbums" title="瀏覽全部專輯">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div class="album-grid featured-grid" id="overviewGrid">
-            <!-- Injected via JS -->
-          </div>
-        </div>
-
-        <!-- 你最常聽的藝人 (顯示最常聽的 10 個藝人圖像) -->
-        <div class="section-block" id="topArtistsSection" style="margin-top: 32px; margin-bottom: 32px;">
-          <div class="section-header">
-            <div class="section-title-wrap">
-              <h2>🎙️ 你最常聽的藝人 Top Artists</h2>
-              <button class="section-action-btn" id="btnSeeAllTopArtists" title="瀏覽全部演出者">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div class="artists-grid top-artists-grid" id="topArtistsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 18px;">
-            <!-- Injected via JS -->
-          </div>
-        </div>
-
-        <!-- 每日推薦 Daily Picks (參考最近播放紀錄每日隨機推薦五張專輯) -->
-        <div class="section-block" id="dailyRecommendSection" style="margin-top: 32px; margin-bottom: 32px;">
-          <div class="section-header">
-            <h2>🌟 每日推薦 Daily Recommendation</h2>
-          </div>
-          <div class="album-grid" id="dailyRecommendGrid">
-            <!-- Injected via JS -->
-          </div>
-        </div>
-
-        <!-- 藝人生活誌 Artist Spotlight (隨機推薦一位藝人，含生平簡介、照片與3張關聯專輯) -->
-        <div class="section-block" id="artistSpotlightSection" style="margin-top: 32px; margin-bottom: 32px;">
-          <div class="section-header">
-            <div class="section-title-wrap">
-              <h2>📖 藝人生活誌 Artist Spotlight</h2>
-              <button class="section-action-btn btn-refresh" id="btnRefreshSpotlight" title="隨機換一位藝人">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          
-          <div class="artist-spotlight-card" id="artistSpotlightCard">
-            <div class="spotlight-top-wrap">
-              <div class="spotlight-avatar-col">
-                <div class="spotlight-avatar-box" id="spotlightAvatarBox">
-                  <img src="" alt="Artist Photo" class="spotlight-avatar-img" id="spotlightAvatarImg" style="display: none;">
-                  <div class="spotlight-avatar-placeholder" id="spotlightAvatarPlaceholder">🎤</div>
-                </div>
               </div>
-              <div class="spotlight-info-col">
-                <div class="spotlight-tag">FEATURED ARTIST</div>
-                <h3 class="spotlight-name" id="spotlightName">演出者名稱</h3>
-                <div class="spotlight-genres" id="spotlightGenres"></div>
-                <div class="spotlight-bio-box">
-                  <p class="spotlight-bio" id="spotlightBio">正在載入藝人生平簡介...</p>
-                </div>
-                <div class="spotlight-actions">
-                  <button class="btn btn-primary btn-sm" id="btnSpotlightViewArtist">查看演出者主頁 ➔</button>
-                  <button class="btn btn-secondary btn-sm" id="btnSpotlightPlayArtist">▶ 播放該歌手所有歌曲</button>
-                </div>
+              <div class="stat-info">
+                <span class="stat-val" id="statCountArtists">0</span>
+                <span class="stat-lbl">藝術家</span>
               </div>
             </div>
 
-            <div class="spotlight-albums-wrap" id="spotlightAlbumsWrap">
-              <div class="spotlight-albums-title" id="spotlightAlbumsTitle">📀 相關精選專輯 Selected Albums</div>
-              <div class="album-grid spotlight-album-grid" id="spotlightAlbumsGrid">
-                <!-- Injected via JS -->
+            <div class="roon-stat-card" id="statCardAlbums" role="button" title="檢視專輯">
+              <div class="stat-icon-wrap">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-val" id="statCountAlbums">0</span>
+                <span class="stat-lbl">專輯</span>
+              </div>
+            </div>
+
+            <div class="roon-stat-card" id="statCardTracks" role="button" title="檢視曲目">
+              <div class="stat-icon-wrap">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-val" id="statCountTracks">0</span>
+                <span class="stat-lbl">曲目</span>
+              </div>
+            </div>
+
+            <div class="roon-stat-card" id="statCardComposers" role="button" title="檢視作曲家">
+              <div class="stat-icon-wrap">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-val" id="statCountComposers">0</span>
+                <span class="stat-lbl">作曲家</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="section-block" style="margin-top: 36px;">
-          <div class="section-header">
-            <div class="section-title-wrap">
-              <h2>🎤 探索演出者 Artists</h2>
-              <button class="section-action-btn" id="btnSeeAllArtists" title="瀏覽全部演出者">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </button>
+        <!-- 1.2 近期活動 Recent Activity (經典藍底卡片) -->
+        <div class="roon-section-banner roon-recent-activity-card">
+          <div class="roon-banner-top-bar">
+            <div class="roon-tab-group">
+              <span class="roon-banner-title">近期活動</span>
+              <button class="roon-banner-tab" id="tabRecentPlayed" type="button">已播放</button>
+              <button class="roon-banner-tab active" id="tabRecentAdded" type="button">已新增</button>
+            </div>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnRecentActivityPrev" title="向前捲動">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnRecentActivityNext" title="向後捲動">❯</button>
+              <button class="roon-btn-more" id="btnRecentActivityMore">更多</button>
             </div>
           </div>
-          <div class="artist-grid" id="overviewArtistsGrid">
+          <div class="roon-activity-album-row" id="recentActivityGrid">
             <!-- Injected via JS -->
           </div>
+        </div>
+
+        <!-- 1.3 每日精選 Daily Pick (因為你曾播放 + 3D疊層傾斜封面) -->
+        <div class="roon-daily-pick-section">
+          <div class="roon-section-subhead">
+            <div class="roon-context-user">
+              <img src="" id="dailyPickArtistAvatar" class="roon-mini-avatar" alt="Artist" style="display:none;">
+              <span class="roon-avatar-placeholder" id="dailyPickAvatarPlaceholder">🎤</span>
+              <span class="roon-context-text">因為你曾播放 <strong id="dailyPickArtistSeed">陳鈺華</strong></span>
+            </div>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnDailyPickPrev" title="上一精選">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnDailyPickNext" title="下一精選">❯</button>
+            </div>
+          </div>
+
+          <div class="roon-daily-pick-hero" id="dailyPickHeroBox">
+            <div class="roon-pick-left">
+              <div class="roon-pick-date" id="dailyPickDateLabel">十一月 22ND 日</div>
+              <h2 class="roon-pick-title">每日精選</h2>
+              <div class="roon-pick-album" id="dailyPickAlbumArtist">Reborn - 陳鈺華</div>
+              <div class="roon-pick-days" id="dailyPickDaysAgo">在 19 天前發行</div>
+            </div>
+            <div class="roon-pick-right">
+              <div class="stacked-covers-wrap" id="dailyPickStackedCovers">
+                <div class="stacked-cover cover-back"></div>
+                <div class="stacked-cover cover-mid"></div>
+                <div class="stacked-cover cover-front">
+                  <img id="dailyPickCoverImg" src="" alt="Album Cover">
+                  <div class="stacked-cover-badge" id="dailyPickBadge">陳鈺華</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.4 推薦給你的新作品 New Releases For You (雙欄式：左主打長文 + 右網格) -->
+        <div class="roon-section-block">
+          <div class="roon-section-head-bar">
+            <div class="roon-head-tabs">
+              <h2 class="roon-block-title">推薦給你的新作品</h2>
+              <button class="roon-sub-tab active" id="tabNewReleaseAlbums">專輯</button>
+              <button class="roon-sub-tab" id="tabNewReleaseTracks">單曲</button>
+            </div>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnNewReleasesPrev">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnNewReleasesNext">❯</button>
+              <button class="roon-btn-more" id="btnNewReleasesMore">更多</button>
+            </div>
+          </div>
+
+          <div class="roon-new-releases-layout">
+            <!-- Left: Featured Card with Long Narrative Review -->
+            <div class="roon-featured-release-card" id="featuredReleaseCard">
+              <div class="featured-release-meta">
+                <div class="featured-artist-title-col">
+                  <div class="featured-artist-name" id="featuredReleaseArtist">ILLIT</div>
+                  <h3 class="featured-album-name" id="featuredReleaseTitle">BREAK EVEN</h3>
+                  <div class="featured-release-date" id="featuredReleaseDate">26 十一月 2026</div>
+                </div>
+                <img src="" class="featured-release-img" id="featuredReleaseImg" alt="Featured Album Cover">
+              </div>
+              <p class="featured-release-desc" id="featuredReleaseDesc">
+                《BREAK EVEN》是精選推薦的重磅專輯作品，結合精湛編曲與高解析母帶製作，呈現極致通透的立體音場與人聲細節表現。
+              </p>
+            </div>
+
+            <!-- Right: 2x2 or 2x3 Compact Releases Grid -->
+            <div class="roon-compact-releases-grid" id="newReleasesCompactGrid">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.5 你的每日精選合輯 Your Daily Mixes (3張寬幅藍調合輯卡片) -->
+        <div class="roon-section-block">
+          <div class="roon-section-head-bar">
+            <h2 class="roon-block-title">你的每日精選合輯</h2>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnDailyMixPrev">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnDailyMixNext">❯</button>
+            </div>
+          </div>
+          <div class="roon-daily-mixes-grid" id="dailyMixesGrid">
+            <!-- 3 Dynamic Mix Cards injected via JS -->
+          </div>
+        </div>
+
+        <!-- 1.6 來自 rooPlayer 的播放清單 Playlists from rooPlayer -->
+        <div class="roon-section-block">
+          <div class="roon-section-head-bar">
+            <h2 class="roon-block-title">來自 rooPlayer 的播放清單</h2>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnRoonPlaylistsPrev">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnRoonPlaylistsNext">❯</button>
+              <button class="roon-btn-more" id="btnRoonPlaylistsMore">更多</button>
+            </div>
+          </div>
+          <div class="roon-playlists-curated-grid" id="curatedPlaylistsGrid">
+            <!-- 5 Curated Playlists injected via JS -->
+          </div>
+        </div>
+
+        <!-- 1.7 最近聆聽與統計圖表 Listening Analytics (週長條圖 + 圓環圖 + 排行榜) -->
+        <div class="roon-analytics-section">
+          <div class="roon-section-head-bar">
+            <h2 class="roon-block-title">最近聆聽</h2>
+          </div>
+
+          <!-- Top Listening Time & 4-Week Activity Timeline -->
+          <div class="roon-listening-summary-card">
+            <div class="listening-time-col">
+              <div class="clock-icon-wrap">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <div class="listening-time-val" id="totalListeningTime">5m</div>
+              <div class="listening-time-sub">過去 4 週的聆聽時間</div>
+            </div>
+
+            <div class="weekly-timeline-col">
+              <div class="days-header">
+                <span>過去四週</span>
+                <div class="week-dots-header">
+                  <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                </div>
+              </div>
+              <div class="weekly-bars-container" id="weeklyBarsContainer">
+                <!-- 4 Weekly bars with day dots injected via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 3-Column Breakdown: Genres Donut, Top Artists, Top Albums -->
+          <div class="roon-breakdown-container">
+            <div class="roon-breakdown-head">
+              <h3>你最近聆聽這些</h3>
+              <div class="breakdown-filter-select">上個月 ▾</div>
+            </div>
+
+            <div class="roon-breakdown-cards-grid">
+              <!-- Card 1: Genres Donut Chart -->
+              <div class="breakdown-card" id="breakdownCardGenres">
+                <div class="card-head">
+                  <h4>音樂類型</h4>
+                  <button class="card-more-btn" id="btnMoreGenres">更多</button>
+                </div>
+                <div class="donut-chart-wrap" id="donutChartWrap">
+                  <svg class="donut-chart" viewBox="0 0 160 160" id="genreDonutSvg">
+                    <!-- SVG Donut circles injected via JS -->
+                  </svg>
+                </div>
+                <div class="genre-donut-legend" id="genreDonutLegend">
+                  <!-- Legend items injected via JS -->
+                </div>
+              </div>
+
+              <!-- Card 2: Top Played Artists -->
+              <div class="breakdown-card" id="breakdownCardArtists">
+                <div class="card-head">
+                  <h4>你最常聽的藝術家</h4>
+                  <button class="card-more-btn" id="btnMoreTopArtists">更多</button>
+                </div>
+                <div class="top-list-items" id="topArtistsList">
+                  <!-- 4 Top Artists with progress bars injected via JS -->
+                </div>
+              </div>
+
+              <!-- Card 3: Top Played Albums / Tracks -->
+              <div class="breakdown-card" id="breakdownCardAlbums">
+                <div class="card-head">
+                  <h4>你最常聽的作品</h4>
+                  <button class="card-more-btn" id="btnMoreTopAlbums">更多</button>
+                </div>
+                <div class="top-list-items" id="topAlbumsList">
+                  <!-- 4 Top Albums with progress bars injected via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.8 你最近聆聽的藝術家 Recently Played Artists (圓形頭像橫排) -->
+        <div class="roon-section-block">
+          <div class="roon-section-head-bar">
+            <h2 class="roon-block-title">你最近聆聽的藝術家</h2>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnRecentArtistsPrev">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnRecentArtistsNext">❯</button>
+              <button class="roon-btn-more" id="btnRecentArtistsMore">更多</button>
+            </div>
+          </div>
+          <div class="roon-circle-artists-row" id="recentPlayedArtistsGrid">
+            <!-- 5 Circle Artists injected via JS -->
+          </div>
+        </div>
+
+        <!-- 1.9 推薦給你的音樂類型 Recommended Genres (6格黑白大字海報卡片) -->
+        <div class="roon-section-block">
+          <div class="roon-section-head-bar">
+            <h2 class="roon-block-title">推薦給你的音樂類型</h2>
+          </div>
+          <div class="roon-genres-poster-grid" id="recommendedGenresGrid">
+            <!-- 6 Dual-Tone Genre Posters injected via JS -->
+          </div>
+        </div>
+
+        <!-- 1.10 推薦藝術家 Recommended Artists (帶如果你喜歡...) -->
+        <div class="roon-section-block">
+          <div class="roon-section-head-bar">
+            <h2 class="roon-block-title">推薦藝術家</h2>
+            <div class="roon-banner-actions">
+              <button class="roon-nav-arrow-btn" id="btnRecArtistsPrev">❮</button>
+              <button class="roon-nav-arrow-btn" id="btnRecArtistsNext">❯</button>
+              <button class="roon-btn-more" id="btnRecArtistsMore">更多</button>
+            </div>
+          </div>
+          <div class="roon-circle-artists-row" id="recommendedArtistsWithCuesGrid">
+            <!-- 5 Artists with "如果你喜歡..." hints injected via JS -->
+          </div>
+        </div>
+
+        <!-- 1.11 藝術家專屬聚光燈大橫幅 Featured Musician Spotlight (鮮紅/亮橘底色) -->
+        <div class="roon-musician-spotlight-banner" id="musicianSpotlightBanner">
+          <div class="spotlight-left-brand">
+            <div class="spotlight-tagline">演奏音樂來自：</div>
+            <h2 class="spotlight-artist-name" id="spotlightArtistName">Patrice Rushen</h2>
+            <button class="spotlight-play-btn" id="btnSpotlightPlayTracks">▶ 播放曲目</button>
+          </div>
+          <div class="spotlight-collaborators-row" id="spotlightCollaboratorsRow">
+            <!-- 3 Collaborator Photo Cards injected via JS -->
+          </div>
+        </div>
+
+        <!-- 1.12 發現橫幅 Discover Banner (皇家藍圓角條) -->
+        <div class="roon-discover-banner" id="btnDiscoverBanner" role="button" title="點擊探索音樂資料庫">
+          <h2 class="discover-title">發現</h2>
+          <div class="discover-subtitle">以 rooPlayer 的經典方式來探索你的音樂資料庫並重新發現你收藏的音樂。 ❯</div>
         </div>
       </section>
 
