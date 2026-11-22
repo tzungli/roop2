@@ -354,7 +354,70 @@ h1, h2, h3, h4, h5, h6 {
   background-color: var(--bg-main);
   overflow-y: auto;
   position: relative;
-  padding: 28px 36px 36px 36px;
+  padding: 20px 36px 36px 36px;
+}
+
+/* Content History Navigation (Back / Forward) */
+.content-history-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+
+.content-nav-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.content-nav-btn svg {
+  display: block;
+}
+
+.content-nav-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.content-nav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.content-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+[data-theme="light"] .content-nav-btn {
+  background-color: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text-main);
+}
+
+[data-theme="light"] .content-nav-btn:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #000000;
+}
+
+#mainContent:has(#viewDsp.active) .content-history-nav {
+  display: none !important;
 }
 
 .content-view {

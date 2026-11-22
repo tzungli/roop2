@@ -14066,19 +14066,26 @@ function setupNavigation() {
     });
   }
 
-  document.getElementById('btnNavBack').addEventListener('click', () => {
-    if (state.historyIndex > 0) {
-      state.historyIndex--;
-      applyView(state.history[state.historyIndex], false);
-    }
-  });
+  const btnNavBack = document.getElementById('btnNavBack');
+  if (btnNavBack) {
+    btnNavBack.addEventListener('click', () => {
+      if (state.historyIndex > 0) {
+        state.historyIndex--;
+        applyView(state.history[state.historyIndex], false);
+      }
+    });
+  }
 
-  document.getElementById('btnNavForward').addEventListener('click', () => {
-    if (state.historyIndex < state.history.length - 1) {
-      state.historyIndex++;
-      applyView(state.history[state.historyIndex], false);
-    }
-  });
+  const btnNavForward = document.getElementById('btnNavForward');
+  if (btnNavForward) {
+    btnNavForward.addEventListener('click', () => {
+      if (state.historyIndex < state.history.length - 1) {
+        state.historyIndex++;
+        applyView(state.history[state.historyIndex], false);
+      }
+    });
+  }
+  updateHistoryNavState();
 
   const filterPills = document.querySelectorAll('#albumFilters .pill');
   filterPills.forEach(pill => {
@@ -14104,6 +14111,17 @@ function setupNavigation() {
   }
 }
 
+function updateHistoryNavState() {
+  const btnBack = document.getElementById('btnNavBack');
+  const btnForward = document.getElementById('btnNavForward');
+  if (btnBack) {
+    btnBack.disabled = (state.historyIndex <= 0);
+  }
+  if (btnForward) {
+    btnForward.disabled = (state.historyIndex >= state.history.length - 1);
+  }
+}
+
 function navigateTo(viewId) {
   if (state.currentView !== viewId) {
     state.history.push(viewId);
@@ -14121,6 +14139,11 @@ function applyView(viewId, updateNav = true) {
   const targetView = document.getElementById(`view${capitalize(viewId)}`);
   if (targetView) targetView.classList.add('active');
 
+  const contentNav = document.querySelector('.content-history-nav');
+  if (contentNav) {
+    contentNav.style.display = (viewId === 'dsp') ? 'none' : 'flex';
+  }
+
   // Trigger on-demand rendering for the selected view
   renderViewIfNeeded(viewId);
 
@@ -14129,6 +14152,8 @@ function applyView(viewId, updateNav = true) {
       btn.classList.toggle('active', btn.getAttribute('data-view') === viewId);
     });
   }
+
+  updateHistoryNavState();
 
   // Proactive memory cleanup on view transitions
   if (typeof window.gc === 'function') {
