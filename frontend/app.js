@@ -7715,6 +7715,8 @@ async function playCurrentTrack() {
     dlnaResetPosClock(0);
     state.dlnaTotalSec = track.duration || 0;
     state.dlnaMaxProgressSec = 0;
+    state.dlnaTrackStartTime = Date.now();
+    state.dlnaHasStartedPlaying = false;
     stopVirtualProgress();
     stopDemoSynth();
     nativeAudio.pause();
@@ -17696,6 +17698,17 @@ function handleDlnaProgress(prog) {
   const currentSec = prog.currentSec || 0;
   const track = state.queue[state.currentTrackIndex];
   const totalSec = prog.durationSec > 0 ? prog.durationSec : (track ? track.duration : 0);
+  const elapsedSinceStart = Date.now() - (state.dlnaTrackStartTime || 0);
+  const stateUpper = String(prog.state || '').toUpperCase();
+
+  // Filter out any stale near-end progress reports from prior track during the first 3.5 seconds of track startup
+  if (elapsedSinceStart < 3500 && totalSec > 5 && currentSec >= totalSec - 3.0) {
+    return;
+  }
+
+  if (stateUpper === 'PLAYING' || (currentSec > 0.5 && currentSec < totalSec - 5)) {
+    state.dlnaHasStartedPlaying = true;
+  }
 
   if (currentSec > 0 && currentSec <= totalSec + 5) {
     state.dlnaMaxProgressSec = Math.max(currentSec, state.dlnaMaxProgressSec || 0);
@@ -17713,11 +17726,10 @@ function handleDlnaProgress(prog) {
     totalTimeLabel.textContent = formatDuration(totalSec);
 
     // Front-end safety guard: trigger next track ONLY when playback genuinely progressed and reaches end
-    const stateUpper = String(prog.state || '').toUpperCase();
     const reachedEnd = (totalSec > 5 && maxSec >= totalSec - 1.2 && currentSec > 3);
     const stoppedNearEnd = (totalSec > 5 && (stateUpper === 'STOPPED' || stateUpper === 'NO_MEDIA_PRESENT') && (maxSec >= totalSec - 4.5 || maxSec >= totalSec * 0.94) && maxSec > 5);
 
-    if (state.isPlaying && (reachedEnd || stoppedNearEnd) && !isTrackEndingHandled) {
+    if (state.isPlaying && state.dlnaHasStartedPlaying && elapsedSinceStart > 4500 && (reachedEnd || stoppedNearEnd) && !isTrackEndingHandled) {
       console.log(`[DLNA Frontend Guard] Current track reached duration (curr=${currentSec}s, max=${maxSec}/${totalSec}s, state=${stateUpper}), triggering onTrackEnded`);
       onTrackEnded();
     }

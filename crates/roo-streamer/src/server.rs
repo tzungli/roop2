@@ -610,17 +610,28 @@ fn parse_range_header(s: &str, total: u64) -> Option<(u64, u64)> {
     if !s.starts_with("bytes=") {
         return None;
     }
-    let parts: Vec<&str> = s[6..].split('-').collect();
+    let s = s[6..].trim();
+    if let Some(suffix) = s.strip_prefix('-') {
+        let n: u64 = suffix.trim().parse().ok()?;
+        let start = total.saturating_sub(n);
+        let end = total.saturating_sub(1);
+        return Some((start, end));
+    }
+    let parts: Vec<&str> = s.split('-').collect();
     if parts.is_empty() {
         return None;
     }
 
-    let start = parts[0].parse::<u64>().ok()?;
-    let end = if parts.len() > 1 && !parts[1].is_empty() {
-        parts[1].parse::<u64>().ok()?.min(total.saturating_sub(1))
+    let start = parts[0].trim().parse::<u64>().ok()?;
+    let end = if parts.len() > 1 && !parts[1].trim().is_empty() {
+        parts[1].trim().parse::<u64>().ok()?.min(total.saturating_sub(1))
     } else {
         total.saturating_sub(1)
     };
+
+    if start > end || start >= total {
+        return None;
+    }
 
     Some((start, end))
 }

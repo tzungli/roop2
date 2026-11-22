@@ -148,6 +148,7 @@ impl DlnaManager {
             let mut was_playing = false;
             let mut play_seconds = 0;
             let mut near_end_count = 0;
+            let start_time = std::time::Instant::now();
 
             while !*rx.borrow() {
                 interval.tick().await;
@@ -159,6 +160,11 @@ impl DlnaManager {
                     if state_upper == "PLAYING" || pos > 0.0 {
                         was_playing = true;
                         play_seconds += 1;
+                    }
+
+                    // Filter out stale near-end position from prior track during startup
+                    if start_time.elapsed().as_secs_f64() < 2.5 && dur > 5.0 && pos >= (dur - 2.0) {
+                        continue;
                     }
 
                     on_progress(pos, dur, &state);

@@ -192,7 +192,12 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         let gf = REGISTRY.build_filter(dsd_rate as f64, src_rate as f64, &opts.filter_phase);
         let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, DitherType::Gauss1, gf);
 
-        let initial_blocks = num_blocks.min(16);
+        let target_initial_blocks = if cfg!(debug_assertions) {
+            16
+        } else {
+            ((2.5 * dsd_rate as f64) / samples_per_block as f64).ceil() as usize
+        };
+        let initial_blocks = num_blocks.min(target_initial_blocks.max(16));
         let mut initial_data = vec![0u8; initial_blocks * 8192];
         if initial_blocks > 0 {
             modulator.run_blocks(&left, &right, left.len(), 0, initial_blocks, inv_ratio, &mut initial_data);
@@ -241,7 +246,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     return;
                 }
 
-                let batch_blocks = 16usize;
+                let batch_blocks = 64usize;
                 let mut curr_block = initial_blocks;
                 let mut batch_buf = vec![0u8; batch_blocks * 8192];
 

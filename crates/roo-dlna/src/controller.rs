@@ -64,8 +64,9 @@ impl UpnpController {
         let res_tags = if let Some(hz) = dsd_hz {
             format!(
                 "<res protocolInfo=\"http-get:*:audio/x-dsf:*\" sampleFrequency=\"{}\" bitsPerSample=\"1\" nrAudioChannels=\"2\"{}>{}</res>\
-                 <res protocolInfo=\"http-get:*:audio/dsf:*\" sampleFrequency=\"{}\" bitsPerSample=\"1\" nrAudioChannels=\"2\"{}>{}</res>",
-                hz, dur_attr, stream_url_esc, hz, dur_attr, stream_url_esc
+                 <res protocolInfo=\"http-get:*:audio/dsf:*\" sampleFrequency=\"{}\" bitsPerSample=\"1\" nrAudioChannels=\"2\"{}>{}</res>\
+                 <res protocolInfo=\"http-get:*:audio/x-dsd:*\"{}>{}</res>",
+                hz, dur_attr, stream_url_esc, hz, dur_attr, stream_url_esc, dur_attr, stream_url_esc
             )
         } else {
             format!(
