@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 use serde::{Deserialize, Serialize};
-use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, FirFilter, PolyphaseBank};
+use crate::fir::{fir_sample, interpolate_linear, interpolate_minimum, FirFilter, PolyphaseBank};
 pub use crate::dither::{DitherType, DsdChannelDither, DsdDitherer};
 
 pub const DSD_BLOCK_SIZE: usize = 4096;
@@ -274,14 +274,50 @@ struct ChanState7 {
 }
 
 #[inline(always)]
-fn load_hermite_window(pcm: &[f64], in_len: usize, cur_idx: usize) -> (f64, f64, f64, f64) {
+fn load_hermite_forward_diffs(pcm: &[f64], in_len: usize, cur_idx: usize, inv_w: f64, scale: f64) -> (f64, f64, f64, f64) {
     let p1 = if cur_idx < in_len { pcm[cur_idx] } else { 0.0 };
     let p2 = if cur_idx + 1 < in_len { pcm[cur_idx + 1] } else { 0.0 };
     let p0 = if cur_idx > 0 && cur_idx - 1 < in_len { pcm[cur_idx - 1] } else { p1 };
     let p3 = if cur_idx + 2 < in_len { pcm[cur_idx + 2] } else { p2 };
     let m1 = 0.5 * (p2 - p0);
     let m2 = 0.5 * (p3 - p1);
-    (p1, p2, m1, m2)
+
+    // Cubic Hermite polynomial H(t) = A*t^3 + B*t^2 + C*t + D, pre-scaled by `scale`
+    let cap_a = 2.0 * p1 - 2.0 * p2 + m1 + m2;
+    let cap_b = -3.0 * p1 + 3.0 * p2 - 2.0 * m1 - m2;
+    let cap_c = m1;
+    let cap_d = p1;
+
+    let h = inv_w;
+    let h2 = h * h;
+    let h3 = h2 * h;
+    let a = scale * cap_a * h3;
+    let b = scale * cap_b * h2;
+    let c = scale * cap_c * h;
+    let d = scale * cap_d;
+
+    // Forward finite differences: 3 additions per DSD sample, mathematically exact to f64 precision
+    let r0 = d;
+    let r1 = a + b + c;
+    let r2 = 6.0 * a + 2.0 * b;
+    let r3 = 6.0 * a;
+    (r0, r1, r2, r3)
+}
+
+const DSD_GAUSS_CLT_SCALE: f64 = (0.0125 * 0.707) / 37837.22;
+
+#[inline(always)]
+fn next_reg_gauss(prng: &mut u64) -> f64 {
+    let mut x = *prng;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *prng = x;
+    let sum = (x as i16 as i32)
+        + ((x >> 16) as i16 as i32)
+        + ((x >> 32) as i16 as i32)
+        + ((x >> 48) as i16 as i32);
+    (sum as f64) * DSD_GAUSS_CLT_SCALE
 }
 
 fn modulate_channel5(
@@ -297,7 +333,6 @@ fn modulate_channel5(
     poly_phases: Option<&PolyphaseBank>,
     phase_name: &str,
     w_period: usize,
-    w_tab: Option<&[f64]>,
     st: &mut ChanState5,
     ch_out: &mut [u8],
 ) {
@@ -310,47 +345,71 @@ fn modulate_channel5(
     let mut s1 = st.s1; let mut s2 = st.s2; let mut s3 = st.s3; let mut s4 = st.s4; let mut s5 = st.s5; let mut y = st.y;
     let total_bytes = num_blocks * DSD_BLOCK_SIZE;
 
-    if gf.is_none() {
-        if let Some(tab) = w_tab {
-            // Fast branch-free Hermite table path
-            let mut cur_idx = start_bit / w_period;
-            let mut cur_phi = start_bit - cur_idx * w_period;
-            let (mut p1, mut p2, mut m1, mut m2) = load_hermite_window(pcm, in_len, cur_idx);
-
-            for byte_idx in 0..total_bytes {
-                let mut byte_val = 0u8;
-                for bit in 0..8 {
-                    let o = cur_phi * 4;
-                    let raw = (tab[o] * p1 + tab[o + 1] * m1 + tab[o + 2] * p2 + tab[o + 3] * m2).clamp(-1.0, 1.0);
-
-                    cur_phi += 1;
-                    if cur_phi == w_period {
-                        cur_phi = 0;
-                        cur_idx += 1;
-                        let w = load_hermite_window(pcm, in_len, cur_idx);
-                        p1 = w.0; p2 = w.1; m1 = w.2; m2 = w.3;
-                    }
-
-                    let u = raw * scale;
-                    s1 = (s1 * 0.999999 + c1 * (u - y)).clamp(-clamp, clamp);
-                    s2 = (s2 * 0.999999 + c2 * s1 - g1 * s3).clamp(-clamp, clamp);
-                    s3 = (s3 * 0.999999 + c3 * s2).clamp(-clamp, clamp);
-                    s4 = (s4 * 0.999999 + c4 * s3 - g2 * s5).clamp(-clamp, clamp);
-                    s5 = (s5 * 0.999999 + c5 * s4).clamp(-clamp, clamp);
-
-                    let dither = ditherer.next_dither(dither_type);
-                    let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
-                    let is_pos = sigma >= 0.0;
-                    y = if is_pos { 1.0 } else { -1.0 };
-                    // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
-                    byte_val |= (is_pos as u8) << bit;
-                }
-                ch_out[byte_idx] = byte_val;
-            }
-
-            st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4; st.s5 = s5; st.y = y;
-            return;
+    if gf.is_none() && w_period > 0 {
+        // Ultra-fast Forward-Difference Hermite + Register-local PRNG + Per-byte stability guard
+        let inv_w = 1.0 / w_period as f64;
+        let mut cur_idx = start_bit / w_period;
+        let mut cur_phi = start_bit - cur_idx * w_period;
+        let (mut r0, mut r1, mut r2, mut r3) = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+        for _ in 0..cur_phi {
+            r0 += r1;
+            r1 += r2;
+            r2 += r3;
         }
+        let mut prng = if ditherer.prng1 == 0 { 0x9e37_79b9_7f4a_7c15 } else { ditherer.prng1 };
+        let use_fast_gauss = matches!(dither_type, DitherType::Gauss);
+        let use_no_dither = matches!(dither_type, DitherType::None);
+
+        for byte_idx in 0..total_bytes {
+            let mut byte_val = 0u8;
+            for bit in 0..8 {
+                let u = r0;
+                r0 += r1;
+                r1 += r2;
+                r2 += r3;
+
+                cur_phi += 1;
+                if cur_phi == w_period {
+                    cur_phi = 0;
+                    cur_idx += 1;
+                    let d = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+                    r0 = d.0; r1 = d.1; r2 = d.2; r3 = d.3;
+                }
+
+                s1 = s1 * 0.999999 + c1 * (u - y);
+                s2 = s2 * 0.999999 + c2 * s1 - g1 * s3;
+                s3 = s3 * 0.999999 + c3 * s2;
+                s4 = s4 * 0.999999 + c4 * s3 - g2 * s5;
+                s5 = s5 * 0.999999 + c5 * s4;
+
+                let dither = if use_fast_gauss {
+                    next_reg_gauss(&mut prng)
+                } else if use_no_dither {
+                    0.0
+                } else {
+                    ditherer.next_dither(dither_type)
+                };
+                let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
+                let is_pos = sigma >= 0.0;
+                y = if is_pos { 1.0 } else { -1.0 };
+                // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
+                byte_val |= (is_pos as u8) << bit;
+            }
+            if s1.abs() > clamp || s5.abs() > clamp || !s5.is_finite() {
+                s1 = s1.clamp(-clamp, clamp);
+                s2 = s2.clamp(-clamp, clamp);
+                s3 = s3.clamp(-clamp, clamp);
+                s4 = s4.clamp(-clamp, clamp);
+                s5 = s5.clamp(-clamp, clamp);
+            }
+            ch_out[byte_idx] = byte_val;
+        }
+
+        if use_fast_gauss {
+            ditherer.prng1 = prng;
+        }
+        st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4; st.s5 = s5; st.y = y;
+        return;
     }
 
     // General path (FIR or non-integer ratio Hermite)
@@ -428,7 +487,6 @@ fn modulate_channel7(
     poly_phases: Option<&PolyphaseBank>,
     phase_name: &str,
     w_period: usize,
-    w_tab: Option<&[f64]>,
     st: &mut ChanState7,
     ch_out: &mut [u8],
 ) {
@@ -443,50 +501,76 @@ fn modulate_channel7(
     let mut s5 = st.s5; let mut s6 = st.s6; let mut s7 = st.s7; let mut y = st.y;
     let total_bytes = num_blocks * DSD_BLOCK_SIZE;
 
-    if gf.is_none() {
-        if let Some(tab) = w_tab {
-            // Fast branch-free Hermite table path
-            let mut cur_idx = start_bit / w_period;
-            let mut cur_phi = start_bit - cur_idx * w_period;
-            let (mut p1, mut p2, mut m1, mut m2) = load_hermite_window(pcm, in_len, cur_idx);
-
-            for byte_idx in 0..total_bytes {
-                let mut byte_val = 0u8;
-                for bit in 0..8 {
-                    let o = cur_phi * 4;
-                    let raw = (tab[o] * p1 + tab[o + 1] * m1 + tab[o + 2] * p2 + tab[o + 3] * m2).clamp(-1.0, 1.0);
-
-                    cur_phi += 1;
-                    if cur_phi == w_period {
-                        cur_phi = 0;
-                        cur_idx += 1;
-                        let w = load_hermite_window(pcm, in_len, cur_idx);
-                        p1 = w.0; p2 = w.1; m1 = w.2; m2 = w.3;
-                    }
-
-                    let u = raw * scale;
-                    s1 = (s1 * 0.999999 + c1 * (u - y)).clamp(-clamp, clamp);
-                    s2 = (s2 * 0.999999 + c2 * s1 - g1 * s3).clamp(-clamp, clamp);
-                    s3 = (s3 * 0.999999 + c3 * s2).clamp(-clamp, clamp);
-                    s4 = (s4 * 0.999999 + c4 * s3 - g2 * s5).clamp(-clamp, clamp);
-                    s5 = (s5 * 0.999999 + c5 * s4).clamp(-clamp, clamp);
-                    s6 = (s6 * 0.999999 + c6 * s5 - g3 * s7).clamp(-clamp, clamp);
-                    s7 = (s7 * 0.999999 + c7 * s6).clamp(-clamp, clamp);
-
-                    let dither = ditherer.next_dither(dither_type);
-                    let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
-                    let is_pos = sigma >= 0.0;
-                    y = if is_pos { 1.0 } else { -1.0 };
-                    // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
-                    byte_val |= (is_pos as u8) << bit;
-                }
-                ch_out[byte_idx] = byte_val;
-            }
-
-            st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4;
-            st.s5 = s5; st.s6 = s6; st.s7 = s7; st.y = y;
-            return;
+    if gf.is_none() && w_period > 0 {
+        // Ultra-fast Forward-Difference Hermite + Register-local PRNG + Per-byte stability guard
+        let inv_w = 1.0 / w_period as f64;
+        let mut cur_idx = start_bit / w_period;
+        let mut cur_phi = start_bit - cur_idx * w_period;
+        let (mut r0, mut r1, mut r2, mut r3) = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+        for _ in 0..cur_phi {
+            r0 += r1;
+            r1 += r2;
+            r2 += r3;
         }
+        let mut prng = if ditherer.prng1 == 0 { 0x9e37_79b9_7f4a_7c15 } else { ditherer.prng1 };
+        let use_fast_gauss = matches!(dither_type, DitherType::Gauss);
+        let use_no_dither = matches!(dither_type, DitherType::None);
+
+        for byte_idx in 0..total_bytes {
+            let mut byte_val = 0u8;
+            for bit in 0..8 {
+                let u = r0;
+                r0 += r1;
+                r1 += r2;
+                r2 += r3;
+
+                cur_phi += 1;
+                if cur_phi == w_period {
+                    cur_phi = 0;
+                    cur_idx += 1;
+                    let d = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+                    r0 = d.0; r1 = d.1; r2 = d.2; r3 = d.3;
+                }
+
+                s1 = s1 * 0.999999 + c1 * (u - y);
+                s2 = s2 * 0.999999 + c2 * s1 - g1 * s3;
+                s3 = s3 * 0.999999 + c3 * s2;
+                s4 = s4 * 0.999999 + c4 * s3 - g2 * s5;
+                s5 = s5 * 0.999999 + c5 * s4;
+                s6 = s6 * 0.999999 + c6 * s5 - g3 * s7;
+                s7 = s7 * 0.999999 + c7 * s6;
+
+                let dither = if use_fast_gauss {
+                    next_reg_gauss(&mut prng)
+                } else if use_no_dither {
+                    0.0
+                } else {
+                    ditherer.next_dither(dither_type)
+                };
+                let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
+                let is_pos = sigma >= 0.0;
+                y = if is_pos { 1.0 } else { -1.0 };
+                // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
+                byte_val |= (is_pos as u8) << bit;
+            }
+            if s1.abs() > clamp || s7.abs() > clamp || !s7.is_finite() {
+                s1 = s1.clamp(-clamp, clamp);
+                s2 = s2.clamp(-clamp, clamp);
+                s3 = s3.clamp(-clamp, clamp);
+                s4 = s4.clamp(-clamp, clamp);
+                s5 = s5.clamp(-clamp, clamp);
+                s6 = s6.clamp(-clamp, clamp);
+                s7 = s7.clamp(-clamp, clamp);
+            }
+            ch_out[byte_idx] = byte_val;
+        }
+
+        if use_fast_gauss {
+            ditherer.prng1 = prng;
+        }
+        st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4;
+        st.s5 = s5; st.s6 = s6; st.s7 = s7; st.y = y;
+        return;
     }
 
     // General path (FIR or non-integer ratio Hermite)
@@ -623,8 +707,6 @@ impl DsdModulator {
         let ratio = 1.0 / inv_ratio;
         let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
         let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
-        let w_tab_vec = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
-        let w_tab = w_tab_vec.as_deref();
 
         let mut st_l = ChanState5 { s1: self.s1_l, s2: self.s2_l, s3: self.s3_l, s4: self.s4_l, s5: self.s5_l, y: self.y_l };
         let mut st_r = ChanState5 { s1: self.s1_r, s2: self.s2_r, s3: self.s3_r, s4: self.s4_r, s5: self.s5_r, y: self.y_r };
@@ -646,25 +728,25 @@ impl DsdModulator {
                     modulate_channel5(
                         left, in_len, start_bit, num_blocks, inv_ratio, p,
                         dither_type, dither_l, gf, poly_phases, phase_name,
-                        w_period, w_tab, &mut st_l, &mut left_out,
+                        w_period, &mut st_l, &mut left_out,
                     );
                 });
                 modulate_channel5(
                     right, in_len, start_bit, num_blocks, inv_ratio, p,
                     dither_type, dither_r, gf, poly_phases, phase_name,
-                    w_period, w_tab, &mut st_r, &mut right_out,
+                    w_period, &mut st_r, &mut right_out,
                 );
             });
         } else {
             modulate_channel5(
                 left, in_len, start_bit, num_blocks, inv_ratio, p,
                 dither_type, dither_l, gf, poly_phases, phase_name,
-                w_period, w_tab, &mut st_l, &mut left_out,
+                w_period, &mut st_l, &mut left_out,
             );
             modulate_channel5(
                 right, in_len, start_bit, num_blocks, inv_ratio, p,
                 dither_type, dither_r, gf, poly_phases, phase_name,
-                w_period, w_tab, &mut st_r, &mut right_out,
+                w_period, &mut st_r, &mut right_out,
             );
         }
 
@@ -695,8 +777,6 @@ impl DsdModulator {
         let ratio = 1.0 / inv_ratio;
         let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
         let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
-        let w_tab_vec = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
-        let w_tab = w_tab_vec.as_deref();
 
         let mut st_l = ChanState7 {
             s1: self.s1_l, s2: self.s2_l, s3: self.s3_l, s4: self.s4_l,
@@ -724,25 +804,25 @@ impl DsdModulator {
                     modulate_channel7(
                         left, in_len, start_bit, num_blocks, inv_ratio, p,
                         dither_type, dither_l, gf, poly_phases, phase_name,
-                        w_period, w_tab, &mut st_l, &mut left_out,
+                        w_period, &mut st_l, &mut left_out,
                     );
                 });
                 modulate_channel7(
                     right, in_len, start_bit, num_blocks, inv_ratio, p,
                     dither_type, dither_r, gf, poly_phases, phase_name,
-                    w_period, w_tab, &mut st_r, &mut right_out,
+                    w_period, &mut st_r, &mut right_out,
                 );
             });
         } else {
             modulate_channel7(
                 left, in_len, start_bit, num_blocks, inv_ratio, p,
                 dither_type, dither_l, gf, poly_phases, phase_name,
-                w_period, w_tab, &mut st_l, &mut left_out,
+                w_period, &mut st_l, &mut left_out,
             );
             modulate_channel7(
                 right, in_len, start_bit, num_blocks, inv_ratio, p,
                 dither_type, dither_r, gf, poly_phases, phase_name,
-                w_period, w_tab, &mut st_r, &mut right_out,
+                w_period, &mut st_r, &mut right_out,
             );
         }
 
