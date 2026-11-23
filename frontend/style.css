@@ -13036,3 +13036,26 @@ body.table-col-resizing * {
 #sidebar .nav-icon svg {
   display: block;
 }
+
+/* Unified Titlebar & Inline Monochrome SVG Icons */
+.search-icon,
+.ui-svg-icon,
+.muse-panel-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.search-icon svg,
+.ui-svg-icon svg,
+.muse-panel-header-icon svg {
+  display: block;
+}
+
+#btnThemeToggle,
+#btnLanguageToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

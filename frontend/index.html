@@ -27,7 +27,12 @@
     
     <div class="titlebar-center">
       <div class="search-box">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7.5"></circle>
+            <line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line>
+          </svg>
+        </span>
         <input type="text" id="globalSearch" placeholder="搜尋演出者、專輯、曲目、作曲家..." autocomplete="off">
         <button id="btnClearSearch" class="btn-clear" style="display: none;">✕</button>
       </div>
@@ -35,12 +40,25 @@
 
     <div class="titlebar-right">
       <button id="btnThemeToggle" class="icon-btn theme-toggle-btn" title="切換深色 / 淺色主題">
-        <span id="themeIcon">🌙</span> <span id="themeLabel">深色</span>
+        <span id="themeIcon" class="ui-svg-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </span>
+        <span id="themeLabel">深色</span>
       </button>
       <!-- 介面語言選擇（繁體中文 / English）：選單、按鈕、表格與說明頁全部跟著切換 -->
       <div class="language-control" id="languageControl" data-i18n-skip>
         <button id="btnLanguageToggle" class="icon-btn language-toggle-btn" title="選擇介面語言 Language">
-          <span id="languageIcon">🌐</span> <span id="languageLabel">繁體中文</span> <span class="lang-caret">▾</span>
+          <span id="languageIcon" class="ui-svg-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"></path>
+            </svg>
+          </span>
+          <span id="languageLabel">繁體中文</span>
+          <span class="lang-caret">▾</span>
         </button>
       </div>
       <div class="window-controls">
@@ -302,14 +320,14 @@
         <!-- Empty Library Action Banner -->
         <div id="overviewEmptyLibraryBanner" class="roo-section-banner" style="display: none; margin-bottom: 24px; padding: 20px 24px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.08)); border: 1px solid var(--border-color); border-radius: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
           <div>
-            <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: var(--text-main);">🎵 目前音樂庫尚無曲目</h3>
+            <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: var(--text-main);">目前音樂庫尚無曲目</h3>
             <p id="overviewEmptyBannerSub" style="margin: 0; font-size: 13px; color: var(--text-muted);">您可以匯入本機音樂資料夾，或從已登入的 TIDAL 雲端曲庫一鍵同步您的收藏專輯與歌曲。</p>
           </div>
           <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <button class="btn btn-primary btn-sm" id="btnEmptyBannerImportTidal" style="display: none;">📥 一鍵匯入 TIDAL 最愛專輯</button>
-            <button class="btn btn-secondary btn-sm" id="btnEmptyBannerGoTidal" style="display: none;">🌊 前往 TIDAL 探索</button>
-            <button class="btn btn-secondary btn-sm" id="btnEmptyBannerLoginTidal">🔑 登入 TIDAL</button>
-            <button class="btn btn-primary btn-sm" id="btnEmptyBannerAddFolder">📁 新增本機音樂資料夾</button>
+            <button class="btn btn-primary btn-sm" id="btnEmptyBannerImportTidal" style="display: none;">一鍵匯入 TIDAL 最愛專輯</button>
+            <button class="btn btn-secondary btn-sm" id="btnEmptyBannerGoTidal" style="display: none;">前往 TIDAL 探索</button>
+            <button class="btn btn-secondary btn-sm" id="btnEmptyBannerLoginTidal">登入 TIDAL</button>
+            <button class="btn btn-primary btn-sm" id="btnEmptyBannerAddFolder">新增本機音樂資料夾</button>
           </div>
         </div>
 
@@ -337,7 +355,7 @@
           <div class="roo-section-subhead">
             <div class="roo-context-user">
               <img src="" id="dailyPickArtistAvatar" class="roo-mini-avatar" alt="Artist" style="display:none;">
-              <span class="roo-avatar-placeholder" id="dailyPickAvatarPlaceholder">🎤</span>
+              <span class="roo-avatar-placeholder ui-svg-icon" id="dailyPickAvatarPlaceholder"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></span>
               <span class="roo-context-text">因為你曾播放 <strong id="dailyPickArtistSeed">陳鈺華</strong></span>
             </div>
             <div class="roo-banner-actions">
@@ -582,8 +600,8 @@
           </div>
           <div class="header-actions">
             <button class="btn btn-primary btn-sm" id="btnPlayAllHistory">▶ 依序播放</button>
-            <button class="btn btn-secondary btn-sm" id="btnShuffleHistory">🔀 隨機播放</button>
-            <button class="btn btn-secondary btn-sm" id="btnClearHistory" title="清空播放紀錄">🗑️ 清除紀錄</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleHistory">隨機播放</button>
+            <button class="btn btn-secondary btn-sm" id="btnClearHistory" title="清空播放紀錄">清除紀錄</button>
           </div>
         </div>
         <div class="tracklist-table-container">
@@ -608,7 +626,7 @@
           </table>
         </div>
         <div class="empty-hint" id="historyEmptyHint" style="display: none; padding: 48px; text-align: center;">
-          <div style="font-size: 36px; margin-bottom: 12px;">🕒</div>
+          
           <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未有任何播放紀錄</div>
           <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">開始播放歌曲後，系統將自動記錄最近播放的 100 首曲目並由最近到最久排序。</div>
         </div>
@@ -624,9 +642,9 @@
               <span class="page-subtitle" id="playlistsHeaderCount">共 0 個播放清單</span>
             </div>
             <div class="header-actions">
-              <button class="btn btn-primary btn-sm" id="btnPlaylistNew" title="新增一個空白播放清單">➕ 新增清單</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistSaveQueue" title="將目前播放隊列的所有歌曲依序存成新的播放清單">💾 儲存目前隊列</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistImport" title="匯入 .m3u / .m3u8 / .json 播放清單檔">📥 匯入清單</button>
+              <button class="btn btn-primary btn-sm" id="btnPlaylistNew" title="新增一個空白播放清單">新增清單</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistSaveQueue" title="將目前播放隊列的所有歌曲依序存成新的播放清單">儲存目前隊列</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistImport" title="匯入 .m3u / .m3u8 / .json 播放清單檔">匯入清單</button>
             </div>
           </div>
           <div class="tracklist-table-container" id="playlistsTableContainer">
@@ -648,7 +666,7 @@
             </table>
           </div>
           <div class="empty-hint" id="playlistsEmptyHint" style="display: none; padding: 48px; text-align: center;">
-            <div style="font-size: 36px; margin-bottom: 12px;">📃</div>
+            
             <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">還沒有任何播放清單</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">可用上方「新增清單」建立空白清單，或到播放隊列按「儲存目前隊列」把正在排的曲目依序存成清單；也可以「匯入清單」讀取 .m3u / .json 清單檔。</div>
           </div>
@@ -663,13 +681,13 @@
             </div>
             <div class="header-actions">
               <button class="btn btn-secondary btn-sm" id="btnPlaylistBack">← 返回清單</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistRename" title="重新命名這個清單">✏️ 重新命名</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistAppendQueue" title="將目前播放隊列依序附加到這個清單">➕ 加入目前隊列</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistExportM3u" title="匯出成 .m3u8 播放清單檔（通用格式，可被其他播放器讀取）">💾 匯出 M3U</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistExportJson" title="匯出成 .json（保留完整曲目資訊，rooPlayer 可直接再匯入）">🧬 匯出 JSON</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistShuffle">🔀 隨機播放</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistRename" title="重新命名這個清單">重新命名</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistAppendQueue" title="將目前播放隊列依序附加到這個清單">加入目前隊列</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistExportM3u" title="匯出成 .m3u8 播放清單檔（通用格式，可被其他播放器讀取）">匯出 M3U</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistExportJson" title="匯出成 .json（保留完整曲目資訊，rooPlayer 可直接再匯入）">匯出 JSON</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistShuffle">隨機播放</button>
               <button class="btn btn-primary btn-sm" id="btnPlaylistPlayAll">▶ 依序播放</button>
-              <button class="btn btn-secondary btn-sm" id="btnPlaylistDelete" title="刪除整個播放清單">🗑️ 刪除清單</button>
+              <button class="btn btn-secondary btn-sm" id="btnPlaylistDelete" title="刪除整個播放清單">刪除清單</button>
             </div>
           </div>
           <div class="tracklist-table-container" id="playlistTrackTableContainer">
@@ -692,7 +710,7 @@
             </table>
           </div>
           <div class="empty-hint" id="playlistDetailEmptyHint" style="display: none; padding: 48px; text-align: center;">
-            <div style="font-size: 36px; margin-bottom: 12px;">🎵</div>
+            
             <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">這個清單還沒有曲目</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">按「加入目前隊列」可把正在排的曲目依序加進來，或從專輯、曲目、播放紀錄頁面播放歌曲後再儲存。</div>
           </div>
@@ -744,8 +762,8 @@
             </div>
             <div class="pill-group search-filter-pills" id="searchFilterPills">
               <button class="pill active" data-search-tab="all">全部結果</button>
-              <button class="pill" data-search-tab="local">📁 本機端專輯</button>
-              <button class="pill" data-search-tab="streaming">🌐 線上串流 (KKBOX • TIDAL • QOBUZ • SPOTIFY)</button>
+              <button class="pill" data-search-tab="local">本機端專輯</button>
+              <button class="pill" data-search-tab="streaming">線上串流 (KKBOX • TIDAL • QOBUZ • SPOTIFY)</button>
             </div>
           </div>
 
@@ -753,7 +771,7 @@
           <div class="search-section" id="searchLocalSection">
             <div class="search-section-header">
               <div class="search-section-title">
-                <span class="search-section-icon">📁</span>
+                <span class="search-section-icon ui-svg-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
                 <span>本機端音樂庫專輯</span>
                 <span class="badge" id="searchLocalCountBadge">0</span>
               </div>
@@ -769,7 +787,7 @@
             <div class="search-section-header">
               <div>
                 <div class="search-section-title">
-                  <span class="search-section-icon">🌐</span>
+                  <span class="search-section-icon ui-svg-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="3" y1="12" x2="21" y2="12"></line><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"></path></svg></span>
                   <span>線上串流搜尋結果</span>
                   <span class="badge highlight">KKBOX • TIDAL • QOBUZ • SPOTIFY</span>
                 </div>
@@ -793,7 +811,7 @@
               <div class="streaming-tracks-block" id="streamingTracksBlock" style="display: none; margin-top: 24px;">
                 <div class="streaming-catalog-header">
                   <h3 style="display: flex; align-items: center; gap: 8px;">
-                    <span style="color: #00e5ff;">💎</span>
+                    <span class="ui-svg-icon" style="color: var(--accent-purple);"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/></svg></span>
                     <span>TIDAL 相符歌曲曲目 (直接點播)</span>
                   </h3>
                   <span id="streamingTracksCount">0 首</span>
@@ -874,7 +892,7 @@
                   </svg>
                 </button>
                 <button class="btn btn-secondary" id="btnTidalLibraryToggle" style="display: none;">
-                  <span id="btnTidalLibraryToggleIcon">➕</span> <span id="btnTidalLibraryToggleText">加入曲庫</span>
+                  <span id="btnTidalLibraryToggleIcon">+</span> <span id="btnTidalLibraryToggleText">加入曲庫</span>
                 </button>
               </div>
             </div>
@@ -898,7 +916,7 @@
           <div class="album-intro-section" id="albumIntroSection">
             <div class="album-intro-header" id="albumIntroHeader">
               <div class="album-intro-title-wrap" title="點擊展開或縮小專輯介紹">
-                <h3 class="album-intro-title">📖 專輯介紹 Album Review</h3>
+                <h3 class="album-intro-title">專輯介紹 Album Review</h3>
                 <span class="data-source-badge" id="albumIntroSourceBadge">資料來源：維基百科音樂資料庫</span>
               </div>
               <div class="album-intro-actions">
@@ -939,7 +957,7 @@
           <!-- 同類型推薦專輯 (由歌曲 meta 資料判斷) -->
           <div class="album-recommendations-section" id="albumRecommendationsSection">
             <div class="section-header" style="margin-bottom: 12px;">
-              <h3 style="font-size: 16px;">✨ 同類型推薦專輯 Recommended Albums</h3>
+              <h3 style="font-size: 16px;">同類型推薦專輯 Recommended Albums</h3>
               <span class="section-count-badge" id="recommendCountBadge">0 張推薦</span>
             </div>
             <p class="section-desc" id="recommendDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
@@ -953,7 +971,7 @@
           <!-- 推薦演出者 (參考相同流派隨機推薦) -->
           <div class="album-recommendations-section" id="albumArtistsRecommendationsSection" style="margin-top: 36px;">
             <div class="section-header" style="margin-bottom: 12px;">
-              <h3 style="font-size: 16px;">🎤 推薦演出者 Recommended Artists</h3>
+              <h3 style="font-size: 16px;">推薦演出者</h3>
               <span class="section-count-badge" id="recommendArtistCountBadge">0 位推薦</span>
             </div>
             <p class="section-desc" id="recommendArtistDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
@@ -996,7 +1014,7 @@
           <div class="artist-hero-inner">
             <div class="artist-detail-avatar-box">
               <img id="artistDetailAvatar" src="" alt="Artist Photo" class="artist-detail-avatar" style="display: none;">
-              <div id="artistDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder">🎤</div>
+              <div id="artistDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg></div>
             </div>
             <div class="artist-detail-info">
               <div class="artist-detail-tag">ARTIST PROFILE • 演出者總覽</div>
@@ -1043,7 +1061,7 @@
         <!-- 2-1. 維基百科或音樂資料庫簡介 -->
         <div class="artist-section-block">
           <div class="section-header">
-            <h2>📖 歌手簡介與背景</h2>
+            <h2>歌手簡介與背景</h2>
             <div style="display: flex; align-items: center; gap: 8px;">
               <span class="data-source-badge" id="bioSourceBadge">來源：Wikipedia 百科資料庫</span>
               <button class="btn-toggle-lang" id="btnToggleBioLang" style="display: none;" title="切換檢視原文或繁體中文翻譯">檢視原文</button>
@@ -1074,7 +1092,7 @@
         <!-- 2-3. 目前本機端擁有的專輯 -->
         <div class="artist-section-block">
           <div class="section-header">
-            <h2>💿 本機音樂庫收藏</h2>
+            <h2>本機音樂庫收藏</h2>
             <span class="section-count-badge" id="artistLocalAlbumsCount">0 張</span>
           </div>
           <div class="album-grid" id="artistLocalAlbumsGrid">
@@ -1086,7 +1104,7 @@
         <div class="artist-section-block">
           <div class="section-header">
             <div class="header-with-tag">
-              <h2 id="artistOnlineSectionTitle">🌐 線上專輯探索 (本機未收錄)</h2>
+              <h2 id="artistOnlineSectionTitle">線上專輯探索 (本機未收錄)</h2>
               <div class="streaming-platforms-tags" id="artistOnlinePlatformTags">
                 <span class="platform-tag tidal">Tidal</span>
                 <span class="platform-tag qobuz">Qobuz</span>
@@ -1118,7 +1136,7 @@
           <div class="artist-hero-inner">
             <div class="artist-detail-avatar-box">
               <img id="labelDetailAvatar" src="" alt="Label Logo" class="artist-detail-avatar" style="display: none;">
-              <div id="labelDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder">🏷️</div>
+              <div id="labelDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"></circle></svg></div>
             </div>
             <div class="artist-detail-info">
               <div class="artist-detail-tag">RECORD LABEL • 發行公司總覽</div>
@@ -1133,8 +1151,8 @@
               </div>
               <div class="artist-detail-actions">
                 <button class="btn btn-primary" id="btnPlayAllLabelAlbums">▶ 播放該公司所有專輯</button>
-                <button class="btn btn-secondary" id="btnShuffleLabelAlbums">🔀 隨機播放</button>
-                <button class="btn btn-secondary" id="btnLabelTidalSearch" title="重新連線 TIDAL 比對該發行公司">🔄 重新比對 TIDAL</button>
+                <button class="btn btn-secondary" id="btnShuffleLabelAlbums">隨機播放</button>
+                <button class="btn btn-secondary" id="btnLabelTidalSearch" title="重新連線 TIDAL 比對該發行公司">重新比對 TIDAL</button>
               </div>
             </div>
           </div>
@@ -1143,7 +1161,7 @@
         <!-- 3.5.1 本機音樂庫中該公司發行的專輯 -->
         <div class="artist-section-block">
           <div class="section-header">
-            <h2>💿 本機音樂庫收藏（該公司發行）</h2>
+            <h2>本機音樂庫收藏（該公司發行）</h2>
             <span class="section-count-badge" id="labelLocalAlbumsCount">0 張</span>
           </div>
           <p class="section-desc">比對範圍：本機檔案的 LABEL / PUBLISHER / COPYRIGHT 標籤，以及已加入曲庫的 TIDAL 專輯發行資料。</p>
@@ -1159,7 +1177,7 @@
         <div class="artist-section-block">
           <div class="section-header">
             <div class="header-with-tag">
-              <h2 id="labelTidalSectionTitle">💎 TIDAL 該公司發行專輯</h2>
+              <h2 id="labelTidalSectionTitle">TIDAL 該公司發行專輯</h2>
               <div class="streaming-platforms-tags" id="labelTidalPlatformTags">
                 <span class="platform-tag tidal">TIDAL</span>
                 <span class="platform-tag" style="background:rgba(255,255,255,0.08);color:#d4d4d8;">依發行公司欄位比對</span>
@@ -1255,13 +1273,13 @@
           </div>
           <div class="storage-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
             <button class="btn btn-primary" id="btnSelectFolder">
-              <span>📂 選擇音樂資料夾並掃描</span>
+              <span>選擇音樂資料夾並掃描</span>
             </button>
             <button class="btn btn-secondary" id="btnExportLibrary" title="完整匯出所有音樂資料、資料夾設定、我的最愛收藏、自訂播放清單與播放紀錄為標準 JSON 備份檔">
-              <span>💾 匯出資料庫</span>
+              <span>匯出資料庫</span>
             </button>
             <button class="btn btn-secondary" id="btnImportLibrary" title="匯入資料庫備份檔並合併（自動略過重複曲目與資料夾）">
-              <span>📥 匯入資料庫</span>
+              <span>匯入資料庫</span>
             </button>
           </div>
           
@@ -1301,13 +1319,13 @@
           
           <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
             <button class="btn btn-primary" id="btnAutoDiscoverSamba" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; display: inline-flex; align-items: center; gap: 6px;">
-              <span>🔍 自動搜尋區域網路 SAMBA / NAS 伺服器</span>
+              <span>自動搜尋區域網路 SAMBA / NAS 伺服器</span>
             </button>
             <button class="btn btn-secondary" id="btnBrowseNetworkFolder">
-              <span>📂 瀏覽區域網路共用資料夾 (UNC)</span>
+              <span>瀏覽區域網路共用資料夾 (UNC)</span>
             </button>
             <button class="btn btn-secondary" id="btnToggleManualSamba">
-              <span>⚙️ 手動輸入 SAMBA 連線參數</span>
+              <span>手動輸入 SAMBA 連線參數</span>
             </button>
           </div>
 
@@ -1315,7 +1333,7 @@
           <div id="discoveredServersBox" style="display: none; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 3px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">🔍</span>
+                <span class="ui-svg-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"></circle><line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line></svg></span>
                 <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: #f8fafc;">發現的區域網路 SAMBA / NAS 伺服器</h4>
                 <span class="badge" id="discoveredServersCountBadge" style="background: rgba(37, 99, 235, 0.25); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 11px;">0 台伺服器</span>
               </div>
@@ -1357,7 +1375,7 @@
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
               <button class="btn btn-secondary" id="btnCancelManualSamba">取消</button>
               <button class="btn btn-primary" id="btnConnectManualSamba">
-                <span>🔗 連線並掃描 SAMBA 音樂庫</span>
+                <span>連線並掃描 SAMBA 音樂庫</span>
               </button>
             </div>
           </div>
@@ -1403,14 +1421,14 @@
               <option value="year">依發行年份 (最新)</option>
             </select>
             <button class="btn btn-secondary btn-sm" id="btnPlayAllFavAlbums">▶ 播放全部最愛專輯</button>
-            <button class="btn btn-secondary btn-sm" id="btnShuffleFavAlbums">🔀 隨機播放</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleFavAlbums">隨機播放</button>
           </div>
         </div>
         <div class="album-grid" id="favAlbumsGrid">
           <!-- Injected via JS -->
         </div>
         <div class="empty-hint" id="favAlbumsEmptyHint" style="display: none; padding: 48px; text-align: center;">
-          <div style="font-size: 36px; margin-bottom: 12px;">💿</div>
+          
           <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛專輯</div>
           <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在任何專輯卡片上點擊 ♡ 空心愛心圖示即可加入我的最愛。</div>
         </div>
@@ -1432,7 +1450,7 @@
               <option value="album">依專輯名稱</option>
             </select>
             <button class="btn btn-primary btn-sm" id="btnPlayAllFavTracks">▶ 播放全部最愛歌曲</button>
-            <button class="btn btn-secondary btn-sm" id="btnShuffleFavTracks">🔀 隨機播放</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleFavTracks">隨機播放</button>
           </div>
         </div>
         <div class="tracklist-table-container">
@@ -1455,7 +1473,7 @@
           </table>
         </div>
         <div class="empty-hint" id="favTracksEmptyHint" style="display: none; padding: 48px; text-align: center;">
-          <div style="font-size: 36px; margin-bottom: 12px;">💖</div>
+          
           <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛歌曲</div>
           <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在播放列左側愛心按鈕或曲目清單點擊 ♡ 即可收藏。</div>
         </div>
@@ -1477,7 +1495,7 @@
               <option value="tracks">依曲目數量 (最多)</option>
             </select>
             <button class="btn btn-secondary btn-sm" id="btnPlayAllFavArtists">▶ 播放最愛演出者歌曲</button>
-            <button class="btn btn-secondary btn-sm" id="btnShuffleFavArtists">🔀 隨機播放</button>
+            <button class="btn btn-secondary btn-sm" id="btnShuffleFavArtists">隨機播放</button>
           </div>
         </div>
         <div class="artist-grid" id="favArtistsGrid">
@@ -1949,16 +1967,16 @@
 
           <!-- Quick Navigation Tabs / Index -->
           <div class="about-quick-nav">
-            <a href="#aboutSectionFilterReport" class="about-nav-link">🔬 DSP 實測數據與搭配指南</a>
-            <a href="#aboutSectionTech" class="about-nav-link">⚙️ 核心技術規格</a>
-            <a href="#aboutSectionLicense" class="about-nav-link">📜 授權與開源宣告</a>
-            <a href="#aboutSectionDisclaimer" class="about-nav-link">⚖️ 免責聲明</a>
+            <a href="#aboutSectionFilterReport" class="about-nav-link">DSP 實測數據與搭配指南</a>
+            <a href="#aboutSectionTech" class="about-nav-link">核心技術規格</a>
+            <a href="#aboutSectionLicense" class="about-nav-link">授權與開源宣告</a>
+            <a href="#aboutSectionDisclaimer" class="about-nav-link">免責聲明</a>
           </div>
 
           <!-- 1. DSP Measurement Report & Acoustic Matching Guide -->
           <div id="aboutSectionFilterReport" class="about-card" data-i18n-html="about.filter_report">
             <div class="about-card-title">
-              <span class="title-icon">🔬</span>
+              <span class="title-icon ui-svg-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.5L5.5 18a2 2 0 0 0 1.7 3h9.6a2 2 0 0 0 1.7-3L14 9.5V3"></path></svg></span>
               <h3>DSP 核心演算法量測數據驗證與發燒搭配指南</h3>
             </div>
             <div class="manual-item-body" style="font-size: 13px; line-height: 1.7; color: var(--text-sub);">
@@ -2332,7 +2350,7 @@
           <!-- 2. Technical Specifications -->
           <div id="aboutSectionTech" class="about-card">
             <div class="about-card-title" data-i18n-html="about.tech.title">
-              <span class="title-icon">⚙️</span>
+              <span class="title-icon ui-svg-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span>
               <h3>核心技術與發燒音訊規格 (Audiophile Specifications)</h3>
             </div>
             <div class="tech-spec-grid">
@@ -2370,7 +2388,7 @@
           <!-- 3. License Terms -->
           <div id="aboutSectionLicense" class="about-card">
             <div class="about-card-title" data-i18n-html="about.license.title">
-              <span class="title-icon">📜</span>
+              <span class="title-icon ui-svg-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line></svg></span>
               <h3>使用授權範圍與開源宣告 (License)</h3>
             </div>
             <div class="legal-content">
@@ -2403,7 +2421,7 @@
           <!-- 4. Disclaimer -->
           <div id="aboutSectionDisclaimer" class="about-card">
             <div class="about-card-title" data-i18n-html="about.disclaimer.title">
-              <span class="title-icon">⚖️</span>
+              <span class="title-icon ui-svg-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"></line><line x1="5" y1="7" x2="19" y2="7"></line><path d="M5 7l-2.5 6a3 3 0 0 0 5 0L5 7z"></path><path d="M19 7l-2.5 6a3 3 0 0 0 5 0L19 7z"></path><line x1="8" y1="21" x2="16" y2="21"></line></svg></span>
               <h3>免責聲明 (Disclaimer)</h3>
             </div>
             <div class="legal-content">
@@ -2925,7 +2943,9 @@
               <div class="muse-panel" id="musePanelHeadroom" style="display: none;">
                 <div class="muse-panel-header">
                   <div class="muse-panel-title-wrap">
-                    <span class="muse-panel-header-icon headroom-icon">🛡️</span>
+                    <span class="muse-panel-header-icon headroom-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"></path></svg>
+                    </span>
                     <div>
                       <h2 class="muse-panel-title">動態範圍餘量管理</h2>
                       <div class="muse-panel-desc">防止 DSP 等化、升頻插值與濾波產生的幀間峰值（Inter-sample Overs）導致數位削頂破音失真</div>
@@ -2946,7 +2966,7 @@
                   </div>
 
                   <div class="muse-headroom-info-card" style="margin-top: 20px; padding: 16px; border-radius: 8px; background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.15);">
-                    <div style="font-weight: 600; margin-bottom: 8px;">💡 為什麼需要動態餘量管理？</div>
+                    <div style="font-weight: 600; margin-bottom: 8px;">為什麼需要動態餘量管理？</div>
                     <p style="font-size: 13px; line-height: 1.6; margin: 0; color: var(--text-muted);">
                       在數位升頻 (Upsampling) 或 PEQ 增益處理時，波形重構後的峰值可能會超越 0 dBFS，造成 DAC 解碼晶片內部的運放發生硬性數位削頂。設定 -3.0 dB 至 -4.0 dB 的動態範圍餘量，可徹底避免削頂失真，呈現最純淨的微動態層次。
                     </p>
@@ -2958,7 +2978,9 @@
               <div class="muse-panel" id="musePanelCrossfeed" style="display: none;">
                 <div class="muse-panel-header">
                   <div class="muse-panel-title-wrap">
-                    <span class="muse-panel-header-icon crossfeed-icon">🎧</span>
+                    <span class="muse-panel-header-icon crossfeed-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                    </span>
                     <div>
                       <h2 class="muse-panel-title">Crossfeed</h2>
                       <div class="muse-panel-desc">模擬兩聲道雙耳互饋音場，消除耳機極端左右分離度所造成的「腦中效應」與聽覺疲勞</div>
@@ -2993,7 +3015,9 @@
               <div class="muse-panel" id="musePanelConv" style="display: none;">
                 <div class="muse-panel-header">
                   <div class="muse-panel-title-wrap">
-                    <span class="muse-panel-header-icon conv-icon">🌊</span>
+                    <span class="muse-panel-header-icon conv-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"></path></svg>
+                    </span>
                     <div>
                       <h2 class="muse-panel-title">卷積濾波器 (IR)</h2>
                       <div class="muse-panel-desc">載入脈衝響應 WAV 做分割式頻域卷積（房間校正 FIR / 喇叭・耳機校正）</div>
@@ -3003,7 +3027,7 @@
 
                 <div class="conv-editor" id="convEditor" style="display: block; margin-top: 20px;">
                   <div class="dsp-pill-selector" id="convActionRow">
-                    <button class="dsp-pill" id="convPickIr">📂 載入 IR 檔案…</button>
+                    <button class="dsp-pill" id="convPickIr">載入 IR 檔案…</button>
                     <button class="dsp-pill" id="convRemoveIr" style="display: none;">移除 IR</button>
                   </div>
                   <div class="conv-info" id="convInfo" style="margin-top: 14px;">尚未載入 IR。請選擇 16/24/32-bit WAV 脈衝響應檔（單聲道自動套用到左右聲道）。</div>
@@ -3079,13 +3103,13 @@
           </p>
 
           <div class="tidal-auth-action-box" style="text-align: center; padding: 24px 16px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 3px; margin-bottom: 20px;">
-            <div style="font-size: 32px; margin-bottom: 12px;">🌊</div>
+            <div class="ui-svg-icon" style="margin-bottom: 12px; color: var(--accent-purple);"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/></svg></div>
             <h4 style="margin: 0 0 8px 0; font-size: 16px; color: var(--text-main);">一鍵開啟 TIDAL 官方登入</h4>
             <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted);">
               點擊下方按鈕將開啟 TIDAL 官方登入視窗，支援 Email、Google、Apple 或 Facebook 登入，完成後自動授權綁定。
             </p>
             <button class="btn btn-primary" id="btnTidalStartLogin" style="background: #00e5ff; color: #000; font-weight: 700; border: none; padding: 10px 28px; border-radius: 4px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0, 229, 255, 0.3);">
-              <span>🔑 開啟官方登入視窗</span>
+              <span>開啟官方登入視窗</span>
             </button>
             <div id="tidalLoginLoading" style="display: none; margin-top: 14px; font-size: 13px; color: #00e5ff; font-weight: 600;">
               <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
@@ -3093,7 +3117,7 @@
                 <span>正在等待登入完成並自動擷取授權...</span>
               </div>
               <button id="btnTidalProbeNow" type="button" style="display: block; margin: 8px auto 0; padding: 6px 16px; background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer;">
-                🔄 若視窗已進入 TIDAL 首頁，點此立即完成同步
+                若視窗已進入 TIDAL 首頁，點此立即完成同步
               </button>
             </div>
           </div>
@@ -3132,7 +3156,7 @@
           </div>
 
           <div class="tidal-feature-box" style="border: 1px solid var(--border-color); border-radius: 3px; padding: 12px 14px; font-size: 12px; line-height: 1.6; margin-bottom: 20px;">
-            ✨ <strong>發燒串流核心功能已就緒</strong>：<br>
+            <strong>發燒串流核心功能已就緒</strong>：<br>
             • <strong>聲音引擎直通</strong>：TIDAL 無損串流支援 1-bit DSD 調變器（5階/7階）升頻與多相濾波器。<br>
             • <strong>混合曲庫整合</strong>：可隨時將 TIDAL 專輯「加入我的曲庫」，與本機硬碟檔案融為一體。<br>
             • <strong>DLNA 投播</strong>：支援一鍵將 TIDAL 高解析串流推送至您的數位串流機與擴大機。
@@ -3219,7 +3243,7 @@
         <div class="now-playing-col-middle">
           <div class="now-playing-panel-title">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span>🎵</span>
+              <span class="ui-svg-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></span>
               <span style="font-weight: 700;">專輯播放列表</span>
             </div>
             <span class="now-playing-count-pill" id="nowPlayingTracklistCount">0 首歌曲</span>
@@ -3233,7 +3257,7 @@
         <div class="now-playing-col-right">
           <div class="now-playing-panel-title">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span>📜</span>
+              <span class="ui-svg-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line></svg></span>
               <span style="font-weight: 700;">動態歌詞 Lyrics</span>
             </div>
           </div>
@@ -3255,7 +3279,7 @@
   <div id="queueDrawer" class="queue-drawer">
     <div class="queue-header">
       <h3>播放隊列 (<span id="queueCount">0</span>)</h3>
-      <button class="btn-save-queue-playlist" id="btnSaveQueuePlaylist" title="將目前播放隊列的所有歌曲依序加入一個播放清單並命名儲存">💾 儲存清單</button>
+      <button class="btn-save-queue-playlist" id="btnSaveQueuePlaylist" title="將目前播放隊列的所有歌曲依序加入一個播放清單並命名儲存">儲存清單</button>
       <button class="btn-clear-queue" id="btnClearQueue">清空</button>
       <button class="btn-close-queue" id="btnCloseQueue">✕</button>
     </div>
@@ -3600,7 +3624,7 @@
     <div class="modal-card import-report-modal-card" style="width: 580px; max-width: 92vw; background: var(--bg-card, #171820); border: 1px solid var(--border-color, rgba(255,255,255,0.12)); border-radius: 4px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);">
         <div class="modal-title-wrap" style="display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 20px;">📊</span>
+          <span class="ui-svg-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
           <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--text-main);">資料庫匯入與合併報告</h3>
         </div>
         <button class="icon-btn" id="btnCloseImportReport" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px;">✕</button>
