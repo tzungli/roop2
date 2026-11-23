@@ -233,7 +233,7 @@ const state = {
   volume: 1.0, // 程式開啟預設音量：最大
   lineOut: false, // Line Out：最大音量輸出鎖定（鎖定時不可調音量）
   exclusive: false, // WASAPI 獨佔輸出：繞過 Windows 混音器直出（等同 LINE OUT 音量鎖定）
-  theme: 'dark',
+  theme: 'light',
   currentView: 'overview',
   activeAlbumDetail: null,
   currentArtistDetail: null,
@@ -256,11 +256,11 @@ const state = {
     tracks: [],
     artists: []
   },
-  albumCoverSize: localStorage.getItem('rooplayer_album_cover_size') || 'medium',
-  detailCoverSize: localStorage.getItem('rooplayer_detail_cover_size') || 'medium',
-  artistCardSize: localStorage.getItem('rooplayer_artist_card_size') || 'medium',
-  genreCardSize: localStorage.getItem('rooplayer_genre_card_size') || 'medium',
-  tidalCoverSize: localStorage.getItem('rooplayer_tidal_cover_size') || 'medium',
+  albumCoverSize: localStorage.getItem('rooplayer_album_cover_size') || 'small',
+  detailCoverSize: localStorage.getItem('rooplayer_detail_cover_size') || 'small',
+  artistCardSize: localStorage.getItem('rooplayer_artist_card_size') || 'small',
+  genreCardSize: localStorage.getItem('rooplayer_genre_card_size') || 'small',
+  tidalCoverSize: localStorage.getItem('rooplayer_tidal_cover_size') || 'small',
   dsp: (() => {
     try {
       const saved = JSON.parse(localStorage.getItem('rooplayer_dsp_settings') || '{}');
@@ -752,8 +752,9 @@ async function initApp() {
     state.tracks = saved.tracks;
     state.folders = saved.folders || [];
   } else {
-    // Populate demo showcase
-    state.tracks = initializeDemoData();
+    // 第一次執行預設：專輯及曲目都是空的，等待使用者匯入
+    state.tracks = [];
+    state.folders = [];
   }
 
   // Load recently played albums
@@ -1004,7 +1005,7 @@ async function initApp() {
 
 // ----------------- Theme Switcher -----------------
 function initTheme() {
-  const saved = (localStorage.getItem('roo_theme') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'theme')) || 'dark';
+  const saved = (localStorage.getItem('roo_theme') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'theme')) || 'light';
   setTheme(saved);
 
   const btnToggle = document.getElementById('btnThemeToggle');
@@ -2194,9 +2195,9 @@ function updateBadgesAndStats() {
   document.getElementById('trackCountBadge').textContent = totalTracks;
   const genreBadge = document.getElementById('genreCountBadge');
   if (genreBadge) {
-    const totalGenres = (state.genres && state.genres.length > 0)
+    const totalGenres = (state.tracks && state.tracks.length > 0 && state.genres && state.genres.length > 0)
       ? state.genres.length
-      : (typeof CANONICAL_GENRES !== 'undefined' ? CANONICAL_GENRES.length : 15);
+      : 0;
     genreBadge.textContent = totalGenres;
   }
 
@@ -2718,7 +2719,7 @@ function renderRecentPlayedAlbums() {
   if (!grid) return;
 
   grid.innerHTML = '';
-  const curSize = state.albumCoverSize || 'medium';
+  const curSize = state.albumCoverSize || 'small';
   grid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
   grid.classList.add(`cover-size-${curSize}`);
 
@@ -2863,7 +2864,7 @@ function renderRooOverviewHeader() {
   const totalAlbums = state.albums ? state.albums.length : 0;
   const totalTracks = state.tracks ? state.tracks.length : 0;
   const composers = new Set((state.tracks || []).map(t => t.composer).filter(Boolean));
-  const totalComposers = composers.size > 0 ? composers.size : Math.max(1, Math.round(totalArtists * 0.15));
+  const totalComposers = composers.size > 0 ? composers.size : (totalArtists > 0 ? Math.max(1, Math.round(totalArtists * 0.15)) : 0);
 
   const elArtists = document.getElementById('statCountArtists');
   if (elArtists) elArtists.textContent = totalArtists;
@@ -2919,6 +2920,10 @@ function renderRooRecentActivity(activeTab = 'added') {
   }
 
   if (items.length === 0) items = (state.albums || []).slice(0, 5);
+  if (items.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">尚無紀錄，匯入音樂後將在此自動列出</div>';
+    return;
+  }
 
   const daysLabels = ['在 30 天前新增', '在 42 天前新增', '在 58 天前新增', '在 113 天前新增', '在 120 天前新增'];
   const playedLabels = ['在 1 小時前播放', '在 3 小時前播放', '在 1 天前播放', '在 3 天前播放', '在 5 天前播放'];
@@ -3566,7 +3571,7 @@ function renderDiscoverArtists() {
   if (!overviewArtistsGrid) return;
   const opId = ++discoverArtistsOpId;
 
-  const curArtistSize = state.artistCardSize || 'medium';
+  const curArtistSize = state.artistCardSize || 'small';
   overviewArtistsGrid.classList.remove('artist-size-small', 'artist-size-medium', 'artist-size-large');
   overviewArtistsGrid.classList.add(`artist-size-${curArtistSize}`);
 
@@ -3619,7 +3624,7 @@ function renderDiscoverArtists() {
 // Render Albums
 function renderAlbums() {
   allAlbumsGrid.innerHTML = '';
-  const curSize = state.albumCoverSize || 'medium';
+  const curSize = state.albumCoverSize || 'small';
   allAlbumsGrid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
   allAlbumsGrid.classList.add(`cover-size-${curSize}`);
   let filtered = [...state.albums];
@@ -3688,7 +3693,18 @@ function renderAlbums() {
   }
 
   if (filtered.length === 0) {
-    allAlbumsGrid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-muted);">此分類下尚無符合的專輯</div>';
+    if (state.albums.length === 0) {
+      allAlbumsGrid.innerHTML = `
+        <div style="grid-column: 1/-1; padding: 60px 20px; text-align: center; color: var(--text-muted);">
+          <div style="font-size: 40px; margin-bottom: 12px;">💿</div>
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無專輯</div>
+          <div style="font-size: 13px; margin-bottom: 20px;">匯入您的本機或網路音樂資料夾，即可開始享受極致發燒音質體驗。</div>
+          <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">📂 匯入音樂資料夾</button>
+        </div>
+      `;
+    } else {
+      allAlbumsGrid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-muted);">此分類下尚無符合的專輯</div>';
+    }
     return;
   }
 
@@ -3903,9 +3919,20 @@ function createArtistCard(art) {
 // Render Artists Tab
 function renderArtists() {
   artistsGrid.innerHTML = '';
-  const curSize = state.artistCardSize || 'medium';
+  const curSize = state.artistCardSize || 'small';
   artistsGrid.classList.remove('artist-size-small', 'artist-size-medium', 'artist-size-large');
   artistsGrid.classList.add(`artist-size-${curSize}`);
+  if (state.artists.length === 0) {
+    artistsGrid.innerHTML = `
+      <div style="grid-column: 1/-1; padding: 60px 20px; text-align: center; color: var(--text-muted);">
+        <div style="font-size: 40px; margin-bottom: 12px;">👤</div>
+        <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無演出者</div>
+        <div style="font-size: 13px; margin-bottom: 20px;">匯入音樂後，系統將自動解析歌手與演出者資訊。</div>
+        <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">📂 匯入音樂資料夾</button>
+      </div>
+    `;
+    return;
+  }
   const frag = document.createDocumentFragment();
   state.artists.forEach(art => {
     frag.appendChild(createArtistCard(art));
@@ -4564,6 +4591,21 @@ function renderTracks() {
     displayTracks.sort((a, b) => (b.duration || 0) - (a.duration || 0));
   }
 
+  if (displayTracks.length === 0) {
+    allTracksTbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+          <div style="font-size: 40px; margin-bottom: 12px;">🎵</div>
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無曲目</div>
+          <div style="font-size: 13px; margin-bottom: 20px;">點擊下方按鈕前往設定，選擇音樂資料夾進行掃描匯入。</div>
+          <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">📂 匯入音樂資料夾</button>
+        </td>
+      </tr>
+    `;
+    setupResizableTable('allTracksTable', 'all_tracks_v2');
+    return;
+  }
+
   currentDisplayTracks = displayTracks;
   tracksRenderOffset = 0;
 
@@ -4845,7 +4887,7 @@ function renderGenres() {
   if (!genresGrid) return;
   genresGrid.innerHTML = '';
   // 封面尺寸（小/中/大）是個人在這頁的偏好，重新渲染後要照原樣套回去
-  applyGenreSize(state.genreCardSize || 'medium');
+  applyGenreSize(state.genreCardSize || 'small');
 
   const headerCount = document.getElementById('genresHeaderCount');
 
@@ -6723,7 +6765,7 @@ function renderAlbumArtistRecommendations(album) {
   container.innerHTML = '';
   // 頭像尺寸跟隨「演出者頁面」的尺寸設定（小／中／大），兩頁視覺一致
   container.classList.remove('artist-size-small', 'artist-size-medium', 'artist-size-large');
-  container.classList.add(`artist-size-${state.artistCardSize || 'medium'}`);
+  container.classList.add(`artist-size-${state.artistCardSize || 'small'}`);
 
   const currentGenre = (album.genre || '').trim();
   if (genreTag) {
@@ -7306,7 +7348,7 @@ async function renderAlbumVersions(album) {
 function openAlbumDetail(album) {
   if (!album) return;
   state.activeAlbumDetail = album;
-  applyDetailCoverSize(state.detailCoverSize || 'medium');
+  applyDetailCoverSize(state.detailCoverSize || 'small');
   const defaultDetailCover = createSvgCover(album.title || 'Album', album.artist || 'Artist', '#27272a', '#09090b');
   if (detailCoverImg) {
     detailCoverImg.src = formatCoverSrc(album.cover) || defaultDetailCover;
@@ -14097,7 +14139,7 @@ async function runGenreSizeSelfTest() {
     try { window.electronAPI.captureStep(31, report); } catch (err) {}
   };
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const sizeBefore = state.genreCardSize || 'medium';
+  const sizeBefore = state.genreCardSize || 'small';
 
   const firstTrackWidth = (grid) => {
     const raw = String(getComputedStyle(grid).gridTemplateColumns || '');
@@ -14117,11 +14159,11 @@ async function runGenreSizeSelfTest() {
     const sizes = pills.map(p => p.getAttribute('data-genre-size'));
     const labels = pills.map(p => p.textContent.trim());
     const inGenresView = !!(control && control.closest('#viewGenres'));
-    const mediumOn = pills.some(p => p.getAttribute('data-genre-size') === 'medium' && p.classList.contains('active'));
-    if (inGenresView && sizes.length === 3 && sizes.join(',') === 'small,medium,large' && labels.join(',') === '小,中,大' && mediumOn) {
-      ok('曲風頁標題有封面尺寸小/中/大，預設中', `按鈕 ${labels.join('/')}、位置 ${control.closest('.view-header') ? '標題列內' : '其他'}`);
+    const smallOn = pills.some(p => p.getAttribute('data-genre-size') === 'small' && p.classList.contains('active'));
+    if (inGenresView && sizes.length === 3 && sizes.join(',') === 'small,medium,large' && labels.join(',') === '小,中,大' && smallOn) {
+      ok('曲風頁標題有封面尺寸小/中/大，預設小', `按鈕 ${labels.join('/')}、位置 ${control.closest('.view-header') ? '標題列內' : '其他'}`);
     } else {
-      bad('曲風頁標題有封面尺寸小/中/大，預設中', `inGenres=${inGenresView} sizes=${sizes.join(',')} labels=${labels.join(',')} mediumOn=${mediumOn}`);
+      bad('曲風頁標題有封面尺寸小/中/大，預設小', `inGenres=${inGenresView} sizes=${sizes.join(',')} labels=${labels.join(',')} smallOn=${smallOn}`);
     }
 
     // --- 2. 實際欄寬：小 < 中 < 大 ---
@@ -15566,7 +15608,7 @@ function renderFavArtists() {
   if (!grid) return;
 
   grid.innerHTML = '';
-  const curSize = state.artistCardSize || 'medium';
+  const curSize = state.artistCardSize || 'small';
   grid.classList.remove('artist-size-small', 'artist-size-medium', 'artist-size-large');
   grid.classList.add(`artist-size-${curSize}`);
   const favList = getFavoriteArtistsList();
@@ -16041,11 +16083,11 @@ function setupCoverSizeControls() {
   });
 
   // Apply initial saved sizes
-  applyAlbumCoverSize(state.albumCoverSize || 'medium');
-  applyDetailCoverSize(state.detailCoverSize || 'medium');
-  applyArtistSize(state.artistCardSize || 'medium');
-  applyGenreSize(state.genreCardSize || 'medium');
-  applyTidalCoverSize(state.tidalCoverSize || 'medium');
+  applyAlbumCoverSize(state.albumCoverSize || 'small');
+  applyDetailCoverSize(state.detailCoverSize || 'small');
+  applyArtistSize(state.artistCardSize || 'small');
+  applyGenreSize(state.genreCardSize || 'small');
+  applyTidalCoverSize(state.tidalCoverSize || 'small');
 }
 
 let lastTidalSearchTracks = [];
@@ -16256,7 +16298,7 @@ function handleSearch(query) {
 
   if (searchLocalAlbumsGrid) {
     searchLocalAlbumsGrid.innerHTML = '';
-    const curSize = state.albumCoverSize || 'medium';
+    const curSize = state.albumCoverSize || 'small';
     searchLocalAlbumsGrid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
     searchLocalAlbumsGrid.classList.add(`cover-size-${curSize}`);
 
@@ -19657,7 +19699,7 @@ async function loadTidalFeatured(curatedTag = 'audiophile', force = false) {
   const grid = document.getElementById('tidalFeaturedGrid');
   if (!grid) return;
   grid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
-  grid.classList.add(`cover-size-${state.tidalCoverSize || 'medium'}`);
+  grid.classList.add(`cover-size-${state.tidalCoverSize || 'small'}`);
   if (!force && grid.children.length > 1 && !grid.querySelector('.tidal-loading-indicator')) return;
 
   grid.innerHTML = '<div class="tidal-loading-indicator">⏳ 正在載入 TIDAL 發燒推薦專輯...</div>';
@@ -19682,7 +19724,7 @@ async function loadTidalNewReleases(force = false) {
   const grid = document.getElementById('tidalNewReleasesGrid');
   if (!grid) return;
   grid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
-  grid.classList.add(`cover-size-${state.tidalCoverSize || 'medium'}`);
+  grid.classList.add(`cover-size-${state.tidalCoverSize || 'small'}`);
   if (!force && grid.children.length > 1 && !grid.querySelector('.tidal-loading-indicator')) return;
 
   grid.innerHTML = '<div class="tidal-loading-indicator">⏳ 正在載入 TIDAL 最新發行專輯...</div>';
@@ -19708,7 +19750,7 @@ async function loadTidalOfficialPlaylists(category = 'audiophile', force = false
   const grid = document.getElementById('tidalOfficialPlaylistsGrid');
   if (!grid) return;
   grid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
-  grid.classList.add(`cover-size-${state.tidalCoverSize || 'medium'}`);
+  grid.classList.add(`cover-size-${state.tidalCoverSize || 'small'}`);
   if (!force && grid.children.length > 1 && !grid.querySelector('.tidal-loading-indicator')) return;
 
   grid.innerHTML = '<div class="tidal-loading-indicator">⏳ 正在載入 TIDAL 官方精選歌單...</div>';
@@ -19750,7 +19792,7 @@ async function loadTidalCollection(force = false) {
 
       if (albumsGrid) {
         albumsGrid.classList.remove('cover-size-small', 'cover-size-medium', 'cover-size-large');
-        albumsGrid.classList.add(`cover-size-${state.tidalCoverSize || 'medium'}`);
+        albumsGrid.classList.add(`cover-size-${state.tidalCoverSize || 'small'}`);
         albumsGrid.innerHTML = '';
         if (favAlbums.length === 0) {
           albumsGrid.innerHTML = '<div class="empty-hint" style="grid-column: 1/-1;">您的 TIDAL 帳號中尚未加入最愛專輯</div>';

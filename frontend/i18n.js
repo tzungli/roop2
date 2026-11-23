@@ -644,9 +644,9 @@
     let saved = null;
     try { saved = localStorage.getItem(LANG_KEY); } catch (e) {}
     if (saved === 'en' || saved === 'zh-TW') return saved; // 使用者選過的語言：一律記住，不再受系統地區影響
-    const detected = detectSystemLanguage();
-    try { localStorage.setItem(LANG_KEY, detected); } catch (e) {}
-    return detected;
+    const defaultLang = 'zh-TW'; // 第一次執行預設：繁體中文
+    try { localStorage.setItem(LANG_KEY, defaultLang); } catch (e) {}
+    return defaultLang;
   }
 
   let currentLang = resolveInitialLanguage();
