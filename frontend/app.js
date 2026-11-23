@@ -12748,6 +12748,7 @@ function initRooSignalPathControls() {
     e.stopPropagation();
     toggleRooSignalPathPopover(false);
     navigateTo('dsp');
+    switchMuseTab('src');
   };
 
   if (btnSignalPopoverMore) {
