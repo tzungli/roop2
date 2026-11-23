@@ -2645,103 +2645,119 @@
 
               <!-- Panel 2: 取樣率轉換 (Sample Rate Conversion / Sox & DSD) -->
               <div class="muse-panel" id="musePanelSrc" style="display: none;">
-                <div class="muse-panel-header">
+                <div class="muse-panel-header roon-src-header">
                   <div class="muse-panel-title-wrap">
-                    <span class="muse-panel-header-icon src-icon">🎛️</span>
+                    <span class="roon-src-header-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="4" y1="6" x2="20" y2="6"/>
+                        <circle cx="9" cy="6" r="2" fill="currentColor"/>
+                        <line x1="4" y1="12" x2="20" y2="12"/>
+                        <circle cx="15" cy="12" r="2" fill="currentColor"/>
+                        <line x1="4" y1="18" x2="20" y2="18"/>
+                        <circle cx="10" cy="18" r="2" fill="currentColor"/>
+                      </svg>
+                    </span>
                     <div>
-                      <h2 class="muse-panel-title">取樣率轉換 (Sample Rate Conversion)</h2>
+                      <h2 class="muse-panel-title">取樣率轉換</h2>
+                      <div class="roon-src-subtitle">Sample Rate Conversion</div>
                     </div>
                   </div>
                 </div>
 
-                <div class="dsp-sox-body" id="dspSoxBody" style="margin-top: 20px;">
+                <div class="dsp-sox-body roon-src-card" id="dspSoxBody">
                   <!-- Target Sample Rate Selection (PCM) -->
-                  <div class="dsp-option-group">
-                    <div class="dsp-option-label">
-                      <span>PCM 升頻取樣規格 (PCM Upsampling)</span>
+                  <div class="dsp-option-group roon-src-row">
+                    <div class="dsp-option-label roon-src-label">
+                      <span class="roon-src-label-main">PCM 升頻</span>
+                      <span class="roon-src-label-sub">PCM Upsampling</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspRateSelector">
-                      <button class="dsp-pill active" data-rate-mode="4x" title="44.1k➔176.4k, 48k➔192k (發燒推薦：整數倍頻相位最純淨)">4x 整數倍頻 (推薦)</button>
+                      <button class="dsp-pill active" data-rate-mode="4x" title="44.1k➔176.4k, 48k➔192k (發燒推薦：整數倍頻相位最純淨)">4x 整數倍頻</button>
                       <button class="dsp-pill" data-rate-mode="2x" title="44.1k➔88.2k, 48k➔96k (整數 2 倍超取樣)">2x 整數倍頻</button>
-                      <button class="dsp-pill" data-rate-mode="192k" title="固定升頻至 192 kHz / 24-bit">固定 192 kHz</button>
-                      <button class="dsp-pill" data-rate-mode="384k" title="固定升頻至 384 kHz / 24-bit (DXD 頂級解碼)">固定 384 kHz</button>
-                      <button class="dsp-pill" data-rate-mode="96k" title="固定升頻至 96 kHz / 24-bit">固定 96 kHz</button>
+                      <button class="dsp-pill" data-rate-mode="96k" title="固定升頻至 96 kHz / 24-bit">96 kHz</button>
+                      <button class="dsp-pill" data-rate-mode="192k" title="固定升頻至 192 kHz / 24-bit">192 kHz</button>
+                      <button class="dsp-pill" data-rate-mode="384k" title="固定升頻至 384 kHz / 24-bit (DXD 頂級解碼)">384 kHz</button>
                     </div>
                   </div>
 
                   <!-- Target DSD Modulation Selection -->
-                  <div class="dsp-option-group">
-                    <div class="dsp-option-label">
-                      <span>1-bit DSD 調變升頻 (PCM ➔ 1-bit DSD SDM Modulator)</span>
+                  <div class="dsp-option-group roon-src-row">
+                    <div class="dsp-option-label roon-src-label">
+                      <span class="roon-src-label-main">DSD 升頻</span>
+                      <span class="roon-src-label-sub">1-bit SDM</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspDsdRateSelector">
-                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd64" title="PCM ➔ DSD64 (1-bit / 2.8224 MHz 或 3.072 MHz 超高頻噪聲整形調變)">DSD64 (2.8 MHz)</button>
-                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd128" title="PCM ➔ DSD128 (1-bit / 5.6448 MHz 或 6.144 MHz 雙倍 DSD 調變)">DSD128 (5.6 MHz)</button>
-                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd256" title="PCM ➔ DSD256 (1-bit / 11.2896 MHz 或 12.288 MHz 四倍 DSD 調變)">DSD256 (11.2 MHz)</button>
-                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd512" title="PCM ➔ DSD512 (1-bit / 22.5792 MHz 或 24.576 MHz 極限發燒 DSD 調變)">DSD512 (22.5 MHz)</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd64" title="PCM ➔ DSD64 (1-bit / 2.8224 MHz)">DSD64</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd128" title="PCM ➔ DSD128 (1-bit / 5.6448 MHz)">DSD128</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd256" title="PCM ➔ DSD256 (1-bit / 11.2896 MHz)">DSD256</button>
+                      <button class="dsp-pill pill-dsd" data-rate-mode="dsd512" title="PCM ➔ DSD512 (1-bit / 22.5792 MHz)">DSD512</button>
                     </div>
                   </div>
 
                   <!-- DSD Modulator Order Selection -->
-                  <div class="dsp-option-group" id="dspOrderGroup">
-                    <div class="dsp-option-label">
-                      <span>調變器階數 (Modulator Order)</span>
+                  <div class="dsp-option-group roon-src-row" id="dspOrderGroup">
+                    <div class="dsp-option-label roon-src-label">
+                      <span class="roon-src-label-main">調變器階數</span>
+                      <span class="roon-src-label-sub">Modulator Order</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspOrderSelector">
-                      <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB 發燒推薦)</button>
-                      <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CRFB 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (極致微動態)</button>
+                      <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB)</button>
+                      <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CLANS 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (CLANS)</button>
                     </div>
                   </div>
 
                   <!-- Ultrasonic Noise Protection Filter -->
-                  <div class="dsp-option-group" id="dspUltrasonicGroup">
-                    <div class="dsp-option-label">
-                      <span>🛡️ 超音波噪聲防護濾波 (Ultrasonic Filter)</span>
+                  <div class="dsp-option-group roon-src-row" id="dspUltrasonicGroup">
+                    <div class="dsp-option-label roon-src-label">
+                      <span class="roon-src-label-main">超音波防護</span>
+                      <span class="roon-src-label-sub">Ultrasonic Filter</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspUltrasonicSelector">
-                      <button class="dsp-pill pill-dsd" data-ultrasonic="none" title="關閉超音波防護 (無濾波)">關閉 (None)</button>
-                      <button class="dsp-pill pill-dsd" data-ultrasonic="20k" title="20 kHz 截止：強效防護，徹底隔絕超高頻，適合敏感型 DAC 或老晶片">20 kHz</button>
-                      <button class="dsp-pill pill-dsd active" data-ultrasonic="30k" title="30 kHz 截止 (預設推薦)：發燒黃金平衡，兼具極限空氣感與超音波噪聲徹底阻隔">30 kHz (預設推薦)</button>
-                      <button class="dsp-pill pill-dsd" data-ultrasonic="40k" title="40 kHz 截止：寬廣高頻延伸，有效降低 DAC 射頻互調失真">40 kHz</button>
-                      <button class="dsp-pill pill-dsd" data-ultrasonic="50k" title="50 kHz 截止：極限解析保留，消除超高頻發散噪聲">50 kHz</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="none" title="關閉超音波防護 (無濾波)">關閉</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="20k" title="20 kHz 截止：強效防護，適合敏感型 DAC">20 kHz</button>
+                      <button class="dsp-pill pill-dsd active" data-ultrasonic="30k" title="30 kHz 截止 (預設推薦)：兼具空氣感與超音波噪聲阻隔">30 kHz</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="40k" title="40 kHz 截止：寬廣高頻延伸">40 kHz</button>
+                      <button class="dsp-pill pill-dsd" data-ultrasonic="50k" title="50 kHz 截止：極限解析保留">50 kHz</button>
                     </div>
                   </div>
 
                   <!-- Quantization Dither Selection -->
-                  <div class="dsp-option-group" id="dspDitherGroup">
-                    <div class="dsp-option-label">
-                      <span>✨ 量化抖動 (Quantization Dither)</span>
+                  <div class="dsp-option-group roon-src-row" id="dspDitherGroup">
+                    <div class="dsp-option-label roon-src-label">
+                      <span class="roon-src-label-main">量化抖動</span>
+                      <span class="roon-src-label-sub">Quantization Dither</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspDitherSelector">
-                      <button class="dsp-pill active" data-dither="tpdf" title="TPDF：標準三角形機率密度抖動 (Lipshitz-Vanderkooy 錄音室標準，徹底消除諧波失真與噪聲調製，絕對線性)">TPDF (標準三角形)</button>
-                      <button class="dsp-pill" data-dither="hp-tpdf" title="HP-TPDF：高頻加權三角形抖動 (一階差分濾波，降低人耳最敏感 100Hz~4kHz 頻段底噪 ~3.5dB)">HP-TPDF (高頻加權)</button>
-                      <button class="dsp-pill" data-dither="shaped" title="Noise-Shaped：人耳等響度噪聲整形 (3階誤差回授濾波器，聽覺敏感區底噪降低 12~15dB，背景極致漆黑)">Noise-Shaped (人耳等響度整形)</button>
-                      <button class="dsp-pill" data-dither="gauss" title="Gauss：高斯溫潤分佈抖動 (Box-Muller 連續無界常態分佈，徹底打散 Delta-Sigma DSD 調變器極限環與閒置雜音)">Gauss (高斯溫潤)</button>
-                      <button class="dsp-pill" data-dither="none" title="關閉抖動 (直通截斷，未經抖動處理)">關閉 (None)</button>
+                      <button class="dsp-pill active" data-dither="tpdf" title="TPDF：標準三角形機率密度抖動 (錄音室標準，絕對線性)">TPDF</button>
+                      <button class="dsp-pill" data-dither="hp-tpdf" title="HP-TPDF：高頻加權三角形抖動 (降低人耳敏感區底噪 ~3.5dB)">HP-TPDF</button>
+                      <button class="dsp-pill" data-dither="shaped" title="Noise-Shaped：人耳等響度噪聲整形 (聽覺敏感區底噪降低 12~15dB)">Noise-Shaped</button>
+                      <button class="dsp-pill" data-dither="gauss" title="Gauss：高斯溫潤分佈抖動 (徹底打散 DSD 調變器極限環與閒置雜音)">Gauss</button>
+                      <button class="dsp-pill" data-dither="none" title="關閉抖動 (直通截斷)">關閉</button>
                     </div>
                   </div>
 
                   <!-- Filter Phase Selection -->
-                  <div class="dsp-option-group" id="dspPhaseGroup">
-                    <div class="dsp-option-label">
-                      <div style="display: inline-flex; align-items: center; gap: 6px;">
-                        <span>取樣率轉換濾波器 (SRC Filter)</span>
-                        <button type="button" class="dsp-guide-link" id="btnFilterGuideLink" title="檢視 4 種取樣率轉換濾波器的實測規格、時域響應與發燒搭配指南">📖 規格與指南</button>
-                      </div>
+                  <div class="dsp-option-group roon-src-row" id="dspPhaseGroup">
+                    <div class="dsp-option-label roon-src-label">
+                      <span class="roon-src-label-main">轉換濾波器</span>
+                      <button type="button" class="dsp-guide-link" id="btnFilterGuideLink" title="檢視 4 種取樣率轉換濾波器的實測規格、時域響應與發燒搭配指南">規格指南 ↗</button>
                     </div>
                     <div class="dsp-pill-selector" id="dspPhaseSelector"></div>
                   </div>
 
                   <!-- User Filter Toolbox -->
-                  <div class="user-filter-strip" id="userFilterStrip">
+                  <div class="user-filter-strip roon-src-uf-row" id="userFilterStrip">
                     <div class="user-filter-strip-head">
-                      <span class="user-filter-strip-title">🛠️ 自訂濾波器</span>
+                      <div class="roon-src-uf-title-group">
+                        <span class="user-filter-strip-title">自訂濾波器</span>
+                        <span class="roon-src-label-sub">Custom Filters</span>
+                      </div>
                       <span class="user-filter-strip-actions">
                         <button class="uf-mini-btn" id="ufNewBtn">＋ 新建</button>
-                        <button class="uf-mini-btn uf-manage-btn" id="ufManageBtn">⚙ 管理</button>
+                        <button class="uf-mini-btn uf-manage-btn" id="ufManageBtn">管理</button>
                       </span>
                     </div>
-                    <div class="user-filter-chips" id="ufChipRow"><span class="uf-chips-empty">尚無自訂濾波器 — 點「＋ 新建」於安全範圍內設計專屬濾波器</span></div>
+                    <div class="user-filter-chips" id="ufChipRow"><span class="uf-chips-empty">尚無自訂濾波器 — 點「＋ 新建」設計專屬濾波器</span></div>
 
                     <!-- Inline editor panel -->
                     <div class="uf-panel" id="ufEditorPanel" style="display: none;">
