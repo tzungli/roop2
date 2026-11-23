@@ -3752,6 +3752,7 @@ dependencies = [
  "lofty",
  "rusqlite",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
