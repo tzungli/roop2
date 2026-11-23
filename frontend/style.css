@@ -452,7 +452,7 @@ h1, h2, h3, h4, h5, h6 {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ----------------- Roon Flagship 1:1 Overview View ----------------- */
+/* ----------------- Flagship 1:1 Overview View ----------------- */
 #viewOverview {
   width: 760px;
   max-width: 100%;
@@ -461,11 +461,11 @@ h1, h2, h3, h4, h5, h6 {
   box-sizing: border-box;
 }
 
-.roon-overview-header {
+.roo-overview-header {
   margin-bottom: 24px;
 }
 
-.roon-greeting {
+.roo-greeting {
   font-size: 32px;
   font-weight: 700;
   margin: 0 0 20px 0;
@@ -473,14 +473,14 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.5px;
 }
 
-.roon-stats-grid {
+.roo-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 26px;
 }
 
-.roon-stat-card {
+.roo-stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
@@ -494,7 +494,7 @@ h1, h2, h3, h4, h5, h6 {
   min-width: 0;
 }
 
-.roon-stat-card:hover {
+.roo-stat-card:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
@@ -536,40 +536,40 @@ h1, h2, h3, h4, h5, h6 {
   text-overflow: ellipsis;
 }
 
-/* 1.2 Recent Activity (Roon Signature Blue Block) */
-.roon-section-banner {
+/* 1.2 Recent Activity (Signature Blue Block) */
+.roo-section-banner {
   border-radius: 8px;
   padding: 22px 24px;
   margin-bottom: 32px;
 }
 
-.roon-recent-activity-card {
+.roo-recent-activity-card {
   background: linear-gradient(135deg, #2f40b5 0%, #3a4ecd 100%);
   color: #ffffff;
   box-shadow: 0 6px 20px rgba(47, 64, 181, 0.25);
 }
 
-.roon-banner-top-bar {
+.roo-banner-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 18px;
 }
 
-.roon-tab-group {
+.roo-tab-group {
   display: flex;
   align-items: center;
   gap: 20px;
 }
 
-.roon-banner-title {
+.roo-banner-title {
   font-size: 18px;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.2px;
 }
 
-.roon-banner-tab {
+.roo-banner-tab {
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.65);
@@ -581,15 +581,15 @@ h1, h2, h3, h4, h5, h6 {
   transition: color 0.15s;
 }
 
-.roon-banner-tab:hover {
+.roo-banner-tab:hover {
   color: #ffffff;
 }
 
-.roon-banner-tab.active {
+.roo-banner-tab.active {
   color: #ffffff;
 }
 
-.roon-banner-tab.active::after {
+.roo-banner-tab.active::after {
   content: '';
   position: absolute;
   bottom: -4px;
@@ -600,13 +600,13 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 2px;
 }
 
-.roon-banner-actions {
+.roo-banner-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.roon-nav-arrow-btn {
+.roo-nav-arrow-btn {
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -621,12 +621,12 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.15s;
 }
 
-.roon-nav-arrow-btn:hover {
+.roo-nav-arrow-btn:hover {
   background: rgba(0, 0, 0, 0.35);
   transform: translateY(-1px);
 }
 
-.roon-btn-more {
+.roo-btn-more {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ffffff;
@@ -638,11 +638,11 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.15s;
 }
 
-.roon-btn-more:hover {
+.roo-btn-more:hover {
   background: rgba(0, 0, 0, 0.35);
 }
 
-.roon-activity-album-row {
+.roo-activity-album-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
@@ -719,31 +719,31 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.3 Daily Pick (3D Stacked Hero) */
-.roon-daily-pick-section {
+.roo-daily-pick-section {
   margin-bottom: 36px;
 }
 
-.roon-section-subhead {
+.roo-section-subhead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
 }
 
-.roon-context-user {
+.roo-context-user {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.roon-mini-avatar {
+.roo-mini-avatar {
   width: 24px;
   height: 24px;
   border-radius: 50%;
   object-fit: cover;
 }
 
-.roon-avatar-placeholder {
+.roo-avatar-placeholder {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -754,16 +754,16 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 12px;
 }
 
-.roon-context-text {
+.roo-context-text {
   font-size: 12.5px;
   color: var(--text-sub);
 }
 
-.roon-context-text strong {
+.roo-context-text strong {
   color: var(--text-main);
 }
 
-.roon-daily-pick-hero {
+.roo-daily-pick-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -777,13 +777,13 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 
-.roon-pick-left {
+.roo-pick-left {
   flex: 1;
   min-width: 0;
   z-index: 2;
 }
 
-.roon-pick-date {
+.roo-pick-date {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -792,7 +792,7 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 8px;
 }
 
-.roon-pick-title {
+.roo-pick-title {
   font-size: 34px;
   font-weight: 800;
   color: #ffffff;
@@ -801,14 +801,14 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.1;
 }
 
-.roon-pick-album {
+.roo-pick-album {
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
   margin-bottom: 4px;
 }
 
-.roon-pick-days {
+.roo-pick-days {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
 }
@@ -877,18 +877,18 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.4 New Releases Layout */
-.roon-section-block {
+.roo-section-block {
   margin-bottom: 36px;
 }
 
-.roon-section-head-bar {
+.roo-section-head-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
 }
 
-.roon-block-title {
+.roo-block-title {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-main);
@@ -896,13 +896,13 @@ h1, h2, h3, h4, h5, h6 {
   margin: 0;
 }
 
-.roon-head-tabs {
+.roo-head-tabs {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.roon-sub-tab {
+.roo-sub-tab {
   background: transparent;
   border: none;
   font-size: 13.5px;
@@ -914,15 +914,15 @@ h1, h2, h3, h4, h5, h6 {
   transition: color 0.15s;
 }
 
-.roon-sub-tab:hover {
+.roo-sub-tab:hover {
   color: var(--text-main);
 }
 
-.roon-sub-tab.active {
+.roo-sub-tab.active {
   color: var(--text-main);
 }
 
-.roon-sub-tab.active::after {
+.roo-sub-tab.active::after {
   content: '';
   position: absolute;
   bottom: -4px;
@@ -933,13 +933,13 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 2px;
 }
 
-.roon-new-releases-layout {
+.roo-new-releases-layout {
   display: grid;
   grid-template-columns: 290px minmax(0, 1fr);
   gap: 16px;
 }
 
-.roon-featured-release-card {
+.roo-featured-release-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
@@ -952,7 +952,7 @@ h1, h2, h3, h4, h5, h6 {
   min-width: 0;
 }
 
-.roon-featured-release-card:hover {
+.roo-featured-release-card:hover {
   border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
@@ -1004,7 +1004,7 @@ h1, h2, h3, h4, h5, h6 {
   margin: 0;
 }
 
-.roon-compact-releases-grid {
+.roo-compact-releases-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
@@ -1068,7 +1068,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.5 Daily Mixes Grid */
-.roon-daily-mixes-grid {
+.roo-daily-mixes-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
@@ -1138,7 +1138,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.6 Curated Playlists */
-.roon-playlists-curated-grid {
+.roo-playlists-curated-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
@@ -1205,11 +1205,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.7 Analytics Section */
-.roon-analytics-section {
+.roo-analytics-section {
   margin-bottom: 36px;
 }
 
-.roon-listening-summary-card {
+.roo-listening-summary-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
@@ -1318,14 +1318,14 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateY(-1px);
 }
 
-.roon-breakdown-head {
+.roo-breakdown-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
 }
 
-.roon-breakdown-head h3 {
+.roo-breakdown-head h3 {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
@@ -1338,7 +1338,7 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 
-.roon-breakdown-cards-grid {
+.roo-breakdown-cards-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
@@ -1479,7 +1479,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.8 Circle Artists Row */
-.roon-circle-artists-row {
+.roo-circle-artists-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
@@ -1527,7 +1527,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.9 Recommended Genres Dual-Tone Posters */
-.roon-genres-poster-grid {
+.roo-genres-poster-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
@@ -1577,7 +1577,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.11 Featured Musician Spotlight Banner */
-.roon-musician-spotlight-banner {
+.roo-musician-spotlight-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1676,7 +1676,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 1.12 Discover Banner */
-.roon-discover-banner {
+.roo-discover-banner {
   background: linear-gradient(135deg, #2f40b5 0%, #394ebd 100%);
   border-radius: 8px;
   padding: 26px 32px;
@@ -1686,7 +1686,7 @@ h1, h2, h3, h4, h5, h6 {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.roon-discover-banner:hover {
+.roo-discover-banner:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(47, 64, 181, 0.35);
 }
@@ -1710,10 +1710,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Responsive adjustments for window resizing (Anti-Break) */
 @media (max-width: 960px) {
-  .roon-new-releases-layout {
+  .roo-new-releases-layout {
     grid-template-columns: 1fr;
   }
-  .roon-listening-summary-card {
+  .roo-listening-summary-card {
     flex-direction: column;
     align-items: stretch;
     gap: 20px;
@@ -1724,10 +1724,10 @@ h1, h2, h3, h4, h5, h6 {
     gap: 16px;
     text-align: left;
   }
-  .roon-breakdown-cards-grid {
+  .roo-breakdown-cards-grid {
     grid-template-columns: 1fr;
   }
-  .roon-musician-spotlight-banner {
+  .roo-musician-spotlight-banner {
     flex-direction: column;
     align-items: flex-start;
     gap: 20px;
@@ -1745,13 +1745,13 @@ h1, h2, h3, h4, h5, h6 {
   #mainContent {
     padding: 16px 20px 32px 20px;
   }
-  .roon-stats-grid {
+  .roo-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .roon-daily-pick-hero {
+  .roo-daily-pick-hero {
     padding: 22px 24px;
   }
-  .roon-pick-title {
+  .roo-pick-title {
     font-size: 28px;
   }
   .stacked-covers-wrap {
@@ -1763,13 +1763,13 @@ h1, h2, h3, h4, h5, h6 {
     width: 100px;
     height: 100px;
   }
-  .roon-daily-mixes-grid {
+  .roo-daily-mixes-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
-  .roon-genres-poster-grid {
+  .roo-genres-poster-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .roon-discover-banner {
+  .roo-discover-banner {
     padding: 20px 22px;
   }
   .discover-title {
@@ -1777,11 +1777,11 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Light Mode Overrides for Roon Overview */
-[data-theme="light"] .roon-stat-card,
-[data-theme="light"] .roon-featured-release-card,
+/* Light Mode Overrides for Overview */
+[data-theme="light"] .roo-stat-card,
+[data-theme="light"] .roo-featured-release-card,
 [data-theme="light"] .compact-release-item,
-[data-theme="light"] .roon-listening-summary-card,
+[data-theme="light"] .roo-listening-summary-card,
 [data-theme="light"] .breakdown-card {
   background: #ffffff;
   border-color: rgba(0, 0, 0, 0.08);
@@ -6172,7 +6172,7 @@ body.table-col-resizing * {
   flex-shrink: 0;
 }
 
-/* ----------------- Roon-Style Bottom Bar & Volume Popover ----------------- */
+/* ----------------- Flagship Bottom Bar & Volume Popover ----------------- */
 .player-right {
   display: flex;
   align-items: center;
@@ -6181,7 +6181,7 @@ body.table-col-resizing * {
   min-width: 200px;
 }
 
-.roon-bottom-btn {
+.roo-bottom-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -6199,29 +6199,29 @@ body.table-col-resizing * {
   user-select: none;
 }
 
-.roon-bottom-btn:hover {
+.roo-bottom-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-main);
 }
 
-.roon-bottom-btn.active {
+.roo-bottom-btn.active {
   background: rgba(124, 58, 237, 0.14);
   color: var(--accent-purple, #8b5cf6);
   border-color: rgba(124, 58, 237, 0.3);
 }
 
-[data-theme="light"] .roon-bottom-btn:hover {
+[data-theme="light"] .roo-bottom-btn:hover {
   background: rgba(0, 0, 0, 0.05);
   color: #0f172a;
 }
 
-[data-theme="light"] .roon-bottom-btn.active {
+[data-theme="light"] .roo-bottom-btn.active {
   background: rgba(124, 58, 237, 0.10);
   color: #7c3aed;
   border-color: rgba(124, 58, 237, 0.25);
 }
 
-.roon-bottom-label {
+.roo-bottom-label {
   font-size: 10px;
   font-weight: 500;
   line-height: 1.15;
@@ -6236,19 +6236,19 @@ body.table-col-resizing * {
   color: inherit;
 }
 
-.roon-bottom-svg {
+.roo-bottom-svg {
   flex-shrink: 0;
   color: inherit;
   transition: opacity 0.15s ease;
 }
 
-.roon-bottom-svg.muted,
+.roo-bottom-svg.muted,
 .popover-speaker-btn.muted {
   opacity: 0.38;
 }
 
-/* Roon Floating Volume Popover Card */
-.roon-volume-popover {
+/* Floating Volume Popover Card */
+.roo-volume-popover {
   position: fixed;
   bottom: 94px;
   right: 28px;
@@ -6262,10 +6262,10 @@ body.table-col-resizing * {
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.6);
   padding: 16px 20px;
   box-sizing: border-box;
-  animation: roonPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: rooPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes roonPopoverIn {
+@keyframes rooPopoverIn {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -6276,7 +6276,7 @@ body.table-col-resizing * {
   }
 }
 
-[data-theme="light"] .roon-volume-popover {
+[data-theme="light"] .roo-volume-popover {
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.12);
@@ -6586,8 +6586,8 @@ body.table-col-resizing * {
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
 }
 
-/* ----------------- Roon Signal Path Floating Popover ----------------- */
-.roon-signal-path-popover {
+/* ----------------- Signal Path Floating Popover ----------------- */
+.roo-signal-path-popover {
   position: fixed;
   bottom: 94px;
   left: 50%;
@@ -6602,10 +6602,10 @@ body.table-col-resizing * {
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.6);
   padding: 18px 22px;
   box-sizing: border-box;
-  animation: roonPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: rooPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="light"] .roon-signal-path-popover {
+[data-theme="light"] .roo-signal-path-popover {
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.14);
@@ -10823,7 +10823,7 @@ body.table-col-resizing * {
 
 
 /* ==========================================================================
-   ROON MUSE PRECISION AUDIO CONTROL (DEDICATED FULL-PAGE DSP VIEW)
+   FLAGSHIP MUSE PRECISION AUDIO CONTROL (DEDICATED FULL-PAGE DSP VIEW)
    ========================================================================== */
 #viewDsp {
   padding: 0 !important;
@@ -11477,7 +11477,7 @@ body.table-col-resizing * {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-/* 5. Band Parameter Controls (Exact replication of Roon MUSE) */
+/* 5. Band Parameter Controls (Precision MUSE DSP Architecture) */
 .muse-band-editor {
   display: flex;
   flex-direction: column;

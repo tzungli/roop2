@@ -170,13 +170,13 @@
         </button>
       </div>
 
-      <!-- 1. OVERVIEW VIEW (ROON 1:1 REPLICATION) -->
+      <!-- 1. OVERVIEW VIEW (FLAGSHIP REPLICATION) -->
       <section id="viewOverview" class="content-view active">
         <!-- 1.1 Greeting & Library Stats Header -->
-        <div class="roon-overview-header">
-          <h1 class="roon-greeting" id="roonGreetingTitle">HELLO !</h1>
-          <div class="roon-stats-grid">
-            <div class="roon-stat-card" id="statCardArtists" role="button" title="檢視藝術家">
+        <div class="roo-overview-header">
+          <h1 class="roo-greeting" id="rooGreetingTitle">HELLO !</h1>
+          <div class="roo-stats-grid">
+            <div class="roo-stat-card" id="statCardArtists" role="button" title="檢視藝術家">
               <div class="stat-icon-wrap">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -189,7 +189,7 @@
               </div>
             </div>
 
-            <div class="roon-stat-card" id="statCardAlbums" role="button" title="檢視專輯">
+            <div class="roo-stat-card" id="statCardAlbums" role="button" title="檢視專輯">
               <div class="stat-icon-wrap">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="10"></circle>
@@ -202,7 +202,7 @@
               </div>
             </div>
 
-            <div class="roon-stat-card" id="statCardTracks" role="button" title="檢視曲目">
+            <div class="roo-stat-card" id="statCardTracks" role="button" title="檢視曲目">
               <div class="stat-icon-wrap">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 18V5l12-2v13"></path>
@@ -216,7 +216,7 @@
               </div>
             </div>
 
-            <div class="roon-stat-card" id="statCardComposers" role="button" title="檢視作曲家">
+            <div class="roo-stat-card" id="statCardComposers" role="button" title="檢視作曲家">
               <div class="stat-icon-wrap">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
@@ -232,46 +232,46 @@
         </div>
 
         <!-- 1.2 近期活動 Recent Activity (經典藍底卡片) -->
-        <div class="roon-section-banner roon-recent-activity-card">
-          <div class="roon-banner-top-bar">
-            <div class="roon-tab-group">
-              <span class="roon-banner-title">近期活動</span>
-              <button class="roon-banner-tab" id="tabRecentPlayed" type="button">已播放</button>
-              <button class="roon-banner-tab active" id="tabRecentAdded" type="button">已新增</button>
+        <div class="roo-section-banner roo-recent-activity-card">
+          <div class="roo-banner-top-bar">
+            <div class="roo-tab-group">
+              <span class="roo-banner-title">近期活動</span>
+              <button class="roo-banner-tab" id="tabRecentPlayed" type="button">已播放</button>
+              <button class="roo-banner-tab active" id="tabRecentAdded" type="button">已新增</button>
             </div>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnRecentActivityPrev" title="向前捲動">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnRecentActivityNext" title="向後捲動">❯</button>
-              <button class="roon-btn-more" id="btnRecentActivityMore">更多</button>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnRecentActivityPrev" title="向前捲動">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnRecentActivityNext" title="向後捲動">❯</button>
+              <button class="roo-btn-more" id="btnRecentActivityMore">更多</button>
             </div>
           </div>
-          <div class="roon-activity-album-row" id="recentActivityGrid">
+          <div class="roo-activity-album-row" id="recentActivityGrid">
             <!-- Injected via JS -->
           </div>
         </div>
 
         <!-- 1.3 每日精選 Daily Pick (因為你曾播放 + 3D疊層傾斜封面) -->
-        <div class="roon-daily-pick-section">
-          <div class="roon-section-subhead">
-            <div class="roon-context-user">
-              <img src="" id="dailyPickArtistAvatar" class="roon-mini-avatar" alt="Artist" style="display:none;">
-              <span class="roon-avatar-placeholder" id="dailyPickAvatarPlaceholder">🎤</span>
-              <span class="roon-context-text">因為你曾播放 <strong id="dailyPickArtistSeed">陳鈺華</strong></span>
+        <div class="roo-daily-pick-section">
+          <div class="roo-section-subhead">
+            <div class="roo-context-user">
+              <img src="" id="dailyPickArtistAvatar" class="roo-mini-avatar" alt="Artist" style="display:none;">
+              <span class="roo-avatar-placeholder" id="dailyPickAvatarPlaceholder">🎤</span>
+              <span class="roo-context-text">因為你曾播放 <strong id="dailyPickArtistSeed">陳鈺華</strong></span>
             </div>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnDailyPickPrev" title="上一精選">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnDailyPickNext" title="下一精選">❯</button>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnDailyPickPrev" title="上一精選">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnDailyPickNext" title="下一精選">❯</button>
             </div>
           </div>
 
-          <div class="roon-daily-pick-hero" id="dailyPickHeroBox">
-            <div class="roon-pick-left">
-              <div class="roon-pick-date" id="dailyPickDateLabel">十一月 22ND 日</div>
-              <h2 class="roon-pick-title">每日精選</h2>
-              <div class="roon-pick-album" id="dailyPickAlbumArtist">Reborn - 陳鈺華</div>
-              <div class="roon-pick-days" id="dailyPickDaysAgo">在 19 天前發行</div>
+          <div class="roo-daily-pick-hero" id="dailyPickHeroBox">
+            <div class="roo-pick-left">
+              <div class="roo-pick-date" id="dailyPickDateLabel">十一月 22ND 日</div>
+              <h2 class="roo-pick-title">每日精選</h2>
+              <div class="roo-pick-album" id="dailyPickAlbumArtist">Reborn - 陳鈺華</div>
+              <div class="roo-pick-days" id="dailyPickDaysAgo">在 19 天前發行</div>
             </div>
-            <div class="roon-pick-right">
+            <div class="roo-pick-right">
               <div class="stacked-covers-wrap" id="dailyPickStackedCovers">
                 <div class="stacked-cover cover-back"></div>
                 <div class="stacked-cover cover-mid"></div>
@@ -285,23 +285,23 @@
         </div>
 
         <!-- 1.4 推薦給你的新作品 New Releases For You (雙欄式：左主打長文 + 右網格) -->
-        <div class="roon-section-block">
-          <div class="roon-section-head-bar">
-            <div class="roon-head-tabs">
-              <h2 class="roon-block-title">推薦給你的新作品</h2>
-              <button class="roon-sub-tab active" id="tabNewReleaseAlbums">專輯</button>
-              <button class="roon-sub-tab" id="tabNewReleaseTracks">單曲</button>
+        <div class="roo-section-block">
+          <div class="roo-section-head-bar">
+            <div class="roo-head-tabs">
+              <h2 class="roo-block-title">推薦給你的新作品</h2>
+              <button class="roo-sub-tab active" id="tabNewReleaseAlbums">專輯</button>
+              <button class="roo-sub-tab" id="tabNewReleaseTracks">單曲</button>
             </div>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnNewReleasesPrev">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnNewReleasesNext">❯</button>
-              <button class="roon-btn-more" id="btnNewReleasesMore">更多</button>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnNewReleasesPrev">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnNewReleasesNext">❯</button>
+              <button class="roo-btn-more" id="btnNewReleasesMore">更多</button>
             </div>
           </div>
 
-          <div class="roon-new-releases-layout">
+          <div class="roo-new-releases-layout">
             <!-- Left: Featured Card with Long Narrative Review -->
-            <div class="roon-featured-release-card" id="featuredReleaseCard">
+            <div class="roo-featured-release-card" id="featuredReleaseCard">
               <div class="featured-release-meta">
                 <div class="featured-artist-title-col">
                   <div class="featured-artist-name" id="featuredReleaseArtist">ILLIT</div>
@@ -316,49 +316,49 @@
             </div>
 
             <!-- Right: 2x2 or 2x3 Compact Releases Grid -->
-            <div class="roon-compact-releases-grid" id="newReleasesCompactGrid">
+            <div class="roo-compact-releases-grid" id="newReleasesCompactGrid">
               <!-- Injected via JS -->
             </div>
           </div>
         </div>
 
         <!-- 1.5 你的每日精選合輯 Your Daily Mixes (3張寬幅藍調合輯卡片) -->
-        <div class="roon-section-block">
-          <div class="roon-section-head-bar">
-            <h2 class="roon-block-title">你的每日精選合輯</h2>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnDailyMixPrev">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnDailyMixNext">❯</button>
+        <div class="roo-section-block">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">你的每日精選合輯</h2>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnDailyMixPrev">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnDailyMixNext">❯</button>
             </div>
           </div>
-          <div class="roon-daily-mixes-grid" id="dailyMixesGrid">
+          <div class="roo-daily-mixes-grid" id="dailyMixesGrid">
             <!-- 3 Dynamic Mix Cards injected via JS -->
           </div>
         </div>
 
         <!-- 1.6 來自 rooPlayer 的播放清單 Playlists from rooPlayer -->
-        <div class="roon-section-block">
-          <div class="roon-section-head-bar">
-            <h2 class="roon-block-title">來自 rooPlayer 的播放清單</h2>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnRoonPlaylistsPrev">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnRoonPlaylistsNext">❯</button>
-              <button class="roon-btn-more" id="btnRoonPlaylistsMore">更多</button>
+        <div class="roo-section-block">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">來自 rooPlayer 的播放清單</h2>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnRooPlaylistsPrev">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnRooPlaylistsNext">❯</button>
+              <button class="roo-btn-more" id="btnRooPlaylistsMore">更多</button>
             </div>
           </div>
-          <div class="roon-playlists-curated-grid" id="curatedPlaylistsGrid">
+          <div class="roo-playlists-curated-grid" id="curatedPlaylistsGrid">
             <!-- 5 Curated Playlists injected via JS -->
           </div>
         </div>
 
         <!-- 1.7 最近聆聽與統計圖表 Listening Analytics (週長條圖 + 圓環圖 + 排行榜) -->
-        <div class="roon-analytics-section">
-          <div class="roon-section-head-bar">
-            <h2 class="roon-block-title">最近聆聽</h2>
+        <div class="roo-analytics-section">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">最近聆聽</h2>
           </div>
 
           <!-- Top Listening Time & 4-Week Activity Timeline -->
-          <div class="roon-listening-summary-card">
+          <div class="roo-listening-summary-card">
             <div class="listening-time-col">
               <div class="clock-icon-wrap">
                 <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -384,13 +384,13 @@
           </div>
 
           <!-- 3-Column Breakdown: Genres Donut, Top Artists, Top Albums -->
-          <div class="roon-breakdown-container">
-            <div class="roon-breakdown-head">
+          <div class="roo-breakdown-container">
+            <div class="roo-breakdown-head">
               <h3>你最近聆聽這些</h3>
               <div class="breakdown-filter-select">上個月 ▾</div>
             </div>
 
-            <div class="roon-breakdown-cards-grid">
+            <div class="roo-breakdown-cards-grid">
               <!-- Card 1: Genres Donut Chart -->
               <div class="breakdown-card" id="breakdownCardGenres">
                 <div class="card-head">
@@ -433,47 +433,47 @@
         </div>
 
         <!-- 1.8 你最近聆聽的藝術家 Recently Played Artists (圓形頭像橫排) -->
-        <div class="roon-section-block">
-          <div class="roon-section-head-bar">
-            <h2 class="roon-block-title">你最近聆聽的藝術家</h2>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnRecentArtistsPrev">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnRecentArtistsNext">❯</button>
-              <button class="roon-btn-more" id="btnRecentArtistsMore">更多</button>
+        <div class="roo-section-block">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">你最近聆聽的藝術家</h2>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnRecentArtistsPrev">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnRecentArtistsNext">❯</button>
+              <button class="roo-btn-more" id="btnRecentArtistsMore">更多</button>
             </div>
           </div>
-          <div class="roon-circle-artists-row" id="recentPlayedArtistsGrid">
+          <div class="roo-circle-artists-row" id="recentPlayedArtistsGrid">
             <!-- 5 Circle Artists injected via JS -->
           </div>
         </div>
 
         <!-- 1.9 推薦給你的音樂類型 Recommended Genres (6格黑白大字海報卡片) -->
-        <div class="roon-section-block">
-          <div class="roon-section-head-bar">
-            <h2 class="roon-block-title">推薦給你的音樂類型</h2>
+        <div class="roo-section-block">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">推薦給你的音樂類型</h2>
           </div>
-          <div class="roon-genres-poster-grid" id="recommendedGenresGrid">
+          <div class="roo-genres-poster-grid" id="recommendedGenresGrid">
             <!-- 6 Dual-Tone Genre Posters injected via JS -->
           </div>
         </div>
 
         <!-- 1.10 推薦藝術家 Recommended Artists (帶如果你喜歡...) -->
-        <div class="roon-section-block">
-          <div class="roon-section-head-bar">
-            <h2 class="roon-block-title">推薦藝術家</h2>
-            <div class="roon-banner-actions">
-              <button class="roon-nav-arrow-btn" id="btnRecArtistsPrev">❮</button>
-              <button class="roon-nav-arrow-btn" id="btnRecArtistsNext">❯</button>
-              <button class="roon-btn-more" id="btnRecArtistsMore">更多</button>
+        <div class="roo-section-block">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">推薦藝術家</h2>
+            <div class="roo-banner-actions">
+              <button class="roo-nav-arrow-btn" id="btnRecArtistsPrev">❮</button>
+              <button class="roo-nav-arrow-btn" id="btnRecArtistsNext">❯</button>
+              <button class="roo-btn-more" id="btnRecArtistsMore">更多</button>
             </div>
           </div>
-          <div class="roon-circle-artists-row" id="recommendedArtistsWithCuesGrid">
+          <div class="roo-circle-artists-row" id="recommendedArtistsWithCuesGrid">
             <!-- 5 Artists with "如果你喜歡..." hints injected via JS -->
           </div>
         </div>
 
         <!-- 1.11 藝術家專屬聚光燈大橫幅 Featured Musician Spotlight (鮮紅/亮橘底色) -->
-        <div class="roon-musician-spotlight-banner" id="musicianSpotlightBanner">
+        <div class="roo-musician-spotlight-banner" id="musicianSpotlightBanner">
           <div class="spotlight-left-brand">
             <div class="spotlight-tagline">演奏音樂來自：</div>
             <h2 class="spotlight-artist-name" id="spotlightArtistName">Patrice Rushen</h2>
@@ -485,7 +485,7 @@
         </div>
 
         <!-- 1.12 發現橫幅 Discover Banner (皇家藍圓角條) -->
-        <div class="roon-discover-banner" id="btnDiscoverBanner" role="button" title="點擊探索音樂資料庫">
+        <div class="roo-discover-banner" id="btnDiscoverBanner" role="button" title="點擊探索音樂資料庫">
           <h2 class="discover-title">發現</h2>
           <div class="discover-subtitle">以 rooPlayer 的經典方式來探索你的音樂資料庫並重新發現你收藏的音樂。 ❯</div>
         </div>
@@ -1988,7 +1988,7 @@
                   <h4>專屬 rooDSP 處理器 (rooDSP Processor)</h4>
                 </div>
                 <div class="manual-item-body">
-                  <p>全頁面專業數位訊號處理環境（仿 Roon MUSE 風格），支援整套預設值管理：</p>
+                  <p>全頁面專業數位訊號處理環境（旗艦 MUSE 風格），支援整套預設值管理：</p>
                   <ul>
                     <li><strong>動態範圍餘量管理 (Headroom)</strong>：設定 0 至 -24dB 預降增益，防範等化器與升頻運算削頂（Clipping），附削頂指示器。</li>
                     <li><strong>取樣率轉換 (SRC)</strong>：
@@ -2167,10 +2167,10 @@
                 <br>• <strong>第三道防線（超音波防護濾波器）</strong>：在類比前級以 2 階巴特沃斯低通濾除超聲高頻能量，保護後級擴大機與高音單元免於射頻互調失真（RF IMD）與過熱。
               </p>
 
-              <!-- 區塊一：Roon 4 種 SRC 濾波器原理與量測 -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">一、Roon 4 種取樣率轉換 (SRC) 濾波器原理與實測數據</h4>
+              <!-- 區塊一：4 種核心 SRC 濾波器原理與量測 -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">一、4 種核心取樣率轉換 (SRC) 濾波器原理與實測數據</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                依照 Roon DSP 官方架構，由兩大正交維度（<strong>頻域滾降特性</strong> $\times$ <strong>時域相位特性</strong>）組合而成：
+                依照旗艦高階 DSP 架構，由兩大正交維度（<strong>頻域滾降特性</strong> $\times$ <strong>時域相位特性</strong>）組合而成：
                 <br>• <strong>精準 (Precise)</strong>：採用 Kaiser 窗多相 FIR（$\beta \approx 14.47, A_s \ge 140\text{ dB}$），通帶 0~20kHz 零衰減，奈奎斯特截止極度陡峭。
                 <br>• <strong>平滑 (Smooth)</strong>：採用高斯窗 sinc 緩降 FIR，自 18kHz 平緩慢滾降，消除高頻生硬數位感，時域鈴振時長縮短 &gt;75%。
                 <br>• <strong>線性相位 (Linear Phase)</strong>：對稱衝激響應，全頻段群延遲恆定，<strong>絕對零相位失真</strong>。
@@ -2440,7 +2440,7 @@
               <!-- 區塊四：發燒全鏈路聲音搭配指南 -->
               <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">四、發燒最佳全鏈路聲音搭配指南 (Acoustic Matching Guide)</h4>
               <ul>
-                <li><strong>最高保真監聽組合 (Roon 推薦預設)</strong>：<code>精準，線性相位</code> ➔ <code>7 階 (CLANS)</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。全頻段絕對零相位失真，阻帶衰減 &gt;140dB，背景深黑漆黑，音場定位如刀刻清晰，最忠實呈現交響樂、大編制與母帶細節。</li>
+                <li><strong>最高保真監聽組合 (旗艦推薦預設)</strong>：<code>精準，線性相位</code> ➔ <code>7 階 (CLANS)</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。全頻段絕對零相位失真，阻帶衰減 &gt;140dB，背景深黑漆黑，音場定位如刀刻清晰，最忠實呈現交響樂、大編制與母帶細節。</li>
                 <li><strong>節奏律動與打擊樂瞬態衝擊組合</strong>：<code>精準，最小相位</code> ➔ <code>7 階 (CLANS)</code> ➔ <code>DSD128</code> ➔ <code>30k</code>。嚴格零預響鈴讓能量集中於脈衝最初瞬間，爵士鼓點與低頻下潛凝聚結實，速度感、爆發力與動態張力極致凌厲。</li>
                 <li><strong>溫潤發燒人聲與弦樂重奏組合</strong>：<code>平滑，線性相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k</code>。時域鈴振時長大幅縮短 75%，泛音溫暖厚實自然，消除高頻冷硬毛刺，人聲甜美滑順、久聽不累。</li>
                 <li><strong>發燒黑膠老類比韻味組合</strong>：<code>平滑，最小相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>DSD64 / DSD128</code> ➔ <code>20k / 30k</code>。零預響鈴加上超短後響鈴，完全消除數位硬邊，重現經典黑膠唱片與早期 SACD 迷人的溫潤厚重感。</li>
@@ -2452,7 +2452,7 @@
         </div>
       </section>
 
-      <!-- 12. ROODSP (ROON-STYLE FULL PAGE VIEW) -->
+      <!-- 12. ROODSP (FLAGSHIP FULL PAGE VIEW) -->
       <section id="viewDsp" class="content-view">
         <div class="muse-container">
           <!-- Top Navigation & Preset Bar -->
@@ -3410,27 +3410,27 @@
       </div>
     </div>
 
-    <!-- Right: Zone Output, Volume & Queue (Roon Style) -->
+    <!-- Right: Zone Output, Volume & Queue (Flagship Style) -->
     <div class="player-right">
       <!-- 1. Music Output Device (Zone Button) -->
-      <button id="btnAudioOutput" class="roon-bottom-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
-        <svg class="roon-bottom-svg roon-device-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+      <button id="btnAudioOutput" class="roo-bottom-btn" title="切換音訊輸出裝置 (本機 / DLNA / UPnP)">
+        <svg class="roo-bottom-svg roo-device-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
           <rect x="5" y="2" width="14" height="20" rx="2"/>
           <circle cx="12" cy="7" r="2.2"/>
           <circle cx="12" cy="15" r="4.2"/>
           <circle cx="12" cy="15" r="1.6"/>
         </svg>
-        <span class="roon-bottom-label" id="currentZoneName">System Output</span>
+        <span class="roo-bottom-label" id="currentZoneName">System Output</span>
       </button>
 
       <!-- 2. Volume Trigger Button -->
-      <button id="btnRoonVolumeToggle" class="roon-bottom-btn" title="音量控制與輸出設定">
-        <svg class="roon-bottom-svg roon-vol-icon" id="bottomVolSvg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+      <button id="btnRooVolumeToggle" class="roo-bottom-btn" title="音量控制與輸出設定">
+        <svg class="roo-bottom-svg roo-vol-icon" id="bottomVolSvg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
           <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
         </svg>
-        <span class="roon-bottom-label" id="currentVolumeNumber">100</span>
+        <span class="roo-bottom-label" id="currentVolumeNumber">100</span>
       </button>
 
       <!-- 3. Queue Drawer Button -->
@@ -3439,8 +3439,8 @@
       </button>
     </div>
 
-    <!-- Roon-styled Floating Volume & Output Control Popover Card -->
-    <div id="roonVolumePopover" class="roon-volume-popover" style="display: none;">
+    <!-- Floating Volume & Output Control Popover Card -->
+    <div id="rooVolumePopover" class="roo-volume-popover" style="display: none;">
       <!-- Row 1: Top Toolbar -->
       <div class="popover-toolbar">
         <div class="popover-tools-left">
@@ -3478,7 +3478,7 @@
 
       <div class="popover-divider"></div>
 
-      <!-- Row 2: Volume Control Row (Exact match to Roon UI) -->
+      <!-- Row 2: Volume Control Row (Precision UI) -->
       <div class="popover-vol-row">
         <div class="popover-vol-left">
           <button id="btnVolumeIcon" class="popover-speaker-btn" title="靜音切換">
@@ -3504,8 +3504,8 @@
       </div>
     </div>
 
-    <!-- Roon-styled Floating Signal Path Popover Card -->
-    <div id="roonSignalPathPopover" class="roon-signal-path-popover" style="display: none;">
+    <!-- Floating Signal Path Popover Card -->
+    <div id="rooSignalPathPopover" class="roo-signal-path-popover" style="display: none;">
       <!-- Header: 訊號路徑: 高音質 / 無損 / 加強 -->
       <div class="signal-popover-header">
         <div class="signal-popover-title-row">
@@ -3526,7 +3526,7 @@
 
       <div class="signal-popover-divider"></div>
 
-      <!-- Connected Timeline Node Graph (Exact match to Roon UI) -->
+      <!-- Connected Timeline Node Graph (Precision UI) -->
       <div class="signal-timeline" id="signalPopoverTimeline">
         <!-- Node 1: 來源 Source -->
         <div class="timeline-step" id="timelineStepSource">

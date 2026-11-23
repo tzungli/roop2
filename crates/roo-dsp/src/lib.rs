@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn test_roon_src_filters() {
+    fn test_flagship_src_filters() {
         let src_rate = 44100.0;
         let dst_rate = 176400.0; // 4x PCM
 

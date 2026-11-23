@@ -88,7 +88,7 @@ impl FilterRegistry {
             FilterDescriptor {
                 id: "precise-linear".to_string(),
                 label: "精準，線性相位".to_string(),
-                sound: "極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (Roon 預設推薦)".to_string(),
+                sound: "極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (旗艦預設推薦)".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
             },

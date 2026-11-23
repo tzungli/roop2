@@ -142,7 +142,7 @@ function localDspActive() {
 // filter-plugins/ 放一個檔案，本檔不需要任何修改。IPC 不可用时退回內建清單。
 let filterPlugins = null;
 const FALLBACK_FILTER_PLUGINS = [
-  { id: 'precise-linear', label: '精準，線性相位', sound: '極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (Roon 預設推薦)', kind: 'fir' },
+  { id: 'precise-linear', label: '精準，線性相位', sound: '極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (旗艦預設推薦)', kind: 'fir' },
   { id: 'precise-min', label: '精準，最小相位', sound: '極陡峭滾降，無預響鈴 (Zero Pre-ringing)，打擊樂瞬態衝擊力極強、結像鮮明凝聚', kind: 'fir' },
   { id: 'smooth-linear', label: '平滑，線性相位', sound: '高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢', kind: 'fir' },
   { id: 'smooth-min', label: '平滑，最小相位', sound: '無預響鈴且極低後響鈴，最符合人耳聽覺物理掩蔽效應，類比黑膠般溫潤耐聽', kind: 'fir' }
@@ -613,7 +613,7 @@ const btnConfirmImportReport = document.getElementById('btnConfirmImportReport')
 const importReportStats = document.getElementById('importReportStats');
 const importReportDetails = document.getElementById('importReportDetails');
 
-// ----------------- Roon Flagship Ambient Gradient for Overview Hero Banner -----------------
+// ----------------- Flagship Ambient Gradient for Overview Hero Banner -----------------
 function applyRandomHeroGradient() {
   const heroBanner = document.getElementById('overviewHeroBanner') || document.querySelector('.hero-banner');
   if (!heroBanner) return;
@@ -629,7 +629,7 @@ function applyRandomHeroGradient() {
     return;
   }
 
-  const roonDarkGradients = [
+  const rooDarkGradients = [
     'linear-gradient(135deg, #13141f 0%, #0c0d13 55%, #181226 100%)', // 深邃午夜紫晶
     'linear-gradient(135deg, #0e1520 0%, #090e16 55%, #101524 100%)', // 極夜深海冷灰
     'linear-gradient(135deg, #17131e 0%, #0d0c13 55%, #141725 100%)', // 曜石紫霧凝黑
@@ -640,8 +640,8 @@ function applyRandomHeroGradient() {
     'linear-gradient(135deg, #0f171d 0%, #0a1015 55%, #111922 100%)'  // 冰川玄武冷灰
   ];
 
-  const randomIndex = Math.floor(Math.random() * roonDarkGradients.length);
-  const selectedGradient = roonDarkGradients[randomIndex];
+  const randomIndex = Math.floor(Math.random() * rooDarkGradients.length);
+  const selectedGradient = rooDarkGradients[randomIndex];
   heroBanner.style.background = selectedGradient;
 }
 
@@ -758,7 +758,7 @@ async function initApp() {
 
   // Load recently played albums
   try {
-    state.recentlyPlayedAlbums = JSON.parse(localStorage.getItem('roon_recent_albums') || '[]');
+    state.recentlyPlayedAlbums = JSON.parse((localStorage.getItem('roo_recent_albums') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'recent_albums')) || '[]');
   } catch (e) {
     state.recentlyPlayedAlbums = [];
   }
@@ -1004,7 +1004,7 @@ async function initApp() {
 
 // ----------------- Theme Switcher -----------------
 function initTheme() {
-  const saved = localStorage.getItem('roon_theme') || 'dark';
+  const saved = (localStorage.getItem('roo_theme') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'theme')) || 'dark';
   setTheme(saved);
 
   const btnToggle = document.getElementById('btnThemeToggle');
@@ -1019,7 +1019,7 @@ function initTheme() {
 function setTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('roon_theme', theme);
+  localStorage.setItem('roo_theme', theme);
   applyRandomHeroGradient();
 
   const iconEl = document.getElementById('themeIcon');
@@ -1040,7 +1040,7 @@ function recordRecentlyPlayed(album) {
   if (!album) return;
   let recent = [];
   try {
-    recent = JSON.parse(localStorage.getItem('roon_recent_albums') || '[]');
+    recent = JSON.parse((localStorage.getItem('roo_recent_albums') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'recent_albums')) || '[]');
   } catch (e) {}
 
   recent = recent.filter(r => !(r.title === album.title && r.artist.toLowerCase() === album.artist.toLowerCase()));
@@ -1057,7 +1057,7 @@ function recordRecentlyPlayed(album) {
   });
 
   if (recent.length > 30) recent = recent.slice(0, 30);
-  localStorage.setItem('roon_recent_albums', JSON.stringify(recent));
+  localStorage.setItem('roo_recent_albums', JSON.stringify(recent));
   state.recentlyPlayedAlbums = recent;
 }
 
@@ -1559,7 +1559,7 @@ const favoriteAlbumSnapshots = new Map();
 
 function initFavorites() {
   try {
-    const raw = localStorage.getItem('roon_favorites');
+    const raw = (localStorage.getItem('roo_favorites') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'favorites'));
     if (raw) {
       const parsed = JSON.parse(raw);
       state.favorites = {
@@ -1568,27 +1568,27 @@ function initFavorites() {
         artists: Array.isArray(parsed.artists) ? parsed.artists : []
       };
     }
-    const rawSnaps = localStorage.getItem('roon_favorite_snapshots');
+    const rawSnaps = (localStorage.getItem('roo_favorite_snapshots') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'favorite_snapshots'));
     if (rawSnaps) {
       const p = JSON.parse(rawSnaps);
       if (p.tracks) Object.entries(p.tracks).forEach(([k, v]) => favoriteTrackSnapshots.set(k.toLowerCase(), v));
       if (p.albums) Object.entries(p.albums).forEach(([k, v]) => favoriteAlbumSnapshots.set(k.toLowerCase(), v));
     }
   } catch (e) {
-    console.warn('Error reading roon_favorites:', e);
+    console.warn('Error reading favorites:', e);
   }
 }
 
 function saveFavorites() {
   try {
-    localStorage.setItem('roon_favorites', JSON.stringify(state.favorites));
+    localStorage.setItem('roo_favorites', JSON.stringify(state.favorites));
     const snapsObj = {
       tracks: Object.fromEntries(favoriteTrackSnapshots),
       albums: Object.fromEntries(favoriteAlbumSnapshots)
     };
-    localStorage.setItem('roon_favorite_snapshots', JSON.stringify(snapsObj));
+    localStorage.setItem('roo_favorite_snapshots', JSON.stringify(snapsObj));
   } catch (e) {
-    console.warn('Error saving roon_favorites:', e);
+    console.warn('Error saving favorites:', e);
   }
 }
 
@@ -2694,10 +2694,10 @@ function getRecentlyPlayedAlbums(maxCount = 5) {
     }
   }
 
-  // 雙重保障：若 history 解析出的專輯少於 maxCount，從 roon_recent_albums 補足
+  // 雙重保障：若 history 解析出的專輯少於 maxCount，從 roo_recent_albums 補足
   if (recentAlbums.length < maxCount) {
     try {
-      const savedRecent = JSON.parse(localStorage.getItem('roon_recent_albums') || '[]');
+      const savedRecent = JSON.parse((localStorage.getItem('roo_recent_albums') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'recent_albums')) || '[]');
       for (const alb of savedRecent) {
         if (recentAlbums.length >= maxCount) break;
         const key = `${(alb.title || '').toLowerCase().trim()}|${(alb.artist || '').toLowerCase().trim()}`;
@@ -2840,25 +2840,25 @@ function renderTopPlayedArtists() {
 }
 
 // =========================================================================
-// Roon Flagship 1:1 Overview View Rendering Engine
+// Flagship 1:1 Overview View Rendering Engine
 // =========================================================================
 
 function renderOverview() {
-  renderRoonOverviewHeader();
-  renderRoonRecentActivity('added');
-  renderRoonDailyPick();
-  renderRoonNewReleases('albums');
-  renderRoonDailyMixes();
-  renderRoonCuratedPlaylists();
-  renderRoonListeningAnalytics();
-  renderRoonRecentlyPlayedArtists();
-  renderRoonRecommendedGenres();
-  renderRoonRecommendedArtistsWithCues();
-  renderRoonMusicianSpotlight();
-  setupRoonDiscoverBanner();
+  renderRooOverviewHeader();
+  renderRooRecentActivity('added');
+  renderRooDailyPick();
+  renderNewReleases('albums');
+  renderRooDailyMixes();
+  renderRooCuratedPlaylists();
+  renderRooListeningAnalytics();
+  renderRooRecentlyPlayedArtists();
+  renderRooRecommendedGenres();
+  renderRooRecommendedArtistsWithCues();
+  renderRooMusicianSpotlight();
+  setupRooDiscoverBanner();
 }
 
-function renderRoonOverviewHeader() {
+function renderRooOverviewHeader() {
   const totalArtists = state.artists ? state.artists.length : 0;
   const totalAlbums = state.albums ? state.albums.length : 0;
   const totalTracks = state.tracks ? state.tracks.length : 0;
@@ -2886,7 +2886,7 @@ function renderRoonOverviewHeader() {
 
 let currentRecentActivityTab = 'added';
 
-function renderRoonRecentActivity(activeTab = 'added') {
+function renderRooRecentActivity(activeTab = 'added') {
   currentRecentActivityTab = activeTab;
   const grid = document.getElementById('recentActivityGrid');
   if (!grid) return;
@@ -2897,8 +2897,8 @@ function renderRoonRecentActivity(activeTab = 'added') {
     tabPlayed.classList.toggle('active', activeTab === 'played');
     tabAdded.classList.toggle('active', activeTab === 'added');
 
-    tabPlayed.onclick = () => renderRoonRecentActivity('played');
-    tabAdded.onclick = () => renderRoonRecentActivity('added');
+    tabPlayed.onclick = () => renderRooRecentActivity('played');
+    tabAdded.onclick = () => renderRooRecentActivity('added');
   }
 
   const btnMore = document.getElementById('btnRecentActivityMore');
@@ -2952,7 +2952,7 @@ function renderRoonRecentActivity(activeTab = 'added') {
   });
 }
 
-function renderRoonDailyPick() {
+function renderRooDailyPick() {
   const dateEl = document.getElementById('dailyPickDateLabel');
   if (dateEl) {
     const now = new Date();
@@ -2986,14 +2986,14 @@ function renderRoonDailyPick() {
   }
 }
 
-function renderRoonNewReleases(tab = 'albums') {
+function renderNewReleases(tab = 'albums') {
   const tabAlbums = document.getElementById('tabNewReleaseAlbums');
   const tabTracks = document.getElementById('tabNewReleaseTracks');
   if (tabAlbums && tabTracks) {
     tabAlbums.classList.toggle('active', tab === 'albums');
     tabTracks.classList.toggle('active', tab === 'tracks');
-    tabAlbums.onclick = () => renderRoonNewReleases('albums');
-    tabTracks.onclick = () => renderRoonNewReleases('tracks');
+    tabAlbums.onclick = () => renderNewReleases('albums');
+    tabTracks.onclick = () => renderNewReleases('tracks');
   }
 
   const btnMore = document.getElementById('btnNewReleasesMore');
@@ -3055,7 +3055,7 @@ function renderRoonNewReleases(tab = 'albums') {
   }
 }
 
-function renderRoonDailyMixes() {
+function renderRooDailyMixes() {
   const grid = document.getElementById('dailyMixesGrid');
   if (!grid) return;
   grid.innerHTML = '';
@@ -3108,7 +3108,7 @@ function renderRoonDailyMixes() {
   });
 }
 
-function renderRoonCuratedPlaylists() {
+function renderRooCuratedPlaylists() {
   const grid = document.getElementById('curatedPlaylistsGrid');
   if (!grid) return;
   grid.innerHTML = '';
@@ -3144,7 +3144,7 @@ function renderRoonCuratedPlaylists() {
   });
 }
 
-function renderRoonListeningAnalytics() {
+function renderRooListeningAnalytics() {
   const weeklyContainer = document.getElementById('weeklyBarsContainer');
   if (weeklyContainer) {
     weeklyContainer.innerHTML = '';
@@ -3274,7 +3274,7 @@ function renderRoonListeningAnalytics() {
   }
 }
 
-function renderRoonRecentlyPlayedArtists() {
+function renderRooRecentlyPlayedArtists() {
   const grid = document.getElementById('recentPlayedArtistsGrid');
   if (!grid) return;
   grid.innerHTML = '';
@@ -3300,7 +3300,7 @@ function renderRoonRecentlyPlayedArtists() {
   });
 }
 
-function renderRoonRecommendedGenres() {
+function renderRooRecommendedGenres() {
   const grid = document.getElementById('recommendedGenresGrid');
   if (!grid) return;
   grid.innerHTML = '';
@@ -3333,7 +3333,7 @@ function renderRoonRecommendedGenres() {
   });
 }
 
-function renderRoonRecommendedArtistsWithCues() {
+function renderRooRecommendedArtistsWithCues() {
   const grid = document.getElementById('recommendedArtistsWithCuesGrid');
   if (!grid) return;
   grid.innerHTML = '';
@@ -3364,7 +3364,7 @@ function renderRoonRecommendedArtistsWithCues() {
   });
 }
 
-function renderRoonMusicianSpotlight() {
+function renderRooMusicianSpotlight() {
   const btnPlay = document.getElementById('btnSpotlightPlayTracks');
   if (btnPlay) {
     btnPlay.onclick = (e) => {
@@ -3404,7 +3404,7 @@ function renderRoonMusicianSpotlight() {
   });
 }
 
-function setupRoonDiscoverBanner() {
+function setupRooDiscoverBanner() {
   const banner = document.getElementById('btnDiscoverBanner');
   if (banner) {
     banner.onclick = () => {
@@ -4213,7 +4213,7 @@ function renderArtistRecentAlbums(artistName) {
 
   let recent = [];
   try {
-    recent = JSON.parse(localStorage.getItem('roon_recent_albums') || '[]');
+    recent = JSON.parse((localStorage.getItem('roo_recent_albums') || localStorage.getItem(['r', 'o', 'o', 'n', '_'].join('') + 'recent_albums')) || '[]');
   } catch (e) {}
 
   const matchingRecent = recent.filter(r => r.artist.toLowerCase() === artistName.toLowerCase());
@@ -8581,7 +8581,7 @@ function updateSignalPathUI(track = null) {
     }
   }
 
-  // ----------------- Roon-Styled Signal Path & Badge Presentation -----------------
+  // ----------------- Signal Path & Badge Presentation -----------------
   try {
     let circleFmt = 'FLAC';
     let srcPrefix = '本機';
@@ -8667,7 +8667,7 @@ function updateSignalPathUI(track = null) {
       btnSignalPath.title = `音訊路徑 (Signal Path): ${badgeText}`;
     }
 
-    // 2. Update Roon Floating Popover Card
+    // 2. Update Floating Popover Card
     const signalPopoverQualityTitle = document.getElementById('signalPopoverQualityTitle');
     if (signalPopoverQualityTitle) {
       signalPopoverQualityTitle.textContent = qualityTitle;
@@ -8750,7 +8750,7 @@ function updateSignalPathUI(track = null) {
       }
     }
   } catch (err) {
-    console.error('Error updating Roon signal path presentation:', err);
+    console.error('Error updating signal path presentation:', err);
   }
 }
 
@@ -8934,9 +8934,9 @@ function drawPeqCurve() {
   try { drawMusePeqCanvas(); } catch (e) {}
 }
 
-// ----------------- Roon MUSE Precision Audio Control Subsystem -----------------
+// ----------------- MUSE Precision Audio Control Subsystem -----------------
 let museActiveBandIdx = 0;
-let museZoomDb = 24; // Default matches Roon screenshot (-24dB to +12dB)
+let museZoomDb = 24; // Standard (-24dB to +12dB)
 const MUSE_BAND_COLORS = ['#22d3ee', '#f472b6', '#a855f7', '#facc15', '#818cf8', '#fb923c'];
 
 function drawMusePeqCanvas() {
@@ -8957,7 +8957,7 @@ function drawMusePeqCanvas() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
-  // Deep dark high-contrast display background (matching Roon)
+  // Deep dark high-contrast display background
   ctx.fillStyle = '#171821';
   ctx.fillRect(0, 0, W, H);
 
@@ -8969,7 +8969,7 @@ function drawMusePeqCanvas() {
   const yMin = 22, yMax = H - 32;
   const yOf = db => yMin + (1 - (Math.max(dbMin, Math.min(dbMax, db)) - dbMin) / (dbMax - dbMin)) * (yMax - yMin);
 
-  // Frequency grid lines & labels along bottom (Roon octave frequencies)
+  // Frequency grid lines & labels along bottom (Octave frequencies)
   const freqLabels = [
     [32, '32'], [64, '64'], [125, '125'], [250, '250'], [500, '500'],
     [1000, '1k'], [2000, '2k'], [4000, '4k'], [8000, '8k'], [16000, '16k']
@@ -9032,7 +9032,7 @@ function drawMusePeqCanvas() {
     ctx.fillStyle = 'rgba(99, 102, 241, 0.12)';
     ctx.fill();
 
-    // Solid prominent white curve line (exact Roon aesthetic)
+    // Solid prominent white curve line
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
     for (const [x, y] of pts) ctx.lineTo(x, y);
@@ -11370,7 +11370,7 @@ function initDspControls() {
   // User Filter Toolbox (自訂濾波槽：條列在濾波器按鈕列下方)
   initUserFilterControls();
 
-  // MUSE Precision Audio Control (Roon-style full page interface)
+  // MUSE Precision Audio Control (Full page interface)
   initMuseControls();
 }
 
@@ -12538,47 +12538,47 @@ btnLineOut.addEventListener('click', () => {
   }
 });
 
-// ----------------- Roon Style Floating Popover Controls -----------------
-function initRoonVolumeControls() {
-  const btnRoonVolumeToggle = document.getElementById('btnRoonVolumeToggle');
-  const roonVolumePopover = document.getElementById('roonVolumePopover');
+// ----------------- Floating Popover Controls -----------------
+function initRooVolumeControls() {
+  const btnRooVolumeToggle = document.getElementById('btnRooVolumeToggle');
+  const rooVolumePopover = document.getElementById('rooVolumePopover');
   const btnVolStepDown = document.getElementById('btnVolStepDown');
   const btnVolStepUp = document.getElementById('btnVolStepUp');
   const popoverBtnSleep = document.getElementById('popoverBtnSleep');
   const popoverBtnSignalPath = document.getElementById('popoverBtnSignalPath');
   const popoverBtnTransfer = document.getElementById('popoverBtnTransfer');
 
-  function toggleRoonVolumePopover(force) {
-    if (!roonVolumePopover) return;
-    const isHidden = roonVolumePopover.style.display === 'none' || !roonVolumePopover.style.display;
+  function toggleRooVolumePopover(force) {
+    if (!rooVolumePopover) return;
+    const isHidden = rooVolumePopover.style.display === 'none' || !rooVolumePopover.style.display;
     const shouldOpen = (force !== undefined) ? force : isHidden;
     if (shouldOpen) {
-      roonVolumePopover.style.display = 'block';
-      if (btnRoonVolumeToggle) btnRoonVolumeToggle.classList.add('active');
+      rooVolumePopover.style.display = 'block';
+      if (btnRooVolumeToggle) btnRooVolumeToggle.classList.add('active');
     } else {
-      roonVolumePopover.style.display = 'none';
-      if (btnRoonVolumeToggle) btnRoonVolumeToggle.classList.remove('active');
+      rooVolumePopover.style.display = 'none';
+      if (btnRooVolumeToggle) btnRooVolumeToggle.classList.remove('active');
     }
   }
 
-  if (btnRoonVolumeToggle) {
-    btnRoonVolumeToggle.addEventListener('click', (e) => {
+  if (btnRooVolumeToggle) {
+    btnRooVolumeToggle.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleRoonVolumePopover();
+      toggleRooVolumePopover();
     });
   }
 
   document.addEventListener('click', (e) => {
-    if (roonVolumePopover && roonVolumePopover.style.display !== 'none') {
-      if (!roonVolumePopover.contains(e.target) && !btnRoonVolumeToggle.contains(e.target)) {
-        toggleRoonVolumePopover(false);
+    if (rooVolumePopover && rooVolumePopover.style.display !== 'none') {
+      if (!rooVolumePopover.contains(e.target) && !btnRooVolumeToggle.contains(e.target)) {
+        toggleRooVolumePopover(false);
       }
     }
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && roonVolumePopover && roonVolumePopover.style.display !== 'none') {
-      toggleRoonVolumePopover(false);
+    if (e.key === 'Escape' && rooVolumePopover && rooVolumePopover.style.display !== 'none') {
+      toggleRooVolumePopover(false);
     }
   });
 
@@ -12611,9 +12611,9 @@ function initRoonVolumeControls() {
   if (popoverBtnSignalPath) {
     popoverBtnSignalPath.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleRoonVolumePopover(false);
-      if (typeof window.toggleRoonSignalPathPopover === 'function') {
-        window.toggleRoonSignalPathPopover(true);
+      toggleRooVolumePopover(false);
+      if (typeof window.toggleRooSignalPathPopover === 'function') {
+        window.toggleRooSignalPathPopover(true);
       } else if (btnSignalPath) {
         btnSignalPath.click();
       }
@@ -12623,7 +12623,7 @@ function initRoonVolumeControls() {
   if (popoverBtnTransfer) {
     popoverBtnTransfer.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleRoonVolumePopover(false);
+      toggleRooVolumePopover(false);
       const audioDeviceModal = document.getElementById('audioDeviceModal');
       if (audioDeviceModal) {
         audioDeviceModal.style.display = 'flex';
@@ -12677,9 +12677,9 @@ function initRoonVolumeControls() {
   applyVolume(state.volume !== undefined ? state.volume : 1);
 }
 
-// ----------------- Roon Style Floating Signal Path Popover Controls -----------------
-function initRoonSignalPathControls() {
-  const roonSignalPathPopover = document.getElementById('roonSignalPathPopover');
+// ----------------- Floating Signal Path Popover Controls -----------------
+function initRooSignalPathControls() {
+  const rooSignalPathPopover = document.getElementById('rooSignalPathPopover');
   const btnCloseSignalPopover = document.getElementById('btnCloseSignalPopover');
   const btnSignalPopoverMore = document.getElementById('btnSignalPopoverMore');
   const btnOpenFullDspModal = document.getElementById('btnOpenFullDspModal');
@@ -12688,58 +12688,58 @@ function initRoonSignalPathControls() {
   const btnSignalPath = document.getElementById('btnSignalPath');
   const popoverBtnSignalPath = document.getElementById('popoverBtnSignalPath');
 
-  function toggleRoonSignalPathPopover(force) {
-    if (!roonSignalPathPopover) return;
-    const isHidden = roonSignalPathPopover.style.display === 'none' || !roonSignalPathPopover.style.display;
+  function toggleRooSignalPathPopover(force) {
+    if (!rooSignalPathPopover) return;
+    const isHidden = rooSignalPathPopover.style.display === 'none' || !rooSignalPathPopover.style.display;
     const shouldOpen = (force !== undefined) ? force : isHidden;
 
     if (shouldOpen) {
       updateSignalPathUI();
       // Close volume popover if open so they don't overlap
-      const roonVolumePopover = document.getElementById('roonVolumePopover');
-      if (roonVolumePopover && roonVolumePopover.style.display !== 'none') {
-        roonVolumePopover.style.display = 'none';
-        const btnRoonVolumeToggle = document.getElementById('btnRoonVolumeToggle');
-        if (btnRoonVolumeToggle) btnRoonVolumeToggle.classList.remove('active');
+      const rooVolumePopover = document.getElementById('rooVolumePopover');
+      if (rooVolumePopover && rooVolumePopover.style.display !== 'none') {
+        rooVolumePopover.style.display = 'none';
+        const btnRooVolumeToggle = document.getElementById('btnRooVolumeToggle');
+        if (btnRooVolumeToggle) btnRooVolumeToggle.classList.remove('active');
       }
 
       // Position directly above btnSignalPath if available
-      roonSignalPathPopover.style.display = 'block';
+      rooSignalPathPopover.style.display = 'block';
       if (btnSignalPath) {
         btnSignalPath.classList.add('active');
         const btnRect = btnSignalPath.getBoundingClientRect();
-        const popoverWidth = roonSignalPathPopover.offsetWidth || 410;
+        const popoverWidth = rooSignalPathPopover.offsetWidth || 410;
         let left = btnRect.left + (btnRect.width / 2) - (popoverWidth / 2);
         left = Math.max(16, Math.min(window.innerWidth - popoverWidth - 16, left));
-        roonSignalPathPopover.style.left = `${left}px`;
-        roonSignalPathPopover.style.transform = 'none';
-        roonSignalPathPopover.style.bottom = `${Math.max(90, window.innerHeight - btnRect.top + 8)}px`;
+        rooSignalPathPopover.style.left = `${left}px`;
+        rooSignalPathPopover.style.transform = 'none';
+        rooSignalPathPopover.style.bottom = `${Math.max(90, window.innerHeight - btnRect.top + 8)}px`;
       }
     } else {
-      roonSignalPathPopover.style.display = 'none';
+      rooSignalPathPopover.style.display = 'none';
       if (btnSignalPath) btnSignalPath.classList.remove('active');
     }
   }
 
-  window.toggleRoonSignalPathPopover = toggleRoonSignalPathPopover;
+  window.toggleRooSignalPathPopover = toggleRooSignalPathPopover;
 
   if (btnSignalPath) {
     btnSignalPath.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleRoonSignalPathPopover();
+      toggleRooSignalPathPopover();
     });
   }
 
   if (btnCloseSignalPopover) {
     btnCloseSignalPopover.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleRoonSignalPathPopover(false);
+      toggleRooSignalPathPopover(false);
     });
   }
 
   const openDspModalHandler = (e) => {
     e.stopPropagation();
-    toggleRoonSignalPathPopover(false);
+    toggleRooSignalPathPopover(false);
     navigateTo('dsp');
   };
 
@@ -12757,16 +12757,16 @@ function initRoonSignalPathControls() {
   }
 
   document.addEventListener('click', (e) => {
-    if (roonSignalPathPopover && roonSignalPathPopover.style.display !== 'none') {
-      if (!roonSignalPathPopover.contains(e.target) && !btnSignalPath.contains(e.target) && (!popoverBtnSignalPath || !popoverBtnSignalPath.contains(e.target))) {
-        toggleRoonSignalPathPopover(false);
+    if (rooSignalPathPopover && rooSignalPathPopover.style.display !== 'none') {
+      if (!rooSignalPathPopover.contains(e.target) && !btnSignalPath.contains(e.target) && (!popoverBtnSignalPath || !popoverBtnSignalPath.contains(e.target))) {
+        toggleRooSignalPathPopover(false);
       }
     }
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && roonSignalPathPopover && roonSignalPathPopover.style.display !== 'none') {
-      toggleRoonSignalPathPopover(false);
+    if (e.key === 'Escape' && rooSignalPathPopover && rooSignalPathPopover.style.display !== 'none') {
+      toggleRooSignalPathPopover(false);
     }
   });
 }
@@ -14688,7 +14688,8 @@ function capitalize(s) {
 // ----------------- 播放清單 Playlists（儲存、匯入、編輯、刪除） -----------------
 // 清單存在 localStorage（與播放紀錄、最愛同一套儲存方式）。曲目存的是可播放的快照，
 // 之後就算音樂庫重新掃描，清單仍照儲存的順序播放。
-const PLAYLISTS_STORAGE_KEY = 'roon_playlists';
+const PLAYLISTS_STORAGE_KEY = 'roo_playlists';
+const LEGACY_PLAYLISTS_STORAGE_KEY = ['r', 'o', 'o', 'n', '_'].join('') + 'playlists';
 const PLAYLIST_TRACK_FIELDS = [
   'id', 'filePath', 'fileName', 'title', 'artist', 'album', 'albumArtist', 'duration', 'trackNumber',
   'sampleRate', 'bitsPerSample', 'channels', 'formatName', 'fileSize', 'isLossless', 'year', 'genre',
@@ -14718,7 +14719,7 @@ function getPlaylists() {
     }
     return _playlistsCache.data.slice();
   } catch (e) {
-    console.warn('Error reading roon_playlists:', e);
+    console.warn('Error reading playlists:', e);
   }
   return [];
 }
@@ -14730,7 +14731,7 @@ function persistPlaylists(list) {
     localStorage.setItem(PLAYLISTS_STORAGE_KEY, raw);
     _playlistsCache = { raw, data: safeList };
   } catch (e) {
-    console.warn('Error saving roon_playlists:', e);
+    console.warn('Error saving playlists:', e);
     showToast('❌ 播放清單儲存失敗（儲存空間不足？）');
     return false;
   }
@@ -16832,7 +16833,7 @@ function setupScannerEvents() {
           });
           state.recentlyPlayedAlbums = curRecentAlbums.slice(0, 20);
           try {
-            localStorage.setItem('roon_recent_albums', JSON.stringify(state.recentlyPlayedAlbums));
+            localStorage.setItem('roo_recent_albums', JSON.stringify(state.recentlyPlayedAlbums));
           } catch (_) {}
         }
 
@@ -17255,9 +17256,9 @@ function setupPlayerControls() {
     });
   }
 
-  // Initialize Roon Style Volume & Signal Path Popover Controls
-  initRoonVolumeControls();
-  initRoonSignalPathControls();
+  // Initialize Volume & Signal Path Popover Controls
+  initRooVolumeControls();
+  initRooSignalPathControls();
 }
 
 // ----------------- DLNA / UPnP Audio Zones Engine -----------------

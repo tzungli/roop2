@@ -249,10 +249,10 @@
                 <br>• <strong>Third Line of Defense (Ultrasonic Protection Filter)</strong>: Applies a 2nd-order Butterworth low-pass filter to attenuate ultrasonic energy before analog amplification, protecting amplifiers and tweeters from RF intermodulation distortion (IMD) and overheating.
               </p>
 
-              <!-- Section 1: Roon 4 SRC Filters Principle & Benchmarks -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. Roon 4 Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
+              <!-- Section 1: 4 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 4 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                Modeled after the official Roon DSP architecture, structured along two orthogonal dimensions (<strong>Frequency Domain Roll-off</strong> &times; <strong>Time Domain Phase Profile</strong>):
+                Modeled after the flagship high-end DSP architecture, structured along two orthogonal dimensions (<strong>Frequency Domain Roll-off</strong> &times; <strong>Time Domain Phase Profile</strong>):
                 <br>• <strong>Precise</strong>: Employs Kaiser window polyphase FIR (&beta; &approx; 14.47, A<sub>s</sub> &ge; 140 dB), flat passband (0~20kHz with 0.000 dB loss), and brickwall Nyquist attenuation.
                 <br>• <strong>Smooth</strong>: Employs Gaussian-window sinc slow roll-off FIR, beginning a gentle slope at 18kHz to eliminate digital glare, reducing time-domain ringing duration by &gt;75%.
                 <br>• <strong>Linear Phase</strong>: Symmetric impulse response with strictly constant group delay and <strong>absolute zero phase distortion</strong>.
@@ -522,7 +522,7 @@
               <!-- Section 4: Audiophile Synergy Matching Guide -->
               <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">4. Full-Chain Audiophile Acoustic Synergy Matching Guide</h4>
               <ul>
-                <li><strong>Ultimate Master Monitoring (Roon Recommended Flagship)</strong>: <code>Precise, Linear Phase</code> &rarr; <code>7th-Order (CLANS)</code> &rarr; <code>DSD128 / DSD256</code> &rarr; <code>30k / 40k</code>. Absolute zero phase distortion, &gt;140dB stopband rejection, pitch-black background, surgical imaging. Perfect for orchestral works and master recordings.</li>
+                <li><strong>Ultimate Master Monitoring (Flagship Recommended)</strong>: <code>Precise, Linear Phase</code> &rarr; <code>7th-Order (CLANS)</code> &rarr; <code>DSD128 / DSD256</code> &rarr; <code>30k / 40k</code>. Absolute zero phase distortion, &gt;140dB stopband rejection, pitch-black background, surgical imaging. Perfect for orchestral works and master recordings.</li>
                 <li><strong>Rhythmic Drive &amp; Explosive Percussion Attack</strong>: <code>Precise, Minimum Phase</code> &rarr; <code>7th-Order (CLANS)</code> &rarr; <code>DSD128</code> &rarr; <code>30k</code>. Zero pre-ringing concentrates energy right at the transient onset. Tight, punchy bass, explosive dynamic slam, and cohesive rhythm.</li>
                 <li><strong>Lush Audiophile Vocals &amp; Acoustic Strings</strong>: <code>Smooth, Linear Phase</code> &rarr; <code>5th-Order (CRFB)</code> &rarr; <code>DSD128 / DSD256</code> &rarr; <code>30k</code>. Ringing duration shortened by &gt;75%, velvety smooth treble, lush natural overtones without high-frequency digital hardness.</li>
                 <li><strong>Classic Analog &amp; Vinyl Warmth</strong>: <code>Smooth, Minimum Phase</code> &rarr; <code>5th-Order (CRFB)</code> &rarr; <code>DSD64 / DSD128</code> &rarr; <code>20k / 30k</code>. Zero pre-ringing plus minimal post-decay eliminates digital harshness, recreating the organic, fatigue-free warmth of vintage vinyl and classic SACDs.</li>
