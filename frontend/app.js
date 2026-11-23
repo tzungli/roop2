@@ -16646,7 +16646,7 @@ function handleSearch(query) {
     if (searchResultsContainer) searchResultsContainer.style.display = 'none';
     if (allAlbumsGrid) allAlbumsGrid.style.display = 'grid';
     if (albumsFilterBar) albumsFilterBar.style.display = 'flex';
-    if (albumsPageTitle) albumsPageTitle.textContent = '專輯庫 Albums';
+    if (albumsPageTitle) albumsPageTitle.textContent = '專輯';
     if (albumsHeaderCount) albumsHeaderCount.textContent = `共 ${state.albums.length} 張專輯`;
 
     const streamingTracksBlock = document.getElementById('streamingTracksBlock');
