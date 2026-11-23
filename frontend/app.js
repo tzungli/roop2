@@ -7573,32 +7573,35 @@ async function renderAlbumVersions(album) {
   versions.sort((a, b) => (specRank(a) - specRank(b)) || (a.trackCount - b.trackCount) || String(a.year || '').localeCompare(String(b.year || '')));
 
   if (versions.length > 1) {
-    if (versionsCountBadge) versionsCountBadge.textContent = `${versions.length} 個版本`;
+    if (versionsCountBadge) versionsCountBadge.textContent = String(versions.length);
     versionsSection.style.display = 'block';
+
+    const localSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+    const tidalSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 3 21 12 12 21 3 12 12 3"/><line x1="7.5" y1="7.5" x2="16.5" y2="16.5" opacity="0.5"/></svg>`;
 
     versions.forEach(ver => {
       const card = document.createElement('div');
       card.className = `album-version-card ${ver.isCurrent ? 'active' : ''}`;
-      const icon = ver.isTidal ? '💎' : '📁';
-      const badgeClass = ver.isTidal
-        ? ((ver.specs.includes('24-bit') || ver.specs.includes('MAX')) ? 'tag-tidal-hires' : 'tag-tidal')
-        : 'tag-hires';
+      const iconSvg = ver.isTidal ? tidalSvg : localSvg;
+      const formatLabel = ver.isTidal
+        ? (ver.specs.includes('24-bit') ? 'TIDAL MAX' : 'TIDAL FLAC')
+        : ver.format;
 
       card.innerHTML = `
-        <div class="version-source-icon">${icon}</div>
+        <div class="version-source-icon">${iconSvg}</div>
         <div class="version-card-meta">
           <div class="version-card-specs">
-            <span class="album-quality-tag ${badgeClass}" style="position:static;display:inline-block;margin-right:4px;">${ver.isTidal ? (ver.specs.includes('24-bit') ? 'TIDAL MAX' : 'TIDAL FLAC') : ver.format}</span>
-            <span>${escapeXml(ver.sourceName)}</span>
+            <span class="version-source-name">${escapeXml(ver.sourceName)}</span>
+            <span class="version-format-pill">${escapeXml(formatLabel)}</span>
           </div>
-          <div class="version-card-sub">${escapeXml(ver.specs)} • ${ver.trackCount} 首 ${ver.year ? '• ' + ver.year : ''}</div>
+          <div class="version-card-sub">${escapeXml(ver.specs)} · ${ver.trackCount} 首${ver.year ? ' · ' + ver.year : ''}</div>
         </div>
       `;
 
       card.onclick = () => {
         if (!ver.isCurrent) {
           openAlbumDetail(ver.album);
-          showToast(`💿 已切換至版本: ${ver.sourceName} (${ver.specs})`);
+          showToast(`已切換至版本: ${ver.sourceName} (${ver.specs})`);
         }
       };
 

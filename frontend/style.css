@@ -10403,39 +10403,54 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   padding-bottom: 0 !important;
   border-bottom: none !important;
 }
 
 .album-versions-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-main);
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  letter-spacing: 0.5px;
+}
+
+.album-versions-heading {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color, #f1f5f9);
+  letter-spacing: 0.15px;
+}
+
+[data-theme="light"] .album-versions-heading {
+  color: #1e2330;
+}
+
+.album-versions-sub {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  color: #8b92a1;
 }
 
 .versions-count-badge {
-  background: rgba(0, 229, 255, 0.2);
-  color: #00e5ff;
-  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 11px;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 3px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 10px;
 }
 
-.versions-hint-text {
-  font-size: 12px;
-  color: var(--text-muted);
+[data-theme="light"] .versions-count-badge {
+  background: rgba(15, 23, 42, 0.05);
+  color: #64748b;
+  border-color: rgba(15, 23, 42, 0.09);
 }
 
 .album-versions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 320px));
   gap: 12px;
 }
 
@@ -10443,50 +10458,54 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  background: rgba(30, 32, 40, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   position: relative;
   overflow: hidden;
+  box-shadow: none;
 }
 
 .album-version-card:hover {
-  background: rgba(45, 48, 60, 0.8);
-  border-color: rgba(0, 229, 255, 0.5);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .album-version-card.active {
-  border-color: #00e5ff;
-  background: rgba(0, 229, 255, 0.1);
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+  border-color: rgba(124, 92, 255, 0.55);
+  background: rgba(124, 92, 255, 0.22);
+  box-shadow: none;
 }
 
 .album-version-card.active::before {
-  content: '目前播放版本';
+  content: '使用中';
   position: absolute;
-  top: 4px;
-  right: 8px;
-  font-size: 9px;
-  color: #00e5ff;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  top: 8px;
+  right: 12px;
+  font-size: 10px;
+  color: #c4b5fd;
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 .version-source-icon {
-  font-size: 20px;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 2px;
+  color: #cbd5e1;
+  border-radius: 8px;
   flex-shrink: 0;
+}
+
+.album-version-card.active .version-source-icon {
+  background: rgba(124, 92, 255, 0.25);
+  color: #e9d5ff;
 }
 
 .version-card-meta {
@@ -10496,20 +10515,47 @@ body.table-col-resizing * {
 
 .version-card-specs {
   font-size: 13px;
-  font-weight: 700;
-  color: var(--text-main);
+  font-weight: 500;
+  color: var(--text-color, #f1f5f9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding-right: 40px;
+}
+
+.version-source-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.version-format-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+.album-version-card.active .version-format-pill {
+  background: rgba(124, 92, 255, 0.25);
+  border-color: rgba(124, 92, 255, 0.45);
+  color: #e9d5ff;
 }
 
 .version-card-sub {
   font-size: 11px;
-  color: var(--text-sub);
-  margin-top: 2px;
+  color: #8b92a1;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* TIDAL Library Toggle Button in Album Detail */
@@ -11184,28 +11230,55 @@ body.table-col-resizing * {
 }
 
 [data-theme="light"] .album-version-card {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.11);
+  box-shadow: none;
 }
 
 [data-theme="light"] .album-version-card:hover {
-  background: rgba(0, 0, 0, 0.06);
-  border-color: var(--accent-cyan);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.22);
+  box-shadow: none;
 }
 
 [data-theme="light"] .album-version-card.active {
-  border-color: var(--accent-cyan);
-  background: rgba(8, 145, 178, 0.08);
-  box-shadow: 0 0 10px rgba(8, 145, 178, 0.2);
+  border-color: #c4b5fd;
+  background: #e2e2fc;
+  box-shadow: none;
 }
 
 [data-theme="light"] .album-version-card.active::before {
-  color: var(--accent-cyan);
+  color: #4f3cc9;
 }
 
 [data-theme="light"] .version-source-icon {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(15, 23, 42, 0.04);
+  color: #4b5563;
+}
+
+[data-theme="light"] .album-version-card.active .version-source-icon {
+  background: rgba(124, 92, 255, 0.14);
+  color: #4f3cc9;
+}
+
+[data-theme="light"] .version-card-specs {
+  color: #1e2330;
+}
+
+[data-theme="light"] .album-version-card.active .version-card-specs {
+  color: #312e81;
+}
+
+[data-theme="light"] .version-format-pill {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #4b5563;
+}
+
+[data-theme="light"] .album-version-card.active .version-format-pill {
+  background: rgba(124, 92, 255, 0.12);
+  border-color: rgba(124, 92, 255, 0.3);
+  color: #4f3cc9;
 }
 
 [data-theme="light"] #btnTidalLibraryToggle.in-library {
