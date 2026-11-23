@@ -1992,11 +1992,22 @@ function syncAllFavoriteUIs() {
 // CANONICAL_GENRES and canonicalizeGenre are provided by genre-utils.js (loaded before app.js)
 
 // Smart Genre Matching Engine
+function getCanonicalGenreCached(item) {
+  if (!item) return '';
+  const raw = item.genre || '';
+  if (item._cgCachedRaw === raw && typeof item._cgCachedVal === 'string') {
+    return item._cgCachedVal;
+  }
+  const val = canonicalizeGenre(raw, item).toLowerCase();
+  item._cgCachedRaw = raw;
+  item._cgCachedVal = val;
+  return val;
+}
+
 function matchItemGenre(item, genreName) {
   if (!item || !genreName) return false;
   const target = genreName.toLowerCase().trim();
-  const itemGenre = canonicalizeGenre(item.genre, item).toLowerCase();
-  if (itemGenre === target) return true;
+  if (getCanonicalGenreCached(item) === target) return true;
   const rawGenre = (item.genre || '').toLowerCase().trim();
   if (rawGenre && (rawGenre === target || rawGenre.includes(target) || target.includes(rawGenre))) return true;
   return false;
@@ -5006,7 +5017,84 @@ function getGenreIllustrationInfo(genreName) {
   return { imageSrc: 'assets/genres/genre_default.svg', zhName: '音樂流派風格', badge: 'GENRE' };
 }
 
-// Render Genres (Album-style presentation with realistic illustrations)
+// Cached single-pass genre buckets (invalidated when libraryCollectionVersion changes)
+let _genreBucketsCacheVersion = -1;
+let _genreBucketsCache = null;
+
+function buildGenreBuckets() {
+  if (_genreBucketsCache && _genreBucketsCacheVersion === libraryCollectionVersion) {
+    return _genreBucketsCache;
+  }
+
+  const genreSet = new Set();
+  (state.genres || []).forEach(g => {
+    const cg = canonicalizeGenre(g);
+    if (cg) genreSet.add(cg);
+  });
+  CANONICAL_GENRES.forEach(cg => genreSet.add(cg));
+
+  const genreList = Array.from(genreSet);
+  const genreTargets = genreList.map(g => ({ name: g, target: g.toLowerCase().trim() }));
+  const targetToName = new Map(genreTargets.map(x => [x.target, x.name]));
+
+  const tracksByGenre = new Map();
+  const albumsByGenre = new Map();
+  genreList.forEach(g => {
+    tracksByGenre.set(g, []);
+    albumsByGenre.set(g, []);
+  });
+
+  // Single O(N) pass over tracks
+  for (let i = 0; i < state.tracks.length; i++) {
+    const t = state.tracks[i];
+    const cg = getCanonicalGenreCached(t);
+    const primary = targetToName.get(cg);
+    if (primary) tracksByGenre.get(primary).push(t);
+
+    const raw = (t.genre || '').toLowerCase().trim();
+    if (raw) {
+      for (let j = 0; j < genreTargets.length; j++) {
+        const gt = genreTargets[j];
+        if (gt.name === primary) continue;
+        if (raw === gt.target || raw.includes(gt.target) || gt.target.includes(raw)) {
+          tracksByGenre.get(gt.name).push(t);
+        }
+      }
+    }
+  }
+
+  // Single O(A) pass over albums
+  for (let i = 0; i < state.albums.length; i++) {
+    const a = state.albums[i];
+    const cg = getCanonicalGenreCached(a);
+    const primary = targetToName.get(cg);
+    if (primary) albumsByGenre.get(primary).push(a);
+
+    const raw = (a.genre || '').toLowerCase().trim();
+    if (raw) {
+      for (let j = 0; j < genreTargets.length; j++) {
+        const gt = genreTargets[j];
+        if (gt.name === primary) continue;
+        if (raw === gt.target || raw.includes(gt.target) || gt.target.includes(raw)) {
+          albumsByGenre.get(gt.name).push(a);
+        }
+      }
+    }
+  }
+
+  // Sort once using precomputed O(1) counts
+  genreList.sort((a, b) => {
+    const diff = tracksByGenre.get(b).length - tracksByGenre.get(a).length;
+    if (diff !== 0) return diff;
+    return a.localeCompare(b);
+  });
+
+  _genreBucketsCache = { genreList, tracksByGenre, albumsByGenre };
+  _genreBucketsCacheVersion = libraryCollectionVersion;
+  return _genreBucketsCache;
+}
+
+// Render Genres (Album-style presentation with minimalist vector covers)
 function renderGenres() {
   if (!genresGrid) return;
   genresGrid.innerHTML = '';
@@ -5014,25 +5102,7 @@ function renderGenres() {
   applyGenreSize(state.genreCardSize || 'small');
 
   const headerCount = document.getElementById('genresHeaderCount');
-
-  // Collect all genres: strictly canonical core genres
-  const genreSet = new Set();
-  (state.genres || []).forEach(g => {
-    const cg = canonicalizeGenre(g);
-    if (cg) genreSet.add(cg);
-  });
-
-  CANONICAL_GENRES.forEach(cg => genreSet.add(cg));
-
-  const genreList = Array.from(genreSet);
-
-  // Sort: genres with tracks in user's library first (ordered by track count desc), then others
-  genreList.sort((a, b) => {
-    const aCount = state.tracks.filter(t => matchItemGenre(t, a)).length;
-    const bCount = state.tracks.filter(t => matchItemGenre(t, b)).length;
-    if (bCount !== aCount) return bCount - aCount;
-    return a.localeCompare(b);
-  });
+  const { genreList, tracksByGenre, albumsByGenre } = buildGenreBuckets();
 
   if (headerCount) {
     headerCount.textContent = `共 ${genreList.length} 個音樂風格與流派，以專輯風格探索您的發燒音樂庫`;
@@ -5047,16 +5117,15 @@ function renderGenres() {
     card.className = 'album-card genre-album-card';
 
     const info = getGenreIllustrationInfo(genreName);
-
-    const matchingTracks = state.tracks.filter(t => matchItemGenre(t, genreName));
-    const matchingAlbums = state.albums.filter(a => matchItemGenre(a, genreName));
+    const matchingTracks = tracksByGenre.get(genreName) || [];
+    const matchingAlbums = albumsByGenre.get(genreName) || [];
 
     const trackCount = matchingTracks.length;
     const albumCount = matchingAlbums.length;
 
     card.innerHTML = `
       <div class="album-art-wrap">
-        <img src="${info.imageSrc}" class="album-art-img" alt="${escapeXml(genreName)}" loading="lazy" decoding="async">
+        <img src="${info.imageSrc}" class="album-art-img" alt="${escapeXml(genreName)}" decoding="async">
         <span class="album-quality-tag tag-genre">${info.badge}</span>
         <button class="card-play-btn" title="播放「${escapeXml(genreName)}」曲風電台">▶</button>
       </div>
