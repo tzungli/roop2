@@ -1327,6 +1327,13 @@
             <span class="page-subtitle" id="favAlbumsHeaderCount">共 0 張最愛專輯</span>
           </div>
           <div class="header-actions">
+            <select id="favAlbumsSortSelect" class="select-dropdown" title="最愛專輯排序方式">
+              <option value="added" selected>依新增順序 (最新優先)</option>
+              <option value="addedOldest">依新增順序 (最舊優先)</option>
+              <option value="title">依專輯名稱 (A-Z)</option>
+              <option value="artist">依演出者名稱</option>
+              <option value="year">依發行年份 (最新)</option>
+            </select>
             <button class="btn btn-secondary btn-sm" id="btnPlayAllFavAlbums">▶ 播放全部最愛專輯</button>
             <button class="btn btn-secondary btn-sm" id="btnShuffleFavAlbums">🔀 隨機播放</button>
           </div>
@@ -1349,6 +1356,13 @@
             <span class="page-subtitle" id="favTracksHeaderCount">共 0 首最愛歌曲</span>
           </div>
           <div class="header-actions">
+            <select id="favTracksSortSelect" class="select-dropdown" title="最愛歌曲排序方式">
+              <option value="added" selected>依新增順序 (最新優先)</option>
+              <option value="addedOldest">依新增順序 (最舊優先)</option>
+              <option value="title">依歌曲名稱 (A-Z)</option>
+              <option value="artist">依演出者名稱</option>
+              <option value="album">依專輯名稱</option>
+            </select>
             <button class="btn btn-primary btn-sm" id="btnPlayAllFavTracks">▶ 播放全部最愛歌曲</button>
             <button class="btn btn-secondary btn-sm" id="btnShuffleFavTracks">🔀 隨機播放</button>
           </div>
@@ -1387,6 +1401,13 @@
             <span class="page-subtitle" id="favArtistsHeaderCount">共 0 位最愛演出者</span>
           </div>
           <div class="header-actions">
+            <select id="favArtistsSortSelect" class="select-dropdown" title="最愛演出者排序方式">
+              <option value="added" selected>依新增順序 (最新優先)</option>
+              <option value="addedOldest">依新增順序 (最舊優先)</option>
+              <option value="name">依演出者名稱 (A-Z)</option>
+              <option value="albums">依專輯數量 (最多)</option>
+              <option value="tracks">依曲目數量 (最多)</option>
+            </select>
             <button class="btn btn-secondary btn-sm" id="btnPlayAllFavArtists">▶ 播放最愛演出者歌曲</button>
             <button class="btn btn-secondary btn-sm" id="btnShuffleFavArtists">🔀 隨機播放</button>
           </div>

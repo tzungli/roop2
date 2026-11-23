@@ -1763,64 +1763,120 @@ function toggleArtistFavorite(artistName, triggerBtn = null) {
   syncAllFavoriteUIs();
 }
 
+function getFavSortMode(kind) {
+  const keyMap = {
+    albums: 'roo_fav_albums_sort',
+    tracks: 'roo_fav_tracks_sort',
+    artists: 'roo_fav_artists_sort',
+  };
+  return localStorage.getItem(keyMap[kind]) || 'added';
+}
+
+function setFavSortMode(kind, mode) {
+  const keyMap = {
+    albums: 'roo_fav_albums_sort',
+    tracks: 'roo_fav_tracks_sort',
+    artists: 'roo_fav_artists_sort',
+  };
+  localStorage.setItem(keyMap[kind], mode || 'added');
+}
+
 function getFavoriteAlbumsList() {
-  const list = [];
-  const seen = new Set();
-
+  const byKey = new Map();
   state.albums.forEach(alb => {
-    if (isAlbumFavorite(alb)) {
-      const k = getAlbumKey(alb);
-      if (!seen.has(k)) {
-        seen.add(k);
-        list.push(alb);
-      }
+    const k = getAlbumKey(alb);
+    if (!byKey.has(k)) byKey.set(k, alb);
+  });
+
+  // Build in exact favorite insertion order (oldest -> newest)
+  const ordered = [];
+  const seen = new Set();
+  (state.favorites.albums || []).forEach(rawKey => {
+    const kl = String(rawKey).toLowerCase();
+    if (seen.has(kl)) return;
+    const item = byKey.get(kl) || favoriteAlbumSnapshots.get(kl);
+    if (item) {
+      seen.add(kl);
+      ordered.push(item);
     }
   });
 
-  state.favorites.albums.forEach(k => {
-    const kl = k.toLowerCase();
-    if (!seen.has(kl)) {
-      const snap = favoriteAlbumSnapshots.get(kl);
-      if (snap) {
-        seen.add(kl);
-        list.push(snap);
-      }
-    }
-  });
-
-  return list;
+  const sortMode = getFavSortMode('albums');
+  if (sortMode === 'added') {
+    ordered.reverse(); // Newest added first (default)
+  } else if (sortMode === 'title') {
+    ordered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  } else if (sortMode === 'artist') {
+    ordered.sort((a, b) => (a.artist || '').localeCompare(b.artist || '') || (a.title || '').localeCompare(b.title || ''));
+  } else if (sortMode === 'year') {
+    ordered.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0) || (a.title || '').localeCompare(b.title || ''));
+  }
+  // 'addedOldest' keeps oldest -> newest insertion order
+  return ordered;
 }
 
 function getFavoriteTracksList() {
-  const list = [];
-  const seen = new Set();
-
+  const byKey = new Map();
   state.tracks.forEach(t => {
-    if (isTrackFavorite(t)) {
-      const k = getTrackKey(t);
-      if (!seen.has(k)) {
-        seen.add(k);
-        list.push(t);
-      }
+    const k = getTrackKey(t);
+    if (!byKey.has(k)) byKey.set(k, t);
+  });
+
+  const ordered = [];
+  const seen = new Set();
+  (state.favorites.tracks || []).forEach(rawKey => {
+    const kl = String(rawKey).toLowerCase().replace(/\\/g, '/');
+    if (seen.has(kl)) return;
+    const item = byKey.get(kl) || favoriteTrackSnapshots.get(kl);
+    if (item) {
+      seen.add(kl);
+      ordered.push(item);
     }
   });
 
-  state.favorites.tracks.forEach(k => {
-    const kl = k.toLowerCase().replace(/\\/g, '/');
-    if (!seen.has(kl)) {
-      const snap = favoriteTrackSnapshots.get(kl);
-      if (snap) {
-        seen.add(kl);
-        list.push(snap);
-      }
-    }
-  });
-
-  return list;
+  const sortMode = getFavSortMode('tracks');
+  if (sortMode === 'added') {
+    ordered.reverse(); // Newest added first (default)
+  } else if (sortMode === 'title') {
+    ordered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  } else if (sortMode === 'artist') {
+    ordered.sort((a, b) => (a.artist || '').localeCompare(b.artist || '') || (a.title || '').localeCompare(b.title || ''));
+  } else if (sortMode === 'album') {
+    ordered.sort((a, b) => (a.album || '').localeCompare(b.album || '') || (a.trackNumber || 0) - (b.trackNumber || 0));
+  }
+  return ordered;
 }
 
 function getFavoriteArtistsList() {
-  return state.artists.filter(art => isArtistFavorite(art.name));
+  const byName = new Map();
+  state.artists.forEach(art => {
+    const k = (art.name || '').toLowerCase();
+    if (!byName.has(k)) byName.set(k, art);
+  });
+
+  const ordered = [];
+  const seen = new Set();
+  (state.favorites.artists || []).forEach(rawName => {
+    const kl = String(rawName).toLowerCase();
+    if (seen.has(kl)) return;
+    const art = byName.get(kl);
+    if (art) {
+      seen.add(kl);
+      ordered.push(art);
+    }
+  });
+
+  const sortMode = getFavSortMode('artists');
+  if (sortMode === 'added') {
+    ordered.reverse(); // Newest added first (default)
+  } else if (sortMode === 'name') {
+    ordered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  } else if (sortMode === 'albums') {
+    ordered.sort((a, b) => ((b.albums && b.albums.size) || 0) - ((a.albums && a.albums.size) || 0) || (a.name || '').localeCompare(b.name || ''));
+  } else if (sortMode === 'tracks') {
+    ordered.sort((a, b) => ((b.tracks && b.tracks.length) || 0) - ((a.tracks && a.tracks.length) || 0) || (a.name || '').localeCompare(b.name || ''));
+  }
+  return ordered;
 }
 
 function syncAllFavoriteUIs() {
@@ -15935,6 +15991,33 @@ function renderFavArtists() {
 }
 
 function setupFavoritesEvents() {
+  const favAlbumsSortSelect = document.getElementById('favAlbumsSortSelect');
+  if (favAlbumsSortSelect) {
+    favAlbumsSortSelect.value = getFavSortMode('albums');
+    favAlbumsSortSelect.addEventListener('change', (e) => {
+      setFavSortMode('albums', e.target.value);
+      renderFavAlbums();
+    });
+  }
+
+  const favTracksSortSelect = document.getElementById('favTracksSortSelect');
+  if (favTracksSortSelect) {
+    favTracksSortSelect.value = getFavSortMode('tracks');
+    favTracksSortSelect.addEventListener('change', (e) => {
+      setFavSortMode('tracks', e.target.value);
+      renderFavTracks();
+    });
+  }
+
+  const favArtistsSortSelect = document.getElementById('favArtistsSortSelect');
+  if (favArtistsSortSelect) {
+    favArtistsSortSelect.value = getFavSortMode('artists');
+    favArtistsSortSelect.addEventListener('change', (e) => {
+      setFavSortMode('artists', e.target.value);
+      renderFavArtists();
+    });
+  }
+
   const btnPlayFavAlbums = document.getElementById('btnPlayAllFavAlbums');
   if (btnPlayFavAlbums) {
     btnPlayFavAlbums.addEventListener('click', () => {
