@@ -210,7 +210,7 @@ function buildDspOptions(track) {
     dsdOrder: state.dsp.dsdOrder || 5,
     filterPhase: state.dsp.filterPhase || 'precise-linear',
     ultrasonicFilter: (state.dsp && state.dsp.ultrasonicFilter) || '30k',
-    dither: (state.dsp && state.dsp.dither) || 'gauss1',
+    dither: (state.dsp && state.dsp.dither) || 'tpdf',
     peq: peqPayload,
     conv: convPayload
   };
@@ -270,12 +270,12 @@ const state = {
         dsdOrder: [5, 7].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
         filterPhase: isValidFilterPhaseId(saved.filterPhase) ? saved.filterPhase : 'precise-linear',
         ultrasonicFilter: ['none', '20k', '30k', '40k', '50k'].includes(saved.ultrasonicFilter) ? saved.ultrasonicFilter : '30k',
-        dither: ['none', 'tpdf', 'gauss1'].includes(saved.dither) ? saved.dither : 'gauss1',
+        dither: ['none', 'tpdf', 'hp-tpdf', 'shaped', 'gauss', 'gauss1'].includes(saved.dither) ? saved.dither : 'tpdf',
         peq: normalizePeqSettings(saved.peq),
         conv: normalizeConvSettings(saved.conv)
       };
     } catch (e) {
-      return { enabled: false, rateMode: '4x', dsdOrder: 5, filterPhase: 'precise-linear', ultrasonicFilter: '30k', dither: 'gauss1', peq: normalizePeqSettings(null), conv: normalizeConvSettings(null) };
+      return { enabled: false, rateMode: '4x', dsdOrder: 5, filterPhase: 'precise-linear', ultrasonicFilter: '30k', dither: 'tpdf', peq: normalizePeqSettings(null), conv: normalizeConvSettings(null) };
     }
   })()
 };
@@ -8164,8 +8164,9 @@ async function playSoxTrack(track, startSec = 0) {
     const dsdOrder = state.dsp.dsdOrder || 5;
     const filterPhase = state.dsp.filterPhase || 'precise-linear';
     const ultrasonicFilter = (state.dsp && state.dsp.ultrasonicFilter) || '30k';
+    const dither = (state.dsp && state.dsp.dither) || 'tpdf';
 
-    const streamUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, targetRate, dsdMode, dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter);
+    const streamUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, targetRate, dsdMode, dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter, dither);
     if (!streamUrl) {
       playerArtist.textContent = '無法建立 SoX 升頻串流服務';
       return;
@@ -8177,7 +8178,7 @@ async function playSoxTrack(track, startSec = 0) {
       const srcRate = track.sampleRate || 44100;
       const exRate = exclusiveChooseRate(srcRate, targetRate);
       if (exRate) {
-        const exUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, exRate, '', dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter);
+        const exUrl = await window.electronAPI.getSoxStreamUrl(track.filePath, startSec, exRate, '', dsdOrder, filterPhase, peqPayloadJson(), convPayloadJson(), ultrasonicFilter, dither);
         if (exUrl && await exclusiveStartStream(track, startSec, exUrl, exRate)) {
           state.isPlaying = true;
           updatePlayPauseBtnUI();
@@ -8321,7 +8322,7 @@ function updateSignalPathUI(track = null) {
     if (dspActiveUltrasonicHint) dspActiveUltrasonicHint.textContent = ultrasonicPill.textContent;
   }
 
-  const curDither = state.dsp.dither || 'gauss1';
+  const curDither = state.dsp.dither || 'tpdf';
   const ditherPill = document.querySelector(`#dspDitherSelector .dsp-pill[data-dither="${curDither}"]`);
   const dspActiveDitherHint = document.getElementById('dspActiveDitherHint');
   if (ditherPill) {
@@ -11335,7 +11336,7 @@ function initDspControls() {
     dspDitherSelector.addEventListener('click', (e) => {
       const btn = e.target.closest('.dsp-pill');
       if (!btn) return;
-      const ditherMode = btn.getAttribute('data-dither') || 'gauss1';
+      const ditherMode = btn.getAttribute('data-dither') || 'tpdf';
 
       dspDitherSelector.querySelectorAll('.dsp-pill').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');

@@ -111,7 +111,7 @@ pub async fn dlna_play_track(
         if file_path.is_empty() { None } else { Some(file_path.to_string()) },
     );
 
-    let (target_rate, dsd_mode, dsd_order, filter_phase, peq_json, conv_json, ultrasonic_filter) =
+    let (target_rate, dsd_mode, dsd_order, filter_phase, peq_json, conv_json, ultrasonic_filter, dither) =
         if let Some(opts) = &dsp_options {
             let rate = opts.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
             let dsd_m = opts.get("dsdMode").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -120,9 +120,10 @@ pub async fn dlna_play_track(
             let peq = opts.get("peq").map(|v| v.to_string()).unwrap_or_default();
             let conv = opts.get("conv").map(|v| v.to_string()).unwrap_or_default();
             let ultra = opts.get("ultrasonicFilter").and_then(|v| v.as_str()).unwrap_or("30k").to_string();
-            (rate, dsd_m, dsd_o, phase, peq, conv, ultra)
+            let dith = opts.get("dither").and_then(|v| v.as_str()).map(|s| s.to_string());
+            (rate, dsd_m, dsd_o, phase, peq, conv, ultra, dith)
         } else {
-            (0, String::new(), 5, "linear".to_string(), String::new(), String::new(), "30k".to_string())
+            (0, String::new(), 5, "linear".to_string(), String::new(), String::new(), "30k".to_string(), None)
         };
 
     let is_native_dsf = file_path.to_lowercase().ends_with(".dsf");
@@ -169,6 +170,7 @@ pub async fn dlna_play_track(
             conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
             ultrasonic_filter: Some(ultrasonic_filter.clone()),
             dop: Some(false), // Native DSD (DSF), NOT DoP!
+            dither,
         };
 
         let token_clone = stream_token.clone();

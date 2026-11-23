@@ -1,6 +1,7 @@
 pub mod fir;
 pub mod phase;
 pub mod dsd;
+pub mod dither;
 pub mod peq;
 pub mod convolution;
 pub mod registry;
@@ -8,6 +9,7 @@ pub mod registry;
 pub use fir::*;
 pub use phase::*;
 pub use dsd::*;
+pub use dither::*;
 pub use peq::*;
 pub use convolution::*;
 pub use registry::*;

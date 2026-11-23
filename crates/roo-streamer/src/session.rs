@@ -89,9 +89,19 @@ fn render_pcm_range_helper(
     ratio: f64,
     start_f: usize,
     end_f: usize,
+    dither_type: roo_dsp::DitherType,
     buf: &mut [u8],
 ) {
     let mut off = 0;
+    let seed_l1 = 0x1234_5678_9abc_def0 ^ ((start_f as u64) << 16);
+    let seed_l2 = 0xfedc_ba98_7654_3210 ^ ((start_f as u64) << 17);
+    let seed_r1 = 0x0123_4567_89ab_cdef ^ ((start_f as u64) << 18);
+    let seed_r2 = 0x9876_5432_10fe_dcba ^ ((start_f as u64) << 19);
+    let mut ditherer = roo_dsp::StereoPcmDitherer {
+        left: roo_dsp::PcmChannelDither::new(seed_l1, seed_l2),
+        right: roo_dsp::PcmChannelDither::new(seed_r1, seed_r2),
+    };
+
     for i in start_f..end_f {
         let (sl_f, sr_f) = if target_rate == src_rate {
             (left[i], right[i])
@@ -104,17 +114,16 @@ fn render_pcm_range_helper(
             (left[i.min(left.len() - 1)], right[i.min(right.len() - 1)])
         };
 
-        let i_l = (sl_f.clamp(-1.0, 1.0) * 8388607.0).floor() as i32;
-        let u_l = if i_l < 0 { (i_l + 16777216) as u32 } else { i_l as u32 };
-        buf[off] = (u_l & 0xFF) as u8;
-        buf[off + 1] = ((u_l >> 8) & 0xFF) as u8;
-        buf[off + 2] = ((u_l >> 16) & 0xFF) as u8;
+        let (i_l, i_r) = ditherer.quantize_24bit(sl_f, sr_f, dither_type);
+        let bytes_l = i_l.to_le_bytes();
+        buf[off] = bytes_l[0];
+        buf[off + 1] = bytes_l[1];
+        buf[off + 2] = bytes_l[2];
 
-        let i_r = (sr_f.clamp(-1.0, 1.0) * 8388607.0).floor() as i32;
-        let u_r = if i_r < 0 { (i_r + 16777216) as u32 } else { i_r as u32 };
-        buf[off + 3] = (u_r & 0xFF) as u8;
-        buf[off + 4] = ((u_r >> 8) & 0xFF) as u8;
-        buf[off + 5] = ((u_r >> 16) & 0xFF) as u8;
+        let bytes_r = i_r.to_le_bytes();
+        buf[off + 3] = bytes_r[0];
+        buf[off + 4] = bytes_r[1];
+        buf[off + 5] = bytes_r[2];
         off += 6;
     }
 }
@@ -221,8 +230,9 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             file.flush()?;
         }
 
+        let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Gauss);
         let gf = REGISTRY.build_filter(dsd_rate as f64, src_rate as f64, &opts.filter_phase);
-        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, DitherType::Gauss1, gf);
+        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, dither_type, gf);
 
         let target_initial_blocks = if cfg!(debug_assertions) {
             16
@@ -353,10 +363,11 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         };
         let gf = Arc::new(gf);
 
+        let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Tpdf);
         let initial_frames = out_frames.min(target_rate as usize * 3);
         let mut initial_bytes = vec![0u8; initial_frames * 6];
         if initial_frames > 0 {
-            render_pcm_range_helper(&left, &right, gf.as_ref().as_ref(), target_rate, src_rate, ratio, 0, initial_frames, &mut initial_bytes);
+            render_pcm_range_helper(&left, &right, gf.as_ref().as_ref(), target_rate, src_rate, ratio, 0, initial_frames, dither_type, &mut initial_bytes);
             use std::io::{Seek, SeekFrom, Write};
             let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&temp_file_path)?;
             file.seek(SeekFrom::Start(44))?;
@@ -413,7 +424,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     }
                     let frames_to_run = (out_frames - curr_frame).min(batch_frames);
                     let slice = &mut batch_buf[..frames_to_run * 6];
-                    render_pcm_range_helper(&bg_left, &bg_right, bg_gf.as_ref().as_ref(), target_rate, src_rate, ratio, curr_frame, curr_frame + frames_to_run, slice);
+                    render_pcm_range_helper(&bg_left, &bg_right, bg_gf.as_ref().as_ref(), target_rate, src_rate, ratio, curr_frame, curr_frame + frames_to_run, dither_type, slice);
                     if file.write_all(slice).is_err() {
                         return;
                     }
@@ -449,6 +460,8 @@ pub struct DspStreamOptions {
     pub ultrasonic_filter: Option<String>,
     #[serde(default)]
     pub dop: Option<bool>,
+    #[serde(default)]
+    pub dither: Option<String>,
 }
 
 impl DspStreamOptions {
@@ -458,9 +471,10 @@ impl DspStreamOptions {
         let dsd = self.dsd_mode.as_deref().unwrap_or("").trim();
         let ultra = self.ultrasonic_filter.as_deref().unwrap_or("").trim();
         let dop = self.dop.unwrap_or(false);
+        let dither = self.dither.as_deref().unwrap_or("").trim();
 
         format!(
-            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
             self.file_path,
             (self.start_sec * 10.0).round() as i64,
             self.target_rate,
@@ -470,7 +484,8 @@ impl DspStreamOptions {
             ultra,
             peq,
             conv,
-            dop
+            dop,
+            dither
         )
     }
 }
@@ -545,8 +560,9 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         let ratio = dsd_rate as f64 / src_rate as f64;
         let inv_ratio = 1.0 / ratio;
 
+        let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Gauss);
         let gf = REGISTRY.build_filter(dsd_rate as f64, src_rate as f64, &opts.filter_phase);
-        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, DitherType::Gauss1, gf);
+        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, dither_type, gf);
 
         let total_dsd_samples = (left.len() as f64 * ratio).round() as usize;
         let samples_per_block = 32768usize;
@@ -684,19 +700,21 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         out_buf.extend_from_slice(b"data");
         out_buf.extend_from_slice(&(data_size as u32).to_le_bytes());
 
-        // 24-bit PCM samples
-        for i in 0..out_frames {
-            let i_l = (up_l[i].clamp(-1.0, 1.0) * 8388607.0).floor() as i32;
-            let u_l = if i_l < 0 { (i_l + 16777216) as u32 } else { i_l as u32 };
-            out_buf.push((u_l & 0xFF) as u8);
-            out_buf.push(((u_l >> 8) & 0xFF) as u8);
-            out_buf.push(((u_l >> 16) & 0xFF) as u8);
+        // 24-bit PCM samples with dither
+        let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Tpdf);
+        let mut ditherer = roo_dsp::StereoPcmDitherer::new();
 
-            let i_r = (up_r[i].clamp(-1.0, 1.0) * 8388607.0).floor() as i32;
-            let u_r = if i_r < 0 { (i_r + 16777216) as u32 } else { i_r as u32 };
-            out_buf.push((u_r & 0xFF) as u8);
-            out_buf.push(((u_r >> 8) & 0xFF) as u8);
-            out_buf.push(((u_r >> 16) & 0xFF) as u8);
+        for i in 0..out_frames {
+            let (i_l, i_r) = ditherer.quantize_24bit(up_l[i], up_r[i], dither_type);
+            let bytes_l = i_l.to_le_bytes();
+            out_buf.push(bytes_l[0]);
+            out_buf.push(bytes_l[1]);
+            out_buf.push(bytes_l[2]);
+
+            let bytes_r = i_r.to_le_bytes();
+            out_buf.push(bytes_r[0]);
+            out_buf.push(bytes_r[1]);
+            out_buf.push(bytes_r[2]);
         }
 
         Ok(GeneratedStream {
@@ -750,6 +768,7 @@ mod tests {
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),
             dop: Some(true),
+            dither: None,
         };
 
         let res_dop = generate_audio_stream(&opts_dop);
@@ -778,6 +797,7 @@ mod tests {
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),
             dop: Some(false),
+            dither: None,
         };
 
         let res_dsf = generate_audio_stream(&opts_dsf);
@@ -837,6 +857,7 @@ mod tests {
             conv_json: None,
             ultrasonic_filter: Some("30k".to_string()),
             dop: Some(false),
+            dither: None,
         };
 
         let t0 = std::time::Instant::now();

@@ -297,8 +297,8 @@
     openExternal: (url) => invoke('shell_open_external', { url }),
     getDsdStreamUrl: (filePath, startSec = 0, peqJson = '', convJson = '') =>
       invoke('audio_get_dsd_stream_url', { filePath, startSec, peqJson, convJson }),
-    getSoxStreamUrl: (filePath, startSec = 0, sampleRate = 192000, dsdMode = '', dsdOrder = 5, filterPhase = 'linear', peqJson = '', convJson = '', ultrasonicFilter = '30k') =>
-      invoke('audio_get_sox_stream_url', { filePath, startSec, sampleRate, dsdMode, dsdOrder, filterPhase, peqJson, convJson, ultrasonicFilter }),
+    getSoxStreamUrl: (filePath, startSec = 0, sampleRate = 192000, dsdMode = '', dsdOrder = 5, filterPhase = 'linear', peqJson = '', convJson = '', ultrasonicFilter = '30k', dither = 'tpdf') =>
+      invoke('audio_get_sox_stream_url', { filePath, startSec, sampleRate, dsdMode, dsdOrder, filterPhase, peqJson, convJson, ultrasonicFilter, dither }),
     pickIrFile: () => invoke('conv_pick_ir_file'),
     getIrInfo: (irPath) => invoke('conv_get_ir_info', { irPath }),
     listFilterPlugins: () => invoke('dsp_list_filter_plugins'),

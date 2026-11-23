@@ -1,30 +1,7 @@
 use std::f64::consts::PI;
-use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, FirFilter, PolyphaseBank};
-
-pub static GAUSS_DITHER_TABLE: std::sync::LazyLock<Box<[f64; 65536]>> = std::sync::LazyLock::new(|| {
-    let mut table = vec![0.0f64; 65536].into_boxed_slice();
-    let mut rng = rand::rngs::StdRng::seed_from_u64(0x123456789abcdef0);
-    for i in (0..65536).step_by(2) {
-        let u1: f64 = rng.gen::<f64>().max(1e-12);
-        let u2: f64 = rng.gen::<f64>();
-        let r = (-2.0 * u1.ln()).sqrt() * 1e-5;
-        let theta = 2.0 * PI * u2;
-        table[i] = r * theta.cos();
-        table[i + 1] = r * theta.sin();
-    }
-    table.try_into().unwrap()
-});
-
-pub static TPDF_DITHER_TABLE: std::sync::LazyLock<Box<[f64; 65536]>> = std::sync::LazyLock::new(|| {
-    let mut table = vec![0.0f64; 65536].into_boxed_slice();
-    let mut rng = rand::rngs::StdRng::seed_from_u64(0xabcdef0123456789);
-    for i in 0..65536 {
-        table[i] = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
-    }
-    table.try_into().unwrap()
-});
+pub use crate::dither::{DitherType, DsdDitherer};
 
 pub const DSD_BLOCK_SIZE: usize = 4096;
 pub const DSD_SAMPLES_PER_BLOCK: usize = DSD_BLOCK_SIZE * 8; // 32768 samples per channel block
@@ -259,17 +236,10 @@ pub fn apply_ultrasonic_filter(coeffs: &UltrasonicFilterCoeffs, left: &mut [f64]
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DitherType {
-    None,
-    Tpdf,
-    Gauss1,
-}
-
 pub struct DsdModulator {
     pub order: u8, // 5 or 7
     pub dither_type: DitherType,
+    pub dsd_ditherer: DsdDitherer,
     pub gf: Option<FirFilter>,
     pub poly_phases: Option<PolyphaseBank>,
     pub phase_name: String,
@@ -289,6 +259,7 @@ impl DsdModulator {
         Self {
             order: match order { 7 => 7, _ => 5 },
             dither_type: dither,
+            dsd_ditherer: DsdDitherer::new(),
             gf,
             poly_phases,
             phase_name: phase_name.to_string(),
@@ -300,6 +271,7 @@ impl DsdModulator {
     }
 
     pub fn reset_state(&mut self) {
+        self.dsd_ditherer = DsdDitherer::new();
         self.s1_l = 0.0; self.s2_l = 0.0; self.s3_l = 0.0; self.s4_l = 0.0; self.s5_l = 0.0; self.y_l = 0.0;
         self.s1_r = 0.0; self.s2_r = 0.0; self.s3_r = 0.0; self.s4_r = 0.0; self.s5_r = 0.0; self.y_r = 0.0;
         self.s6_l = 0.0; self.s7_l = 0.0;
@@ -351,10 +323,6 @@ impl DsdModulator {
         let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
 
         let use_fir = self.gf.is_some();
-        let dither_mode = self.dither_type;
-        let gauss_table = if dither_mode == DitherType::Gauss1 { Some(&*GAUSS_DITHER_TABLE) } else { None };
-        let tpdf_table = if dither_mode == DitherType::Tpdf { Some(&*TPDF_DITHER_TABLE) } else { None };
-        let mut dither_idx: usize = (start_bit * 137) & 0xffff;
 
         let mut cur_idx = 0;
         let mut cur_phi = 0;
@@ -468,19 +436,7 @@ impl DsdModulator {
                     s4_l = (s4_l * 0.999999 + c4 * s3_l - g2 * s5_l).clamp(-clamp, clamp);
                     s5_l = (s5_l * 0.999999 + c5 * s4_l).clamp(-clamp, clamp);
 
-                    let (dither_l, dither_r) = if let Some(gtab) = gauss_table {
-                        let dl = gtab[dither_idx];
-                        let dr = gtab[(dither_idx + 1) & 0xffff];
-                        dither_idx = (dither_idx + 2) & 0xffff;
-                        (dl, dr)
-                    } else if let Some(ttab) = tpdf_table {
-                        let dl = ttab[dither_idx];
-                        let dr = ttab[(dither_idx + 1) & 0xffff];
-                        dither_idx = (dither_idx + 2) & 0xffff;
-                        (dl, dr)
-                    } else {
-                        (0.0, 0.0)
-                    };
+                    let (dither_l, dither_r) = self.dsd_ditherer.next_stereo_dither(self.dither_type);
 
                     let sigma_l = u_l + a1 * s1_l + a2 * s2_l + a3 * s3_l + a4 * s4_l + a5 * s5_l + dither_l;
                     y_l = if sigma_l >= 0.0 { 1.0 } else { -1.0 };
@@ -538,10 +494,6 @@ impl DsdModulator {
         let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
 
         let use_fir = self.gf.is_some();
-        let dither_mode = self.dither_type;
-        let gauss_table = if dither_mode == DitherType::Gauss1 { Some(&*GAUSS_DITHER_TABLE) } else { None };
-        let tpdf_table = if dither_mode == DitherType::Tpdf { Some(&*TPDF_DITHER_TABLE) } else { None };
-        let mut dither_idx: usize = (start_bit * 137) & 0xffff;
 
         let mut cur_idx = 0;
         let mut cur_phi = 0;
@@ -657,19 +609,7 @@ impl DsdModulator {
                     s6_l = (s6_l * 0.999999 + c6 * s5_l - g3 * s7_l).clamp(-clamp, clamp);
                     s7_l = (s7_l * 0.999999 + c7 * s6_l).clamp(-clamp, clamp);
 
-                    let (dither_l, dither_r) = if let Some(gtab) = gauss_table {
-                        let dl = gtab[dither_idx];
-                        let dr = gtab[(dither_idx + 1) & 0xffff];
-                        dither_idx = (dither_idx + 2) & 0xffff;
-                        (dl, dr)
-                    } else if let Some(ttab) = tpdf_table {
-                        let dl = ttab[dither_idx];
-                        let dr = ttab[(dither_idx + 1) & 0xffff];
-                        dither_idx = (dither_idx + 2) & 0xffff;
-                        (dl, dr)
-                    } else {
-                        (0.0, 0.0)
-                    };
+                    let (dither_l, dither_r) = self.dsd_ditherer.next_stereo_dither(self.dither_type);
 
                     let sigma_l = u_l + a1 * s1_l + a2 * s2_l + a3 * s3_l + a4 * s4_l + a5 * s5_l + a6 * s6_l + a7 * s7_l + dither_l;
                     y_l = if sigma_l >= 0.0 { 1.0 } else { -1.0 };
