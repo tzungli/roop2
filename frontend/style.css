@@ -3737,26 +3737,35 @@ body.table-col-resizing * {
   font-size: 11px;
 }
 
-/* 濾波器按鈕列中的自訂濾波（🔧 前綴來自插件描述卡） */
+/* 濾波器按鈕列中的自訂濾波（統一 Roon 薰衣草紫風格） */
 .dsp-pill[data-phase^="uf-"] {
   border-style: dashed;
-  border-color: rgba(52, 211, 153, 0.5);
 }
 
 .dsp-pill[data-phase^="uf-"].active {
-  background: rgba(52, 211, 153, 0.25);
-  border-color: #34d399;
-  color: #ecfdf5;
+  background: rgba(124, 92, 255, 0.24);
+  border-color: rgba(124, 92, 255, 0.55);
+  color: #e9d5ff;
 }
 
-/* 內聯展開面板（編輯器／管理，全部在同一視窗內完成） */
+[data-theme="light"] .dsp-pill[data-phase^="uf-"].active {
+  background: #e2e2fc;
+  border-color: #c4b5fd;
+  color: #4f3cc9;
+}
+
+/* 內聯展開面板（編輯器／管理，統一 Roon 簡約配色與排版） */
 .uf-panel {
-  margin-top: 12px;
-  border-top: 1px solid rgba(52, 211, 153, 0.25);
-  padding-top: 12px;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+}
+
+[data-theme="light"] .uf-panel {
+  border-top-color: rgba(15, 23, 42, 0.08);
 }
 
 .uf-panel-head {
@@ -3764,29 +3773,32 @@ body.table-col-resizing * {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #34d399;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color, #f1f5f9);
+}
+
+[data-theme="light"] .uf-panel-head {
+  color: #1e2330;
 }
 
 .uf-form-col {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 14px;
 }
 
 /* 兩欄緊湊配置（名稱+槽、截止+長度） */
 .uf-grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 14px;
 }
 
 .uf-info {
-  font-size: 10px;
-  font-weight: 600;
-  color: #34d399;
-  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8b92a1;
   cursor: help;
   margin-left: 4px;
 }
@@ -3794,37 +3806,73 @@ body.table-col-resizing * {
 .uf-field label {
   display: block;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-weight: 500;
+  color: var(--text-sub, #94a3b8);
   margin-bottom: 6px;
 }
 
+[data-theme="light"] .uf-field label {
+  color: #4b5563;
+}
+
+.uf-form-col .form-control {
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-color, #f1f5f9);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.uf-form-col .form-control:focus {
+  border-color: #7c5cff;
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.18);
+}
+
+[data-theme="light"] .uf-form-col .form-control {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #1e2330;
+}
+
+[data-theme="light"] .uf-form-col .form-control:focus {
+  border-color: #7c5cff;
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.14);
+}
+
 .uf-val {
-  color: #34d399;
-  font-weight: 700;
+  color: #a78bfa;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+[data-theme="light"] .uf-val {
+  color: #4f3cc9;
 }
 
 .uf-load {
   margin-left: 8px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: #8b92a1;
 }
 
-.uf-load.load-mid { color: #fbbf24; }
-.uf-load.load-high { color: #f87171; }
+.uf-load.load-mid { color: #d97706; }
+.uf-load.load-high { color: #dc2626; }
 
 .uf-seg {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 7px;
 }
 
 .uf-seg-group {
-  font-size: 10px;
-  color: var(--text-secondary);
-  opacity: 0.75;
-  letter-spacing: 0.5px;
-  margin: 6px 0 2px;
+  font-size: 11px;
+  color: #8b92a1;
+  letter-spacing: 0.2px;
+  margin: 8px 0 5px;
 }
 
 .uf-seg-group:first-child {
@@ -3832,31 +3880,95 @@ body.table-col-resizing * {
 }
 
 .uf-seg-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  border-radius: 2px;
-  padding: 4px 8px;
-  font-size: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  color: #cbd5e1;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 400;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.uf-seg-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 
 .uf-seg-btn.active {
-  background: rgba(52, 211, 153, 0.22);
-  border-color: #34d399;
-  color: #ecfdf5;
+  background: rgba(124, 92, 255, 0.24);
+  border-color: rgba(124, 92, 255, 0.55);
+  color: #e9d5ff;
+  font-weight: 500;
+}
+
+[data-theme="light"] .uf-seg-btn {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: #4b5563;
+}
+
+[data-theme="light"] .uf-seg-btn:hover {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.22);
+  color: #111827;
+}
+
+[data-theme="light"] .uf-seg-btn.active {
+  background: #e2e2fc;
+  border-color: #c4b5fd;
+  color: #4f3cc9;
+  font-weight: 500;
 }
 
 .uf-form-col input[type="range"] {
   width: 100%;
-  accent-color: #34d399;
+  accent-color: #7c5cff;
+  cursor: pointer;
 }
 
 .uf-editor-actions {
   display: flex;
   gap: 10px;
-  margin-top: 6px;
+  margin-top: 4px;
+}
+
+.roon-src-uf-row .uf-mini-btn.uf-save-btn,
+[data-theme="light"] .roon-src-uf-row .uf-mini-btn.uf-save-btn {
+  background: #7c5cff;
+  border-color: #7c5cff;
+  color: #ffffff;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 7px;
+}
+
+.roon-src-uf-row .uf-mini-btn.uf-save-btn:hover,
+[data-theme="light"] .roon-src-uf-row .uf-mini-btn.uf-save-btn:hover {
+  background: #6b4bf0;
+  border-color: #6b4bf0;
+  color: #ffffff;
+}
+
+.roon-src-uf-row .uf-mini-btn.uf-delete-btn,
+[data-theme="light"] .roon-src-uf-row .uf-mini-btn.uf-delete-btn {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 7px;
+}
+
+.roon-src-uf-row .uf-mini-btn.uf-delete-btn:hover,
+[data-theme="light"] .roon-src-uf-row .uf-mini-btn.uf-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
 }
 
 .uf-preview-col {
@@ -3867,63 +3979,65 @@ body.table-col-resizing * {
 
 .uf-preview-title {
   font-size: 12px;
-  font-weight: 700;
-  color: var(--text-secondary);
+  font-weight: 500;
+  color: var(--text-color, #e2e8f0);
+}
+
+[data-theme="light"] .uf-preview-title {
+  color: #1e2330;
 }
 
 .uf-preview-note {
   font-weight: 400;
-  color: var(--text-muted);
-  margin-left: 8px;
+  color: #8b92a1;
+  margin-left: 6px;
+  font-size: 11px;
 }
 
 #ufPreviewCanvas {
   width: 100%;
   max-height: 220px;
   background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  /* 截止線可在圖上直接拖曳：游標回饋由 JS 依位置切換（ew-resize / crosshair） */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   touch-action: none;
 }
 
 .uf-preview-legend {
   font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.45;
+  color: #8b92a1;
+  line-height: 1.5;
 }
 
-/* 自訂濾波器編輯器採左右配置：左側放操作參數（窗函數、截止延伸、濾波長度、相位性格…），
-   右側放精準比例的頻率響應預覽。直向空間大幅收斂，版面不臃腫。
-   以容器查詢依「自訂濾波器」區塊實際可用寬度決定，不靠視窗尺寸猜。 */
 #ufEditorPanel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 @container ufstrip (min-width: 560px) {
   #ufEditorPanel {
     display: grid;
-    /* 操作區為主、頻率響應預覽維持精緻比例寬度，避免預覽過度拉長搶佔過多高度 */
     grid-template-columns: minmax(0, 1.15fr) minmax(280px, 360px);
     grid-template-areas:
       "head head"
       "form preview";
     align-items: start;
-    gap: 12px 18px;
+    gap: 14px 22px;
   }
 
   #ufEditorPanel .uf-panel-head { grid-area: head; }
 
   #ufEditorPanel .uf-form-col {
     grid-area: form;
-    /* 以細線與右側預覽區隔 */
-    padding-right: 16px;
-    border-right: 1px solid rgba(52, 211, 153, 0.18);
+    padding-right: 22px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
   }
 
-  /* 預覽跟著滑桿留在可見範圍內 */
+  [data-theme="light"] #ufEditorPanel .uf-form-col {
+    border-right-color: rgba(15, 23, 42, 0.08);
+  }
+
   #ufEditorPanel .uf-preview-col {
     grid-area: preview;
     position: sticky;
@@ -3931,16 +4045,15 @@ body.table-col-resizing * {
   }
 }
 
-/* 空間充足時讓頻率響應預覽維持 320px~400px 的黃金適中寬度，操作區獲得更寬裕的滑桿與按鈕空間 */
 @container ufstrip (min-width: 820px) {
   #ufEditorPanel {
     grid-template-columns: minmax(0, 1.25fr) minmax(320px, 400px);
-    gap: 12px 20px;
+    gap: 14px 24px;
   }
-  #ufEditorPanel .uf-form-col { padding-right: 20px; }
+  #ufEditorPanel .uf-form-col { padding-right: 24px; }
 }
 
-/* 管理面板（內聯） */
+/* 管理面板（內聯，統一 Roon 風格） */
 .uf-manage-list {
   display: flex;
   flex-direction: column;
@@ -3952,20 +4065,29 @@ body.table-col-resizing * {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: rgba(52, 211, 153, 0.06);
-  border: 1px solid rgba(52, 211, 153, 0.25);
-  border-radius: 3px;
-  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  padding: 10px 14px;
   font-size: 13px;
 }
 
+[data-theme="light"] .uf-manage-row {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
 .uf-manage-row .uf-mr-name {
-  font-weight: 700;
-  color: #a7f3d0;
+  font-weight: 500;
+  color: var(--text-color, #f1f5f9);
+}
+
+[data-theme="light"] .uf-manage-row .uf-mr-name {
+  color: #1e2330;
 }
 
 .uf-manage-row .uf-mr-spec {
-  color: var(--text-muted);
+  color: #8b92a1;
   font-size: 11px;
 }
 
@@ -3977,44 +4099,19 @@ body.table-col-resizing * {
 
 .uf-manage-empty {
   font-size: 13px;
-  color: var(--text-muted);
+  color: #8b92a1;
   padding: 10px 0;
 }
 
 .uf-manage-hint {
-  margin-top: 12px;
+  margin-top: 8px;
   font-size: 11px;
-  color: var(--text-muted);
-}
-
-[data-theme="light"] .user-filter-strip {
-  background: rgba(16, 185, 129, 0.06);
-  border-color: rgba(16, 185, 129, 0.35);
-}
-
-[data-theme="light"] .user-filter-strip-title,
-[data-theme="light"] .uf-val {
-  color: #047857;
-}
-
-[data-theme="light"] .uf-chip {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #065f46;
-}
-
-[data-theme="light"] .uf-chip.active {
-  background: rgba(16, 185, 129, 0.25);
-  color: #064e3b;
-}
-
-[data-theme="light"] .uf-seg-btn.active {
-  background: rgba(16, 185, 129, 0.2);
-  color: #064e3b;
+  color: #8b92a1;
 }
 
 [data-theme="light"] #ufPreviewCanvas {
   background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
 }
 
 /* DSP SoX Settings Card (Right Column) */
