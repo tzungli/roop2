@@ -3,8 +3,8 @@ use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, FirFilter, PolyphaseBank};
 
-pub static GAUSS_DITHER_TABLE: std::sync::LazyLock<[f64; 65536]> = std::sync::LazyLock::new(|| {
-    let mut table = [0.0f64; 65536];
+pub static GAUSS_DITHER_TABLE: std::sync::LazyLock<Box<[f64; 65536]>> = std::sync::LazyLock::new(|| {
+    let mut table = vec![0.0f64; 65536].into_boxed_slice();
     let mut rng = rand::rngs::StdRng::seed_from_u64(0x123456789abcdef0);
     for i in (0..65536).step_by(2) {
         let u1: f64 = rng.gen::<f64>().max(1e-12);
@@ -14,16 +14,16 @@ pub static GAUSS_DITHER_TABLE: std::sync::LazyLock<[f64; 65536]> = std::sync::La
         table[i] = r * theta.cos();
         table[i + 1] = r * theta.sin();
     }
-    table
+    table.try_into().unwrap()
 });
 
-pub static TPDF_DITHER_TABLE: std::sync::LazyLock<[f64; 65536]> = std::sync::LazyLock::new(|| {
-    let mut table = [0.0f64; 65536];
+pub static TPDF_DITHER_TABLE: std::sync::LazyLock<Box<[f64; 65536]>> = std::sync::LazyLock::new(|| {
+    let mut table = vec![0.0f64; 65536].into_boxed_slice();
     let mut rng = rand::rngs::StdRng::seed_from_u64(0xabcdef0123456789);
     for i in 0..65536 {
         table[i] = (rng.gen::<f64>() - rng.gen::<f64>()) * 1e-5;
     }
-    table
+    table.try_into().unwrap()
 });
 
 pub const DSD_BLOCK_SIZE: usize = 4096;
