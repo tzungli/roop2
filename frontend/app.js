@@ -13965,14 +13965,12 @@ async function runLanguageSelfTest() {
     // 說明頁整段英文
     navigateTo('about');
     await sleep(700);
-    const aboutTitleEn = textOf('#aboutSectionManual .about-card-title h3');
-    const moduleEn = textOf('#aboutSectionManual .manual-item[data-i18n-html="about.manual.m4"] h4');
-    const moduleBodyEn = textOf('#aboutSectionManual .manual-item[data-i18n-html="about.manual.m4"] li');
+    const filterTitleEn = textOf('#aboutSectionFilterReport .about-card-title h3');
     const specEn = textOf('#aboutSectionTech .spec-row .spec-label');
-    if (aboutTitleEn && /Menu features/i.test(aboutTitleEn) && /Playlists/i.test(moduleEn || '') && /Save/i.test(moduleBodyEn || '') && /Supported audio formats/i.test(specEn || '')) {
-      ok('說明頁各段落整段換成英文', `${aboutTitleEn} / ${moduleEn} / ${specEn}`);
+    if (filterTitleEn && /DSP Core Algorithm/i.test(filterTitleEn) && /Supported audio formats/i.test(specEn || '')) {
+      ok('說明頁各段落整段換成英文', `${filterTitleEn} / ${specEn}`);
     } else {
-      bad('說明頁各段落整段換成英文', `${aboutTitleEn} / ${moduleEn} / ${moduleBodyEn} / ${specEn}`);
+      bad('說明頁各段落整段換成英文', `${filterTitleEn} / ${specEn}`);
     }
 
     const storedEn = localStorage.getItem('rooplayer_language');
@@ -14060,12 +14058,12 @@ async function runLanguageSelfTest() {
     const debugProbe = (() => {
       try { return JSON.stringify(window.I18N.__debugNode('#sidebar .nav-item[data-view="albums"] .nav-label')); } catch (e) { return 'debug failed: ' + String(e); }
     })();
-    const moduleBack = textOf('#aboutSectionManual .manual-item[data-i18n-html="about.manual.m4"] h4');
+    const filterTitleBack = textOf('#aboutSectionFilterReport .about-card-title h3');
     const headerBack = Array.from(document.querySelectorAll('#allTracksTable thead th')).map(th => String(th.textContent || '').trim());
-    if (navAlbumsBack === navAlbumsZh && /播放清單/.test(moduleBack || '') && headerBack.some(h => CJK.test(h))) {
-      ok('換回繁體中文後選單與說明頁完整還原', `${navAlbumsBack} / ${moduleBack} / ${headerBack.slice(0, 3).join(' ')}`);
+    if (navAlbumsBack === navAlbumsZh && /實測數據/.test(filterTitleBack || '') && headerBack.some(h => CJK.test(h))) {
+      ok('換回繁體中文後選單與說明頁完整還原', `${navAlbumsBack} / ${filterTitleBack} / ${headerBack.slice(0, 3).join(' ')}`);
     } else {
-      bad('換回繁體中文後選單與說明頁完整還原', `選單=${navAlbumsBack}（原 ${navAlbumsZh}）說明=${moduleBack} 欄頭=${headerBack.join(' ')} debug=${debugProbe}`);
+      bad('換回繁體中文後選單與說明頁完整還原', `選單=${navAlbumsBack}（原 ${navAlbumsZh}）說明=${filterTitleBack} 欄頭=${headerBack.join(' ')} debug=${debugProbe}`);
     }
     try { window.electronAPI.captureStep(34, 'Chinese UI'); } catch (err) {}
     await sleep(200);
