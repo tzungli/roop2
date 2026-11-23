@@ -12419,10 +12419,19 @@ body.table-col-resizing * {
   border-color: #c4b5fd;
 }
 
-/* Shared Streaming Page Layout */
+/* Shared Streaming Page Layout (Prevent negative-margin overlap with history nav) */
+#viewKkbox.active,
+#viewTidal.active {
+  margin: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
 .streaming-unified-view {
   background: transparent !important;
-  padding: 0 4px 28px;
+  padding: 0 0 28px 0 !important;
+  overflow: visible !important;
 }
 
 .streaming-unified-view .kkbox-header-bar,
@@ -12430,6 +12439,8 @@ body.table-col-resizing * {
   background: transparent !important;
   border-bottom: none !important;
   box-shadow: none !important;
+  height: auto !important;
+  min-height: 40px;
   padding: 0 0 14px 0 !important;
   display: flex;
   align-items: center;
@@ -12440,6 +12451,10 @@ body.table-col-resizing * {
 
 .streaming-unified-view .kkbox-brand-badge,
 .streaming-unified-view .tidal-brand-badge {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
   gap: 0;
 }
 
@@ -12450,6 +12465,7 @@ body.table-col-resizing * {
   font-weight: 800 !important;
   letter-spacing: -0.02em;
   color: var(--text-main) !important;
+  line-height: 1.2;
 }
 
 .streaming-unified-view .kkbox-header-right,
@@ -12459,13 +12475,13 @@ body.table-col-resizing * {
   gap: 10px;
 }
 
-/* Search Box */
+/* Search Box (Matches top bar .search-box 4px radius) */
 .streaming-unified-view .kkbox-search-box,
 .streaming-unified-view .tidal-search-box {
   background: rgba(255, 255, 255, 0.05) !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 999px !important;
-  padding: 3px 4px 3px 12px !important;
+  border-radius: 4px !important;
+  padding: 3px 4px 3px 10px !important;
   box-shadow: none !important;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -12489,7 +12505,7 @@ body.table-col-resizing * {
   background: rgba(124, 92, 255, 0.2) !important;
   color: #ddd6fe !important;
   border: 1px solid rgba(124, 92, 255, 0.35) !important;
-  border-radius: 999px !important;
+  border-radius: 4px !important;
   padding: 4px 12px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
@@ -12503,13 +12519,13 @@ body.table-col-resizing * {
   border-color: #6d5ce8 !important;
 }
 
-/* Account / Logout Buttons */
+/* Account / Logout Buttons (4px radius matching top controls) */
 .streaming-unified-view .btn-tidal-account,
 .streaming-unified-view .btn-kkbox-login {
   background: transparent !important;
   color: var(--text-main) !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 999px !important;
+  border-radius: 4px !important;
   padding: 6px 14px !important;
   font-size: 12.5px !important;
   font-weight: 600 !important;
@@ -12528,7 +12544,7 @@ body.table-col-resizing * {
   background: transparent !important;
   color: #f43f5e !important;
   border: 1px solid rgba(244, 63, 94, 0.35) !important;
-  border-radius: 999px !important;
+  border-radius: 4px !important;
   padding: 6px 12px !important;
   font-size: 12.5px !important;
   font-weight: 600 !important;
@@ -12612,11 +12628,11 @@ body.table-col-resizing * {
   color: var(--text-muted) !important;
 }
 
-/* Filter Chips & Collection Sub-Tabs (Unified Lavender Pill Style) */
+/* Filter Chips & Collection Sub-Tabs (4px radius matching app controls) */
 .streaming-unified-view .tidal-chip-btn,
 .streaming-unified-view .kkbox-cat-chip,
 .streaming-unified-view .btn-sub-tab {
-  border-radius: 999px !important;
+  border-radius: 4px !important;
   padding: 5px 14px !important;
   font-size: 12.5px !important;
   font-weight: 600 !important;

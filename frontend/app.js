@@ -19055,7 +19055,7 @@ function initKkboxStreaming() {
     } else {
       if (inputAccount) inputAccount.value = '';
       if (btnOpenLogin) {
-        btnOpenLogin.innerHTML = '🔑 KKBOX 帳號';
+        btnOpenLogin.textContent = 'KKBOX 帳號';
         btnOpenLogin.classList.remove('logged-in');
       }
       if (btnKkboxLogout) btnKkboxLogout.style.display = 'none';
