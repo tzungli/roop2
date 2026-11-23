@@ -1280,28 +1280,36 @@ function formatTimeAgo(timestamp) {
 }
 
 // ----------------- Play Count Tracker -----------------
-// Parsed-JSON cache keyed on the raw localStorage string; returns a shallow copy so
-// callers can merge/mutate freely without corrupting the cache before savePlayStats.
+// Parsed-JSON cache kept in memory; getPlayStatsRef() provides zero-copy O(1) read access
+// for hot render/sort loops, while getPlayStats() returns a shallow copy for mutating callers.
 let _playStatsCache = null;
-function getPlayStats() {
+function getPlayStatsRef() {
+  if (_playStatsCache) return _playStatsCache.data;
   try {
     const raw = localStorage.getItem('rooplayer_play_stats');
     if (raw) {
-      if (!_playStatsCache || _playStatsCache.raw !== raw) {
-        _playStatsCache = { raw, data: JSON.parse(raw) };
-      }
-      const d = _playStatsCache.data;
-      return { albums: { ...(d.albums || {}) }, tracks: { ...(d.tracks || {}) } };
+      const parsed = JSON.parse(raw);
+      const data = { albums: parsed.albums || {}, tracks: parsed.tracks || {} };
+      _playStatsCache = { raw, data };
+      return data;
     }
   } catch (e) {}
-  return { albums: {}, tracks: {} };
+  const empty = { albums: {}, tracks: {} };
+  _playStatsCache = { raw: '', data: empty };
+  return empty;
+}
+
+function getPlayStats() {
+  const d = getPlayStatsRef();
+  return { albums: { ...(d.albums || {}) }, tracks: { ...(d.tracks || {}) } };
 }
 
 function savePlayStats(stats) {
   try {
-    const raw = JSON.stringify(stats);
+    const normalized = { albums: stats.albums || {}, tracks: stats.tracks || {} };
+    const raw = JSON.stringify(normalized);
     localStorage.setItem('rooplayer_play_stats', raw);
-    _playStatsCache = { raw, data: stats };
+    _playStatsCache = { raw, data: normalized };
   } catch (e) {}
 }
 
@@ -1322,24 +1330,26 @@ function recordPlayCount(track, album) {
 
 function getAlbumPlayCount(album) {
   if (!album) return 0;
-  const stats = getPlayStats();
+  const stats = getPlayStatsRef();
   const albKey = album.id || `${album.title}___${album.artist}`;
-  const directCount = (stats.albums && stats.albums[albKey]) || 0;
+  const directCount = stats.albums[albKey] || 0;
   let trackSum = 0;
   if (album.tracks && album.tracks.length) {
-    album.tracks.forEach(t => {
+    const tMap = stats.tracks;
+    for (let i = 0; i < album.tracks.length; i++) {
+      const t = album.tracks[i];
       const tKey = t.id || `${t.title}___${t.artist}`;
-      trackSum += (stats.tracks && stats.tracks[tKey]) || 0;
-    });
+      trackSum += tMap[tKey] || 0;
+    }
   }
   return Math.max(directCount, trackSum);
 }
 
 function getTrackPlayCount(track) {
   if (!track) return 0;
-  const stats = getPlayStats();
+  const stats = getPlayStatsRef();
   const trackKey = track.id || `${track.title}___${track.artist}`;
-  return (stats.tracks && stats.tracks[trackKey]) || 0;
+  return stats.tracks[trackKey] || 0;
 }
 
 // ----------------- Online Unknown Artist Resolver -----------------
@@ -1557,6 +1567,16 @@ function getStarSvg(isActive = false, size = 16) {
 // ----------------- Favorites State Management -----------------
 const favoriteTrackSnapshots = new Map();
 const favoriteAlbumSnapshots = new Map();
+let _favAlbumSet = new Set();
+let _favTrackSet = new Set();
+let _favArtistSet = new Set();
+
+function rebuildFavoriteIndexSets() {
+  const fav = state.favorites || { albums: [], tracks: [], artists: [] };
+  _favAlbumSet = new Set((fav.albums || []).map(k => String(k).toLowerCase()));
+  _favTrackSet = new Set((fav.tracks || []).map(k => String(k).toLowerCase().replace(/\\/g, '/')));
+  _favArtistSet = new Set((fav.artists || []).map(k => String(k).toLowerCase()));
+}
 
 function initFavorites() {
   try {
@@ -1578,9 +1598,11 @@ function initFavorites() {
   } catch (e) {
     console.warn('Error reading favorites:', e);
   }
+  rebuildFavoriteIndexSets();
 }
 
 function saveFavorites() {
+  rebuildFavoriteIndexSets();
   try {
     localStorage.setItem('roo_favorites', JSON.stringify(state.favorites));
     const snapsObj = {
@@ -1608,8 +1630,8 @@ function getTrackKey(track) {
 
 function isAlbumFavorite(album) {
   if (!album) return false;
-  const key = getAlbumKey(album);
-  return state.favorites.albums.some(k => k.toLowerCase() === key);
+  if (_favAlbumSet.size !== state.favorites.albums.length) rebuildFavoriteIndexSets();
+  return _favAlbumSet.has(getAlbumKey(album));
 }
 
 function toggleAlbumFavorite(album, triggerBtn = null) {
@@ -1657,20 +1679,19 @@ function toggleAlbumFavorite(album, triggerBtn = null) {
 
 function isTrackFavorite(track) {
   if (!track) return false;
-  const primaryKey = getTrackKey(track);
-  const titleArtistKey = `${(track.title || '').trim()}___${(track.artist || '').trim()}`.toLowerCase();
-  const normalizedPath = track.filePath ? `local_${track.filePath.toLowerCase().replace(/\\/g, '/')}` : '';
-  const rawPath = track.filePath ? track.filePath.toLowerCase() : '';
+  if (_favTrackSet.size !== state.favorites.tracks.length) rebuildFavoriteIndexSets();
+  if (_favTrackSet.size === 0) return false;
 
-  return state.favorites.tracks.some(k => {
-    const kl = k.toLowerCase().replace(/\\/g, '/');
-    return kl === primaryKey ||
-           kl === titleArtistKey ||
-           (normalizedPath && kl === normalizedPath) ||
-           (rawPath && kl === rawPath) ||
-           (track.tidalId && kl === `tidal_${track.tidalId}`.toLowerCase()) ||
-           (track.kkboxId && kl === `kkbox_${track.kkboxId}`.toLowerCase());
-  });
+  if (_favTrackSet.has(getTrackKey(track))) return true;
+  const titleArtistKey = `${(track.title || '').trim()}___${(track.artist || '').trim()}`.toLowerCase();
+  if (_favTrackSet.has(titleArtistKey)) return true;
+  if (track.filePath) {
+    const norm = track.filePath.toLowerCase().replace(/\\/g, '/');
+    if (_favTrackSet.has(`local_${norm}`) || _favTrackSet.has(norm)) return true;
+  }
+  if (track.tidalId && _favTrackSet.has(`tidal_${track.tidalId}`.toLowerCase())) return true;
+  if (track.kkboxId && _favTrackSet.has(`kkbox_${track.kkboxId}`.toLowerCase())) return true;
+  return false;
 }
 
 function toggleTrackFavorite(track, triggerBtn = null) {
@@ -1727,8 +1748,8 @@ function toggleTrackFavorite(track, triggerBtn = null) {
 
 function isArtistFavorite(artistName) {
   if (!artistName) return false;
-  const name = artistName.trim().toLowerCase();
-  return state.favorites.artists.some(a => a.toLowerCase() === name);
+  if (_favArtistSet.size !== state.favorites.artists.length) rebuildFavoriteIndexSets();
+  return _favArtistSet.has(artistName.trim().toLowerCase());
 }
 
 function toggleArtistFavorite(artistName, triggerBtn = null) {
@@ -4052,10 +4073,9 @@ function renderArtists() {
   if (state.artists.length === 0) {
     artistsGrid.innerHTML = `
       <div style="grid-column: 1/-1; padding: 60px 20px; text-align: center; color: var(--text-muted);">
-        <div style="font-size: 40px; margin-bottom: 12px;">👤</div>
         <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無演出者</div>
         <div style="font-size: 13px; margin-bottom: 20px;">匯入音樂後，系統將自動解析歌手與演出者資訊。</div>
-        <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">📂 匯入音樂資料夾</button>
+        <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">匯入音樂資料夾</button>
       </div>
     `;
     return;
@@ -10073,12 +10093,17 @@ function initMuseControls() {
   setupMuseCanvasEvents();
   setupMuseBandEditorEvents();
 
-  // Redraw PEQ canvas on window resize if DSP view is active
+  // Redraw PEQ canvas on window resize if DSP view is active (rAF-coalesced)
+  let _dspResizeRaf = 0;
   window.addEventListener('resize', () => {
-    const dspView = document.getElementById('viewDsp');
-    if (dspView && dspView.classList.contains('active')) {
-      drawMusePeqCanvas();
-    }
+    if (_dspResizeRaf) return;
+    _dspResizeRaf = requestAnimationFrame(() => {
+      _dspResizeRaf = 0;
+      const dspView = document.getElementById('viewDsp');
+      if (dspView && dspView.classList.contains('active')) {
+        drawMusePeqCanvas();
+      }
+    });
   });
 
   // Close menus on outside click
@@ -11571,10 +11596,15 @@ function initUserFilterControls() {
   $('ufCloseEditor').addEventListener('click', closeUfEditor);
   $('ufCloseManage').addEventListener('click', () => { $('ufManagePanel').style.display = 'none'; });
 
-  // 視窗尺寸改變時（欄寬隨之改變），若編輯器開著就依新寬度重設預覽解析度並重繪
+  // 視窗尺寸改變時（欄寬隨之改變），若編輯器開著就以 rAF 合併重繪避免卡頓
+  let _ufResizeRaf = 0;
   window.addEventListener('resize', () => {
-    const panel = $('ufEditorPanel');
-    if (panel && panel.style.display !== 'none') ufSchedulePreview();
+    if (_ufResizeRaf) return;
+    _ufResizeRaf = requestAnimationFrame(() => {
+      _ufResizeRaf = 0;
+      const panel = $('ufEditorPanel');
+      if (panel && panel.style.display !== 'none') ufSchedulePreview();
+    });
   });
 
   $('ufWindowSeg').addEventListener('click', (e) => {

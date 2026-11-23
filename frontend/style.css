@@ -2025,7 +2025,6 @@ h1, h2, h3, h4, h5, h6 {
   padding: 2px 6px;
   border-radius: 2px;
   letter-spacing: 0.5px;
-  backdrop-filter: blur(8px);
 }
 
 .tag-hires {
@@ -13193,4 +13192,18 @@ body.table-col-resizing * {
     opacity: 1;
     pointer-events: auto;
   }
+}
+
+/* ============================================================
+   UI Render & Scroll Performance Optimizations (60 FPS Grids)
+   ============================================================ */
+.album-grid .album-card,
+.artist-grid .artist-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 180px 230px;
+}
+
+.tracklist-table tbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42px;
 }
