@@ -130,6 +130,10 @@ pub fn read_file_metadata(file_path: &Path, covers_dir: &Path) -> Result<TrackRe
         format,
         cover_path,
         date_added,
+        is_tidal: false,
+        tidal_id: None,
+        tidal_album_id: None,
+        audio_quality: None,
     })
 }
 

@@ -179,6 +179,15 @@
     const f = t.formatName || t.format || 'PCM';
     t.formatName = f;
     t.format = f;
+    if (t.isTidal || p.startsWith('tidal://')) {
+      t.isTidal = true;
+      if (!t.tidalId && p.startsWith('tidal://track/')) {
+        t.tidalId = p.slice('tidal://track/'.length);
+      }
+      if (t.tidalAlbumId && !t.albumId) {
+        t.albumId = t.tidalAlbumId;
+      }
+    }
     return t;
   }
 
