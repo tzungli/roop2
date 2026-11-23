@@ -1746,7 +1746,23 @@ h1, h2, h3, h4, h5, h6 {
     padding: 16px 20px 32px 20px;
   }
   .roo-stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .roo-stat-card {
+    padding: 12px 10px;
+    gap: 8px;
+  }
+  .roo-stat-card .stat-icon-wrap {
+    width: 26px;
+    height: 26px;
+  }
+  .roo-stat-card .stat-icon-wrap svg {
+    width: 20px;
+    height: 20px;
+  }
+  .roo-stat-card .stat-val {
+    font-size: 18px;
   }
   .roo-daily-pick-hero {
     padding: 22px 24px;
