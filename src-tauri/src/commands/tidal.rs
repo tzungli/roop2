@@ -393,19 +393,446 @@ pub async fn tidal_api(
     Ok(json_val)
 }
 
+fn clean_track_id(track_id: &serde_json::Value) -> String {
+    let raw = match track_id {
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => s.trim_start_matches("tidal_").to_string(),
+        _ => track_id.to_string().replace('"', ""),
+    };
+    raw.chars().filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-').collect()
+}
+
+fn decode_base64_str(input: &str) -> Option<String> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut map = [255u8; 256];
+    for (i, &b) in TABLE.iter().enumerate() {
+        map[b as usize] = i as u8;
+    }
+    let clean: Vec<u8> = input.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+    let mut out = Vec::with_capacity(clean.len() * 3 / 4);
+    let mut buf = 0u32;
+    let mut bits = 0;
+    for &b in &clean {
+        if b == b'=' { break; }
+        let val = map[b as usize];
+        if val == 255 { return None; }
+        buf = (buf << 6) | (val as u32);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+#[derive(Debug, Clone)]
+pub struct ManifestSegments {
+    pub init_url: Option<String>,
+    pub segment_urls: Vec<String>,
+}
+
+pub fn parse_tidal_manifest(manifest_str: &str) -> Option<ManifestSegments> {
+    let trimmed = manifest_str.trim();
+
+    // 1. BTS JSON Manifest
+    if trimmed.starts_with('{') {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            if let Some(arr) = v.get("urls").and_then(|u| u.as_array()) {
+                let urls: Vec<String> = arr.iter().filter_map(|s| s.as_str().map(String::from)).collect();
+                if !urls.is_empty() {
+                    return Some(ManifestSegments {
+                        init_url: None,
+                        segment_urls: urls,
+                    });
+                }
+            }
+        }
+        return None;
+    }
+
+    // 2. DASH XML Manifest
+    let tpl_start = trimmed.find("<SegmentTemplate")?;
+    let tpl_end = trimmed[tpl_start..].find('>')? + tpl_start;
+    let tpl_tag = &trimmed[tpl_start..=tpl_end];
+
+    let get_attr = |name: &str| -> Option<String> {
+        let pattern = format!("{}=\"", name);
+        let start = tpl_tag.find(&pattern)? + pattern.len();
+        let end = tpl_tag[start..].find('"')? + start;
+        Some(tpl_tag[start..end].to_string())
+    };
+
+    let media_tpl = get_attr("media")?;
+    let init_tpl = get_attr("initialization");
+    let start_number: u32 = get_attr("startNumber").and_then(|s| s.parse().ok()).unwrap_or(1);
+
+    let mut segment_count = 0u32;
+    if let Some(timeline_start) = trimmed.find("<SegmentTimeline>") {
+        if let Some(timeline_end) = trimmed.find("</SegmentTimeline>") {
+            let timeline_str = &trimmed[timeline_start..timeline_end];
+            for s_match in timeline_str.split("<S ") {
+                if let Some(s_end) = s_match.find("/>") {
+                    let s_tag = &s_match[..s_end];
+                    let r_count: u32 = if let Some(r_idx) = s_tag.find("r=\"") {
+                        let r_val_str = &s_tag[r_idx + 3..];
+                        if let Some(q_end) = r_val_str.find('"') {
+                            r_val_str[..q_end].parse().unwrap_or(0)
+                        } else {
+                            0
+                        }
+                    } else {
+                        0
+                    };
+                    segment_count += r_count + 1;
+                }
+            }
+        }
+    }
+
+    if segment_count == 0 {
+        if let Some(dur_str) = get_attr("duration") {
+            if let Ok(seg_dur) = dur_str.parse::<f64>() {
+                let timescale: f64 = get_attr("timescale").and_then(|s| s.parse().ok()).unwrap_or(1.0);
+                if let Some(mpd_idx) = trimmed.find("mediaPresentationDuration=\"PT") {
+                    let dur_part = &trimmed[mpd_idx + 28..];
+                    if let Some(end_q) = dur_part.find('"') {
+                        let dur_text = &dur_part[..end_q];
+                        let mut total_sec = 0.0;
+                        let mut temp = String::new();
+                        for c in dur_text.chars() {
+                            if c.is_digit(10) || c == '.' {
+                                temp.push(c);
+                            } else if c == 'H' {
+                                if let Ok(val) = temp.parse::<f64>() { total_sec += val * 3600.0; }
+                                temp.clear();
+                            } else if c == 'M' {
+                                if let Ok(val) = temp.parse::<f64>() { total_sec += val * 60.0; }
+                                temp.clear();
+                            } else if c == 'S' {
+                                if let Ok(val) = temp.parse::<f64>() { total_sec += val; }
+                                temp.clear();
+                            }
+                        }
+                        if seg_dur > 0.0 && total_sec > 0.0 {
+                            segment_count = ((total_sec * timescale) / seg_dur).ceil() as u32;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if segment_count == 0 {
+        segment_count = 1;
+    }
+
+    let mut segment_urls = Vec::with_capacity(segment_count as usize);
+    for i in 0..segment_count {
+        let num = start_number + i;
+        let url = media_tpl.replace("$Number$", &num.to_string());
+        segment_urls.push(url);
+    }
+
+    let init_url = init_tpl.map(|t| t.replace("$Number$", &start_number.to_string()));
+
+    Some(ManifestSegments {
+        init_url,
+        segment_urls,
+    })
+}
+
+async fn ensure_tidal_track_cached(
+    state: &TidalState,
+    safe_id: &str,
+    playback_info: Option<&serde_json::Value>,
+) -> Result<PathBuf, String> {
+    let cache_dir = state
+        .cache_file
+        .parent()
+        .map(|p| p.join("tidal_cache"))
+        .unwrap_or_else(|| PathBuf::from("tidal_cache"));
+
+    let _ = fs::create_dir_all(&cache_dir);
+    let target_file = cache_dir.join(format!("{}.flac", safe_id));
+
+    // Fast check if already cached
+    if target_file.exists() {
+        if let Ok(meta) = fs::metadata(&target_file) {
+            if meta.len() > 64 * 1024 {
+                let token = format!("tidal_{}", safe_id);
+                let _ = roo_streamer::register_direct_file_stream(&token, &target_file, "audio/flac");
+                return Ok(target_file);
+            }
+        }
+    }
+
+    // Resolve manifest or direct URLs
+    let mut manifest_str = String::new();
+    let mut direct_urls = Vec::new();
+
+    if let Some(info) = playback_info {
+        if let Some(s) = info.as_str() {
+            if s.starts_with("http") {
+                direct_urls.push(s.to_string());
+            }
+        } else {
+            if let Some(m) = info.get("manifest").and_then(|v| v.as_str()) {
+                if m.trim().starts_with('<') || m.trim().starts_with('{') {
+                    manifest_str = m.to_string();
+                } else if let Some(decoded) = decode_base64_str(m) {
+                    manifest_str = decoded;
+                }
+            }
+            if let Some(urls) = info.get("urls").and_then(|u| u.as_array()) {
+                for u in urls {
+                    if let Some(s) = u.as_str() {
+                        direct_urls.push(s.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // If neither manifest nor direct URLs provided, fetch from TIDAL API directly
+    if manifest_str.is_empty() && direct_urls.is_empty() {
+        let (token, country_code) = {
+            let guard = state.auth_data.read().unwrap();
+            if let Some(auth) = guard.as_ref() {
+                let tok = auth.get("accessToken").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let cc = auth.get("countryCode").and_then(|v| v.as_str()).unwrap_or("TW").to_string();
+                (tok, cc)
+            } else {
+                (String::new(), "TW".to_string())
+            }
+        };
+
+        if token.is_empty() {
+            return Err("TIDAL 尚未登入且未提供串流 Manifest".to_string());
+        }
+
+        let url = format!(
+            "https://api.tidal.com/v1/tracks/{}/playbackinfopostpaywall?countryCode={}&audioquality=LOSSLESS&playbackmode=STREAM&assetpresentation=FULL",
+            safe_id, country_code
+        );
+
+        let resp = state
+            .http_client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await
+            .map_err(|e| format!("取得 TIDAL 播放資訊失敗: {}", e))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("TIDAL 播放授權錯誤 HTTP {}", resp.status()));
+        }
+
+        let body_json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("解析播放資訊 JSON 失敗: {}", e))?;
+
+        if let Some(m) = body_json.get("manifest").and_then(|v| v.as_str()) {
+            if m.trim().starts_with('<') || m.trim().starts_with('{') {
+                manifest_str = m.to_string();
+            } else if let Some(decoded) = decode_base64_str(m) {
+                manifest_str = decoded;
+            }
+        }
+        if let Some(urls) = body_json.get("urls").and_then(|u| u.as_array()) {
+            for u in urls {
+                if let Some(s) = u.as_str() {
+                    direct_urls.push(s.to_string());
+                }
+            }
+        }
+    }
+
+    let mut all_urls = Vec::new();
+    if !direct_urls.is_empty() {
+        all_urls = direct_urls;
+    } else if !manifest_str.is_empty() {
+        let segments = parse_tidal_manifest(&manifest_str)
+            .ok_or_else(|| "無法解析 TIDAL 串流 Manifest 分段".to_string())?;
+        if let Some(init) = &segments.init_url {
+            all_urls.push(init.clone());
+        }
+        all_urls.extend(segments.segment_urls);
+    } else {
+        return Err("無法取得 TIDAL 串流 Manifest 或音訊連結".to_string());
+    }
+
+    let total = all_urls.len();
+    if total == 0 {
+        return Err("未找到任何分段下載連結".to_string());
+    }
+
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(8));
+    let mut handles = Vec::with_capacity(total);
+
+    for (idx, url) in all_urls.into_iter().enumerate() {
+        let sem = semaphore.clone();
+        let cl = state.http_client.clone();
+        handles.push(tokio::spawn(async move {
+            let _permit = sem.acquire().await.map_err(|e| e.to_string())?;
+            let resp = cl.get(&url).send().await.map_err(|e| format!("分段 {} 下載失敗: {}", idx, e))?;
+            if !resp.status().is_success() {
+                return Err(format!("分段 {} 回應 HTTP {}", idx, resp.status()));
+            }
+            let bytes = resp.bytes().await.map_err(|e| format!("分段 {} 讀取失敗: {}", idx, e))?;
+            Ok::<_, String>((idx, bytes))
+        }));
+    }
+
+    let mut results = Vec::with_capacity(total);
+    for handle in handles {
+        let res = handle.await.map_err(|e| format!("下載任務中止: {}", e))??;
+        results.push(res);
+    }
+    results.sort_by_key(|(idx, _)| *idx);
+
+    let total_size: usize = results.iter().map(|(_, b)| b.len()).sum();
+    let mut concatenated = Vec::with_capacity(total_size);
+    for (_, b) in results {
+        concatenated.extend_from_slice(&b);
+    }
+
+    let flac_bytes = if roo_decoder::is_isobmff(&concatenated) {
+        roo_decoder::extract_flac_from_isobmff(&concatenated).unwrap_or(concatenated)
+    } else {
+        concatenated
+    };
+
+    let temp_path = cache_dir.join(format!("{}.tmp_{}.flac", safe_id, std::process::id()));
+    fs::write(&temp_path, &flac_bytes).map_err(|e| format!("寫入快取檔案失敗: {}", e))?;
+    fs::rename(&temp_path, &target_file).map_err(|e| format!("覆寫快取檔案失敗: {}", e))?;
+
+    let token = format!("tidal_{}", safe_id);
+    let _ = roo_streamer::register_direct_file_stream(&token, &target_file, "audio/flac");
+
+    Ok(target_file)
+}
+
 #[tauri::command]
 pub async fn tidal_get_stream_url(
-    _track_id: serde_json::Value,
-    _playback_info: Option<serde_json::Value>,
+    state: State<'_, TidalState>,
+    track_id: serde_json::Value,
+    playback_info: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({ "ok": true }))
+    let safe_id = clean_track_id(&track_id);
+    if safe_id.is_empty() {
+        return Err("缺少有效的曲目 ID".to_string());
+    }
+
+    let target_file = ensure_tidal_track_cached(&state, &safe_id, playback_info.as_ref()).await?;
+
+    let bit_depth = playback_info.as_ref().and_then(|i| i.get("bitDepth")).and_then(|v| v.as_u64()).unwrap_or(16);
+    let sample_rate = playback_info.as_ref().and_then(|i| i.get("sampleRate")).and_then(|v| v.as_u64()).unwrap_or(44100);
+    let audio_quality = playback_info.as_ref().and_then(|i| i.get("audioQuality")).and_then(|v| v.as_str()).unwrap_or("LOSSLESS");
+
+    let token = format!("tidal_{}", safe_id);
+    let stream_url = format!("http://127.0.0.1:39840/stream/{}/track.flac", token);
+
+    Ok(serde_json::json!({
+        "streamUrl": stream_url,
+        "filePath": target_file.to_string_lossy(),
+        "bitDepth": bit_depth,
+        "sampleRate": sample_rate,
+        "audioQuality": audio_quality
+    }))
 }
 
 #[tauri::command]
 pub async fn tidal_cache_track(
-    _track_id: serde_json::Value,
-    _stream_url_or_info: serde_json::Value,
-    _optional_info: Option<serde_json::Value>,
-) -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({ "ok": true }))
+    state: State<'_, TidalState>,
+    track_id: serde_json::Value,
+    stream_url_or_info: Option<serde_json::Value>,
+    optional_info: Option<serde_json::Value>,
+) -> Result<Option<String>, String> {
+    let safe_id = clean_track_id(&track_id);
+    if safe_id.is_empty() {
+        return Ok(None);
+    }
+
+    let cache_dir = state
+        .cache_file
+        .parent()
+        .map(|p| p.join("tidal_cache"))
+        .unwrap_or_else(|| PathBuf::from("tidal_cache"));
+
+    let target_file = cache_dir.join(format!("{}.flac", safe_id));
+    if target_file.exists() {
+        if let Ok(meta) = fs::metadata(&target_file) {
+            if meta.len() > 64 * 1024 {
+                let token = format!("tidal_{}", safe_id);
+                let _ = roo_streamer::register_direct_file_stream(&token, &target_file, "audio/flac");
+                return Ok(Some(target_file.to_string_lossy().into_owned()));
+            }
+        }
+    }
+
+    if stream_url_or_info.is_none() && optional_info.is_none() {
+        return Ok(None);
+    }
+
+    let info_ref = optional_info.as_ref().or(stream_url_or_info.as_ref());
+    match ensure_tidal_track_cached(&state, &safe_id, info_ref).await {
+        Ok(path) => Ok(Some(path.to_string_lossy().into_owned())),
+        Err(e) => {
+            tracing::warn!("[TIDAL] Cache track {} error: {}", safe_id, e);
+            Ok(None)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clean_track_id() {
+        assert_eq!(clean_track_id(&serde_json::json!(12345)), "12345");
+        assert_eq!(clean_track_id(&serde_json::json!("tidal_67890")), "67890");
+        assert_eq!(clean_track_id(&serde_json::json!("999-abc")), "999-abc");
+    }
+
+    #[test]
+    fn test_decode_base64_str() {
+        let text = "Hello TIDAL";
+        let encoded = "SGVsbG8gVElEQUw=";
+        assert_eq!(decode_base64_str(encoded).unwrap(), text);
+    }
+
+    #[test]
+    fn test_parse_bts_manifest() {
+        let manifest = r#"{"mimeType":"audio/flac","urls":["https://sp-pr-cf.audio.tidal.com/1.flac"]}"#;
+        let res = parse_tidal_manifest(manifest).expect("Should parse BTS");
+        assert_eq!(res.init_url, None);
+        assert_eq!(res.segment_urls.len(), 1);
+        assert_eq!(res.segment_urls[0], "https://sp-pr-cf.audio.tidal.com/1.flac");
+    }
+
+    #[test]
+    fn test_parse_dash_manifest() {
+        let dash = r#"<MPD mediaPresentationDuration="PT30.000S">
+            <Period>
+                <AdaptationSet>
+                    <Representation id="1">
+                        <SegmentTemplate timescale="1000" initialization="https://example.com/init_$Number$.mp4" media="https://example.com/seg_$Number$.mp4" startNumber="1">
+                            <SegmentTimeline>
+                                <S d="10000" r="2"/>
+                            </SegmentTimeline>
+                        </SegmentTemplate>
+                    </Representation>
+                </AdaptationSet>
+            </Period>
+        </MPD>"#;
+        let res = parse_tidal_manifest(dash).expect("Should parse DASH");
+        assert_eq!(res.init_url, Some("https://example.com/init_1.mp4".to_string()));
+        assert_eq!(res.segment_urls.len(), 3);
+        assert_eq!(res.segment_urls[0], "https://example.com/seg_1.mp4");
+        assert_eq!(res.segment_urls[1], "https://example.com/seg_2.mp4");
+        assert_eq!(res.segment_urls[2], "https://example.com/seg_3.mp4");
+    }
 }

@@ -419,40 +419,45 @@ class TidalService {
       const info = await this.api(endpoint, params);
       if (!info) throw new Error('無法取得串流播放資訊');
 
-      // 1. DASH Manifest (Official TIDAL Web / Desktop Bit-Perfect Stream)
-      if (info.manifestMimeType === 'application/dash+xml' && info.manifest) {
+      // 1. DASH / BTS Manifest via Native Stream Resolver & Demuxer
+      if ((info.manifestMimeType === 'application/dash+xml' || info.manifestMimeType === 'application/vnd.tidal.bts' || info.manifest) && info.manifest) {
         if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.tidalGetStreamUrl) {
-          const res = await window.electronAPI.tidalGetStreamUrl(trackId, info);
-          if (res && res.streamUrl) {
-            return {
-              url: res.streamUrl,
-              filePath: res.filePath || null,
-              mimeType: 'audio/flac',
-              codecs: 'flac',
-              bitDepth: info.bitDepth || 16,
-              sampleRate: info.sampleRate || 44100,
-              audioQuality: info.audioQuality || preferredQuality,
-              // Pass the raw manifest through so callers can hand it directly to
-              // tidal:cacheTrack instead of relying on the main-process manifest map.
-              manifest: info.manifest,
-              manifestMimeType: info.manifestMimeType
-            };
+          try {
+            const res = await window.electronAPI.tidalGetStreamUrl(trackId, info);
+            if (res && res.streamUrl) {
+              return {
+                url: res.streamUrl,
+                filePath: res.filePath || null,
+                mimeType: 'audio/flac',
+                codecs: 'flac',
+                bitDepth: info.bitDepth || res.bitDepth || 16,
+                sampleRate: info.sampleRate || res.sampleRate || 44100,
+                audioQuality: info.audioQuality || res.audioQuality || preferredQuality,
+                manifest: info.manifest,
+                manifestMimeType: info.manifestMimeType
+              };
+            }
+          } catch (e) {
+            console.warn('[TIDAL] tidalGetStreamUrl failed, falling back:', e);
           }
         }
       }
 
-      // 2. Direct BTS manifest (Lossless / Hi-Res FLAC)
+      // 2. Direct BTS manifest fallback (Lossless / Hi-Res FLAC)
       if (info.manifestMimeType === 'application/vnd.tidal.bts' && info.manifest) {
         try {
           const btsJson = JSON.parse(atob(info.manifest));
           if (btsJson.urls && btsJson.urls.length > 0) {
             return {
               url: btsJson.urls[0],
+              filePath: null,
               mimeType: btsJson.mimeType || 'audio/flac',
               codecs: btsJson.codecs || 'flac',
               bitDepth: info.bitDepth || 16,
               sampleRate: info.sampleRate || 44100,
-              audioQuality: info.audioQuality || preferredQuality
+              audioQuality: info.audioQuality || preferredQuality,
+              manifest: info.manifest,
+              manifestMimeType: info.manifestMimeType
             };
           }
         } catch (e) {
