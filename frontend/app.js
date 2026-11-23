@@ -17632,6 +17632,9 @@ function toggleRooOutputPopover(force) {
 
     rooOutputPopover.style.display = 'flex';
     if (btnAudioOutput) btnAudioOutput.classList.add('active');
+    const btnPauseAll = document.getElementById('btnPauseAllZones');
+    if (btnPauseAll) btnPauseAll.classList.toggle('is-active', !!state.isPlaying);
+    renderAudioDevicesList();
     refreshAudioDevices(false);
   } else {
     rooOutputPopover.style.display = 'none';
@@ -17640,12 +17643,77 @@ function toggleRooOutputPopover(force) {
 }
 window.toggleRooOutputPopover = toggleRooOutputPopover;
 
+/**
+ * Return crisp Roon-style monochrome line-art SVG for each audio device category.
+ * @param {'streamer'|'bridge'|'tv'|'speaker'} kind
+ * @param {boolean} isBottomBar
+ */
+function getRoonDeviceIconSvg(kind, isBottomBar = false) {
+  const w = isBottomBar ? 34 : 44;
+  const h = isBottomBar ? 28 : 34;
+
+  if (kind === 'streamer') {
+    // Isometric Hi-Fi Streamer / DAC chassis with side cooling fins (Roon / Eversolo T8 style)
+    return `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="4,12.5 23.5,5.5 40,12 20.5,19.5" fill="currentColor" fill-opacity="0.04"/>
+      <polygon points="4,12.5 20.5,19.5 20.5,26 4,18.6"/>
+      <polygon points="20.5,19.5 40,12 40,18.2 20.5,26" fill="currentColor" fill-opacity="0.06"/>
+      <line x1="4.4" y1="14.4" x2="20.1" y2="21.4" stroke-width="0.85"/>
+      <line x1="4.4" y1="16.4" x2="20.1" y2="23.5" stroke-width="0.85"/>
+      <line x1="22.8" y1="22.1" x2="37.6" y2="16.4" stroke-width="0.9" opacity="0.55"/>
+    </svg>`;
+  }
+
+  if (kind === 'bridge') {
+    // Waveform + musical note (HQPlayer / virtual audio bridge style)
+    return `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 3 19 L 11 19 L 13 16 L 15 21 L 17.5 11 L 20 25 L 22.5 6 L 25 23 L 27.5 17 L 30 19 L 41 19"/>
+      <path d="M 27 24.5 V 8.5 C 31.5 10 34 13 33.5 17" stroke-width="1.4"/>
+      <ellipse cx="24.8" cy="24.8" rx="3.1" ry="2.2" transform="rotate(-18 24.8 24.8)" fill="currentColor"/>
+    </svg>`;
+  }
+
+  if (kind === 'tv') {
+    // Minimalist Smart TV outline
+    return `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="7" y="5" width="30" height="19" rx="2"/>
+      <line x1="16" y1="27.5" x2="28" y2="27.5"/>
+      <line x1="22" y1="24" x2="22" y2="27.5"/>
+    </svg>`;
+  }
+
+  // Default: 'speaker' (Roon System Output bookshelf speaker)
+  const sw = isBottomBar ? 26 : 30;
+  const sh = isBottomBar ? 28 : 32;
+  return `<svg width="${sw}" height="${sh}" viewBox="0 0 32 36" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="7" y="3" width="18" height="30" rx="2.2"/>
+    <circle cx="16" cy="11.2" r="2.7"/>
+    <circle cx="16" cy="22.8" r="5.3"/>
+    <circle cx="16" cy="22.8" r="1.4" fill="currentColor" stroke="none"/>
+  </svg>`;
+}
+
+function getDeviceIconKind(dev) {
+  if (!dev || dev === 'local' || dev.isLocal) return 'speaker';
+  const name = (dev.name || '').toLowerCase();
+  if (dev.deviceCategory === 'tv' || name.includes('webos') || name.includes('tv')) return 'tv';
+  if (dev.deviceCategory === 'bridge' || name.includes('hqplayer') || name.includes('squeezebox')) return 'bridge';
+  return 'streamer';
+}
+
+function updateBottomZoneIcon(target) {
+  const iconWrap = document.getElementById('currentZoneIconWrap');
+  if (!iconWrap) return;
+  const kind = getDeviceIconKind(target);
+  iconWrap.innerHTML = getRoonDeviceIconSvg(kind, true);
+}
+
 function initAudioZones() {
   const btnAudioOutput = document.getElementById('btnAudioOutput');
-  const rooOutputPopover = document.getElementById('rooOutputPopover');
-  const btnCloseAudioDevice = document.getElementById('btnCloseAudioDevice');
   const btnRefreshDevices = document.getElementById('btnRefreshDevices');
-  const localAudioCard = document.getElementById('localAudioCard');
+  const btnPauseAllZones = document.getElementById('btnPauseAllZones');
+  const btnToggleDirectIp = document.getElementById('btnToggleDirectIp');
+  const directIpDrawer = document.getElementById('roonDirectIpDrawer');
   const inputDirectIp = document.getElementById('inputDirectIp');
   const btnProbeDirectIp = document.getElementById('btnProbeDirectIp');
 
@@ -17653,12 +17721,6 @@ function initAudioZones() {
     btnAudioOutput.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleRooOutputPopover();
-    });
-  }
-
-  if (btnCloseAudioDevice) {
-    btnCloseAudioDevice.addEventListener('click', () => {
-      toggleRooOutputPopover(false);
     });
   }
 
@@ -17681,15 +17743,31 @@ function initAudioZones() {
     }
   });
 
-  if (btnRefreshDevices) {
-    btnRefreshDevices.addEventListener('click', () => {
-      refreshAudioDevices(true);
+  if (btnPauseAllZones) {
+    btnPauseAllZones.addEventListener('click', () => {
+      if (state.isPlaying) {
+        if (typeof togglePlayPause === 'function') {
+          togglePlayPause();
+        }
+        btnPauseAllZones.classList.remove('is-active');
+        showToast('⏸️ 已暫停所有播放區域');
+      }
     });
   }
 
-  if (localAudioCard) {
-    localAudioCard.addEventListener('click', () => {
-      switchAudioZone('local');
+  if (btnToggleDirectIp && directIpDrawer) {
+    btnToggleDirectIp.addEventListener('click', () => {
+      const isHidden = directIpDrawer.style.display === 'none' || !directIpDrawer.style.display;
+      directIpDrawer.style.display = isHidden ? 'flex' : 'none';
+      if (isHidden && inputDirectIp) {
+        setTimeout(() => inputDirectIp.focus(), 50);
+      }
+    });
+  }
+
+  if (btnRefreshDevices) {
+    btnRefreshDevices.addEventListener('click', () => {
+      refreshAudioDevices(true);
     });
   }
 
@@ -17736,7 +17814,7 @@ function initAudioZones() {
         showToast(`探測失敗: ${err.message}`);
       } finally {
         btnProbeDirectIp.disabled = false;
-        btnProbeDirectIp.textContent = '指定 IP 探測連線';
+        btnProbeDirectIp.textContent = '連線';
       }
     };
 
@@ -17745,6 +17823,10 @@ function initAudioZones() {
       if (e.key === 'Enter') handleDirectProbe();
     });
   }
+
+  // Render initial System Output row
+  renderAudioDevicesList();
+  updateBottomZoneIcon(state.activeAudioZone === 'local' ? 'local' : state.activeDlnaDevice);
 
   // Register Electron DLNA IPC listeners
   if (window.electronAPI) {
@@ -17783,7 +17865,7 @@ function initAudioZones() {
 
 async function refreshAudioDevices(showFeedback = false) {
   const spinner = document.getElementById('deviceScanSpinner');
-  if (spinner) spinner.style.display = 'inline-block';
+  if (spinner) spinner.classList.add('spinning');
   if (showFeedback) showToast('🔍 正在全網段搜尋 DLNA / UPnP 串流設備...');
 
   if (window.electronAPI && window.electronAPI.scanDlnaDevices) {
@@ -17801,95 +17883,59 @@ async function refreshAudioDevices(showFeedback = false) {
   }
 
   setTimeout(() => {
-    if (spinner) spinner.style.display = 'none';
-  }, 1000);
+    if (spinner) spinner.classList.remove('spinning');
+  }, 900);
 }
 
 function renderAudioDevicesList() {
-  const countEl = document.getElementById('dlnaDeviceCount');
-  const listEl = document.getElementById('dlnaDevicesList');
-  const localCard = document.getElementById('localAudioCard');
-  const localBadge = document.getElementById('localBadge');
+  const listEl = document.getElementById('roonZoneList');
+  if (!listEl) return;
 
-  // Exclude local from DLNA network list count and filter out network equipment
+  // Filter out local duplicates & non-audio network equipment (routers, Wi-Fi nodes, etc.)
   const dlnaList = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
 
-  if (countEl) countEl.textContent = dlnaList.length;
-
-  if (localCard && localBadge) {
-    const isLocal = state.activeAudioZone === 'local';
-    localCard.classList.toggle('active', isLocal);
-    localBadge.textContent = isLocal ? '使用中' : '點擊切換';
-    localBadge.className = `device-status-badge ${isLocal ? 'active' : ''}`;
-  }
-
-  if (!listEl) return;
   listEl.innerHTML = '';
 
-  if (dlnaList.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'no-devices-hint';
-    empty.style.padding = '24px';
-    empty.style.textAlign = 'center';
-    empty.style.color = 'var(--text-muted)';
-    empty.style.fontSize = '13px';
-    empty.innerHTML = `
-      <div style="font-size: 28px; margin-bottom: 8px;">📡</div>
-      <div>尚未搜尋到任何 DLNA / UPnP 串流設備</div>
-      <div style="font-size: 11px; margin-top: 4px; opacity: 0.8;">請確認播放設備已開機且在同一個區域網路 / Wi-Fi 網段，或直接在上方手動輸入 IP 探測。</div>
-    `;
-    listEl.appendChild(empty);
-    return;
-  }
-
+  // 1. Network Audio Streamers / DLNA Devices first (matching Roon zone order: e.g. Eversolo T8 on top)
   dlnaList.forEach(dev => {
     const isDevActive = state.activeAudioZone === dev.id;
-    const card = document.createElement('div');
-    card.className = `device-card ${isDevActive ? 'active' : ''}`;
-    card.setAttribute('data-device-id', dev.id);
+    const kind = getDeviceIconKind(dev);
+    const detailTooltip = [dev.model, dev.ip ? `IP: ${dev.ip}` : ''].filter(Boolean).join(' • ');
 
-    // Dynamic icon and tag matching device category
-    let icon = '📡';
-    let tagHtml = '<span class="device-tag hardware">硬體設備</span>';
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = `roon-zone-row ${isDevActive ? 'active' : ''}`;
+    row.setAttribute('data-device-id', dev.id);
+    if (detailTooltip) row.title = detailTooltip;
 
-    if (dev.deviceCategory === 'hardware' || dev.name.includes('Eversolo')) {
-      icon = '📻';
-      tagHtml = '<span class="device-tag hardware">Hi-Fi 硬體設備</span>';
-    } else if (dev.deviceCategory === 'tv' || dev.name.includes('webOS') || dev.name.includes('TV')) {
-      icon = '📺';
-      tagHtml = '<span class="device-tag tv">智慧電視</span>';
-    } else if (dev.deviceCategory === 'bridge' || dev.name.includes('Squeezebox')) {
-      icon = '🎛️';
-      tagHtml = '<span class="device-tag bridge">虛擬橋接</span>';
-    }
-
-    const detailText = [
-      dev.model,
-      dev.ip ? `IP: ${dev.ip}` : ''
-    ].filter(Boolean).join(' • ');
-
-    card.innerHTML = `
-      <div class="device-card-left">
-        <div class="device-avatar">${icon}</div>
-        <div class="device-info">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="device-name">${escapeXml(dev.name || 'UPnP MediaRenderer')}</div>
-            ${tagHtml}
-          </div>
-          <div class="device-detail">${escapeXml(detailText || 'DLNA 串流節點')}</div>
-        </div>
-      </div>
-      <div class="device-card-right">
-        <span class="device-status-badge ${isDevActive ? 'active' : ''}">${isDevActive ? '使用中' : '點擊連線'}</span>
-      </div>
+    row.innerHTML = `
+      <span class="roon-zone-icon">${getRoonDeviceIconSvg(kind, false)}</span>
+      <span class="roon-zone-name">${escapeXml(dev.name || 'UPnP MediaRenderer')}</span>
     `;
 
-    card.addEventListener('click', () => {
+    row.addEventListener('click', () => {
       switchAudioZone(dev);
     });
 
-    listEl.appendChild(card);
+    listEl.appendChild(row);
   });
+
+  // 2. Local System Output row (matching Roon's System Output row below network devices)
+  const isLocal = state.activeAudioZone === 'local';
+  const localRow = document.createElement('button');
+  localRow.type = 'button';
+  localRow.id = 'localAudioCard';
+  localRow.className = `roon-zone-row ${isLocal ? 'active' : ''}`;
+  localRow.setAttribute('data-device-id', 'local');
+  localRow.title = 'Windows WASAPI Exclusive / DirectSound 本機輸出';
+  localRow.innerHTML = `
+    <span class="roon-zone-icon">${getRoonDeviceIconSvg('speaker', false)}</span>
+    <span class="roon-zone-name">System Output</span>
+  `;
+  localRow.addEventListener('click', () => {
+    switchAudioZone('local');
+  });
+  listEl.appendChild(localRow);
 }
 
 async function switchAudioZone(target) {
@@ -17913,6 +17959,7 @@ async function switchAudioZone(target) {
       }
 
       if (currentZoneName) currentZoneName.textContent = 'System Output';
+      updateBottomZoneIcon('local');
       if (btnAudioOutput) btnAudioOutput.classList.remove('network-active');
 
       if (signalOutputIcon) signalOutputIcon.textContent = '🔊';
@@ -17956,6 +18003,7 @@ async function switchAudioZone(target) {
       }
 
       if (currentZoneName) currentZoneName.textContent = dev.name;
+      updateBottomZoneIcon(dev);
       if (btnAudioOutput) btnAudioOutput.classList.add('network-active');
 
       if (signalOutputIcon) signalOutputIcon.textContent = (dev.deviceCategory === 'tv') ? '📺' : '📡';

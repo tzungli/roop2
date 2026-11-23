@@ -6285,117 +6285,258 @@ body.table-col-resizing * {
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.12);
 }
 
-/* Floating Output Popover Card (Style identical to Volume Popover) */
+/* Floating Output Popover Card (Roon-style clean zone picker) */
 .roo-output-popover {
   position: fixed;
-  bottom: 94px;
-  right: 88px;
+  bottom: 92px;
+  right: 76px;
   z-index: 1000;
-  width: 440px;
-  max-width: calc(100vw - 36px);
+  width: 348px;
+  max-width: calc(100vw - 32px);
   max-height: calc(100vh - 120px);
   background: var(--popover-bg, #181a24);
   background-color: var(--popover-bg, #181a24);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-  border-radius: 6px;
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.6);
-  padding: 16px 18px 14px 18px;
+  border-radius: 10px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.55);
+  padding: 0;
+  overflow: hidden;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  animation: rooPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: rooPopoverIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="light"] .roo-output-popover {
   background: #ffffff;
   background-color: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.14);
 }
 
-.output-popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.output-popover-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--accent-purple, #8b5cf6);
-}
-
-[data-theme="light"] .output-popover-title-row {
-  color: #7c3aed;
-}
-
-.output-popover-icon {
-  flex-shrink: 0;
-}
-
-.output-popover-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-color, #f8fafc);
-  margin: 0;
-  letter-spacing: 0.3px;
-}
-
-[data-theme="light"] .output-popover-title {
-  color: #1e293b;
-}
-
-.output-popover-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.output-refresh-btn {
-  background: rgba(124, 58, 237, 0.12);
-  border: 1px solid rgba(124, 58, 237, 0.3);
-  color: #a78bfa;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
+.roo-bottom-icon-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
+  justify-content: center;
+  width: 34px;
+  height: 28px;
 }
 
-[data-theme="light"] .output-refresh-btn {
-  background: rgba(124, 58, 237, 0.08);
-  border-color: rgba(124, 58, 237, 0.25);
-  color: #7c3aed;
-}
-
-.output-refresh-btn:hover {
-  background: rgba(124, 58, 237, 0.22);
-  border-color: #a78bfa;
-}
-
-.output-popover-list-wrap {
+.roon-zone-list-wrap {
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
-  max-height: 460px;
-  padding-right: 2px;
+  max-height: 360px;
+  padding: 0;
 }
 
-.output-popover-list-wrap::-webkit-scrollbar {
+.roon-zone-list-wrap::-webkit-scrollbar {
   width: 5px;
 }
 
-.output-popover-list-wrap::-webkit-scrollbar-thumb {
+.roon-zone-list-wrap::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
 }
 
-[data-theme="light"] .output-popover-list-wrap::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+[data-theme="light"] .roon-zone-list-wrap::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.roon-zone-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 60px;
+  padding: 10px 24px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+  transition: background-color 0.14s ease;
+}
+
+.roon-zone-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .roon-zone-row:hover {
+  background: rgba(15, 23, 42, 0.035);
+}
+
+.roon-zone-row.active {
+  background: rgba(124, 92, 255, 0.22);
+}
+
+[data-theme="light"] .roon-zone-row.active {
+  background: #e2e2fc;
+}
+
+.roon-zone-icon {
+  width: 46px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #cbd5e1;
+}
+
+[data-theme="light"] .roon-zone-icon {
+  color: #555b66;
+}
+
+.roon-zone-row.active .roon-zone-icon {
+  color: #e2e8f0;
+}
+
+[data-theme="light"] .roon-zone-row.active .roon-zone-icon {
+  color: #464c58;
+}
+
+.roon-zone-name {
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--text-color, #f1f5f9);
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+[data-theme="light"] .roon-zone-name {
+  color: #1e2330;
+}
+
+.roon-zone-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+}
+
+[data-theme="light"] .roon-zone-footer {
+  border-top: 1px solid rgba(15, 23, 42, 0.09);
+}
+
+.roon-zone-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roon-zone-footer-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  border-radius: 5px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .roon-zone-footer-btn {
+  color: #8b92a1;
+}
+
+.roon-zone-footer-btn.is-active,
+.roon-zone-footer-action {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+[data-theme="light"] .roon-zone-footer-btn.is-active,
+[data-theme="light"] .roon-zone-footer-action {
+  color: #4b5563;
+}
+
+.roon-zone-footer-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .roon-zone-footer-btn:hover {
+  color: #111827;
+  background: rgba(15, 23, 42, 0.045);
+}
+
+.roon-scan-svg.spinning {
+  animation: roonSpin 0.9s linear infinite;
+}
+
+@keyframes roonSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.roon-direct-ip-drawer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="light"] .roon-direct-ip-drawer {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+}
+
+.roon-direct-ip-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-color, #f1f5f9);
+  font-size: 12px;
+  outline: none;
+}
+
+[data-theme="light"] .roon-direct-ip-input {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.roon-direct-ip-input:focus {
+  border-color: #7c5cff;
+}
+
+.roon-direct-ip-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: none;
+  background: #7c5cff;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.roon-direct-ip-btn:hover {
+  background: #6d4aff;
+}
+
+.roon-direct-ip-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 /* Popover Top Toolbar */
