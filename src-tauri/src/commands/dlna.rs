@@ -129,23 +129,11 @@ pub async fn dlna_play_track(
     let is_native_dsf = file_path.to_lowercase().ends_with(".dsf");
     let is_dsd_upsample = !dsd_mode.is_empty();
     let is_dsd = is_dsd_upsample || is_native_dsf;
-
-    // For DLNA network streaming, clamp DSD512 to DSD256 (11.2896 MHz).
-    // Most UPnP/DLNA renderers cannot process 22.58 MHz streams over network HTTP and will stall.
-    let effective_dsd_mode = if is_dsd_upsample {
-        if dsd_mode.eq_ignore_ascii_case("dsd512") {
-            "dsd256".to_string()
-        } else {
-            dsd_mode.clone()
-        }
-    } else {
-        dsd_mode.clone()
-    };
-
     let dsd_hz: Option<u32> = if is_dsd_upsample {
-        match effective_dsd_mode.to_lowercase().as_str() {
+        match dsd_mode.to_lowercase().as_str() {
             "dsd128" => Some(5644800),
             "dsd256" => Some(11289600),
+            "dsd512" => Some(22579200),
             _ => Some(2822400),
         }
     } else if is_native_dsf {
@@ -175,7 +163,7 @@ pub async fn dlna_play_track(
             file_path: file_path.to_string(),
             start_sec: start,
             target_rate,
-            dsd_mode: if effective_dsd_mode.is_empty() { None } else { Some(effective_dsd_mode.clone()) },
+            dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
             dsd_order,
             filter_phase: filter_phase.clone(),
             peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },

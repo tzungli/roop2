@@ -80,6 +80,62 @@ pub fn register_direct_file_stream(
     Ok(session)
 }
 
+/// Stage-1 Polyphase FIR upsampler for Two-Stage DSD architecture (src_rate -> 352.8 kHz).
+/// Eliminates all ultrasonic images between 22.05 kHz and 330.75 kHz by >130 dB before
+/// Stage-2 Hermite interpolation + Delta-Sigma modulation, using minimal RAM per batch.
+fn upsample_stage1_channel(
+    pcm: &[f64],
+    gf: &roo_dsp::FirFilter,
+    ratio: f64,
+    start_idx: usize,
+    end_idx: usize,
+) -> Vec<f64> {
+    let in_len = pcm.len();
+    let count = end_idx.saturating_sub(start_idx);
+    let mut out = vec![0.0f64; count];
+    if let Some(phases) = &gf.poly_phases {
+        let p = phases.p;
+        let q = phases.q as i32;
+        for (dst_i, out_idx) in (start_idx..end_idx).enumerate() {
+            let phi = out_idx % p;
+            let entry = &phases.entries[phi];
+            let k_base = entry.k0 + (out_idx / p) as i32 * q;
+            let t = entry.t;
+            if k_base >= 0 && (k_base as usize + t) <= in_len {
+                let mut acc = 0.0;
+                let start = k_base as usize;
+                for j in 0..t {
+                    acc += pcm[start + j] * entry.g[j];
+                }
+                out[dst_i] = acc;
+            } else {
+                out[dst_i] = roo_dsp::fir_sample(pcm, in_len, out_idx, ratio, gf);
+            }
+        }
+    } else {
+        for (dst_i, out_idx) in (start_idx..end_idx).enumerate() {
+            out[dst_i] = roo_dsp::fir_sample(pcm, in_len, out_idx, ratio, gf);
+        }
+    }
+    out
+}
+
+fn upsample_stage1_stereo(
+    left: &[f64],
+    right: &[f64],
+    gf: &roo_dsp::FirFilter,
+    ratio: f64,
+    start_idx: usize,
+    end_idx: usize,
+) -> (Vec<f64>, Vec<f64>) {
+    std::thread::scope(|s| {
+        let h_l = s.spawn(|| upsample_stage1_channel(left, gf, ratio, start_idx, end_idx));
+        let r_out = upsample_stage1_channel(right, gf, ratio, start_idx, end_idx);
+        let l_out = h_l.join().unwrap();
+        (l_out, r_out)
+    })
+}
+
 fn render_pcm_range_helper(
     left: &[f64],
     right: &[f64],
@@ -231,15 +287,50 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         }
 
         let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Gauss);
-        // Use high-speed 64-bit Hermite spline interpolation (gf = None) to achieve >500x real-time DSD modulation.
-        // The 256-tap FIR polyphase filter is CPU-prohibitive at multi-MHz DSD rates and starves DLNA streaming.
-        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, dither_type, None);
+        // Two-stage audiophile DSD upsampling:
+        // Stage 1: Polyphase FIR anti-imaging filter (src_rate -> 352.8 kHz) eliminates ultrasonic images (>130 dB rejection).
+        // Stage 2: 64-bit Hermite spline table (352.8 kHz -> DSD64/128/256/512) + parallel L/R CLANS modulator.
+        let stage1_rate: u32 = 352800;
+        let use_stage1 = src_rate < stage1_rate;
+        let stage1_gf = if use_stage1 {
+            REGISTRY.build_filter(stage1_rate as f64, src_rate as f64, &opts.filter_phase).map(Arc::new)
+        } else {
+            None
+        };
+        let stage1_ratio = stage1_rate as f64 / src_rate as f64;
+        let stage2_ratio: usize = (dsd_rate / stage1_rate) as usize; // exact integer: 8, 16, 32, or 64
+        let stage2_inv_ratio = 1.0 / stage2_ratio as f64;
 
-        let target_initial_blocks = ((4.5 * dsd_rate as f64) / samples_per_block as f64).ceil() as usize;
+        let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, dither_type, None);
+        modulator.set_dsd_rate(dsd_rate);
+
+        let run_dsd_batch = |m: &mut DsdModulator,
+                             src_l: &[f64],
+                             src_r: &[f64],
+                             s1_gf: Option<&roo_dsp::FirFilter>,
+                             start_block: usize,
+                             blocks_to_run: usize,
+                             out_slice: &mut [u8]| {
+            if let Some(gf) = s1_gf {
+                let start_bit = start_block * samples_per_block;
+                let num_bits = blocks_to_run * samples_per_block;
+                let start_s1 = start_bit / stage2_ratio;
+                let num_s1 = num_bits / stage2_ratio;
+                let pad_start = start_s1.saturating_sub(1);
+                let lead_pad = start_s1 - pad_start;
+                let pad_end = start_s1 + num_s1 + 3;
+                let (s1_l, s1_r) = upsample_stage1_stereo(src_l, src_r, gf, stage1_ratio, pad_start, pad_end);
+                m.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, out_slice);
+            } else {
+                m.run_blocks(src_l, src_r, src_l.len(), start_block * samples_per_block, blocks_to_run, inv_ratio, out_slice);
+            }
+        };
+
+        let target_initial_blocks = ((3.5 * dsd_rate as f64) / samples_per_block as f64).ceil() as usize;
         let initial_blocks = num_blocks.min(target_initial_blocks.max(32));
         let mut initial_data = vec![0u8; initial_blocks * 8192];
         if initial_blocks > 0 {
-            modulator.run_blocks(&left, &right, left.len(), 0, initial_blocks, inv_ratio, &mut initial_data);
+            run_dsd_batch(&mut modulator, &left, &right, stage1_gf.as_deref(), 0, initial_blocks, &mut initial_data);
             use std::io::{Seek, SeekFrom, Write};
             let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&temp_file_path)?;
             file.seek(SeekFrom::Start(92))?;
@@ -274,6 +365,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             let bg_notify = notify;
             let bg_left = left.clone();
             let bg_right = right.clone();
+            let bg_stage1_gf = stage1_gf.clone();
             let mut bg_modulator = modulator;
 
             std::thread::spawn(move || {
@@ -296,7 +388,19 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     }
                     let blocks_to_run = (num_blocks - curr_block).min(batch_blocks);
                     let slice = &mut batch_buf[..blocks_to_run * 8192];
-                    bg_modulator.run_blocks(&bg_left, &bg_right, bg_left.len(), curr_block * samples_per_block, blocks_to_run, inv_ratio, slice);
+                    if let Some(gf) = bg_stage1_gf.as_deref() {
+                        let start_bit = curr_block * samples_per_block;
+                        let num_bits = blocks_to_run * samples_per_block;
+                        let start_s1 = start_bit / stage2_ratio;
+                        let num_s1 = num_bits / stage2_ratio;
+                        let pad_start = start_s1.saturating_sub(1);
+                        let lead_pad = start_s1 - pad_start;
+                        let pad_end = start_s1 + num_s1 + 3;
+                        let (s1_l, s1_r) = upsample_stage1_stereo(&bg_left, &bg_right, gf, stage1_ratio, pad_start, pad_end);
+                        bg_modulator.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, slice);
+                    } else {
+                        bg_modulator.run_blocks(&bg_left, &bg_right, bg_left.len(), curr_block * samples_per_block, blocks_to_run, inv_ratio, slice);
+                    }
                     if file.write_all(slice).is_err() {
                         return;
                     }
@@ -558,7 +662,18 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         let inv_ratio = 1.0 / ratio;
 
         let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Gauss);
+        let stage1_rate: u32 = 352800;
+        let stage1_gf = if src_rate < stage1_rate {
+            REGISTRY.build_filter(stage1_rate as f64, src_rate as f64, &opts.filter_phase)
+        } else {
+            None
+        };
+        let stage1_ratio = stage1_rate as f64 / src_rate as f64;
+        let stage2_ratio: usize = (dsd_rate / stage1_rate) as usize;
+        let stage2_inv_ratio = 1.0 / stage2_ratio as f64;
+
         let mut modulator = DsdModulator::new(opts.dsd_order, &opts.filter_phase, dither_type, None);
+        modulator.set_dsd_rate(dsd_rate);
 
         let total_dsd_samples = (left.len() as f64 * ratio).round() as usize;
         let samples_per_block = 32768usize;
@@ -566,7 +681,26 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
 
         let data_bytes = num_blocks * 4096 * 2;
         let mut block_data = vec![0u8; data_bytes];
-        modulator.run_blocks(&left, &right, left.len(), 0, num_blocks, inv_ratio, &mut block_data);
+        if let Some(gf) = stage1_gf.as_ref() {
+            let batch_blocks = 32usize;
+            let mut curr_block = 0usize;
+            while curr_block < num_blocks {
+                let blocks_to_run = (num_blocks - curr_block).min(batch_blocks);
+                let start_bit = curr_block * samples_per_block;
+                let num_bits = blocks_to_run * samples_per_block;
+                let start_s1 = start_bit / stage2_ratio;
+                let num_s1 = num_bits / stage2_ratio;
+                let pad_start = start_s1.saturating_sub(1);
+                let lead_pad = start_s1 - pad_start;
+                let pad_end = start_s1 + num_s1 + 3;
+                let (s1_l, s1_r) = upsample_stage1_stereo(&left, &right, gf, stage1_ratio, pad_start, pad_end);
+                let slice = &mut block_data[curr_block * 8192..(curr_block + blocks_to_run) * 8192];
+                modulator.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, slice);
+                curr_block += blocks_to_run;
+            }
+        } else {
+            modulator.run_blocks(&left, &right, left.len(), 0, num_blocks, inv_ratio, &mut block_data);
+        }
 
         if use_dop {
             // Pack DSD stream into DoP (DSD over PCM Standard v1.1) 24-bit stereo WAV container

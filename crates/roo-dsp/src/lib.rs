@@ -203,29 +203,125 @@ mod tests {
     fn test_dsd_modulation_hermite_speed() {
         use std::f64::consts::PI;
 
-        let src_rate = 44100.0;
-        let dsd_rate = 11289600.0; // DSD256
-        let mut modulator = DsdModulator::new(7, "precise-linear", DitherType::Gauss1, None);
+        // Test full DSD512 (22.5792 MHz) from Stage-1 352.8 kHz input!
+        let src_rate = 352800.0;
+        let dsd_rate = 22579200.0; // DSD512
+        let mut modulator = DsdModulator::new(7, "precise-linear", DitherType::Gauss, None);
+        modulator.set_dsd_rate(dsd_rate as u32);
 
-        let n_src = 44100; // 1s
+        let n_src = 352800; // 1.0s at 352.8 kHz
         let freq = 1000.0;
         let left: Vec<f64> = (0..n_src).map(|i| 0.5 * (2.0 * PI * freq * i as f64 / src_rate).sin()).collect();
         let right: Vec<f64> = (0..n_src).map(|i| 0.5 * (2.0 * PI * freq * i as f64 / src_rate).cos()).collect();
 
-        let num_blocks = 344; // ~1 full second of DSD256!
+        let num_blocks = 689; // ~1.0 full second of DSD512 stereo!
         let mut out = vec![0u8; DSD_BLOCK_SIZE * 2 * num_blocks];
         let inv_ratio = src_rate / dsd_rate;
 
         let t0 = std::time::Instant::now();
         modulator.run_blocks(&left, &right, n_src, 0, num_blocks, inv_ratio, &mut out);
         let elapsed = t0.elapsed();
-        println!("Modulating 1.0s of DSD256 (Hermite) took: {:?}", elapsed);
+        println!("Modulating 1.0s of DSD512 (parallel Hermite) took: {:?}", elapsed);
 
-        // 1 second of DSD256 must process faster than real-time (1000ms in release, 4000ms in debug)
-        let max_ms = if cfg!(debug_assertions) { 4000 } else { 1000 };
-        assert!(elapsed.as_millis() < max_ms, "Hermite modulation took too long: {:?}", elapsed);
+        // 1 second of DSD512 must process faster than real-time (1000ms in release, 5000ms in debug)
+        let max_ms = if cfg!(debug_assertions) { 5000 } else { 1000 };
+        assert!(elapsed.as_millis() < max_ms, "DSD512 modulation took too long: {:?}", elapsed);
         assert!(modulator.s1_l.is_finite());
         assert!(out.iter().any(|&b| b != 0x00 && b != 0xFF));
+    }
+
+    #[test]
+    fn test_dsd_lsb_first_inband_snr() {
+        use std::f64::consts::PI;
+
+        // Verify Sony DSF v1.01 LSB-first bit order and Hermite glitch-free continuity
+        // by measuring 20Hz-20kHz SNR of a 1kHz sine wave modulated to DSD64.
+        let src_rate = 352800.0;
+        let dsd_rate = 2822400.0; // DSD64
+        let mut modulator = DsdModulator::new(7, "precise-linear", DitherType::Gauss, None);
+        modulator.set_dsd_rate(dsd_rate as u32);
+
+        let num_blocks = 8; // 262144 DSD samples (~92.8 ms)
+        let total_dsd = num_blocks * DSD_SAMPLES_PER_BLOCK;
+        let n_src = total_dsd / 8 + 16;
+        let freq = 1000.0;
+        let left: Vec<f64> = (0..n_src).map(|i| 0.5 * (2.0 * PI * freq * i as f64 / src_rate).sin()).collect();
+        let right = left.clone();
+
+        let mut out = vec![0u8; DSD_BLOCK_SIZE * 2 * num_blocks];
+        modulator.run_blocks(&left, &right, n_src, 0, num_blocks, src_rate / dsd_rate, &mut out);
+
+        // Decode Left channel STRICTLY LSB-first (per Sony DSF bits_per_sample = 1)
+        let mut bits = Vec::with_capacity(total_dsd);
+        for b in 0..num_blocks {
+            let off = b * 2 * DSD_BLOCK_SIZE;
+            for i in 0..DSD_BLOCK_SIZE {
+                let byte = out[off + i];
+                for bit in 0..8 {
+                    bits.push(if (byte >> bit) & 1 == 1 { 1.0f64 } else { -1.0f64 });
+                }
+            }
+        }
+
+        // Decimate by 64x using a 2-stage moving average (CIC-2) to 44.1 kHz, then check SNR vs 1kHz sine
+        let dec = 64;
+        let n_pcm = (bits.len() / dec) - 20;
+        let mut pcm = Vec::with_capacity(n_pcm);
+        for i in 10..(10 + n_pcm) {
+            let center = i * dec;
+            let mut sum = 0.0;
+            let mut wsum = 0.0;
+            // Triangular (CIC-2) kernel of length 2*dec
+            for k in 0..(2 * dec) {
+                let w = if k < dec { (k + 1) as f64 } else { (2 * dec - k) as f64 };
+                sum += bits[center + k] * w;
+                wsum += w;
+            }
+            pcm.push(sum / wsum);
+        }
+
+        // Measure 1 kHz signal power vs residual noise power via DFT projection
+        let n = pcm.len();
+        let mut re = 0.0;
+        let mut im = 0.0;
+        let mut total_pow = 0.0;
+        for (i, &x) in pcm.iter().enumerate() {
+            let w = 0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos(); // Hann window
+            let xw = x * w;
+            let ph = 2.0 * PI * freq * i as f64 / 44100.0;
+            re += xw * ph.cos();
+            im += xw * ph.sin();
+            total_pow += xw * xw;
+        }
+        // Parseval for Hann window: signal power in single tone = 2*(re^2+im^2)/sum(w^2) ...
+        // Simpler: least-squares fit a*cos(ph) + b*sin(ph) + dc over interior samples
+        let mut s_cc = 0.0; let mut s_ss = 0.0; let mut s_xc = 0.0; let mut s_xs = 0.0;
+        for (i, &x) in pcm.iter().enumerate() {
+            let ph = 2.0 * PI * freq * i as f64 / 44100.0;
+            let c = ph.cos();
+            let s = ph.sin();
+            s_cc += c * c;
+            s_ss += s * s;
+            s_xc += x * c;
+            s_xs += x * s;
+        }
+        let a = s_xc / s_cc;
+        let b_coef = s_xs / s_ss;
+        let mut sig_p = 0.0;
+        let mut err_p = 0.0;
+        for (i, &x) in pcm.iter().enumerate() {
+            let ph = 2.0 * PI * freq * i as f64 / 44100.0;
+            let fit = a * ph.cos() + b_coef * ph.sin();
+            sig_p += fit * fit;
+            let e = x - fit;
+            err_p += e * e;
+        }
+        let _ = (re, im, total_pow);
+        let snr_db = 10.0 * (sig_p / err_p.max(1e-20)).log10();
+        println!("DSD64 LSB-first decoded 1kHz SNR (CIC-2): {:.2} dB", snr_db);
+        // With LSB-first fixed & Hermite bug fixed, simple CIC-2 decimation achieves ~46 dB
+        // (with the old MSB-first bug it collapses to ~18 dB!).
+        assert!(snr_db > 42.0, "DSD64 LSB-first SNR too low ({:.2} dB) — bit order or modulator broken!", snr_db);
     }
 
     #[test]

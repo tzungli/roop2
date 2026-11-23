@@ -70,7 +70,8 @@ fn measure_modulator(order: u8, dsd_rate: f64, rate_name: &'static str) -> (ModM
         let block_left_start = b * 2 * DSD_BLOCK_SIZE;
         for byte_idx in 0..DSD_BLOCK_SIZE {
             let byte_val = out_bytes[block_left_start + byte_idx];
-            for bit_shift in (0..8).rev() {
+            // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first
+            for bit_shift in 0..8 {
                 if (byte_val >> bit_shift) & 1 == 1 {
                     dsd_bits.push(1.0f64);
                     ones_count += 1;

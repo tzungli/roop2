@@ -261,33 +261,79 @@ impl StereoPcmDitherer {
     }
 }
 
+/// Single-channel DSD Modulator Ditherer State (allows lock-free parallel L/R modulation)
+#[derive(Debug, Clone)]
+pub struct DsdChannelDither {
+    pub prng1: u64,
+    pub prng2: u64,
+    pub prev_tpdf: f64,
+    pub err_history: [f64; 2],
+}
+
+impl DsdChannelDither {
+    pub fn new(seed1: u64, seed2: u64) -> Self {
+        Self {
+            prng1: seed1,
+            prng2: seed2,
+            prev_tpdf: 0.0,
+            err_history: [0.0; 2],
+        }
+    }
+
+    /// Generate single-channel dither value for 1-bit Delta-Sigma comparator input.
+    #[inline(always)]
+    pub fn next_dither(&mut self, dither: DitherType) -> f64 {
+        const DSD_DITHER_AMP: f64 = 0.0125;
+        // Scale factor for 4-way 16-bit CLT Gaussian: (0.0125 * 0.707) / (32768 * sqrt(4/3))
+        const GAUSS_CLT_SCALE: f64 = (DSD_DITHER_AMP * 0.707) / 37837.22;
+
+        match dither {
+            DitherType::None => 0.0,
+            DitherType::Tpdf => {
+                (rand_u01(&mut self.prng1) - rand_u01(&mut self.prng2)) * DSD_DITHER_AMP
+            }
+            DitherType::HpTpdf => {
+                let cur = (rand_u01(&mut self.prng1) - rand_u01(&mut self.prng2)) * DSD_DITHER_AMP;
+                let hp = cur - self.prev_tpdf;
+                self.prev_tpdf = cur;
+                hp * 0.5
+            }
+            DitherType::NoiseShaped => {
+                let base = (rand_u01(&mut self.prng1) - rand_u01(&mut self.prng2)) * DSD_DITHER_AMP;
+                let d = base - 1.5 * self.err_history[0] + 0.56 * self.err_history[1];
+                self.err_history[1] = self.err_history[0];
+                self.err_history[0] = base;
+                d * 0.5
+            }
+            DitherType::Gauss => {
+                // Ultra-fast 4-way 16-bit Irwin-Hall (CLT) Gaussian approximation from one xorshift64.
+                // Eliminates ln/sqrt/sin_cos overhead at 22.58 MHz (DSD512) while completely breaking limit cycles.
+                let r = xorshift64(&mut self.prng1);
+                let sum = (r as i16 as i32)
+                    + ((r >> 16) as i16 as i32)
+                    + ((r >> 32) as i16 as i32)
+                    + ((r >> 48) as i16 as i32);
+                (sum as f64) * GAUSS_CLT_SCALE
+            }
+        }
+    }
+}
+
 /// Stereo DSD Modulator Ditherer Engine
 ///
 /// Injects precision dither into 1-bit Delta-Sigma comparator inputs with optimal scaling,
 /// breaking up non-linear limit cycles and eliminating audible DC idle tones.
 #[derive(Debug, Clone)]
 pub struct DsdDitherer {
-    pub prng_l1: u64,
-    pub prng_l2: u64,
-    pub prng_r1: u64,
-    pub prng_r2: u64,
-    pub prev_tpdf_l: f64,
-    pub prev_tpdf_r: f64,
-    pub err_history_l: [f64; 2],
-    pub err_history_r: [f64; 2],
+    pub left: DsdChannelDither,
+    pub right: DsdChannelDither,
 }
 
 impl Default for DsdDitherer {
     fn default() -> Self {
         Self {
-            prng_l1: 0x9e37_79b9_7f4a_7c15,
-            prng_l2: 0xbf58_476d_1ce4_e5b9,
-            prng_r1: 0x94d0_49bb_1331_11eb,
-            prng_r2: 0x673c_9b65_708f_680b,
-            prev_tpdf_l: 0.0,
-            prev_tpdf_r: 0.0,
-            err_history_l: [0.0; 2],
-            err_history_r: [0.0; 2],
+            left: DsdChannelDither::new(0x9e37_79b9_7f4a_7c15, 0xbf58_476d_1ce4_e5b9),
+            right: DsdChannelDither::new(0x94d0_49bb_1331_11eb, 0x673c_9b65_708f_680b),
         }
     }
 }
@@ -301,51 +347,6 @@ impl DsdDitherer {
     /// Scaled optimally for 1-bit unit feedback (comparator threshold ~ 0.0).
     #[inline]
     pub fn next_stereo_dither(&mut self, dither: DitherType) -> (f64, f64) {
-        // Optimal dither level for high-order Delta-Sigma comparators:
-        // Standard DSD amplitude ~0.005 to 0.02 provides total limit-cycle suppression
-        // while preserving >120dB modulator dynamic range without noise penalty.
-        const DSD_DITHER_AMP: f64 = 0.0125;
-
-        match dither {
-            DitherType::None => (0.0, 0.0),
-            DitherType::Tpdf => {
-                let dl = (rand_u01(&mut self.prng_l1) - rand_u01(&mut self.prng_l2)) * DSD_DITHER_AMP;
-                let dr = (rand_u01(&mut self.prng_r1) - rand_u01(&mut self.prng_r2)) * DSD_DITHER_AMP;
-                (dl, dr)
-            }
-            DitherType::HpTpdf => {
-                let curl = (rand_u01(&mut self.prng_l1) - rand_u01(&mut self.prng_l2)) * DSD_DITHER_AMP;
-                let curr = (rand_u01(&mut self.prng_r1) - rand_u01(&mut self.prng_r2)) * DSD_DITHER_AMP;
-                let hpl = curl - self.prev_tpdf_l;
-                let hpr = curr - self.prev_tpdf_r;
-                self.prev_tpdf_l = curl;
-                self.prev_tpdf_r = curr;
-                (hpl * 0.5, hpr * 0.5)
-            }
-            DitherType::NoiseShaped => {
-                // High-pass 2nd-order shaped dither for DSD: H(z) = 1 - 1.5 z^-1 + 0.56 z^-2
-                let basel = (rand_u01(&mut self.prng_l1) - rand_u01(&mut self.prng_l2)) * DSD_DITHER_AMP;
-                let baser = (rand_u01(&mut self.prng_r1) - rand_u01(&mut self.prng_r2)) * DSD_DITHER_AMP;
-                let dl = basel - 1.5 * self.err_history_l[0] + 0.56 * self.err_history_l[1];
-                let dr = baser - 1.5 * self.err_history_r[0] + 0.56 * self.err_history_r[1];
-                self.err_history_l[1] = self.err_history_l[0];
-                self.err_history_l[0] = basel;
-                self.err_history_r[1] = self.err_history_r[0];
-                self.err_history_r[0] = baser;
-                (dl * 0.5, dr * 0.5)
-            }
-            DitherType::Gauss => {
-                // Box-Muller normal distribution for DSD: compute independent Left and Right
-                // Gaussian variables simultaneously via sin_cos from a single (u1, u2) pair.
-                let u1 = rand_u01(&mut self.prng_l1).max(1e-15);
-                let u2 = rand_u01(&mut self.prng_l2);
-                let r = (-2.0 * u1.ln()).sqrt() * (DSD_DITHER_AMP * 0.707);
-                let (sin_t, cos_t) = (2.0 * PI * u2).sin_cos();
-                let dl = r * cos_t;
-                let dr = r * sin_t;
-
-                (dl, dr)
-            }
-        }
+        (self.left.next_dither(dither), self.right.next_dither(dither))
     }
 }

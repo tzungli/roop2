@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 use serde::{Deserialize, Serialize};
 use crate::fir::{fir_sample, get_hermite_tab, interpolate_linear, interpolate_minimum, FirFilter, PolyphaseBank};
-pub use crate::dither::{DitherType, DsdDitherer};
+pub use crate::dither::{DitherType, DsdChannelDither, DsdDitherer};
 
 pub const DSD_BLOCK_SIZE: usize = 4096;
 pub const DSD_SAMPLES_PER_BLOCK: usize = DSD_BLOCK_SIZE * 8; // 32768 samples per channel block
@@ -58,7 +58,10 @@ pub struct Ciff5Coeffs {
 }
 
 pub fn get_ciff5_params(inv_ratio: f64) -> Ciff5Coeffs {
-    let ratio = 1.0 / inv_ratio;
+    get_ciff5_params_for_osr(1.0 / inv_ratio)
+}
+
+pub fn get_ciff5_params_for_osr(ratio: f64) -> Ciff5Coeffs {
     if ratio >= 384.0 {
         // dsd512
         Ciff5Coeffs {
@@ -103,7 +106,10 @@ pub struct Ciff7Coeffs {
 }
 
 pub fn get_ciff7_params(inv_ratio: f64) -> Ciff7Coeffs {
-    let ratio = 1.0 / inv_ratio;
+    get_ciff7_params_for_osr(1.0 / inv_ratio)
+}
+
+pub fn get_ciff7_params_for_osr(ratio: f64) -> Ciff7Coeffs {
     if ratio >= 384.0 {
         // dsd512
         Ciff7Coeffs {
@@ -243,6 +249,10 @@ pub struct DsdModulator {
     pub gf: Option<FirFilter>,
     pub poly_phases: Option<PolyphaseBank>,
     pub phase_name: String,
+    /// Optional explicit DSD sample rate (e.g. 2822400, 5644800, 11289600, 22579200).
+    /// When set, CIFF5/CIFF7 resonator notch coefficients use `dsd_rate / 44100.0` (true OSR)
+    /// rather than `dsd_rate / src_rate` (critical for Hi-Res 96k/192k or 2-stage 352.8k input!).
+    pub dsd_rate: Option<u32>,
 
     // CIFF5 state
     pub s1_l: f64, pub s2_l: f64, pub s3_l: f64, pub s4_l: f64, pub s5_l: f64, pub y_l: f64,
@@ -251,6 +261,297 @@ pub struct DsdModulator {
     // CIFF7 extra state
     pub s6_l: f64, pub s7_l: f64,
     pub s6_r: f64, pub s7_r: f64,
+}
+
+#[derive(Clone, Copy)]
+struct ChanState5 {
+    s1: f64, s2: f64, s3: f64, s4: f64, s5: f64, y: f64,
+}
+
+#[derive(Clone, Copy)]
+struct ChanState7 {
+    s1: f64, s2: f64, s3: f64, s4: f64, s5: f64, s6: f64, s7: f64, y: f64,
+}
+
+#[inline(always)]
+fn load_hermite_window(pcm: &[f64], in_len: usize, cur_idx: usize) -> (f64, f64, f64, f64) {
+    let p1 = if cur_idx < in_len { pcm[cur_idx] } else { 0.0 };
+    let p2 = if cur_idx + 1 < in_len { pcm[cur_idx + 1] } else { 0.0 };
+    let p0 = if cur_idx > 0 && cur_idx - 1 < in_len { pcm[cur_idx - 1] } else { p1 };
+    let p3 = if cur_idx + 2 < in_len { pcm[cur_idx + 2] } else { p2 };
+    let m1 = 0.5 * (p2 - p0);
+    let m2 = 0.5 * (p3 - p1);
+    (p1, p2, m1, m2)
+}
+
+fn modulate_channel5(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    num_blocks: usize,
+    inv_ratio: f64,
+    p: Ciff5Coeffs,
+    dither_type: DitherType,
+    ditherer: &mut DsdChannelDither,
+    gf: Option<&FirFilter>,
+    poly_phases: Option<&PolyphaseBank>,
+    phase_name: &str,
+    w_period: usize,
+    w_tab: Option<&[f64]>,
+    st: &mut ChanState5,
+    ch_out: &mut [u8],
+) {
+    let c1 = CIFFR_5_C[0]; let c2 = CIFFR_5_C[1]; let c3 = CIFFR_5_C[2]; let c4 = CIFFR_5_C[3]; let c5 = CIFFR_5_C[4];
+    let g1 = p.g1; let g2 = p.g2;
+    let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3]; let a5 = p.a[4];
+    let scale = CIFFR_5_SCALE;
+    let clamp = CIFFR_5_CLAMP;
+
+    let mut s1 = st.s1; let mut s2 = st.s2; let mut s3 = st.s3; let mut s4 = st.s4; let mut s5 = st.s5; let mut y = st.y;
+    let total_bytes = num_blocks * DSD_BLOCK_SIZE;
+
+    if gf.is_none() {
+        if let Some(tab) = w_tab {
+            // Fast branch-free Hermite table path
+            let mut cur_idx = start_bit / w_period;
+            let mut cur_phi = start_bit - cur_idx * w_period;
+            let (mut p1, mut p2, mut m1, mut m2) = load_hermite_window(pcm, in_len, cur_idx);
+
+            for byte_idx in 0..total_bytes {
+                let mut byte_val = 0u8;
+                for bit in 0..8 {
+                    let o = cur_phi * 4;
+                    let raw = (tab[o] * p1 + tab[o + 1] * m1 + tab[o + 2] * p2 + tab[o + 3] * m2).clamp(-1.0, 1.0);
+
+                    cur_phi += 1;
+                    if cur_phi == w_period {
+                        cur_phi = 0;
+                        cur_idx += 1;
+                        let w = load_hermite_window(pcm, in_len, cur_idx);
+                        p1 = w.0; p2 = w.1; m1 = w.2; m2 = w.3;
+                    }
+
+                    let u = raw * scale;
+                    s1 = (s1 * 0.999999 + c1 * (u - y)).clamp(-clamp, clamp);
+                    s2 = (s2 * 0.999999 + c2 * s1 - g1 * s3).clamp(-clamp, clamp);
+                    s3 = (s3 * 0.999999 + c3 * s2).clamp(-clamp, clamp);
+                    s4 = (s4 * 0.999999 + c4 * s3 - g2 * s5).clamp(-clamp, clamp);
+                    s5 = (s5 * 0.999999 + c5 * s4).clamp(-clamp, clamp);
+
+                    let dither = ditherer.next_dither(dither_type);
+                    let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
+                    let is_pos = sigma >= 0.0;
+                    y = if is_pos { 1.0 } else { -1.0 };
+                    // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
+                    byte_val |= (is_pos as u8) << bit;
+                }
+                ch_out[byte_idx] = byte_val;
+            }
+
+            st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4; st.s5 = s5; st.y = y;
+            return;
+        }
+    }
+
+    // General path (FIR or non-integer ratio Hermite)
+    let ratio = 1.0 / inv_ratio;
+    let is_min_phase = phase_name.contains("min");
+    for byte_idx in 0..total_bytes {
+        let mut byte_val = 0u8;
+        let base_sample = start_bit + (byte_idx << 3);
+        for bit in 0..8 {
+            let out_idx = base_sample + bit;
+            let raw = if let Some(gf_ref) = gf {
+                if let Some(phases) = poly_phases {
+                    let phi = out_idx % phases.p;
+                    let entry = &phases.entries[phi];
+                    let k_base = entry.k0 + (out_idx / phases.p) as i32 * phases.q as i32;
+                    let t = entry.t;
+                    if k_base >= 0 && (k_base as usize + t) <= in_len {
+                        let mut acc = 0.0;
+                        let start = k_base as usize;
+                        for j in 0..t {
+                            acc += pcm[start + j] * entry.g[j];
+                        }
+                        acc
+                    } else {
+                        fir_sample(pcm, in_len, out_idx, ratio, gf_ref)
+                    }
+                } else {
+                    fir_sample(pcm, in_len, out_idx, ratio, gf_ref)
+                }
+            } else {
+                let t_src = out_idx as f64 * inv_ratio;
+                let idx = t_src.floor() as usize;
+                let frac = t_src - idx as f64;
+                let p1 = if idx < in_len { pcm[idx] } else { 0.0 };
+                let p2 = if idx + 1 < in_len { pcm[idx + 1] } else { 0.0 };
+                let p0 = if idx > 0 && idx - 1 < in_len { pcm[idx - 1] } else { p1 };
+                let p3 = if idx + 2 < in_len { pcm[idx + 2] } else { p2 };
+                if is_min_phase {
+                    interpolate_minimum(p0, p1, p2, p3, frac)
+                } else {
+                    interpolate_linear(p0, p1, p2, p3, frac)
+                }
+            };
+
+            let u = raw * scale;
+            s1 = (s1 * 0.999999 + c1 * (u - y)).clamp(-clamp, clamp);
+            s2 = (s2 * 0.999999 + c2 * s1 - g1 * s3).clamp(-clamp, clamp);
+            s3 = (s3 * 0.999999 + c3 * s2).clamp(-clamp, clamp);
+            s4 = (s4 * 0.999999 + c4 * s3 - g2 * s5).clamp(-clamp, clamp);
+            s5 = (s5 * 0.999999 + c5 * s4).clamp(-clamp, clamp);
+
+            let dither = ditherer.next_dither(dither_type);
+            let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
+            let is_pos = sigma >= 0.0;
+            y = if is_pos { 1.0 } else { -1.0 };
+            // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
+            byte_val |= (is_pos as u8) << bit;
+        }
+        ch_out[byte_idx] = byte_val;
+    }
+
+    st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4; st.s5 = s5; st.y = y;
+}
+
+fn modulate_channel7(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    num_blocks: usize,
+    inv_ratio: f64,
+    p: Ciff7Coeffs,
+    dither_type: DitherType,
+    ditherer: &mut DsdChannelDither,
+    gf: Option<&FirFilter>,
+    poly_phases: Option<&PolyphaseBank>,
+    phase_name: &str,
+    w_period: usize,
+    w_tab: Option<&[f64]>,
+    st: &mut ChanState7,
+    ch_out: &mut [u8],
+) {
+    let c1 = CIFFR_7_C[0]; let c2 = CIFFR_7_C[1]; let c3 = CIFFR_7_C[2]; let c4 = CIFFR_7_C[3];
+    let c5 = CIFFR_7_C[4]; let c6 = CIFFR_7_C[5]; let c7 = CIFFR_7_C[6];
+    let g1 = p.g1; let g2 = p.g2; let g3 = p.g3;
+    let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3]; let a5 = p.a[4]; let a6 = p.a[5]; let a7 = p.a[6];
+    let scale = CIFFR_7_SCALE;
+    let clamp = CIFFR_7_CLAMP;
+
+    let mut s1 = st.s1; let mut s2 = st.s2; let mut s3 = st.s3; let mut s4 = st.s4;
+    let mut s5 = st.s5; let mut s6 = st.s6; let mut s7 = st.s7; let mut y = st.y;
+    let total_bytes = num_blocks * DSD_BLOCK_SIZE;
+
+    if gf.is_none() {
+        if let Some(tab) = w_tab {
+            // Fast branch-free Hermite table path
+            let mut cur_idx = start_bit / w_period;
+            let mut cur_phi = start_bit - cur_idx * w_period;
+            let (mut p1, mut p2, mut m1, mut m2) = load_hermite_window(pcm, in_len, cur_idx);
+
+            for byte_idx in 0..total_bytes {
+                let mut byte_val = 0u8;
+                for bit in 0..8 {
+                    let o = cur_phi * 4;
+                    let raw = (tab[o] * p1 + tab[o + 1] * m1 + tab[o + 2] * p2 + tab[o + 3] * m2).clamp(-1.0, 1.0);
+
+                    cur_phi += 1;
+                    if cur_phi == w_period {
+                        cur_phi = 0;
+                        cur_idx += 1;
+                        let w = load_hermite_window(pcm, in_len, cur_idx);
+                        p1 = w.0; p2 = w.1; m1 = w.2; m2 = w.3;
+                    }
+
+                    let u = raw * scale;
+                    s1 = (s1 * 0.999999 + c1 * (u - y)).clamp(-clamp, clamp);
+                    s2 = (s2 * 0.999999 + c2 * s1 - g1 * s3).clamp(-clamp, clamp);
+                    s3 = (s3 * 0.999999 + c3 * s2).clamp(-clamp, clamp);
+                    s4 = (s4 * 0.999999 + c4 * s3 - g2 * s5).clamp(-clamp, clamp);
+                    s5 = (s5 * 0.999999 + c5 * s4).clamp(-clamp, clamp);
+                    s6 = (s6 * 0.999999 + c6 * s5 - g3 * s7).clamp(-clamp, clamp);
+                    s7 = (s7 * 0.999999 + c7 * s6).clamp(-clamp, clamp);
+
+                    let dither = ditherer.next_dither(dither_type);
+                    let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
+                    let is_pos = sigma >= 0.0;
+                    y = if is_pos { 1.0 } else { -1.0 };
+                    // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
+                    byte_val |= (is_pos as u8) << bit;
+                }
+                ch_out[byte_idx] = byte_val;
+            }
+
+            st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4;
+            st.s5 = s5; st.s6 = s6; st.s7 = s7; st.y = y;
+            return;
+        }
+    }
+
+    // General path (FIR or non-integer ratio Hermite)
+    let ratio = 1.0 / inv_ratio;
+    let is_min_phase = phase_name.contains("min");
+    for byte_idx in 0..total_bytes {
+        let mut byte_val = 0u8;
+        let base_sample = start_bit + (byte_idx << 3);
+        for bit in 0..8 {
+            let out_idx = base_sample + bit;
+            let raw = if let Some(gf_ref) = gf {
+                if let Some(phases) = poly_phases {
+                    let phi = out_idx % phases.p;
+                    let entry = &phases.entries[phi];
+                    let k_base = entry.k0 + (out_idx / phases.p) as i32 * phases.q as i32;
+                    let t = entry.t;
+                    if k_base >= 0 && (k_base as usize + t) <= in_len {
+                        let mut acc = 0.0;
+                        let start = k_base as usize;
+                        for j in 0..t {
+                            acc += pcm[start + j] * entry.g[j];
+                        }
+                        acc
+                    } else {
+                        fir_sample(pcm, in_len, out_idx, ratio, gf_ref)
+                    }
+                } else {
+                    fir_sample(pcm, in_len, out_idx, ratio, gf_ref)
+                }
+            } else {
+                let t_src = out_idx as f64 * inv_ratio;
+                let idx = t_src.floor() as usize;
+                let frac = t_src - idx as f64;
+                let p1 = if idx < in_len { pcm[idx] } else { 0.0 };
+                let p2 = if idx + 1 < in_len { pcm[idx + 1] } else { 0.0 };
+                let p0 = if idx > 0 && idx - 1 < in_len { pcm[idx - 1] } else { p1 };
+                let p3 = if idx + 2 < in_len { pcm[idx + 2] } else { p2 };
+                if is_min_phase {
+                    interpolate_minimum(p0, p1, p2, p3, frac)
+                } else {
+                    interpolate_linear(p0, p1, p2, p3, frac)
+                }
+            };
+
+            let u = raw * scale;
+            s1 = (s1 * 0.999999 + c1 * (u - y)).clamp(-clamp, clamp);
+            s2 = (s2 * 0.999999 + c2 * s1 - g1 * s3).clamp(-clamp, clamp);
+            s3 = (s3 * 0.999999 + c3 * s2).clamp(-clamp, clamp);
+            s4 = (s4 * 0.999999 + c4 * s3 - g2 * s5).clamp(-clamp, clamp);
+            s5 = (s5 * 0.999999 + c5 * s4).clamp(-clamp, clamp);
+            s6 = (s6 * 0.999999 + c6 * s5 - g3 * s7).clamp(-clamp, clamp);
+            s7 = (s7 * 0.999999 + c7 * s6).clamp(-clamp, clamp);
+
+            let dither = ditherer.next_dither(dither_type);
+            let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
+            let is_pos = sigma >= 0.0;
+            y = if is_pos { 1.0 } else { -1.0 };
+            // Sony DSF Spec v1.01 (bits_per_sample = 1): LSB-first (bit 0 = earliest sample)
+            byte_val |= (is_pos as u8) << bit;
+        }
+        ch_out[byte_idx] = byte_val;
+    }
+
+    st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4;
+    st.s5 = s5; st.s6 = s6; st.s7 = s7; st.y = y;
 }
 
 impl DsdModulator {
@@ -263,11 +564,18 @@ impl DsdModulator {
             gf,
             poly_phases,
             phase_name: phase_name.to_string(),
+            dsd_rate: None,
             s1_l: 0.0, s2_l: 0.0, s3_l: 0.0, s4_l: 0.0, s5_l: 0.0, y_l: 0.0,
             s1_r: 0.0, s2_r: 0.0, s3_r: 0.0, s4_r: 0.0, s5_r: 0.0, y_r: 0.0,
             s6_l: 0.0, s7_l: 0.0,
             s6_r: 0.0, s7_r: 0.0,
         }
+    }
+
+    /// Explicitly set the target DSD sample rate so resonator notch coefficients match the true OSR
+    /// even when the PCM input has already been pre-upsampled (e.g. 352.8 kHz / 384 kHz Stage 1).
+    pub fn set_dsd_rate(&mut self, dsd_rate: u32) {
+        self.dsd_rate = Some(dsd_rate);
     }
 
     pub fn reset_state(&mut self) {
@@ -290,12 +598,14 @@ impl DsdModulator {
         inv_ratio: f64,
         out: &mut [u8],
     ) {
+        if num_blocks == 0 {
+            return;
+        }
         match self.order {
             7 => self.run_blocks7(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
             _ => self.run_blocks5(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
         }
     }
-
 
     fn run_blocks5(
         &mut self,
@@ -307,161 +617,66 @@ impl DsdModulator {
         inv_ratio: f64,
         out: &mut [u8],
     ) {
-        let p = get_ciff5_params(inv_ratio);
-        let c1 = CIFFR_5_C[0]; let c2 = CIFFR_5_C[1]; let c3 = CIFFR_5_C[2]; let c4 = CIFFR_5_C[3]; let c5 = CIFFR_5_C[4];
-        let g1 = p.g1; let g2 = p.g2;
-        let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3]; let a5 = p.a[4];
-        let scale = CIFFR_5_SCALE;
-        let clamp = CIFFR_5_CLAMP;
-
-        let mut s1_l = self.s1_l; let mut s2_l = self.s2_l; let mut s3_l = self.s3_l; let mut s4_l = self.s4_l; let mut s5_l = self.s5_l; let mut y_l = self.y_l;
-        let mut s1_r = self.s1_r; let mut s2_r = self.s2_r; let mut s3_r = self.s3_r; let mut s4_r = self.s4_r; let mut s5_r = self.s5_r; let mut y_r = self.y_r;
+        let osr = self.dsd_rate.map(|r| r as f64 / 44100.0).unwrap_or_else(|| 1.0 / inv_ratio);
+        let p = get_ciff5_params_for_osr(osr);
 
         let ratio = 1.0 / inv_ratio;
         let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
         let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
-        let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
+        let w_tab_vec = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
+        let w_tab = w_tab_vec.as_deref();
 
-        let use_fir = self.gf.is_some();
+        let mut st_l = ChanState5 { s1: self.s1_l, s2: self.s2_l, s3: self.s3_l, s4: self.s4_l, s5: self.s5_l, y: self.y_l };
+        let mut st_r = ChanState5 { s1: self.s1_r, s2: self.s2_r, s3: self.s3_r, s4: self.s4_r, s5: self.s5_r, y: self.y_r };
 
-        let mut cur_idx = 0;
-        let mut cur_phi = 0;
-        if w_period > 0 {
-            cur_idx = start_bit / w_period;
-            cur_phi = start_bit - cur_idx * w_period;
+        let ch_bytes = num_blocks * DSD_BLOCK_SIZE;
+        let mut left_out = vec![0u8; ch_bytes];
+        let mut right_out = vec![0u8; ch_bytes];
+
+        let dither_type = self.dither_type;
+        let gf = self.gf.as_ref();
+        let poly_phases = self.poly_phases.as_ref();
+        let phase_name = self.phase_name.as_str();
+        let dither_l = &mut self.dsd_ditherer.left;
+        let dither_r = &mut self.dsd_ditherer.right;
+
+        if num_blocks >= 4 {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    modulate_channel5(
+                        left, in_len, start_bit, num_blocks, inv_ratio, p,
+                        dither_type, dither_l, gf, poly_phases, phase_name,
+                        w_period, w_tab, &mut st_l, &mut left_out,
+                    );
+                });
+                modulate_channel5(
+                    right, in_len, start_bit, num_blocks, inv_ratio, p,
+                    dither_type, dither_r, gf, poly_phases, phase_name,
+                    w_period, w_tab, &mut st_r, &mut right_out,
+                );
+            });
+        } else {
+            modulate_channel5(
+                left, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_l, gf, poly_phases, phase_name,
+                w_period, w_tab, &mut st_l, &mut left_out,
+            );
+            modulate_channel5(
+                right, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_r, gf, poly_phases, phase_name,
+                w_period, w_tab, &mut st_r, &mut right_out,
+            );
         }
-
-        let mut p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
-        let mut p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
-        let mut p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
-        let mut p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
-        let mut m1_l = 0.5 * (p2_l - p0_l);
-        let mut m2_l = 0.5 * (p3_l - p1_l);
-
-        let mut p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
-        let mut p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
-        let mut p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
-        let mut p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
-        let mut m1_r = 0.5 * (p2_r - p0_r);
-        let mut m2_r = 0.5 * (p3_r - p1_r);
 
         for b in 0..num_blocks {
-            let left_off = b * 2 * DSD_BLOCK_SIZE;
-            let right_off = left_off + DSD_BLOCK_SIZE;
-            let start_sample_idx = start_bit + b * DSD_SAMPLES_PER_BLOCK;
-
-            for byte_idx in 0..DSD_BLOCK_SIZE {
-                let mut byte_val_l = 0u8;
-                let mut byte_val_r = 0u8;
-                let base_sample = start_sample_idx + (byte_idx << 3);
-
-                for bit in 0..8 {
-                    let out_idx = base_sample + bit;
-                    let (raw_l, raw_r) = if use_fir {
-                        if let (Some(gf), Some(phases)) = (&self.gf, &self.poly_phases) {
-                            let phi = out_idx % phases.p;
-                            let entry = &phases.entries[phi];
-                            let k_base = entry.k0 + (out_idx / phases.p) as i32 * phases.q as i32;
-                            let t = entry.t;
-                            if k_base >= 0 && (k_base as usize + t) <= in_len {
-                                let mut acc_l = 0.0;
-                                let mut acc_r = 0.0;
-                                let start = k_base as usize;
-                                for j in 0..t {
-                                    let k = start + j;
-                                    acc_l += left[k] * entry.g[j];
-                                    acc_r += right[k] * entry.g[j];
-                                }
-                                (acc_l, acc_r)
-                            } else {
-                                (fir_sample(left, in_len, out_idx, ratio, gf), fir_sample(right, in_len, out_idx, ratio, gf))
-                            }
-                        } else if let Some(gf) = &self.gf {
-                            (fir_sample(left, in_len, out_idx, ratio, gf), fir_sample(right, in_len, out_idx, ratio, gf))
-                        } else {
-                            (0.0, 0.0)
-                        }
-                    } else if let Some(tab) = &w_tab {
-                        let o = cur_phi * 4;
-                        cur_phi += 1;
-                        if cur_phi == w_period {
-                            cur_phi = 0;
-                            cur_idx += 1;
-                            p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
-                            p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
-                            p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
-                            p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
-                            m1_l = 0.5 * (p2_l - p0_l);
-                            m2_l = 0.5 * (p3_l - p1_l);
-
-                            p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
-                            p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
-                            p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
-                            p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
-                            m1_r = 0.5 * (p2_r - p0_r);
-                            m2_r = 0.5 * (p3_r - p1_r);
-                        }
-
-                        let y_l_interp = tab[o] * p1_l + tab[o + 1] * m1_l + tab[o + 2] * p2_l + tab[o + 3] * m2_l;
-                        let y_r_interp = tab[o] * p1_r + tab[o + 1] * m1_r + tab[o + 2] * p2_r + tab[o + 3] * m2_r;
-
-                        (y_l_interp.clamp(-1.0, 1.0), y_r_interp.clamp(-1.0, 1.0))
-                    } else {
-                        let t_src = out_idx as f64 * inv_ratio;
-                        let idx = t_src.floor() as usize;
-                        let frac = t_src - idx as f64;
-
-                        let p1_l = if idx < in_len { left[idx] } else { 0.0 };
-                        let p2_l = if idx + 1 < in_len { left[idx + 1] } else { 0.0 };
-                        let p0_l = if idx > 0 && idx - 1 < in_len { left[idx - 1] } else { p1_l };
-                        let p3_l = if idx + 2 < in_len { left[idx + 2] } else { p2_l };
-
-                        let p1_r = if idx < in_len { right[idx] } else { 0.0 };
-                        let p2_r = if idx + 1 < in_len { right[idx + 1] } else { 0.0 };
-                        let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
-                        let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
-
-                        if self.phase_name.contains("min") {
-                            (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac))
-                        } else {
-                            (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac))
-                        }
-                    };
-
-                    // CIFF5 modulator equations with anti-leak coefficient 0.999999
-                    let u_l = raw_l * scale;
-                    s1_l = (s1_l * 0.999999 + c1 * (u_l - y_l)).clamp(-clamp, clamp);
-                    s2_l = (s2_l * 0.999999 + c2 * s1_l - g1 * s3_l).clamp(-clamp, clamp);
-                    s3_l = (s3_l * 0.999999 + c3 * s2_l).clamp(-clamp, clamp);
-                    s4_l = (s4_l * 0.999999 + c4 * s3_l - g2 * s5_l).clamp(-clamp, clamp);
-                    s5_l = (s5_l * 0.999999 + c5 * s4_l).clamp(-clamp, clamp);
-
-                    let (dither_l, dither_r) = self.dsd_ditherer.next_stereo_dither(self.dither_type);
-
-                    let sigma_l = u_l + a1 * s1_l + a2 * s2_l + a3 * s3_l + a4 * s4_l + a5 * s5_l + dither_l;
-                    y_l = if sigma_l >= 0.0 { 1.0 } else { -1.0 };
-                    // Sony DSF Spec: MSB-first
-                    byte_val_l = (byte_val_l << 1) | (if y_l > 0.0 { 1 } else { 0 });
-
-                    let u_r = raw_r * scale;
-                    s1_r = (s1_r * 0.999999 + c1 * (u_r - y_r)).clamp(-clamp, clamp);
-                    s2_r = (s2_r * 0.999999 + c2 * s1_r - g1 * s3_r).clamp(-clamp, clamp);
-                    s3_r = (s3_r * 0.999999 + c3 * s2_r).clamp(-clamp, clamp);
-                    s4_r = (s4_r * 0.999999 + c4 * s3_r - g2 * s5_r).clamp(-clamp, clamp);
-                    s5_r = (s5_r * 0.999999 + c5 * s4_r).clamp(-clamp, clamp);
-
-                    let sigma_r = u_r + a1 * s1_r + a2 * s2_r + a3 * s3_r + a4 * s4_r + a5 * s5_r + dither_r;
-                    y_r = if sigma_r >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_r = (byte_val_r << 1) | (if y_r > 0.0 { 1 } else { 0 });
-                }
-
-                out[left_off + byte_idx] = byte_val_l;
-                out[right_off + byte_idx] = byte_val_r;
-            }
+            let src_off = b * DSD_BLOCK_SIZE;
+            let dst_off = b * 2 * DSD_BLOCK_SIZE;
+            out[dst_off..dst_off + DSD_BLOCK_SIZE].copy_from_slice(&left_out[src_off..src_off + DSD_BLOCK_SIZE]);
+            out[dst_off + DSD_BLOCK_SIZE..dst_off + 2 * DSD_BLOCK_SIZE].copy_from_slice(&right_out[src_off..src_off + DSD_BLOCK_SIZE]);
         }
 
-        self.s1_l = s1_l; self.s2_l = s2_l; self.s3_l = s3_l; self.s4_l = s4_l; self.s5_l = s5_l; self.y_l = y_l;
-        self.s1_r = s1_r; self.s2_r = s2_r; self.s3_r = s3_r; self.s4_r = s4_r; self.s5_r = s5_r; self.y_r = y_r;
+        self.s1_l = st_l.s1; self.s2_l = st_l.s2; self.s3_l = st_l.s3; self.s4_l = st_l.s4; self.s5_l = st_l.s5; self.y_l = st_l.y;
+        self.s1_r = st_r.s1; self.s2_r = st_r.s2; self.s3_r = st_r.s3; self.s4_r = st_r.s4; self.s5_r = st_r.s5; self.y_r = st_r.y;
     }
 
     fn run_blocks7(
@@ -474,171 +689,74 @@ impl DsdModulator {
         inv_ratio: f64,
         out: &mut [u8],
     ) {
-        let p = get_ciff7_params(inv_ratio);
-        let c1 = CIFFR_7_C[0]; let c2 = CIFFR_7_C[1]; let c3 = CIFFR_7_C[2]; let c4 = CIFFR_7_C[3];
-        let c5 = CIFFR_7_C[4]; let c6 = CIFFR_7_C[5]; let c7 = CIFFR_7_C[6];
-        let g1 = p.g1; let g2 = p.g2; let g3 = p.g3;
-        let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3]; let a5 = p.a[4]; let a6 = p.a[5]; let a7 = p.a[6];
-        let scale = CIFFR_7_SCALE;
-        let clamp = CIFFR_7_CLAMP;
-
-        let mut s1_l = self.s1_l; let mut s2_l = self.s2_l; let mut s3_l = self.s3_l; let mut s4_l = self.s4_l;
-        let mut s5_l = self.s5_l; let mut s6_l = self.s6_l; let mut s7_l = self.s7_l; let mut y_l = self.y_l;
-
-        let mut s1_r = self.s1_r; let mut s2_r = self.s2_r; let mut s3_r = self.s3_r; let mut s4_r = self.s4_r;
-        let mut s5_r = self.s5_r; let mut s6_r = self.s6_r; let mut s7_r = self.s7_r; let mut y_r = self.y_r;
+        let osr = self.dsd_rate.map(|r| r as f64 / 44100.0).unwrap_or_else(|| 1.0 / inv_ratio);
+        let p = get_ciff7_params_for_osr(osr);
 
         let ratio = 1.0 / inv_ratio;
         let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
         let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
-        let w_tab = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
+        let w_tab_vec = if w_period > 0 { Some(get_hermite_tab(w_period)) } else { None };
+        let w_tab = w_tab_vec.as_deref();
 
-        let use_fir = self.gf.is_some();
+        let mut st_l = ChanState7 {
+            s1: self.s1_l, s2: self.s2_l, s3: self.s3_l, s4: self.s4_l,
+            s5: self.s5_l, s6: self.s6_l, s7: self.s7_l, y: self.y_l,
+        };
+        let mut st_r = ChanState7 {
+            s1: self.s1_r, s2: self.s2_r, s3: self.s3_r, s4: self.s4_r,
+            s5: self.s5_r, s6: self.s6_r, s7: self.s7_r, y: self.y_r,
+        };
 
-        let mut cur_idx = 0;
-        let mut cur_phi = 0;
-        if w_period > 0 {
-            cur_idx = start_bit / w_period;
-            cur_phi = start_bit - cur_idx * w_period;
+        let ch_bytes = num_blocks * DSD_BLOCK_SIZE;
+        let mut left_out = vec![0u8; ch_bytes];
+        let mut right_out = vec![0u8; ch_bytes];
+
+        let dither_type = self.dither_type;
+        let gf = self.gf.as_ref();
+        let poly_phases = self.poly_phases.as_ref();
+        let phase_name = self.phase_name.as_str();
+        let dither_l = &mut self.dsd_ditherer.left;
+        let dither_r = &mut self.dsd_ditherer.right;
+
+        if num_blocks >= 4 {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    modulate_channel7(
+                        left, in_len, start_bit, num_blocks, inv_ratio, p,
+                        dither_type, dither_l, gf, poly_phases, phase_name,
+                        w_period, w_tab, &mut st_l, &mut left_out,
+                    );
+                });
+                modulate_channel7(
+                    right, in_len, start_bit, num_blocks, inv_ratio, p,
+                    dither_type, dither_r, gf, poly_phases, phase_name,
+                    w_period, w_tab, &mut st_r, &mut right_out,
+                );
+            });
+        } else {
+            modulate_channel7(
+                left, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_l, gf, poly_phases, phase_name,
+                w_period, w_tab, &mut st_l, &mut left_out,
+            );
+            modulate_channel7(
+                right, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_r, gf, poly_phases, phase_name,
+                w_period, w_tab, &mut st_r, &mut right_out,
+            );
         }
-
-        let mut p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
-        let mut p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
-        let mut p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
-        let mut p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
-        let mut m1_l = 0.5 * (p2_l - p0_l);
-        let mut m2_l = 0.5 * (p3_l - p1_l);
-
-        let mut p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
-        let mut p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
-        let mut p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
-        let mut p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
-        let mut m1_r = 0.5 * (p2_r - p0_r);
-        let mut m2_r = 0.5 * (p3_r - p1_r);
 
         for b in 0..num_blocks {
-            let left_off = b * 2 * DSD_BLOCK_SIZE;
-            let right_off = left_off + DSD_BLOCK_SIZE;
-            let start_sample_idx = start_bit + b * DSD_SAMPLES_PER_BLOCK;
-
-            for byte_idx in 0..DSD_BLOCK_SIZE {
-                let mut byte_val_l = 0u8;
-                let mut byte_val_r = 0u8;
-                let base_sample = start_sample_idx + (byte_idx << 3);
-
-                for bit in 0..8 {
-                    let out_idx = base_sample + bit;
-                    let (raw_l, raw_r) = if use_fir {
-                        if let (Some(gf), Some(phases)) = (&self.gf, &self.poly_phases) {
-                            let phi = out_idx % phases.p;
-                            let entry = &phases.entries[phi];
-                            let k_base = entry.k0 + (out_idx / phases.p) as i32 * phases.q as i32;
-                            let t = entry.t;
-                            if k_base >= 0 && (k_base as usize + t) <= in_len {
-                                let mut acc_l = 0.0;
-                                let mut acc_r = 0.0;
-                                let start = k_base as usize;
-                                for j in 0..t {
-                                    let k = start + j;
-                                    acc_l += left[k] * entry.g[j];
-                                    acc_r += right[k] * entry.g[j];
-                                }
-                                (acc_l, acc_r)
-                            } else {
-                                (fir_sample(left, in_len, out_idx, ratio, gf), fir_sample(right, in_len, out_idx, ratio, gf))
-                            }
-                        } else if let Some(gf) = &self.gf {
-                            (fir_sample(left, in_len, out_idx, ratio, gf), fir_sample(right, in_len, out_idx, ratio, gf))
-                        } else {
-                            (0.0, 0.0)
-                        }
-                    } else if let Some(tab) = &w_tab {
-                        let o = cur_phi * 4;
-                        cur_phi += 1;
-                        if cur_phi == w_period {
-                            cur_phi = 0;
-                            cur_idx += 1;
-                            p1_l = if cur_idx < in_len { left[cur_idx] } else { 0.0 };
-                            p2_l = if cur_idx + 1 < in_len { left[cur_idx + 1] } else { 0.0 };
-                            p0_l = if cur_idx > 0 && cur_idx - 1 < in_len { left[cur_idx - 1] } else { p1_l };
-                            p3_l = if cur_idx + 2 < in_len { left[cur_idx + 2] } else { p2_l };
-                            m1_l = 0.5 * (p2_l - p0_l);
-                            m2_l = 0.5 * (p3_l - p1_l);
-
-                            p1_r = if cur_idx < in_len { right[cur_idx] } else { 0.0 };
-                            p2_r = if cur_idx + 1 < in_len { right[cur_idx + 1] } else { 0.0 };
-                            p0_r = if cur_idx > 0 && cur_idx - 1 < in_len { right[cur_idx - 1] } else { p1_r };
-                            p3_r = if cur_idx + 2 < in_len { right[cur_idx + 2] } else { p2_r };
-                            m1_r = 0.5 * (p2_r - p0_r);
-                            m2_r = 0.5 * (p3_r - p1_r);
-                        }
-
-                        let y_l_interp = tab[o] * p1_l + tab[o + 1] * m1_l + tab[o + 2] * p2_l + tab[o + 3] * m2_l;
-                        let y_r_interp = tab[o] * p1_r + tab[o + 1] * m1_r + tab[o + 2] * p2_r + tab[o + 3] * m2_r;
-
-                        (y_l_interp.clamp(-1.0, 1.0), y_r_interp.clamp(-1.0, 1.0))
-                    } else {
-                        let t_src = out_idx as f64 * inv_ratio;
-                        let idx = t_src.floor() as usize;
-                        let frac = t_src - idx as f64;
-
-                        let p1_l = if idx < in_len { left[idx] } else { 0.0 };
-                        let p2_l = if idx + 1 < in_len { left[idx + 1] } else { 0.0 };
-                        let p0_l = if idx > 0 && idx - 1 < in_len { left[idx - 1] } else { p1_l };
-                        let p3_l = if idx + 2 < in_len { left[idx + 2] } else { p2_l };
-
-                        let p1_r = if idx < in_len { right[idx] } else { 0.0 };
-                        let p2_r = if idx + 1 < in_len { right[idx + 1] } else { 0.0 };
-                        let p0_r = if idx > 0 && idx - 1 < in_len { right[idx - 1] } else { p1_r };
-                        let p3_r = if idx + 2 < in_len { right[idx + 2] } else { p2_r };
-
-                        if self.phase_name.contains("min") {
-                            (interpolate_minimum(p0_l, p1_l, p2_l, p3_l, frac), interpolate_minimum(p0_r, p1_r, p2_r, p3_r, frac))
-                        } else {
-                            (interpolate_linear(p0_l, p1_l, p2_l, p3_l, frac), interpolate_linear(p0_r, p1_r, p2_r, p3_r, frac))
-                        }
-                    };
-
-                    // CIFF7 modulator equations
-                    let u_l = raw_l * scale;
-                    s1_l = (s1_l * 0.999999 + c1 * (u_l - y_l)).clamp(-clamp, clamp);
-                    s2_l = (s2_l * 0.999999 + c2 * s1_l - g1 * s3_l).clamp(-clamp, clamp);
-                    s3_l = (s3_l * 0.999999 + c3 * s2_l).clamp(-clamp, clamp);
-                    s4_l = (s4_l * 0.999999 + c4 * s3_l - g2 * s5_l).clamp(-clamp, clamp);
-                    s5_l = (s5_l * 0.999999 + c5 * s4_l).clamp(-clamp, clamp);
-                    s6_l = (s6_l * 0.999999 + c6 * s5_l - g3 * s7_l).clamp(-clamp, clamp);
-                    s7_l = (s7_l * 0.999999 + c7 * s6_l).clamp(-clamp, clamp);
-
-                    let (dither_l, dither_r) = self.dsd_ditherer.next_stereo_dither(self.dither_type);
-
-                    let sigma_l = u_l + a1 * s1_l + a2 * s2_l + a3 * s3_l + a4 * s4_l + a5 * s5_l + a6 * s6_l + a7 * s7_l + dither_l;
-                    y_l = if sigma_l >= 0.0 { 1.0 } else { -1.0 };
-                    // Sony DSF Spec: MSB-first
-                    byte_val_l = (byte_val_l << 1) | (if y_l > 0.0 { 1 } else { 0 });
-
-                    let u_r = raw_r * scale;
-                    s1_r = (s1_r * 0.999999 + c1 * (u_r - y_r)).clamp(-clamp, clamp);
-                    s2_r = (s2_r * 0.999999 + c2 * s1_r - g1 * s3_r).clamp(-clamp, clamp);
-                    s3_r = (s3_r * 0.999999 + c3 * s2_r).clamp(-clamp, clamp);
-                    s4_r = (s4_r * 0.999999 + c4 * s3_r - g2 * s5_r).clamp(-clamp, clamp);
-                    s5_r = (s5_r * 0.999999 + c5 * s4_r).clamp(-clamp, clamp);
-                    s6_r = (s6_r * 0.999999 + c6 * s5_r - g3 * s7_r).clamp(-clamp, clamp);
-                    s7_r = (s7_r * 0.999999 + c7 * s6_r).clamp(-clamp, clamp);
-
-                    let sigma_r = u_r + a1 * s1_r + a2 * s2_r + a3 * s3_r + a4 * s4_r + a5 * s5_r + a6 * s6_r + a7 * s7_r + dither_r;
-                    y_r = if sigma_r >= 0.0 { 1.0 } else { -1.0 };
-                    byte_val_r = (byte_val_r << 1) | (if y_r > 0.0 { 1 } else { 0 });
-                }
-
-                out[left_off + byte_idx] = byte_val_l;
-                out[right_off + byte_idx] = byte_val_r;
-            }
+            let src_off = b * DSD_BLOCK_SIZE;
+            let dst_off = b * 2 * DSD_BLOCK_SIZE;
+            out[dst_off..dst_off + DSD_BLOCK_SIZE].copy_from_slice(&left_out[src_off..src_off + DSD_BLOCK_SIZE]);
+            out[dst_off + DSD_BLOCK_SIZE..dst_off + 2 * DSD_BLOCK_SIZE].copy_from_slice(&right_out[src_off..src_off + DSD_BLOCK_SIZE]);
         }
 
-        self.s1_l = s1_l; self.s2_l = s2_l; self.s3_l = s3_l; self.s4_l = s4_l;
-        self.s5_l = s5_l; self.s6_l = s6_l; self.s7_l = s7_l; self.y_l = y_l;
+        self.s1_l = st_l.s1; self.s2_l = st_l.s2; self.s3_l = st_l.s3; self.s4_l = st_l.s4;
+        self.s5_l = st_l.s5; self.s6_l = st_l.s6; self.s7_l = st_l.s7; self.y_l = st_l.y;
 
-        self.s1_r = s1_r; self.s2_r = s2_r; self.s3_r = s3_r; self.s4_r = s4_r;
-        self.s5_r = s5_r; self.s6_r = s6_r; self.s7_r = s7_r; self.y_r = y_r;
+        self.s1_r = st_r.s1; self.s2_r = st_r.s2; self.s3_r = st_r.s3; self.s4_r = st_r.s4;
+        self.s5_r = st_r.s5; self.s6_r = st_r.s6; self.s7_r = st_r.s7; self.y_r = st_r.y;
     }
 }
