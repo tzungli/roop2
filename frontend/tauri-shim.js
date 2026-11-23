@@ -179,6 +179,13 @@
     const f = t.formatName || t.format || 'PCM';
     t.formatName = f;
     t.format = f;
+    const rawAdded = Number(t.addedAt || t.dateAdded || t.date_added || 0);
+    if (Number.isFinite(rawAdded) && rawAdded > 0) {
+      // Normalize Unix seconds (10 digits) and milliseconds (13 digits) onto a single ms scale
+      const addedMs = rawAdded < 1e12 ? rawAdded * 1000 : rawAdded;
+      t.addedAt = addedMs;
+      t.dateAdded = addedMs;
+    }
     if (t.isTidal || p.startsWith('tidal://')) {
       t.isTidal = true;
       if (!t.tidalId && p.startsWith('tidal://track/')) {

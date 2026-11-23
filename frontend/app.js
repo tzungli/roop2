@@ -1995,14 +1995,15 @@ function rebuildLibraryCollections() {
         producer: t.producer || null,
         composer: t.composer || null,
         copyright: t.copyright || null,
-        addedAt: t.addedAt || 0,
+        addedAt: Number(t.addedAt || t.dateAdded || 0),
         tracks: []
       });
     }
     const alb = albumMap.get(albumKey);
     alb.tracks.push(t);
-    if (t.addedAt && (!alb.addedAt || t.addedAt > alb.addedAt)) {
-      alb.addedAt = t.addedAt;
+    const tAdded = Number(t.addedAt || t.dateAdded || 0);
+    if (tAdded && (!alb.addedAt || tAdded > alb.addedAt)) {
+      alb.addedAt = tAdded;
     }
     if (t.isTidal) {
       alb.isTidal = true;
