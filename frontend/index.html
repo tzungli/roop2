@@ -2629,7 +2629,6 @@
                     <span class="muse-panel-header-icon src-icon">🎛️</span>
                     <div>
                       <h2 class="muse-panel-title">取樣率轉換 (Sample Rate Conversion)</h2>
-                      <div class="muse-panel-desc">發燒級 64 位元浮點即時超取樣升頻與 1-bit DSD 調變，拓展音場細節與瞬態還原</div>
                     </div>
                   </div>
                 </div>
@@ -2639,7 +2638,6 @@
                   <div class="dsp-option-group">
                     <div class="dsp-option-label">
                       <span>PCM 升頻取樣規格 (PCM Upsampling)</span>
-                      <span class="dsp-hint-badge" id="dspActiveRateHint">4x 整數倍頻</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspRateSelector">
                       <button class="dsp-pill active" data-rate-mode="4x" title="44.1k➔176.4k, 48k➔192k (發燒推薦：整數倍頻相位最純淨)">4x 整數倍頻 (推薦)</button>
@@ -2654,7 +2652,6 @@
                   <div class="dsp-option-group">
                     <div class="dsp-option-label">
                       <span>1-bit DSD 調變升頻 (PCM ➔ 1-bit DSD SDM Modulator)</span>
-                      <span class="dsp-hint-badge dsd-badge-color" id="dspActiveDsdHint">可選 DSD 格式</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspDsdRateSelector">
                       <button class="dsp-pill pill-dsd" data-rate-mode="dsd64" title="PCM ➔ DSD64 (1-bit / 2.8224 MHz 或 3.072 MHz 超高頻噪聲整形調變)">DSD64 (2.8 MHz)</button>
@@ -2668,7 +2665,6 @@
                   <div class="dsp-option-group" id="dspOrderGroup">
                     <div class="dsp-option-label">
                       <span>調變器階數 (Modulator Order)</span>
-                      <span class="dsp-hint-badge dsd-badge-color" id="dspActiveOrderHint">5 階 (CRFB 發燒推薦)</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspOrderSelector">
                       <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB 發燒推薦)</button>
@@ -2680,7 +2676,6 @@
                   <div class="dsp-option-group" id="dspUltrasonicGroup">
                     <div class="dsp-option-label">
                       <span>🛡️ 超音波噪聲防護濾波 (Ultrasonic Filter)</span>
-                      <span class="dsp-hint-badge dsd-badge-color" id="dspActiveUltrasonicHint">30 kHz (預設推薦)</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspUltrasonicSelector">
                       <button class="dsp-pill pill-dsd" data-ultrasonic="none" title="關閉超音波防護 (無濾波)">關閉 (None)</button>
@@ -2695,7 +2690,6 @@
                   <div class="dsp-option-group" id="dspDitherGroup">
                     <div class="dsp-option-label">
                       <span>✨ 量化抖動 (Quantization Dither)</span>
-                      <span class="dsp-hint-badge" id="dspActiveDitherHint">TPDF (標準三角形)</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspDitherSelector">
                       <button class="dsp-pill active" data-dither="tpdf" title="TPDF：標準三角形機率密度抖動 (Lipshitz-Vanderkooy 錄音室標準，徹底消除諧波失真與噪聲調製，絕對線性)">TPDF (標準三角形)</button>
@@ -2713,7 +2707,6 @@
                         <span>取樣率轉換濾波器 (SRC Filter)</span>
                         <button type="button" class="dsp-guide-link" id="btnFilterGuideLink" title="檢視 4 種取樣率轉換濾波器的實測規格、時域響應與發燒搭配指南">📖 規格與指南</button>
                       </div>
-                      <span class="dsp-hint-badge" id="dspActivePhaseHint">精準，線性相位</span>
                     </div>
                     <div class="dsp-pill-selector" id="dspPhaseSelector"></div>
                   </div>
