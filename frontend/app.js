@@ -9954,9 +9954,14 @@ function initMuseControls() {
 }
 
 function renderDspView() {
-  const zoneNameEl = document.getElementById('museZoneName');
-  if (zoneNameEl) {
-    zoneNameEl.textContent = state.activeAudioZone !== 'local' && state.activeDlnaDevice ? state.activeDlnaDevice.name : 'System Output';
+  const activeTarget = state.activeAudioZone !== 'local' && state.activeDlnaDevice ? state.activeDlnaDevice : 'local';
+  if (typeof updateBottomZoneIcon === 'function') {
+    updateBottomZoneIcon(activeTarget);
+  } else {
+    const zoneNameEl = document.getElementById('museZoneName');
+    if (zoneNameEl) {
+      zoneNameEl.textContent = activeTarget !== 'local' ? activeTarget.name : 'System Output';
+    }
   }
 
   const toggleMuseHeadroom = document.getElementById('toggleMuseHeadroom');
@@ -17702,10 +17707,20 @@ function getDeviceIconKind(dev) {
 }
 
 function updateBottomZoneIcon(target) {
-  const iconWrap = document.getElementById('currentZoneIconWrap');
-  if (!iconWrap) return;
+  const isNetwork = target && target !== 'local' && !target.isLocal;
   const kind = getDeviceIconKind(target);
-  iconWrap.innerHTML = getRoonDeviceIconSvg(kind, true);
+  const svgHtml = getRoonDeviceIconSvg(kind, true);
+  const displayName = isNetwork ? (target.name || 'UPnP MediaRenderer') : 'System Output';
+
+  const iconWrap = document.getElementById('currentZoneIconWrap');
+  if (iconWrap) iconWrap.innerHTML = svgHtml;
+
+  // Also sync rooDSP sidebar zone header (icon + device name) immediately
+  const museZoneIcon = document.getElementById('museZoneIcon');
+  if (museZoneIcon) museZoneIcon.innerHTML = svgHtml;
+
+  const museZoneName = document.getElementById('museZoneName');
+  if (museZoneName) museZoneName.textContent = displayName;
 }
 
 function initAudioZones() {
