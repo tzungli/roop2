@@ -2368,38 +2368,11 @@
       <!-- 12. ROODSP (FLAGSHIP FULL PAGE VIEW) -->
       <section id="viewDsp" class="content-view">
         <div class="muse-container">
-          <!-- Top Navigation & Preset Bar -->
+          <!-- Top Navigation Bar -->
           <div class="muse-top-bar">
             <div class="muse-brand">
               <span class="muse-logo">rooDSP</span>
               <span class="muse-sublogo">PRECISION AUDIO CONTROL</span>
-            </div>
-
-            <div class="muse-preset-picker">
-              <span class="muse-preset-label">預設值</span>
-              <div class="muse-preset-dropdown-wrap">
-                <button class="muse-preset-btn" id="musePresetBtn" type="button">
-                  <span id="museCurrentPresetName">沒有預設值</span>
-                  <span class="muse-caret">▾</span>
-                </button>
-                <div class="muse-preset-menu" id="musePresetMenu" style="display: none;">
-                  <div class="muse-menu-item active" data-preset="none">沒有預設值 (平直)</div>
-                  <div class="muse-menu-item" data-preset="warm">發燒溫暖厚實</div>
-                  <div class="muse-menu-item" data-preset="bright">明亮通透空氣感</div>
-                  <div class="muse-menu-item" data-preset="vocal">人聲突出甜美</div>
-                  <div class="muse-menu-item" data-preset="bass">深沉低頻下潛</div>
-                  <div class="muse-menu-item" data-preset="hires">8x 升頻極致</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="muse-top-actions">
-              <button class="muse-icon-btn" id="btnMuseSettings" title="rooDSP 處理偏好設定" type="button">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -2551,8 +2524,25 @@
                         </div>
                       </div>
                     </div>
+
+                    <div class="muse-preset-picker muse-peq-inline-preset">
+                      <span class="muse-preset-label">預設值</span>
+                      <div class="muse-preset-dropdown-wrap">
+                        <button class="muse-preset-btn" id="musePresetBtn" type="button">
+                          <span id="museCurrentPresetName">沒有預設值</span>
+                          <span class="muse-caret">▾</span>
+                        </button>
+                        <div class="muse-preset-menu" id="musePresetMenu" style="display: none;">
+                          <div class="muse-menu-item active" data-preset="none">沒有預設值 (平直)</div>
+                          <div class="muse-menu-item" data-preset="warm">發燒溫暖厚實</div>
+                          <div class="muse-menu-item" data-preset="bright">明亮通透空氣感</div>
+                          <div class="muse-menu-item" data-preset="vocal">人聲突出甜美</div>
+                          <div class="muse-menu-item" data-preset="bass">深沉低頻下潛</div>
+                          <div class="muse-menu-item" data-preset="hires">8x 升頻極致</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <button class="muse-remove-filter-btn" id="btnMuseRemovePeq" type="button">✕ 移除濾波器</button>
                 </div>
 
                 <!-- Frequency Response Curve Graph Container -->

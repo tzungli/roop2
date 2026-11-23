@@ -11571,8 +11571,27 @@ body.table-col-resizing * {
 .muse-preset-picker {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   position: relative;
+}
+
+.muse-peq-inline-preset {
+  margin-left: 20px;
+  padding-left: 20px;
+  border-left: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="dark"] .muse-peq-inline-preset {
+  border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+.muse-peq-inline-preset .muse-preset-btn {
+  padding-left: 0;
+}
+
+.muse-peq-inline-preset .muse-preset-menu {
+  left: 0;
+  transform: none;
 }
 
 .muse-preset-label {
