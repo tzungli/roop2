@@ -2058,11 +2058,17 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .tag-genre {
-  background-color: rgba(99, 102, 241, 0.9);
-  color: #fff;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #4f3cc9;
+  border: 1px solid rgba(124, 92, 255, 0.24);
+  border-radius: 4px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
+}
+
+.genre-album-card .album-art-wrap {
+  border: 1px solid rgba(124, 92, 255, 0.14);
 }
 
 .genre-grid {

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" fill="none">
+  <defs>
+    <linearGradient id="bg_jazz" x1="0" y1="0" x2="320" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbfbff"/>
+      <stop offset="55%" stop-color="#f4f3fe"/>
+      <stop offset="100%" stop-color="#eae8fe"/>
+    </linearGradient>
+    <linearGradient id="acc_jazz" x1="80" y1="80" x2="240" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8b7dff"/>
+      <stop offset="100%" stop-color="#5b46e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#bg_jazz)"/>
+  <circle cx="160" cy="168" r="100" fill="#eceafe" stroke="#d6d2fc" stroke-width="1.5"/>
+     <circle cx="272" cy="56" r="46" fill="none" stroke="#e3e0fd" stroke-width="1.5"/>
+     <circle cx="46" cy="274" r="34" fill="none" stroke="#e3e0fd" stroke-width="1.5"/>
+  <g stroke="#232838" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Mouthpiece & Neck -->
+    <path d="M100 94 L124 98 C134 100 139 106 142 116" stroke="#6d5ce8" stroke-width="7"/>
+    <!-- Main Tapered Saxophone Body & Bell -->
+    <path d="M138 112
+             L152 108
+             L176 202
+             C180 216 196 216 202 202
+             L210 176
+             L244 190
+             L228 222
+             C216 244 190 252 170 242
+             C152 234 146 218 143 198
+             Z"
+          fill="#dcd8fe"/>
+    <!-- Bell Opening -->
+    <ellipse cx="227" cy="183" rx="20" ry="7.5" transform="rotate(22 227 183)" fill="#ffffff" stroke="#232838" stroke-width="5.5"/>
+    <!-- Key buttons -->
+    <circle cx="148" cy="144" r="5" fill="#6d5ce8" stroke="#232838" stroke-width="3.5"/>
+    <circle cx="154" cy="166" r="5" fill="#6d5ce8" stroke="#232838" stroke-width="3.5"/>
+    <circle cx="160" cy="188" r="5" fill="#6d5ce8" stroke="#232838" stroke-width="3.5"/>
+    <!-- Swing musical accent -->
+    <path d="M214 118 C224 108 238 110 244 120" stroke="#6d5ce8" stroke-width="4.5"/>
+    <path d="M222 136 C230 130 238 132 242 138" stroke="#6d5ce8" stroke-width="4"/>
+  
+  </g>
+</svg>

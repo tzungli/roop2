@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" fill="none">
+  <defs>
+    <linearGradient id="bg_rock" x1="0" y1="0" x2="320" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbfbff"/>
+      <stop offset="55%" stop-color="#f4f3fe"/>
+      <stop offset="100%" stop-color="#eae8fe"/>
+    </linearGradient>
+    <linearGradient id="acc_rock" x1="80" y1="80" x2="240" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8b7dff"/>
+      <stop offset="100%" stop-color="#5b46e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#bg_rock)"/>
+  <rect x="64" y="72" width="192" height="192" rx="48" fill="#eceafe" stroke="#d6d2fc" stroke-width="1.5"/>
+     <circle cx="160" cy="168" r="132" fill="none" stroke="#e4e1fd" stroke-width="1.2"/>
+  <g stroke="#232838" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    
+    <g transform="translate(160 168) rotate(-38) translate(-160 -168)">
+      <!-- Guitar Body (Double Cutaway) -->
+      <path d="M132 154
+               C126 138 138 130 148 144
+               L152 150 L168 150 L172 140
+               C180 126 196 134 190 156
+               C186 170 198 182 204 202
+               C210 226 194 252 160 252
+               C126 252 110 226 116 202
+               C122 182 136 170 132 154 Z"
+            fill="#dcd8fe"/>
+      <!-- Neck -->
+      <rect x="152" y="76" width="16" height="82" rx="3" fill="#ffffff"/>
+      <!-- Headstock -->
+      <path d="M148 76 L152 48 L174 56 L168 76 Z" fill="#6d5ce8" stroke="#232838" stroke-width="5.5"/>
+      <!-- Pickups -->
+      <rect x="142" y="176" width="36" height="10" rx="4" fill="#ffffff" stroke="#232838" stroke-width="4.5"/>
+      <rect x="142" y="198" width="36" height="10" rx="4" fill="#6d5ce8" stroke="#232838" stroke-width="4.5"/>
+      <!-- Bridge -->
+      <line x1="144" y1="222" x2="176" y2="222" stroke="#232838" stroke-width="5.5"/>
+      <!-- Knobs -->
+      <circle cx="182" cy="226" r="4" fill="#232838" stroke="none"/>
+      <circle cx="174" cy="236" r="4" fill="#232838" stroke="none"/>
+    </g>
+  
+  </g>
+</svg>

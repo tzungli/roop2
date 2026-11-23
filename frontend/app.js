@@ -4954,57 +4954,57 @@ function setupResizableTables() {
   setupResizableTable('detailTracklistTable', 'album_detail_tracks_v2');
 }
 
-// Realistic Genre Illustration & Metadata Registry
+// Minimalist Vector Genre Cover & Metadata Registry
 function getGenreIllustrationInfo(genreName) {
   const g = (genreName || '').toLowerCase().trim();
 
   if (/classi|orchestr|symphon|baroque|opera|chamber|philharmonic|concerto|piano|beethoven|bach|mozart|chopin|古典|交響|協奏|獨奏/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_classical.jpg', zhName: '古典樂派 • 交響協奏', badge: 'CLASSICAL' };
+    return { imageSrc: 'assets/genres/genre_classical.svg', zhName: '古典樂派 • 交響協奏', badge: 'CLASSICAL' };
   }
   if (/jazz|fusion|swing|bop|bebop|big band|dixieland|smooth jazz|爵士/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_jazz.jpg', zhName: '爵士樂 • 即興搖擺', badge: 'JAZZ' };
+    return { imageSrc: 'assets/genres/genre_jazz.svg', zhName: '爵士樂 • 即興搖擺', badge: 'JAZZ' };
   }
   if (/metal|heavy metal|thrash|death metal|black metal|doom|hard rock|重金屬|金屬/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_metal.jpg', zhName: '重金屬 • 狂野搖滾', badge: 'METAL' };
+    return { imageSrc: 'assets/genres/genre_metal.svg', zhName: '重金屬 • 狂野搖滾', badge: 'METAL' };
   }
   if (/rock|alternative|indie rock|punk|grunge|psychedelic|prog rock|搖滾|朋克/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_rock.jpg', zhName: '搖滾樂 • 經典吉他', badge: 'ROCK' };
+    return { imageSrc: 'assets/genres/genre_rock.svg', zhName: '搖滾樂 • 經典吉他', badge: 'ROCK' };
   }
   if (/electr|edm|techno|house|trance|synth|ambient electro|idm|dance|disco|club|電子|電音/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_electronic.jpg', zhName: '電子音樂 • 合成器浪潮', badge: 'ELECTRONIC' };
+    return { imageSrc: 'assets/genres/genre_electronic.svg', zhName: '電子音樂 • 合成器浪潮', badge: 'ELECTRONIC' };
   }
   if (/soul|motown|r&b|rnb|funk|gospel|neo-soul|節奏藍調|靈魂樂/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_soul.jpg', zhName: '靈魂樂 • 節奏藍調 R&B', badge: 'SOUL / R&B' };
+    return { imageSrc: 'assets/genres/genre_soul.svg', zhName: '靈魂樂 • 節奏藍調 R&B', badge: 'SOUL / R&B' };
   }
   if (/blues|delta blues|chicago blues|country blues|藍調/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_blues.jpg', zhName: '經典藍調 • 靈魂之聲', badge: 'BLUES' };
+    return { imageSrc: 'assets/genres/genre_blues.svg', zhName: '經典藍調 • 靈魂之聲', badge: 'BLUES' };
   }
   if (/folk|acoustic|bluegrass|celtic|americana|singer|songwriter|民謠|不插電/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_folk.jpg', zhName: '民謠音樂 • 原聲不插電', badge: 'FOLK' };
+    return { imageSrc: 'assets/genres/genre_folk.svg', zhName: '民謠音樂 • 原聲不插電', badge: 'FOLK' };
   }
   if (/country|western|nashville|鄉村/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_country.jpg', zhName: '鄉村音樂 • 原野之聲', badge: 'COUNTRY' };
+    return { imageSrc: 'assets/genres/genre_country.svg', zhName: '鄉村音樂 • 原野之聲', badge: 'COUNTRY' };
   }
   if (/hip hop|hip-hop|rap|trap|boom bap|r&b rap|嘻哈|饒舌/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_hiphop.jpg', zhName: '嘻哈饒舌 • 節拍韻律', badge: 'HIP HOP' };
+    return { imageSrc: 'assets/genres/genre_hiphop.svg', zhName: '嘻哈饒舌 • 節拍韻律', badge: 'HIP HOP' };
   }
   if (/soundtrack|score|ost|film|movie|theme|cinematic|game|原聲|配樂|影視/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_soundtrack.jpg', zhName: '影視配樂 • 史詩原聲', badge: 'SOUNDTRACK' };
+    return { imageSrc: 'assets/genres/genre_soundtrack.svg', zhName: '影視配樂 • 史詩原聲', badge: 'SOUNDTRACK' };
   }
   if (/ambient|new age|chill|meditation|downtempo|drone|relax|氛圍|新世紀/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_ambient.jpg', zhName: '氛圍音樂 • 心靈冥想', badge: 'AMBIENT' };
+    return { imageSrc: 'assets/genres/genre_ambient.svg', zhName: '氛圍音樂 • 心靈冥想', badge: 'AMBIENT' };
   }
   if (/vocal|chanson|acapella|ballad|人聲/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_vocal.jpg', zhName: '發燒人聲 • 錄音室母帶', badge: 'VOCAL' };
+    return { imageSrc: 'assets/genres/genre_vocal.svg', zhName: '發燒人聲 • 錄音室母帶', badge: 'VOCAL' };
   }
   if (/audiophile|hi-end|hifi|burmester|b&w|示範片|展cd|音響展|發燒/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_classical.jpg', zhName: '發燒示範 • 母帶鑑聽', badge: 'AUDIOPHILE' };
+    return { imageSrc: 'assets/genres/genre_audiophile.svg', zhName: '發燒示範 • 母帶鑑聽', badge: 'AUDIOPHILE' };
   }
   if (/pop|cantopop|mandopop|k-pop|j-pop|indie pop|流行|華語流行/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_pop.jpg', zhName: '流行音樂 • 現代旋律', badge: 'POP' };
+    return { imageSrc: 'assets/genres/genre_pop.svg', zhName: '流行音樂 • 現代旋律', badge: 'POP' };
   }
 
-  return { imageSrc: 'assets/genres/genre_classical.jpg', zhName: '音樂流派風格', badge: 'GENRE' };
+  return { imageSrc: 'assets/genres/genre_default.svg', zhName: '音樂流派風格', badge: 'GENRE' };
 }
 
 // Render Genres (Album-style presentation with realistic illustrations)

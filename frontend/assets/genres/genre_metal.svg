@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" fill="none">
+  <defs>
+    <linearGradient id="bg_metal" x1="0" y1="0" x2="320" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbfbff"/>
+      <stop offset="55%" stop-color="#f4f3fe"/>
+      <stop offset="100%" stop-color="#eae8fe"/>
+    </linearGradient>
+    <linearGradient id="acc_metal" x1="80" y1="80" x2="240" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8b7dff"/>
+      <stop offset="100%" stop-color="#5b46e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#bg_metal)"/>
+  <rect x="64" y="72" width="192" height="192" rx="48" fill="#eceafe" stroke="#d6d2fc" stroke-width="1.5"/>
+     <circle cx="160" cy="168" r="132" fill="none" stroke="#e4e1fd" stroke-width="1.2"/>
+  <g stroke="#232838" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Angular hex shield backdrop -->
+    <polygon points="160,82 232,124 232,212 160,254 88,212 88,124" fill="#ffffff" stroke="#cfc9fc" stroke-width="4"/>
+    <!-- Lightning Bolt -->
+    <polygon points="174,88 112,174 156,174 142,248 212,154 166,154"
+             fill="#dcd8fe" stroke="#232838" stroke-width="7"/>
+    <!-- Inner energy accent -->
+    <polyline points="168,112 134,162 164,162 154,218"
+              stroke="#6d5ce8" stroke-width="4.5" fill="none"/>
+  
+  </g>
+</svg>

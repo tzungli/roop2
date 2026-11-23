@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" fill="none">
+  <defs>
+    <linearGradient id="bg_hiphop" x1="0" y1="0" x2="320" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbfbff"/>
+      <stop offset="55%" stop-color="#f4f3fe"/>
+      <stop offset="100%" stop-color="#eae8fe"/>
+    </linearGradient>
+    <linearGradient id="acc_hiphop" x1="80" y1="80" x2="240" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8b7dff"/>
+      <stop offset="100%" stop-color="#5b46e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#bg_hiphop)"/>
+  <rect x="64" y="72" width="192" height="192" rx="48" fill="#eceafe" stroke="#d6d2fc" stroke-width="1.5"/>
+     <circle cx="160" cy="168" r="132" fill="none" stroke="#e4e1fd" stroke-width="1.2"/>
+  <g stroke="#232838" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Handle -->
+    <path d="M112 126 L112 104 C112 96 118 92 126 92 L194 92 C202 92 208 96 208 104 L208 126" fill="none"/>
+    <!-- Main Chassis -->
+    <rect x="74" y="126" width="172" height="100" rx="16" fill="#ffffff"/>
+    <!-- Top Control Strip -->
+    <line x1="94" y1="144" x2="124" y2="144" stroke="#6d5ce8" stroke-width="5"/>
+    <line x1="196" y1="144" x2="226" y2="144" stroke="#6d5ce8" stroke-width="5"/>
+    <!-- Left Speaker -->
+    <circle cx="112" cy="182" r="24" fill="#dcd8fe"/>
+    <circle cx="112" cy="182" r="8" fill="#6d5ce8" stroke="none"/>
+    <!-- Right Speaker -->
+    <circle cx="208" cy="182" r="24" fill="#dcd8fe"/>
+    <circle cx="208" cy="182" r="8" fill="#6d5ce8" stroke="none"/>
+    <!-- Cassette Deck Center -->
+    <rect x="144" y="164" width="32" height="34" rx="5" fill="#f4f3fe" stroke="#232838" stroke-width="5"/>
+    <circle cx="154" cy="181" r="3" fill="#232838" stroke="none"/>
+    <circle cx="166" cy="181" r="3" fill="#232838" stroke="none"/>
+  
+  </g>
+</svg>

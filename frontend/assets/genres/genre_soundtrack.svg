@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" fill="none">
+  <defs>
+    <linearGradient id="bg_soundtrack" x1="0" y1="0" x2="320" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbfbff"/>
+      <stop offset="55%" stop-color="#f4f3fe"/>
+      <stop offset="100%" stop-color="#eae8fe"/>
+    </linearGradient>
+    <linearGradient id="acc_soundtrack" x1="80" y1="80" x2="240" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8b7dff"/>
+      <stop offset="100%" stop-color="#5b46e8"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#bg_soundtrack)"/>
+  <rect x="64" y="72" width="192" height="192" rx="48" fill="#eceafe" stroke="#d6d2fc" stroke-width="1.5"/>
+     <circle cx="160" cy="168" r="132" fill="none" stroke="#e4e1fd" stroke-width="1.2"/>
+  <g stroke="#232838" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Clapperboard Base -->
+    <rect x="86" y="136" width="148" height="100" rx="14" fill="#ffffff"/>
+    <!-- Angled Clapper Top -->
+    <g transform="rotate(-11 86 136)">
+      <rect x="86" y="106" width="148" height="28" rx="7" fill="#dcd8fe"/>
+      <line x1="118" y1="108" x2="108" y2="132" stroke="#232838" stroke-width="5.5"/>
+      <line x1="154" y1="108" x2="144" y2="132" stroke="#232838" stroke-width="5.5"/>
+      <line x1="190" y1="108" x2="180" y2="132" stroke="#232838" stroke-width="5.5"/>
+    </g>
+    <!-- Musical Note Inside -->
+    <path d="M164 202 L164 158 L190 152" stroke="#6d5ce8" stroke-width="6"/>
+    <ellipse cx="152" cy="204" rx="13" ry="10" transform="rotate(-15 152 204)" fill="#6d5ce8" stroke="#6d5ce8" stroke-width="4"/>
+  
+  </g>
+</svg>
