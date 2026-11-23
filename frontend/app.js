@@ -17194,10 +17194,6 @@ function setupPlayerControls() {
   attachNpControl('btnNowPlayingPrev', () => playPrevTrack());
   attachNpControl('btnNowPlayingNext', () => playNextTrack(false));
   attachNpControl('btnNowPlayingPlayPause', () => togglePlayPause());
-  attachNpControl('btnNPHeaderPrev', () => playPrevTrack());
-  attachNpControl('btnNPHeaderNext', () => playNextTrack(false));
-  attachNpControl('btnNPPlaylistPrev', () => playPrevTrack());
-  attachNpControl('btnNPPlaylistNext', () => playNextTrack(false));
   const npScrubber = document.getElementById('nowPlayingScrubber');
   if (npScrubber) {
     npScrubber.addEventListener('click', (e) => {
