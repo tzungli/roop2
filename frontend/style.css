@@ -3975,6 +3975,13 @@ body.table-col-resizing * {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .uf-preview-col {
+  border-top-color: rgba(15, 23, 42, 0.08);
 }
 
 .uf-preview-title {
@@ -3996,7 +4003,7 @@ body.table-col-resizing * {
 
 #ufPreviewCanvas {
   width: 100%;
-  max-height: 220px;
+  max-height: 260px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -4012,45 +4019,7 @@ body.table-col-resizing * {
 #ufEditorPanel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-
-@container ufstrip (min-width: 560px) {
-  #ufEditorPanel {
-    display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 360px);
-    grid-template-areas:
-      "head head"
-      "form preview";
-    align-items: start;
-    gap: 14px 22px;
-  }
-
-  #ufEditorPanel .uf-panel-head { grid-area: head; }
-
-  #ufEditorPanel .uf-form-col {
-    grid-area: form;
-    padding-right: 22px;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  [data-theme="light"] #ufEditorPanel .uf-form-col {
-    border-right-color: rgba(15, 23, 42, 0.08);
-  }
-
-  #ufEditorPanel .uf-preview-col {
-    grid-area: preview;
-    position: sticky;
-    top: 14px;
-  }
-}
-
-@container ufstrip (min-width: 820px) {
-  #ufEditorPanel {
-    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 400px);
-    gap: 14px 24px;
-  }
-  #ufEditorPanel .uf-form-col { padding-right: 24px; }
+  gap: 16px;
 }
 
 /* 管理面板（內聯，統一 Roon 風格） */

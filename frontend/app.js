@@ -10740,12 +10740,11 @@ function initUfPreviewCanvasInteractions() {
 }
 
 function drawUfPreview(cv, data, ctx) {
-  // 依實際顯示寬度（含 devicePixelRatio）設定畫布解析度：欄寬再窄，座標軸文字與曲線都保持清晰
+  // 依實際顯示寬度（含 devicePixelRatio）設定畫布解析度：座標軸刻度、文字與曲線都保持清晰
   const rect = cv.getBoundingClientRect();
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const cssW = Math.max(220, Math.round(rect.width || cv.width || 340));
-  // 控制適當的長寬比（約 1.8:1 ~ 2:1），高度收斂至 160px ~ 210px，避免過度縱向拉長
-  const cssH = Math.max(160, Math.min(210, Math.round(cssW * 0.52)));
+  const cssW = Math.max(260, Math.round(rect.width || cv.width || 560));
+  const cssH = Math.max(200, Math.min(250, Math.round(cssW * 0.32)));
   const backW = Math.round(cssW * dpr), backH = Math.round(cssH * dpr);
   if (cv.width !== backW || cv.height !== backH) { cv.width = backW; cv.height = backH; }
   cv.style.height = cssH + 'px';
@@ -10757,12 +10756,12 @@ function drawUfPreview(cv, data, ctx) {
   if (ctx) ufPreviewCtx = ctx;
   ufPreviewGeom = null;
   cv.style.cursor = 'default';
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const cs = getComputedStyle(document.documentElement);
-  const textCol = (cs.getPropertyValue('--text-muted') || '#888').trim() || '#888';
-  // 左側留白加大：dB 標籤（-48dB 等）要完整落在畫布內，不再被左邊緣裁切
-  const padL = 52, padR = 10, padT = 16, padB = 34;
-  // 最佳化分貝軸（Y 軸）：動態範圍設為 +3dB 到 -60dB（跨度 63dB）
-  // 過去 -120dB 讓通帶與過渡帶擠在頂部 1/5；現在改為 0~-60dB，滾降曲線與不同窗函數的陡峭度擴大超過 2 倍！
+  const textCol = (cs.getPropertyValue('--text-muted') || (isLight ? '#64748b' : '#94a3b8')).trim() || (isLight ? '#64748b' : '#94a3b8');
+  const axisCol = isLight ? 'rgba(15, 23, 42, 0.28)' : 'rgba(255, 255, 255, 0.28)';
+  const gridCol = isLight ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.08)';
+  const padL = 52, padR = 18, padT = 18, padB = 42;
   const dbTop = 3, dbBot = -60;
   const yOf = db => padT + (dbTop - db) / (dbTop - dbBot) * (H - padT - padB);
   if (!data || !data.xs || !data.xs.length) {
@@ -10773,37 +10772,26 @@ function drawUfPreview(cv, data, ctx) {
   }
   const srcNyq = data.srcNyq || data.src_nyq || 22050;
   const fsOut = data.fsOut || data.fs_out || ((ufPreviewCtx && ufPreviewCtx.targetRate) || 176400);
-  // ---- X 軸視窗自動對準「滾降轉折區」（解決整條死線的問題）----
-  // 全帶線性軸下，曲線在通帶內是完全平坦的 0dB，轉折只佔幾十個像素——看起來就是一條水平死線。
-  // 現在把 X 軸視窗直接縮放並平移至截止點附近：xMin = max(0, fc - 1.3×源Nyq), xMax = min(fsOut/2, fc + 0.6×源Nyq)。
-  // 這樣滾降的完整弧度、不同 taps 的陡峭差異都會橫向展開到畫布寬度的 40% 以上，一眼可辨！
   const fcRaw = Number.isFinite(data.fcHz || data.fc_hz) && (data.fcHz || data.fc_hz) > 0 ? Math.min(data.fcHz || data.fc_hz, fsOut / 2) : 0;
-  // 引擎回傳的 xs 已涵蓋「完整滾降轉折」（含超大輸出取樣率脈絡）；軸右緣直接採用資料實際覆蓋的頻率，
-  // 再向外補到整數 kHz——保證轉折一定在圖內，且刻度數字全是整數 kHz。
   const dataMaxHz = Array.isArray(data.xs) && data.xs.length ? Number(data.xs[data.xs.length - 1]) : 0;
-  // 左緣固定從音頻帶低端（源Nyq/10 ≈ 2.2kHz）開始：低頻端才能放得下 5k/10k/15k… 的數字刻度；
-  // 若仍用 fc−1.3×源Nyq，左緣會貼著 0Hz，第一個可用刻度（20k）剛好被源 Nyquist 虛線吃掉，整段左半邊都沒有數字。
   const fMin = fcRaw > 0 ? Math.max(0, srcNyq / 10) : 0;
   const rightNeed = Math.max(fcRaw + 0.6 * srcNyq, Number.isFinite(dataMaxHz) ? dataMaxHz : 0);
   const fMax = fcRaw > 0 ? Math.min(fsOut / 2, Math.ceil(rightNeed / 1000) * 1000) : Math.min(fsOut / 2, 1.1 * srcNyq * 2);
-  const xOf = f => padL + (f - fMin) / (fMax - fMin) * (W - padL - padR);
   const plotW = W - padL - padR;
-  // 邊界：源 Nyquist（可聽音頻上緣）、截止 fc（可拖曳）、鏡像抑制零點（止帶起點）
+  const xOf = f => padL + (f - fMin) / (fMax - fMin) * plotW;
+
   const hasMarks = fcRaw > 0;
   const fcHz = hasMarks ? Math.min(fcRaw, fMax) : 0;
-  const fcxX = xOf(fcHz); // 截止線的 x（止帶標字要避開它）
-  // 引擎回傳的兩個真實抑制零點：鏡像帶（srcRate−fc）與 h 週期化頻譜（P−fc）。
-  // 顯示範圍內能看見哪個就用哪個標「止帶」；兩個都超出範圍就不標。
+  const fcxX = xOf(fcHz);
   const imgZero = hasMarks && Number.isFinite(data.imageZeroHz || data.image_zero_hz) ? (data.imageZeroHz || data.image_zero_hz) : 0;
   const stopZero = hasMarks && Number.isFinite(data.transLoHz || data.trans_lo_hz) ? (data.transLoHz || data.trans_lo_hz) : 0;
   const candidates = [imgZero, stopZero].filter(f => f > fcHz + fMax * 0.02 && f < fMax);
-  const stopMark = candidates.length ? Math.min(...candidates) : 0; // 較近的零點＝曲線實際跌落的轉折
+  const stopMark = candidates.length ? Math.min(...candidates) : 0;
 
   // ---- 區域底色：通帶（綠）／過渡帶＋鏡像衰減（琥珀）／止帶（紅）----
   const bandY0 = padT, bandY1 = H - padB;
   const fillBand = (f0, f1, col) => {
     if (!(f1 > f0)) return;
-    // 視窗縮放後要裁切到可見範圍，超出左緣的區段只畫到繪圖區邊界
     const a = Math.max(f0, fMin), b = Math.min(f1, fMax);
     if (!(b > a)) return;
     g.fillStyle = col;
@@ -10819,70 +10807,98 @@ function drawUfPreview(cv, data, ctx) {
     fillBand(srcNyq, fMax, 'rgba(248,113,113,0.06)');
   }
 
-  // ---- dB 網格（+3dB ~ -60dB，標籤靠右對齊貼齊繪圖區左緣，完整可見不被裁切）----
-  g.strokeStyle = 'rgba(128,128,128,0.18)'; g.fillStyle = textCol; g.font = '10px sans-serif'; g.lineWidth = 1;
+  // ---- 完整 Y 軸分貝刻度（0dB 到 -60dB）與網格線 ----
+  g.font = '10px sans-serif';
+  g.lineWidth = 1;
   g.textAlign = 'right';
-  for (const db of [0, -6, -12, -24, -36, -48]) {
-    const y = yOf(db);
+  for (const db of [0, -6, -12, -24, -36, -48, -60]) {
+    const y = Math.round(yOf(db)) + 0.5;
+    g.strokeStyle = gridCol;
     g.beginPath(); g.moveTo(padL, y); g.lineTo(W - padR, y); g.stroke();
-    g.fillText(db === 0 ? '0dB' : db + 'dB', padL - 5, y + 3);
+    g.strokeStyle = axisCol;
+    g.beginPath(); g.moveTo(padL - 4, y); g.lineTo(padL, y); g.stroke();
+    g.fillStyle = textCol;
+    g.fillText(db === 0 ? '0dB' : db + 'dB', padL - 7, y + 3);
   }
+  // 左側 Y 軸實線
+  g.strokeStyle = axisCol;
+  g.beginPath(); g.moveTo(padL, padT); g.lineTo(padL, H - padB); g.stroke();
 
-  // ---- 頻率網格：依「可見視窗寬度」自動選步進。刻度一律標出完整數值與單位
-  // （小於 1kHz 顯示 Hz、其餘顯示 kHz，例如 500Hz / 1.5k / 24k），一眼讀得出單位。
-  // 虛線標記（源Nyq／截止）附近只「挪開」數字、不取消刻度：把標籤推到最近的可用位置，
-  // 避免窄欄下整條軸沒有數字可讀。----
-  const spanHz = fMax - fMin;
-  let stepHz = 100;
-  for (const s of [100, 200, 500, 1000, 2000, 5000, 10000]) { if (Math.floor(spanHz / s) <= 8) { stepHz = s; break; } }
-  const markXs = hasMarks ? [fcxX, xOf(stopMark), xOf(srcNyq)].filter(x => Number.isFinite(x)) : [];
-  g.textAlign = 'center';
+  // ---- 完整 X 軸頻率刻度與網格線（依跨度與畫布寬度自適應步進，支援 100Hz ~ 5MHz）----
+  const spanHz = Math.max(1, fMax - fMin);
+  const targetTicks = Math.max(6, Math.min(12, Math.floor(plotW / 72)));
+  const stepCandidates = [
+    100, 200, 500,
+    1000, 2000, 5000, 10000, 20000, 25000, 50000,
+    100000, 200000, 250000, 500000,
+    1000000, 2000000, 5000000
+  ];
+  let stepHz = stepCandidates[stepCandidates.length - 1];
+  for (const s of stepCandidates) {
+    if (Math.ceil(spanHz / s) <= targetTicks) {
+      stepHz = s;
+      break;
+    }
+  }
   const fmtTick = (f) => {
     if (f < 1000) return Math.round(f) + 'Hz';
+    if (f >= 1000000) return (f / 1e6).toFixed(f % 1e6 === 0 ? 0 : 1) + 'MHz';
     if (stepHz < 1000 || f % 1000 !== 0) return (f / 1000).toFixed(1) + 'kHz';
     return Math.round(f / 1000) + 'kHz';
   };
-  for (let f = Math.ceil(fMin / stepHz) * stepHz; f <= fMax + 1; f += stepHz) {
-    const x = xOf(Math.min(f, fMax));
-    g.strokeStyle = 'rgba(128,128,128,0.14)';
+
+  // 底部 X 軸實線
+  g.strokeStyle = axisCol;
+  g.beginPath(); g.moveTo(padL, H - padB); g.lineTo(W - padR, H - padB); g.stroke();
+
+  g.textAlign = 'center';
+  let lastLabelRightX = -Infinity;
+  const firstTick = Math.ceil(fMin / stepHz) * stepHz;
+  for (let f = firstTick; f <= fMax + 0.5; f += stepHz) {
+    const x = Math.round(xOf(Math.min(f, fMax))) + 0.5;
+    g.strokeStyle = gridCol;
     g.beginPath(); g.moveTo(x, padT); g.lineTo(x, H - padB); g.stroke();
-    // 數字與虛線標記太近時，把數字往兩側推（先左後右），推到畫布內才畫；真的放不下才省略
-    let tx = x;
-    const clash = (cand) => markXs.some(mx => Math.abs(cand - mx) < 24);
-    if (clash(tx)) {
-      const left = x - 24, right = x + 24;
-      const okL = left >= padL + 12 && !clash(left), okR = right <= W - padR - 12 && !clash(right);
-      if (okL) tx = left; else if (okR) tx = right; else continue;
+    g.strokeStyle = axisCol;
+    g.beginPath(); g.moveTo(x, H - padB); g.lineTo(x, H - padB + 4); g.stroke();
+
+    const lbl = fmtTick(f);
+    const tw = g.measureText(lbl).width;
+    const leftEdge = x - tw / 2;
+    const rightEdge = x + tw / 2;
+    if (leftEdge >= padL - 6 && rightEdge <= W - padR + 6 && leftEdge >= lastLabelRightX + 8) {
+      g.fillStyle = textCol;
+      g.fillText(lbl, x, H - padB + 15);
+      lastLabelRightX = rightEdge;
     }
-    g.fillStyle = textCol;
-    g.fillText(fmtTick(f), tx, H - 20);
   }
 
-  // ---- 底部頻率軸：畫出一條實線軸與兩端範圍標籤（Hz〜kHz 完整單位），清楚標示圖表的頻率跨度。----
-  g.strokeStyle = 'rgba(128,128,128,0.35)';
-  g.beginPath(); g.moveTo(padL, H - padB); g.lineTo(W - padR, H - padB); g.stroke();
-  const axisFmt = (f) => f < 1000 ? Math.round(f) + 'Hz' : (Math.round(f / 100) / 10) + 'kHz';
+  // ---- 最底行頻率範圍總覽 ----
+  const axisFmt = (f) => {
+    if (f < 1000) return Math.round(f) + 'Hz';
+    if (f >= 1000000) return (f / 1e6).toFixed(2) + 'MHz';
+    return (Math.round(f / 100) / 10) + 'kHz';
+  };
   g.fillStyle = textCol;
-  // 範圍文字放最底行（H-5），與刻度數字行（H-20）錯開；兩側還得避開「音頻帶／衰減中」區域標字的中間段，
-  // 所以左標籤從左下角起、右標籤靠右下角收，中間留給區域名稱。
   g.textAlign = 'left';
-  g.fillText('頻率軸 ' + axisFmt(fMin) + ' ~ ' + axisFmt(fMax), padL, H - 5);
+  g.fillText('頻率軸 ' + axisFmt(fMin) + ' ~ ' + axisFmt(fMax), padL, H - 6);
 
-  // ---- 邊界虛線與圖內標字。標字一律放在繪圖區上方（曲線都在下方，不會壓到）。
-  // 源 Nyquist 與截止線常貼得很近（cutoffRel≈1.05 時只差幾個像素），窄欄下文字比線距還寬：
-  // 兩條線的標字一律放在「外側」（Nyquist 放左、截止放右）——這樣它們永遠朝相反方向長出去，
-  // 不會互相壓到；只有真的超出繪圖區才改用較短的文字，再放不下就不寫字（保留虛線）。----
+  // ---- 邊界虛線與圖內標字 ----
   const labelCandidates = (x, texts, preferRight) => {
     g.font = '10px sans-serif';
     const out = [];
     for (const txt of texts) {
       const w = g.measureText(txt).width;
-      const left = { side: 'left', x0: x + 3, x1: x + 3 + w };
-      const right = { side: 'right', x0: x - 3 - w, x1: x - 3 };
+      const left = { side: 'left', x0: x + 4, x1: x + 4 + w };
+      const right = { side: 'right', x0: x - 4 - w, x1: x - 4 };
       const fitsLeft = left.x0 >= padL && left.x1 <= W - padR;
       const fitsRight = right.x0 >= padL && right.x1 <= W - padR;
-      if (preferRight) { if (fitsRight) out.push({ txt, x, w, side: 'right', x0: right.x0, x1: right.x1 }); if (fitsLeft) out.push({ txt, x, w, side: 'left', x0: left.x0, x1: left.x1 }); }
-      else { if (fitsLeft) out.push({ txt, x, w, side: 'left', x0: left.x0, x1: left.x1 }); if (fitsRight) out.push({ txt, x, w, side: 'right', x0: right.x0, x1: right.x1 }); }
+      if (preferRight) {
+        if (fitsRight) out.push({ txt, x, w, side: 'right', x0: right.x0, x1: right.x1 });
+        if (fitsLeft) out.push({ txt, x, w, side: 'left', x0: left.x0, x1: left.x1 });
+      } else {
+        if (fitsLeft) out.push({ txt, x, w, side: 'left', x0: left.x0, x1: left.x1 });
+        if (fitsRight) out.push({ txt, x, w, side: 'right', x0: right.x0, x1: right.x1 });
+      }
     }
     return out;
   };
@@ -10893,53 +10909,53 @@ function drawUfPreview(cv, data, ctx) {
     g.beginPath(); g.moveTo(x, padT); g.lineTo(x, H - padB); g.stroke();
     g.restore();
   };
-  const drawLabelAt = (col, p) => {
+  const drawLabelAt = (col, p, yOff = 11) => {
     if (!p) return null;
     g.font = '10px sans-serif';
     g.fillStyle = col;
-    if (p.side === 'right') { g.textAlign = 'right'; g.fillText(p.txt, p.x - 3, padT + 10); }
-    else { g.textAlign = 'left'; g.fillText(p.txt, p.x + 3, padT + 10); }
+    if (p.side === 'right') { g.textAlign = 'right'; g.fillText(p.txt, p.x - 4, padT + yOff); }
+    else { g.textAlign = 'left'; g.fillText(p.txt, p.x + 4, padT + yOff); }
     return p;
   };
-  drawBoundary(srcNyq, 'rgba(251,146,60,0.8)');
-  if (hasMarks) drawBoundary(fcHz, '#fbbf24');
-  if (stopMark) drawBoundary(stopMark, 'rgba(248,113,113,0.55)');
-  const occupied = []; // 上方已放下的標字範圍，其餘標字要避開
+  const nyqCol = isLight ? 'rgba(217, 119, 6, 0.85)' : 'rgba(251,146,60,0.85)';
+  const cutCol = isLight ? '#d97706' : '#fbbf24';
+  const stopCol = isLight ? 'rgba(220, 38, 38, 0.75)' : 'rgba(248,113,113,0.85)';
+  drawBoundary(srcNyq, nyqCol);
+  if (hasMarks) drawBoundary(fcHz, cutCol);
+  if (stopMark) drawBoundary(stopMark, stopCol);
+  const occupied = [];
   const srcTexts = [`源 Nyquist ${Math.round(srcNyq / 100) / 10}k`, `源Nyq ${Math.round(srcNyq / 100) / 10}k`];
+  const srcP = drawLabelAt(nyqCol, labelCandidates(xOf(srcNyq), srcTexts, true)[0], 11);
+  if (srcP) occupied.push({ ...srcP, row: 0 });
   if (hasMarks) {
-    // 一律放外側：源 Nyquist 標字往左長、截止標字往右長，兩者永遠背對背，不會重疊。
-    const srcP = drawLabelAt('rgba(251,146,60,0.9)', labelCandidates(xOf(srcNyq), srcTexts, true)[0]);
-    const cutP = drawLabelAt('#fbbf24', labelCandidates(fcxX, [`截止 ${(fcHz / 1000).toFixed(1)}k ←拖曳`, `截止 ${(fcHz / 1000).toFixed(1)}k`], false)[0]);
-    if (srcP) occupied.push(srcP);
-    if (cutP) occupied.push(cutP);
-  } else {
-    const srcP = drawLabelAt('rgba(251,146,60,0.9)', labelCandidates(xOf(srcNyq), srcTexts, true)[0]);
-    if (srcP) occupied.push(srcP);
+    const cutCand = labelCandidates(fcxX, [`截止 ${(fcHz / 1000).toFixed(1)}k ←拖曳`, `截止 ${(fcHz / 1000).toFixed(1)}k`], false)[0];
+    const overlapsRow0 = cutCand && occupied.some(o => o.row === 0 && o.x0 < cutCand.x1 && cutCand.x0 < o.x1);
+    const cutY = overlapsRow0 ? 24 : 11;
+    const cutP = drawLabelAt(cutCol, cutCand, cutY);
+    if (cutP) occupied.push({ ...cutP, row: overlapsRow0 ? 1 : 0 });
   }
   if (hasMarks && stopMark) {
-    // 「止帶」標字：放虛線左側最直覺，但上方已被截止／源 Nyquist 標字佔用時改放繪圖區底部錯開。
     const sx = xOf(stopMark);
     const stopTxt = `止帶 ↓${Math.round(stopMark / 1000)}k`;
     g.font = '10px sans-serif';
     const sw = g.measureText(stopTxt).width;
-    const topFree = !occupied.some(o => (sx - 3 - sw) < o.x1 && o.x0 < (sx - 3));
-    if (sx - sw >= padL && sx - 3 > fcxX + 4 && topFree) {
+    const topFree = !occupied.some(o => o.row === 0 && (sx - 4 - sw) < o.x1 && o.x0 < (sx - 4));
+    if (sx - sw >= padL && sx - 4 > fcxX + 4 && topFree) {
       g.textAlign = 'right';
-      g.fillStyle = 'rgba(248,113,113,0.95)';
-      g.fillText(stopTxt, sx - 3, padT + 10);
+      g.fillStyle = stopCol;
+      g.fillText(stopTxt, sx - 4, padT + 11);
     } else if (sx + sw <= W - padR) {
       g.textAlign = 'left';
-      g.fillStyle = 'rgba(248,113,113,0.95)';
-      g.fillText(stopTxt, sx + 3, H - padB - 6);
+      g.fillStyle = stopCol;
+      g.fillText(stopTxt, sx + 4, H - padB - 6);
     } else if (sx - sw >= padL) {
       g.textAlign = 'right';
-      g.fillStyle = 'rgba(248,113,113,0.95)';
-      g.fillText(stopTxt, sx - 3, H - padB - 6);
+      g.fillStyle = stopCol;
+      g.fillText(stopTxt, sx - 4, H - padB - 6);
     }
   }
 
-  // ---- 區域名稱（繪圖區底部，避開上方標字與曲線）。先收集每段可用的文字長度，
-  // 再從最重要的兩段開始挑：同一列上互不重疊、且能完整落在該段範圍內才畫。----
+  // ---- 區域名稱（繪圖區底部）----
   g.textAlign = 'center';
   g.font = 'bold 10px sans-serif';
   const zoneCandidates = (f0, f1, texts, col) => {
@@ -10948,7 +10964,7 @@ function drawUfPreview(cv, data, ctx) {
     const out = [];
     for (const txt of texts) {
       const w = g.measureText(txt).width;
-      if (hi - lo < w) continue; // 這段太窄：換更短的文字，或整段不標
+      if (hi - lo < w) continue;
       const x = (lo + hi) / 2;
       if (x - w / 2 < padL || x + w / 2 > W - padR) continue;
       out.push({ txt, col, x, x0: x - w / 2, x1: x + w / 2 });
@@ -10965,21 +10981,20 @@ function drawUfPreview(cv, data, ctx) {
       return;
     }
   };
-  // 優先序：保留區（使用者最想知道哪些聲音留下來）→ 止帶 → 過渡帶 → 衰減中
-  tryPlaceZone(zoneCandidates(0, srcNyq, ['音頻帶（原音保留）', '音頻帶'], 'rgba(52,211,153,0.85)'));
+  tryPlaceZone(zoneCandidates(0, srcNyq, ['音頻帶（原音保留）', '音頻帶'], isLight ? '#059669' : 'rgba(52,211,153,0.85)'));
   if (hasMarks) {
     if (stopMark) {
-      tryPlaceZone(zoneCandidates(stopMark, fMax, ['鏡像完全抑制（止帶）', '止帶'], 'rgba(248,113,113,0.85)'));
-      tryPlaceZone(zoneCandidates(fcHz, stopMark, ['鏡像衰減中', '衰減中'], 'rgba(251,146,60,0.75)'));
+      tryPlaceZone(zoneCandidates(stopMark, fMax, ['鏡像完全抑制（止帶）', '止帶'], isLight ? '#dc2626' : 'rgba(248,113,113,0.85)'));
+      tryPlaceZone(zoneCandidates(fcHz, stopMark, ['鏡像衰減中', '衰減中'], isLight ? '#d97706' : 'rgba(251,146,60,0.85)'));
     } else {
-      tryPlaceZone(zoneCandidates(fcHz, fMax, ['鏡像衰減中', '衰減中'], 'rgba(251,146,60,0.75)'));
+      tryPlaceZone(zoneCandidates(fcHz, fMax, ['鏡像衰減中', '衰減中'], isLight ? '#d97706' : 'rgba(251,146,60,0.85)'));
     }
-    tryPlaceZone(zoneCandidates(srcNyq, fcHz, ['過渡帶'], 'rgba(251,146,60,0.9)'));
+    tryPlaceZone(zoneCandidates(srcNyq, fcHz, ['過渡帶'], isLight ? '#d97706' : 'rgba(251,146,60,0.9)'));
   } else {
-    tryPlaceZone(zoneCandidates(srcNyq, fMax, ['鏡像衰減中', '衰減中'], 'rgba(248,113,113,0.85)'));
+    tryPlaceZone(zoneCandidates(srcNyq, fMax, ['鏡像衰減中', '衰減中'], isLight ? '#dc2626' : 'rgba(248,113,113,0.85)'));
   }
 
-  // ---- 響應曲線（通帶內加淡色填充，強調「保留區間」）----
+  // ---- 響應曲線（統一 Roon 薰衣草紫調）----
   const pts = [];
   const ys = data.ysDb || data.ys_db || [];
   for (let i = 0; i < data.xs.length; i++) {
@@ -10992,9 +11007,10 @@ function drawUfPreview(cv, data, ctx) {
     for (const [x, y] of pts) g.lineTo(x, y);
     g.lineTo(pts[pts.length - 1][0], yOf(0));
     g.closePath();
-    g.fillStyle = 'rgba(52,211,153,0.10)';
+    g.fillStyle = isLight ? 'rgba(124, 92, 255, 0.12)' : 'rgba(167, 139, 250, 0.14)';
     g.fill();
-    g.strokeStyle = '#34d399'; g.lineWidth = 1.8;
+    g.strokeStyle = isLight ? '#7c5cff' : '#a78bfa';
+    g.lineWidth = 2;
     g.beginPath();
     for (let i = 0; i < pts.length; i++) { if (i === 0) g.moveTo(pts[i][0], pts[i][1]); else g.lineTo(pts[i][0], pts[i][1]); }
     g.stroke();
