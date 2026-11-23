@@ -223,6 +223,20 @@ mod tests {
         let elapsed = t0.elapsed();
         println!("Modulating 1.0s of DSD512 (parallel Hermite) took: {:?}", elapsed);
 
+        // Also benchmark DSD64, DSD128, DSD256 (1.0s each)
+        for (name, rate, s1_rate, blocks) in [
+            ("DSD64", 2822400.0_f64, 176400.0_f64, 87usize),
+            ("DSD128", 5644800.0_f64, 352800.0_f64, 173usize),
+            ("DSD256", 11289600.0_f64, 352800.0_f64, 345usize),
+        ] {
+            let mut m = DsdModulator::new(7, "precise-linear", DitherType::Gauss, None);
+            m.set_dsd_rate(rate as u32);
+            let mut buf = vec![0u8; DSD_BLOCK_SIZE * 2 * blocks];
+            let ts = std::time::Instant::now();
+            m.run_blocks(&left, &right, n_src, 0, blocks, s1_rate / rate, &mut buf);
+            println!("Modulating 1.0s of {} (parallel Hermite) took: {:?}", name, ts.elapsed());
+        }
+
         // 1 second of DSD512 must process faster than real-time (1000ms in release, 5000ms in debug)
         let max_ms = if cfg!(debug_assertions) { 5000 } else { 1000 };
         assert!(elapsed.as_millis() < max_ms, "DSD512 modulation took too long: {:?}", elapsed);

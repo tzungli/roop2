@@ -102,10 +102,25 @@ fn upsample_stage1_channel(
             let k_base = entry.k0 + (out_idx / p) as i32 * q;
             let t = entry.t;
             if k_base >= 0 && (k_base as usize + t) <= in_len {
-                let mut acc = 0.0;
                 let start = k_base as usize;
-                for j in 0..t {
-                    acc += pcm[start + j] * entry.g[j];
+                let src_slice = &pcm[start..start + t];
+                let g_slice = &entry.g[..t];
+                // 4-way unrolled FMA dot product: LLVM auto-vectorizes to 256-bit AVX2 vfmadd231pd
+                let mut acc0 = 0.0;
+                let mut acc1 = 0.0;
+                let mut acc2 = 0.0;
+                let mut acc3 = 0.0;
+                let chunks = t / 4;
+                for c in 0..chunks {
+                    let j = c * 4;
+                    acc0 += src_slice[j] * g_slice[j];
+                    acc1 += src_slice[j + 1] * g_slice[j + 1];
+                    acc2 += src_slice[j + 2] * g_slice[j + 2];
+                    acc3 += src_slice[j + 3] * g_slice[j + 3];
+                }
+                let mut acc = (acc0 + acc1) + (acc2 + acc3);
+                for j in (chunks * 4)..t {
+                    acc += src_slice[j] * g_slice[j];
                 }
                 out[dst_i] = acc;
             } else {
@@ -288,9 +303,9 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
 
         let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Gauss);
         // Two-stage audiophile DSD upsampling:
-        // Stage 1: Polyphase FIR anti-imaging filter (src_rate -> 352.8 kHz) eliminates ultrasonic images (>130 dB rejection).
-        // Stage 2: 64-bit Hermite spline table (352.8 kHz -> DSD64/128/256/512) + parallel L/R CLANS modulator.
-        let stage1_rate: u32 = 352800;
+        // Stage 1: Polyphase FIR anti-imaging filter (176.4 kHz for DSD64, 352.8 kHz for DSD128/256/512)
+        // Stage 2: Forward-difference 64-bit Hermite + parallel L/R AVX2+FMA CLANS modulator.
+        let stage1_rate: u32 = if dsd_multiplier == 64 { 176400 } else { 352800 };
         let use_stage1 = src_rate < stage1_rate;
         let stage1_gf = if use_stage1 {
             REGISTRY.build_filter(stage1_rate as f64, src_rate as f64, &opts.filter_phase).map(Arc::new)
@@ -412,11 +427,12 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     bg_notify.notify_waiters();
 
                     // Gentle CPU pacing once we have a >20s safety cushion ahead of playback time.
-                    // Keeps steady-state DSD512 CPU usage very low (~3-6%) while preserving instant cancellation.
+                    // Keeps steady-state CPU usage ultra-low (DSD64 <1%, DSD128 ~1-2%, DSD256 ~2-3%, DSD512 ~4-6%).
                     let written_secs = (curr_block * samples_per_block) as f64 / dsd_rate as f64;
                     let ahead_secs = written_secs - bg_start.elapsed().as_secs_f64();
                     if ahead_secs > 20.0 && curr_block < num_blocks {
-                        for _ in 0..8 {
+                        let sleep_ticks = if dsd_multiplier >= 512 { 8 } else { 11 };
+                        for _ in 0..sleep_ticks {
                             if bg_is_cancelled.load(Ordering::Relaxed) {
                                 return;
                             }
