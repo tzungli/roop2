@@ -10388,7 +10388,7 @@ body.table-col-resizing * {
 }
 
 .nav-item[data-view="tidal"]:hover .nav-icon {
-  filter: drop-shadow(0 0 6px #00e5ff);
+  filter: none;
 }
 
 /* ==========================================================
@@ -11229,10 +11229,16 @@ body.table-col-resizing * {
 /* ==========================================================
    TIDAL Light Theme Dynamic Adaptations
    ========================================================== */
-[data-theme="light"] #tidalStatusBadge {
-  background: rgba(8, 145, 178, 0.12) !important;
-  color: var(--accent-cyan) !important;
-  border-color: rgba(8, 145, 178, 0.35) !important;
+[data-theme="light"] #tidalStatusBadge.is-online {
+  background: #e2e2fc !important;
+  color: #4f3cc9 !important;
+  border-color: #c4b5fd !important;
+}
+
+[data-theme="light"] #tidalStatusBadge:not(.is-online) {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
 }
 
 [data-theme="light"] .album-version-card {
@@ -13005,4 +13011,28 @@ body.table-col-resizing * {
 
 [data-theme="light"] .track-yt-cell:empty::after {
   color: rgba(15, 23, 42, 0.16);
+}
+
+/* Unified Monochrome Sidebar Navigation Icons */
+#sidebar .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  flex-shrink: 0;
+  color: currentColor;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+#sidebar .nav-item:hover .nav-icon,
+#sidebar .nav-item.active .nav-icon {
+  opacity: 1;
+  color: currentColor;
+}
+
+#sidebar .nav-icon svg {
+  display: block;
 }

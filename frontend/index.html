@@ -58,36 +58,76 @@
       <div class="nav-group">
         <div class="nav-title" data-i18n-en="LIBRARY">音樂庫</div>
         <button class="nav-item active" data-view="overview">
-          <span class="nav-icon">☷</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+            </svg>
+          </span>
           <span class="nav-label" data-i18n-en="Overview">總覽</span>
         </button>
         <button class="nav-item" data-view="albums">
-          <span class="nav-icon">💿</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <circle cx="12" cy="12" r="2.6"></circle>
+            </svg>
+          </span>
           <span class="nav-label" data-i18n-en="Albums">專輯</span>
           <span class="badge" id="albumCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="artists">
-          <span class="nav-icon">👤</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M5 20a7 7 0 0 1 14 0"></path>
+            </svg>
+          </span>
           <span class="nav-label" data-i18n-en="Artists">演出者</span>
           <span class="badge" id="artistCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="tracks">
-          <span class="nav-icon">🎵</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+          </span>
           <span class="nav-label" data-i18n-en="Tracks">曲目</span>
           <span class="badge" id="trackCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="genres">
-          <span class="nav-icon">🏷️</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+              <circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"></circle>
+            </svg>
+          </span>
           <span class="nav-label" data-i18n-en="Genres">曲風流派</span>
           <span class="badge" id="genreCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="history">
-          <span class="nav-icon">🕒</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <polyline points="12 7 12 12 15.5 14"></polyline>
+            </svg>
+          </span>
           <span class="nav-label">播放紀錄</span>
           <span class="badge" id="historyCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="playlists">
-          <span class="nav-icon">📃</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="6" x2="18" y2="6"></line>
+              <line x1="4" y1="12" x2="14" y2="12"></line>
+              <line x1="4" y1="18" x2="11" y2="18"></line>
+              <polygon points="16 14 21 17 16 20 16 14" fill="currentColor" stroke="none"></polygon>
+            </svg>
+          </span>
           <span class="nav-label">播放清單</span>
           <span class="badge" id="playlistCountBadge">0</span>
         </button>
@@ -96,22 +136,30 @@
       <div class="nav-group">
         <div class="nav-title" data-i18n-en="FAVORITES">我的最愛</div>
         <button class="nav-item" data-view="favAlbums">
-          <span class="nav-icon nav-fav-icon" style="color: #f43f5e;">
-            <svg class="fav-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
           </span>
           <span class="nav-label">最愛專輯</span>
           <span class="badge" id="favAlbumsCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="favTracks">
-          <span class="nav-icon nav-fav-icon" style="color: #f43f5e;">
-            <svg class="fav-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 17V5l10-1.8V11"></path>
+              <circle cx="6.5" cy="17" r="2.5"></circle>
+              <path d="M19.5 14.5c-1-1-2.5-.6-2.5.8 0 1.4 2.5 3.2 2.5 3.2s2.5-1.8 2.5-3.2c0-1.4-1.5-1.8-2.5-.8z"></path>
+            </svg>
           </span>
           <span class="nav-label">最愛歌曲</span>
           <span class="badge" id="favTracksCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="favArtists">
-          <span class="nav-icon nav-fav-icon" style="color: #f59e0b;">
-            <svg class="fav-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
           </span>
           <span class="nav-label">最愛演出者</span>
           <span class="badge" id="favArtistsCountBadge">0</span>
@@ -121,7 +169,7 @@
       <div class="nav-group">
         <div class="nav-title" data-i18n-en="STREAMING">線上串流</div>
         <button class="nav-item" data-view="tidal" id="navItemTidal">
-          <span class="nav-icon" style="display: inline-flex; align-items: center; justify-content: center;">
+          <span class="nav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
               <path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/>
             </svg>
@@ -130,8 +178,8 @@
           <span class="badge streaming-status-badge" id="tidalStatusBadge">未登入</span>
         </button>
         <button class="nav-item" data-view="kkbox">
-          <span class="nav-icon" style="display: inline-flex; align-items: center; justify-content: center;">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
               <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
             </svg>
@@ -144,16 +192,31 @@
       <div class="nav-group">
         <div class="nav-title" data-i18n-en="SETTINGS &amp; STORAGE">管理與設定</div>
         <button class="nav-item" data-view="storage">
-          <span class="nav-icon">📁</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </span>
           <span class="nav-label">本機資料夾管理</span>
         </button>
         <button class="nav-item" data-view="networkStorage">
-          <span class="nav-icon">🌐</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"></path>
+            </svg>
+          </span>
           <span class="nav-label">網路資料夾設定</span>
           <span class="badge" id="netFolderCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="about">
-          <span class="nav-icon">📖</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 4h7a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H2z"></path>
+              <path d="M22 4h-7a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H22z"></path>
+            </svg>
+          </span>
           <span class="nav-label">說明</span>
         </button>
       </div>
