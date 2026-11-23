@@ -1,5 +1,12 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, State, Window};
 use roo_dlna::DlnaManager;
+
+static PENDING_MAXIMIZE: AtomicBool = AtomicBool::new(false);
+
+pub fn mark_pending_maximize() {
+    PENDING_MAXIMIZE.store(true, Ordering::SeqCst);
+}
 
 #[tauri::command]
 pub async fn window_minimize(window: Window) -> Result<(), String> {
@@ -35,6 +42,10 @@ pub async fn window_start_dragging(window: Window) -> Result<(), String> {
 pub async fn window_show(window: Window) -> Result<(), String> {
     tracing::info!("Showing main window");
     let _ = window.show();
+    if PENDING_MAXIMIZE.swap(false, Ordering::SeqCst) {
+        let _ = window.maximize();
+        let _ = window.emit("window:maximizedChange", true);
+    }
     let _ = window.set_focus();
     Ok(())
 }

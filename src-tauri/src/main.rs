@@ -85,10 +85,37 @@ async fn main() {
 
     let exclusive_controller = ExclusiveController::new();
     let dlna_manager = DlnaManager::new();
+    let window_state_path = app_data_dir.join("window_state.json");
     let tidal_state = TidalState::new(app_data_dir);
 
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    struct WindowSizeState {
+        width: f64,
+        height: f64,
+        #[serde(default)]
+        maximized: bool,
+    }
+
+    let initial_win_state: Option<WindowSizeState> = std::fs::read_to_string(&window_state_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok());
+
+    let saved_win_state = Arc::new(std::sync::Mutex::new(
+        initial_win_state.clone().unwrap_or(WindowSizeState {
+            width: 1280.0,
+            height: 820.0,
+            maximized: false,
+        }),
+    ));
+    let window_restored = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let setup_restored_flag = window_restored.clone();
+    let setup_initial_state = initial_win_state.clone();
+    let event_win_state = saved_win_state.clone();
+    let event_state_path = window_state_path.clone();
+    let event_restored_flag = window_restored.clone();
+
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             if let Some(win) = app.get_webview_window("main") {
                 if let Some(icon) = app.default_window_icon() {
                     let _ = win.set_icon(icon.clone());
@@ -97,7 +124,29 @@ async fn main() {
                     width: 840.0,
                     height: 680.0,
                 })));
+
+                // Restore last saved window size before revealing window
                 let _ = win.hide();
+                if let Some(st) = setup_initial_state {
+                    let mut target_w = st.width.max(840.0);
+                    let mut target_h = st.height.max(680.0);
+                    if let Ok(Some(monitor)) = win.current_monitor() {
+                        let scale = monitor.scale_factor().max(0.5);
+                        let max_w = (monitor.size().width as f64 / scale).max(840.0);
+                        let max_h = (monitor.size().height as f64 / scale).max(680.0);
+                        target_w = target_w.min(max_w);
+                        target_h = target_h.min(max_h);
+                    }
+                    let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                        width: target_w,
+                        height: target_h,
+                    }));
+                    let _ = win.center();
+                    if st.maximized {
+                        commands::window::mark_pending_maximize();
+                    }
+                }
+                setup_restored_flag.store(true, std::sync::atomic::Ordering::SeqCst);
             }
             let handle = app.handle().clone();
             tokio::spawn(async move {
@@ -124,9 +173,14 @@ async fn main() {
             });
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(move |window, event| {
             match event {
                 tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
+                    if let Ok(guard) = event_win_state.lock() {
+                        if let Ok(json) = serde_json::to_string_pretty(&*guard) {
+                            let _ = std::fs::write(&event_state_path, json);
+                        }
+                    }
                     static SHUTDOWN_STOPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                     if !SHUTDOWN_STOPPED.swap(true, std::sync::atomic::Ordering::SeqCst) {
                         api.prevent_close();
@@ -139,22 +193,54 @@ async fn main() {
                         });
                     }
                 }
-                tauri::WindowEvent::Resized(phys_size) => {
-                    if let Ok(scale) = window.scale_factor() {
-                        let log_w = phys_size.width as f64 / scale;
-                        let log_h = phys_size.height as f64 / scale;
-                        if log_w < 840.0 || log_h < 680.0 {
-                            let clamped_w = log_w.max(840.0);
-                            let clamped_h = log_h.max(680.0);
-                            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                                width: clamped_w,
-                                height: clamped_h,
-                            }));
+                tauri::WindowEvent::Resized(phys_size) if window.label() == "main" => {
+                    let is_min = window.is_minimized().unwrap_or(false)
+                        || phys_size.width == 0
+                        || phys_size.height == 0;
+                    let is_max = window.is_maximized().unwrap_or(false);
+
+                    if !is_min {
+                        if let Ok(scale) = window.scale_factor() {
+                            let log_w = phys_size.width as f64 / scale;
+                            let log_h = phys_size.height as f64 / scale;
+                            if !is_max && (log_w < 840.0 || log_h < 680.0) {
+                                let clamped_w = log_w.max(840.0);
+                                let clamped_h = log_h.max(680.0);
+                                let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                                    width: clamped_w,
+                                    height: clamped_h,
+                                }));
+                            } else if event_restored_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                                if let Ok(mut guard) = event_win_state.lock() {
+                                    let mut changed = false;
+                                    if is_max {
+                                        if !guard.maximized {
+                                            guard.maximized = true;
+                                            changed = true;
+                                        }
+                                    } else {
+                                        let rw = log_w.round();
+                                        let rh = log_h.round();
+                                        if (guard.width - rw).abs() >= 1.0
+                                            || (guard.height - rh).abs() >= 1.0
+                                            || guard.maximized
+                                        {
+                                            guard.width = rw;
+                                            guard.height = rh;
+                                            guard.maximized = false;
+                                            changed = true;
+                                        }
+                                    }
+                                    if changed {
+                                        if let Ok(json) = serde_json::to_string_pretty(&*guard) {
+                                            let _ = std::fs::write(&event_state_path, json);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    if let Ok(is_max) = window.is_maximized() {
-                        let _ = window.emit("window:maximizedChange", is_max);
-                    }
+                    let _ = window.emit("window:maximizedChange", is_max);
                 }
                 _ => {}
             }
