@@ -95,18 +95,14 @@ pub async fn library_load_saved(state: State<'_, LibraryState>) -> Result<serde_
 pub async fn library_save_tracks(
     state: State<'_, LibraryState>,
     tracks: Vec<serde_json::Value>,
-) -> Result<(), String> {
-    let mut parsed: Vec<TrackRecord> = Vec::with_capacity(tracks.len());
-    for (idx, val) in tracks.into_iter().enumerate() {
-        match serde_json::from_value::<TrackRecord>(val) {
-            Ok(rec) => parsed.push(rec),
-            Err(e) => {
-                tracing::warn!("Skipping malformed track at index {} during library_save_tracks: {}", idx, e);
-            }
-        }
-    }
+) -> Result<usize, String> {
+    let parsed: Vec<TrackRecord> = tracks
+        .iter()
+        .map(TrackRecord::from_json_value)
+        .collect();
+    let count = parsed.len();
     state.db.sync_library_tracks(&parsed).map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(count)
 }
 
 #[tauri::command]

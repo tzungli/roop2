@@ -148,6 +148,120 @@ pub struct TrackRecord {
 }
 
 impl TrackRecord {
+    /// Parse a TrackRecord from an arbitrary frontend JSON object without failing on
+    /// duplicate alias keys (e.g. `filePath` + `path`, `cover` + `coverPath`, `formatName` + `format`)
+    /// or JS type variations (string vs number year/id).
+    pub fn from_json_value(v: &serde_json::Value) -> Self {
+        let str_any = |keys: &[&str]| -> Option<String> {
+            for k in keys {
+                if let Some(val) = v.get(*k) {
+                    match val {
+                        serde_json::Value::String(s) => {
+                            let t = s.trim();
+                            if !t.is_empty() {
+                                return Some(t.to_string());
+                            }
+                        }
+                        serde_json::Value::Number(n) => return Some(n.to_string()),
+                        _ => {}
+                    }
+                }
+            }
+            None
+        };
+
+        let opt_u32 = |keys: &[&str]| -> Option<u32> {
+            for k in keys {
+                if let Some(val) = v.get(*k) {
+                    match val {
+                        serde_json::Value::Number(n) => {
+                            if let Some(x) = n.as_u64() { return Some(x as u32); }
+                            if let Some(x) = n.as_f64() { return Some(x as u32); }
+                        }
+                        serde_json::Value::String(s) => {
+                            let prefix: String = s.trim().chars().take_while(|c| c.is_ascii_digit()).collect();
+                            if let Ok(x) = prefix.parse::<u32>() {
+                                return Some(x);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            None
+        };
+
+        let f64_any = |keys: &[&str]| -> f64 {
+            for k in keys {
+                if let Some(val) = v.get(*k) {
+                    match val {
+                        serde_json::Value::Number(n) => if let Some(x) = n.as_f64() { return x; },
+                        serde_json::Value::String(s) => if let Ok(x) = s.trim().parse::<f64>() { return x; },
+                        _ => {}
+                    }
+                }
+            }
+            0.0
+        };
+
+        let u64_any = |keys: &[&str]| -> Option<u64> {
+            for k in keys {
+                if let Some(val) = v.get(*k) {
+                    match val {
+                        serde_json::Value::Number(n) => {
+                            if let Some(x) = n.as_u64() { return Some(x); }
+                            if let Some(x) = n.as_f64() { return Some(x as u64); }
+                        }
+                        serde_json::Value::String(s) => {
+                            if let Ok(x) = s.trim().parse::<u64>() { return Some(x); }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            None
+        };
+
+        let path = str_any(&["filePath", "path"]).unwrap_or_default();
+        let tidal_id = str_any(&["tidalId", "tidal_id"]);
+        let tidal_album_id = str_any(&["tidalAlbumId", "tidal_album_id", "albumId"]);
+        let is_tidal_flag = v.get("isTidal")
+            .or_else(|| v.get("is_tidal"))
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        let is_tidal = is_tidal_flag || tidal_id.is_some() || path.starts_with("tidal://");
+        let id = str_any(&["id"]).unwrap_or_else(|| {
+            if let Some(ref tid) = tidal_id {
+                format!("tidal_{}", tid)
+            } else {
+                default_id()
+            }
+        });
+
+        TrackRecord {
+            id,
+            path,
+            title: str_any(&["title"]).unwrap_or_else(default_unknown),
+            artist: str_any(&["artist"]).unwrap_or_else(default_unknown),
+            album_artist: str_any(&["albumArtist", "album_artist"]).unwrap_or_default(),
+            album: str_any(&["album"]).unwrap_or_else(default_unknown),
+            year: opt_u32(&["year"]),
+            genre: str_any(&["genre"]).unwrap_or_else(default_unknown),
+            track_number: opt_u32(&["trackNumber", "track_number"]),
+            disk_number: opt_u32(&["diskNumber", "discNumber", "disk_number"]),
+            duration: f64_any(&["duration"]),
+            sample_rate: opt_u32(&["sampleRate", "sample_rate"]).filter(|&x| x > 0).unwrap_or(44100),
+            bits_per_sample: opt_u32(&["bitsPerSample", "bits_per_sample"]).filter(|&x| x > 0).unwrap_or(16),
+            format: str_any(&["formatName", "format"]).unwrap_or_else(default_format),
+            cover_path: str_any(&["cover", "coverPath", "cover_path"]),
+            date_added: u64_any(&["dateAdded", "addedAt", "date_added"]).unwrap_or_else(default_now),
+            is_tidal,
+            tidal_id,
+            tidal_album_id,
+            audio_quality: str_any(&["audioQuality", "audio_quality"]),
+        }
+    }
+
     /// Ensure every track (especially TIDAL streaming tracks with empty filesystem paths)
     /// has a stable, unique `path` key for SQLite `UNIQUE(path)` upsert semantics.
     pub fn effective_path(&self) -> String {
@@ -231,26 +345,8 @@ impl LibraryDatabase {
         let eff_path = t.effective_path();
         let is_tidal_int: i64 = if t.is_tidal || t.tidal_id.is_some() || eff_path.starts_with("tidal://") { 1 } else { 0 };
         conn.execute(
-            "INSERT INTO tracks (id, path, title, artist, album_artist, album, year, genre, track_number, disk_number, duration, sample_rate, bits_per_sample, format, cover_path, date_added, is_tidal, tidal_id, tidal_album_id, audio_quality)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
-             ON CONFLICT(path) DO UPDATE SET
-                title = excluded.title,
-                artist = excluded.artist,
-                album_artist = excluded.album_artist,
-                album = excluded.album,
-                year = excluded.year,
-                genre = excluded.genre,
-                track_number = excluded.track_number,
-                disk_number = excluded.disk_number,
-                duration = excluded.duration,
-                sample_rate = excluded.sample_rate,
-                bits_per_sample = excluded.bits_per_sample,
-                format = excluded.format,
-                cover_path = excluded.cover_path,
-                is_tidal = excluded.is_tidal,
-                tidal_id = excluded.tidal_id,
-                tidal_album_id = excluded.tidal_album_id,
-                audio_quality = excluded.audio_quality;",
+            "INSERT OR REPLACE INTO tracks (id, path, title, artist, album_artist, album, year, genre, track_number, disk_number, duration, sample_rate, bits_per_sample, format, cover_path, date_added, is_tidal, tidal_id, tidal_album_id, audio_quality)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20);",
             params![
                 t.id, eff_path, t.title, t.artist, t.album_artist, t.album, t.year, t.genre,
                 t.track_number, t.disk_number, t.duration, t.sample_rate, t.bits_per_sample,
@@ -434,5 +530,45 @@ mod tests {
         let after_remove = db.get_all_tracks().unwrap();
         assert_eq!(after_remove.len(), 1);
         assert!(!after_remove[0].is_tidal);
+    }
+
+    #[test]
+    fn test_from_json_value_with_duplicate_shim_aliases() {
+        let db = LibraryDatabase::in_memory().unwrap();
+        // Exact shape produced by frontend/tauri-shim.js normalizeShimTrack()
+        let raw = serde_json::json!([
+            {
+                "id": "tidal_777",
+                "filePath": "",
+                "path": "",
+                "title": "Spanish Harlem",
+                "artist": "Rebecca Pidgeon",
+                "album": "The Raven",
+                "year": "1994",
+                "trackNumber": 2,
+                "discNumber": 1,
+                "duration": 225,
+                "cover": "https://resources.tidal.com/images/abc.jpg",
+                "coverPath": "https://resources.tidal.com/images/abc.jpg",
+                "formatName": "FLAC",
+                "format": "FLAC",
+                "isTidal": true,
+                "tidalId": 777,
+                "tidalAlbumId": 9999,
+                "albumId": 9999,
+                "audioQuality": "HI_RES_LOSSLESS"
+            }
+        ]);
+        let recs: Vec<TrackRecord> = raw.as_array().unwrap().iter().map(TrackRecord::from_json_value).collect();
+        db.sync_library_tracks(&recs).unwrap();
+
+        let loaded = db.get_all_tracks().unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert!(loaded[0].is_tidal);
+        assert_eq!(loaded[0].path, "tidal://track/777");
+        assert_eq!(loaded[0].tidal_id.as_deref(), Some("777"));
+        assert_eq!(loaded[0].tidal_album_id.as_deref(), Some("9999"));
+        assert_eq!(loaded[0].disk_number, Some(1));
+        assert_eq!(loaded[0].cover_path.as_deref(), Some("https://resources.tidal.com/images/abc.jpg"));
     }
 }
