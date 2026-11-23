@@ -1859,10 +1859,17 @@ function syncAllFavoriteUIs() {
     }
   }
 
+  // Always mark favorites views dirty so navigating to them re-renders immediately
+  if (typeof viewDirtyState !== 'undefined') {
+    viewDirtyState.favAlbums = true;
+    viewDirtyState.favTracks = true;
+    viewDirtyState.favArtists = true;
+  }
+
   // Re-render favorites views if visible
-  if (state.currentView === 'favAlbums') renderFavAlbums();
-  if (state.currentView === 'favTracks') renderFavTracks();
-  if (state.currentView === 'favArtists') renderFavArtists();
+  if (state.currentView === 'favAlbums') { renderFavAlbums(); viewDirtyState.favAlbums = false; }
+  if (state.currentView === 'favTracks') { renderFavTracks(); viewDirtyState.favTracks = false; }
+  if (state.currentView === 'favArtists') { renderFavArtists(); viewDirtyState.favArtists = false; }
 
   // Re-sync all visible album card heart buttons
   document.querySelectorAll('.album-card').forEach(card => {

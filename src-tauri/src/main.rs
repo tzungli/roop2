@@ -125,22 +125,38 @@ async fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Resized(phys_size) = event {
-                if let Ok(scale) = window.scale_factor() {
-                    let log_w = phys_size.width as f64 / scale;
-                    let log_h = phys_size.height as f64 / scale;
-                    if log_w < 840.0 || log_h < 680.0 {
-                        let clamped_w = log_w.max(840.0);
-                        let clamped_h = log_h.max(680.0);
-                        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                            width: clamped_w,
-                            height: clamped_h,
-                        }));
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
+                    static SHUTDOWN_STOPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                    if !SHUTDOWN_STOPPED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                        api.prevent_close();
+                        roo_streamer::cancel_all_progressive_streams();
+                        let win = window.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let dlna = win.state::<DlnaManager>();
+                            dlna.stop_active().await;
+                            let _ = win.close();
+                        });
                     }
                 }
-                if let Ok(is_max) = window.is_maximized() {
-                    let _ = window.emit("window:maximizedChange", is_max);
+                tauri::WindowEvent::Resized(phys_size) => {
+                    if let Ok(scale) = window.scale_factor() {
+                        let log_w = phys_size.width as f64 / scale;
+                        let log_h = phys_size.height as f64 / scale;
+                        if log_w < 840.0 || log_h < 680.0 {
+                            let clamped_w = log_w.max(840.0);
+                            let clamped_h = log_h.max(680.0);
+                            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                                width: clamped_w,
+                                height: clamped_h,
+                            }));
+                        }
+                    }
+                    if let Ok(is_max) = window.is_maximized() {
+                        let _ = window.emit("window:maximizedChange", is_max);
+                    }
                 }
+                _ => {}
             }
         })
         .manage(library_state)

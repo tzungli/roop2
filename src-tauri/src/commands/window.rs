@@ -1,4 +1,5 @@
-use tauri::{Emitter, Window};
+use tauri::{Emitter, State, Window};
+use roo_dlna::DlnaManager;
 
 #[tauri::command]
 pub async fn window_minimize(window: Window) -> Result<(), String> {
@@ -39,7 +40,9 @@ pub async fn window_show(window: Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn window_close(window: Window) -> Result<(), String> {
-    tracing::info!("Closing window");
+pub async fn window_close(window: Window, dlna: State<'_, DlnaManager>) -> Result<(), String> {
+    tracing::info!("Closing window — stopping active DLNA renderer & streams");
+    roo_streamer::cancel_all_progressive_streams();
+    dlna.stop_active().await;
     window.close().map_err(|e| e.to_string())
 }

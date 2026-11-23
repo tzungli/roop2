@@ -37,12 +37,32 @@ impl DlnaManager {
     }
 
     pub fn select_device(&self, device_id: &str) -> bool {
+        if device_id == "local" || device_id.is_empty() {
+            *self.selected_device_id.write().unwrap() = None;
+            return true;
+        }
         let devs = self.devices.read().unwrap();
         if devs.iter().any(|d| d.id == device_id) {
             *self.selected_device_id.write().unwrap() = Some(device_id.to_string());
             true
         } else {
             false
+        }
+    }
+
+    /// Stop whatever DLNA device is currently selected/active (used during app shutdown
+    /// so hardware renderers immediately flush their buffer instead of playing it out).
+    pub async fn stop_active(&self) {
+        if let Some(tx) = self.stop_tx.write().unwrap().take() {
+            let _ = tx.send(true);
+        }
+        if let Some(dev) = self.get_selected_device() {
+            tracing::info!("Stopping active DLNA renderer on shutdown: {} ({})", dev.name, dev.ip);
+            let _ = tokio::time::timeout(
+                Duration::from_millis(1500),
+                self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type),
+            )
+            .await;
         }
     }
 
@@ -71,6 +91,7 @@ impl DlnaManager {
         on_progress: impl Fn(f64, f64, &str) + Send + Sync + 'static,
         on_ended: impl Fn() + Send + Sync + 'static,
     ) -> Result<()> {
+        *self.selected_device_id.write().unwrap() = Some(device_id.to_string());
         let dev = match self.get_device(device_id) {
             Some(d) => d,
             None => bail!("Device not found: {}", device_id),
