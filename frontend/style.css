@@ -13077,7 +13077,7 @@ body.table-col-resizing * {
 }
 
 /* ============================================================
-   Roon-Style Responsive Collapsible Sidebar Drawer (<= 1080px)
+   Roon-Style Responsive Collapsible Sidebar Drawer (<= 801px)
    ============================================================ */
 .sidebar-toggle-btn {
   display: none;
@@ -13087,7 +13087,7 @@ body.table-col-resizing * {
   display: none;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 801px) {
   .sidebar-toggle-btn {
     display: inline-flex;
   }

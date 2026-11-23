@@ -20911,7 +20911,7 @@ function updateTidalUIStatus() {
   }
 })();
 
-// ================= Roon-style Collapsible Sidebar Drawer (<= 1080px) =================
+// ================= Roon-style Collapsible Sidebar Drawer (<= 801px) =================
 (function initCollapsibleSidebarDrawer() {
   const appContainer = document.getElementById('appContainer');
   const sidebar = document.getElementById('sidebar');
@@ -20919,7 +20919,7 @@ function updateTidalUIStatus() {
   const backdrop = document.getElementById('sidebarBackdrop');
   if (!appContainer || !sidebar || !toggleBtn || !backdrop) return;
 
-  const mq = window.matchMedia('(max-width: 1080px)');
+  const mq = window.matchMedia('(max-width: 801px)');
 
   function setOpen(open) {
     const isOpen = !!open && mq.matches;
