@@ -8698,6 +8698,7 @@ function updateSignalPathUI(track = null) {
     const timelineDspCircle = document.getElementById('timelineDspCircle');
     const timelineDspTitle = document.getElementById('timelineDspTitle');
     const timelineDspDesc = document.getElementById('timelineDspDesc');
+    const isDsdDsp = isDspActive && isDsdRateMode(curRateMode);
     if (timelineStepDsp) {
       if (isDsp) {
         timelineStepDsp.style.display = 'flex';
@@ -8705,11 +8706,16 @@ function updateSignalPathUI(track = null) {
         if (timelineDspTitle) timelineDspTitle.textContent = isDspActive ? '升頻處理' : 'DSP 音訊處理';
         if (timelineDspDesc) {
           if (isDspActive) {
-            if (isDsdRateMode(curRateMode)) {
-              timelineDspDesc.textContent = `1-bit ${curRateMode.toUpperCase()} Delta-Sigma 調變 (${state.dsp.dsdOrder || 5}階 • ${filterLabel(curPhase)})`;
+            const phaseName = filterLabel(curPhase);
+            if (isDsdDsp) {
+              const mhz = getDsdMhz(curRateMode);
+              const modeUpper = curRateMode.toUpperCase();
+              const orderStr = (state.dsp.dsdOrder === 7) ? '7階 (CLANS)' : '5階 (CRFB)';
+              const ultrasonic = (state.dsp.ultrasonicFilter && state.dsp.ultrasonicFilter !== 'none') ? ` • 防護 ${state.dsp.ultrasonicFilter}` : '';
+              timelineDspDesc.textContent = `64-bit 浮點即時超取樣調變 ➔ ${modeUpper} (1-bit / ${mhz} • ${orderStr} • ${phaseName}${ultrasonic})`;
             } else {
               const tgtRate = calculateTargetSampleRate(srcRate, curRateMode);
-              timelineDspDesc.textContent = `64-bit 浮點即時超取樣升頻 ➔ ${formatKhz(tgtRate)} 24bit (${filterLabel(curPhase)})`;
+              timelineDspDesc.textContent = `64-bit 浮點即時超取樣升頻 ➔ ${formatKhz(tgtRate)} 24bit (${phaseName})`;
             }
           } else if (isNativeDsd && !isDlna) {
             timelineDspDesc.textContent = '64-bit 浮點降採樣 (Decimation Filter) ➔ 24-bit 88.2kHz';
@@ -8725,7 +8731,7 @@ function updateSignalPathUI(track = null) {
     // Node 3: Core / Transport
     const timelineTransportDesc = document.getElementById('timelineTransportDesc');
     if (timelineTransportDesc) {
-      timelineTransportDesc.textContent = 'rooPlayer Advanced Audio Transport';
+      timelineTransportDesc.textContent = 'rooPlayer';
     }
 
     // Node 4: Output Zone
