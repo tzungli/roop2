@@ -358,10 +358,12 @@ pub async fn tidal_api(
         format!("https://api.tidal.com/v1{}", endpoint)
     };
 
-    let mut req = match method.to_uppercase().as_str() {
+    let method_upper = method.to_uppercase();
+    let mut req = match method_upper.as_str() {
         "POST" => state.http_client.post(&url),
         "PUT" => state.http_client.put(&url),
         "DELETE" => state.http_client.delete(&url),
+        "PATCH" => state.http_client.patch(&url),
         _ => state.http_client.get(&url),
     };
 
@@ -369,12 +371,25 @@ pub async fn tidal_api(
         req = req.header("Authorization", format!("Bearer {}", token));
     }
 
-    if let Some(body) = options.get("body") {
-        req = req.json(body);
+    if method_upper != "GET" && method_upper != "HEAD" {
+        if let Some(body) = options.get("body") {
+            if !body.is_null() {
+                req = req.json(body);
+            }
+        }
     }
 
     let resp = req.send().await.map_err(|e| e.to_string())?;
-    let json_val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        return Err(format!("TIDAL API HTTP {}: {}", status.as_u16(), text));
+    }
+
+    let json_val: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+        format!("JSON parse error ({}): {}", e, text)
+    })?;
     Ok(json_val)
 }
 

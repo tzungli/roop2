@@ -190,12 +190,13 @@ class TidalService {
       return null; // token still valid: resource-specific 401, keep original error
     };
 
+    const isGetOrHead = method === 'GET' || method === 'HEAD';
     if (window.electronAPI && window.electronAPI.tidalApi) {
       try {
         return await window.electronAPI.tidalApi({
           endpoint: finalEndpoint,
           method,
-          body,
+          body: isGetOrHead ? null : body,
           token: this.auth.accessToken
         });
       } catch (err) {
@@ -213,14 +214,16 @@ class TidalService {
       : `https://api.tidal.com/v1${finalEndpoint}`;
 
     const headers = {
-      'Authorization': `Bearer ${this.auth.accessToken}`,
-      'Content-Type': 'application/json'
+      'Authorization': `Bearer ${this.auth.accessToken}`
     };
+    if (!isGetOrHead && body) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     const res = await fetch(url, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined
+      body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined
     });
 
     if (res.status === 401) {
@@ -305,11 +308,42 @@ class TidalService {
   // User Collection (Favorites & Playlists)
   // ==========================================================
 
-  async getFavoriteAlbums(limit = 50, offset = 0) {
+  async getFavoriteAlbums(limit = 100, offset = 0) {
     const userId = this.auth?.userId || (this.user?.userId);
     if (!userId) throw new Error('缺少使用者 ID');
     const res = await this.api(`/users/${userId}/favorites/albums`, { limit, offset, order: 'DATE', orderDirection: 'DESC' });
     return (res && res.items) ? res.items.map(item => this.normalizeAlbum(item.item || item.album || item)) : [];
+  }
+
+  /**
+   * Fetch all favorite albums across all pages
+   */
+  async getAllFavoriteAlbums(maxCount = 500, onProgress = null) {
+    const userId = this.auth?.userId || (this.user?.userId);
+    if (!userId) throw new Error('缺少使用者 ID');
+    let allAlbums = [];
+    let offset = 0;
+    const pageSize = 100;
+    while (allAlbums.length < maxCount) {
+      const res = await this.api(`/users/${userId}/favorites/albums`, {
+        limit: pageSize,
+        offset,
+        order: 'DATE',
+        orderDirection: 'DESC'
+      });
+      if (!res || !res.items || res.items.length === 0) break;
+      const normalized = res.items.map(item => this.normalizeAlbum(item.item || item.album || item));
+      allAlbums = allAlbums.concat(normalized);
+      const total = res.totalNumberOfItems || allAlbums.length;
+      if (typeof onProgress === 'function') {
+        onProgress(allAlbums.length, total);
+      }
+      if (allAlbums.length >= total || res.items.length < pageSize) {
+        break;
+      }
+      offset += res.items.length;
+    }
+    return allAlbums;
   }
 
   async getFavoriteTracks(limit = 100, offset = 0) {
@@ -317,6 +351,37 @@ class TidalService {
     if (!userId) throw new Error('缺少使用者 ID');
     const res = await this.api(`/users/${userId}/favorites/tracks`, { limit, offset, order: 'DATE', orderDirection: 'DESC' });
     return (res && res.items) ? res.items.map(item => this.normalizeTrack(item.item || item.track || item)) : [];
+  }
+
+  /**
+   * Fetch all favorite tracks across all pages
+   */
+  async getAllFavoriteTracks(maxCount = 1000, onProgress = null) {
+    const userId = this.auth?.userId || (this.user?.userId);
+    if (!userId) throw new Error('缺少使用者 ID');
+    let allTracks = [];
+    let offset = 0;
+    const pageSize = 100;
+    while (allTracks.length < maxCount) {
+      const res = await this.api(`/users/${userId}/favorites/tracks`, {
+        limit: pageSize,
+        offset,
+        order: 'DATE',
+        orderDirection: 'DESC'
+      });
+      if (!res || !res.items || res.items.length === 0) break;
+      const normalized = res.items.map(item => this.normalizeTrack(item.item || item.track || item));
+      allTracks = allTracks.concat(normalized);
+      const total = res.totalNumberOfItems || allTracks.length;
+      if (typeof onProgress === 'function') {
+        onProgress(allTracks.length, total);
+      }
+      if (allTracks.length >= total || res.items.length < pageSize) {
+        break;
+      }
+      offset += res.items.length;
+    }
+    return allTracks;
   }
 
   async getFavoriteArtists(limit = 50, offset = 0) {

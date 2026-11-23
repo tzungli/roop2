@@ -2883,6 +2883,58 @@ function renderRooOverviewHeader() {
   if (cardTracks) cardTracks.onclick = () => navigateTo('tracks');
   const cardComposers = document.getElementById('statCardComposers');
   if (cardComposers) cardComposers.onclick = () => navigateTo('genres');
+
+  const emptyBanner = document.getElementById('overviewEmptyLibraryBanner');
+  if (emptyBanner) {
+    if (totalTracks === 0) {
+      emptyBanner.style.display = 'flex';
+      const isTidalLogged = !!(window.tidalService && window.tidalService.isLoggedIn);
+      const btnImportTidal = document.getElementById('btnEmptyBannerImportTidal');
+      const btnGoTidal = document.getElementById('btnEmptyBannerGoTidal');
+      const btnLoginTidal = document.getElementById('btnEmptyBannerLoginTidal');
+      const btnAddFolder = document.getElementById('btnEmptyBannerAddFolder');
+      const subText = document.getElementById('overviewEmptyBannerSub');
+
+      if (isTidalLogged) {
+        if (btnImportTidal) {
+          btnImportTidal.style.display = 'inline-block';
+          btnImportTidal.onclick = () => {
+            if (typeof importAllTidalFavAlbumsToLibrary === 'function') {
+              importAllTidalFavAlbumsToLibrary();
+            } else {
+              navigateTo('tidal');
+              switchTidalTab('collection');
+            }
+          };
+        }
+        if (btnGoTidal) {
+          btnGoTidal.style.display = 'inline-block';
+          btnGoTidal.onclick = () => navigateTo('tidal');
+        }
+        if (btnLoginTidal) btnLoginTidal.style.display = 'none';
+        if (subText) subText.textContent = '您已成功登入 TIDAL！點擊右側按鈕可一鍵將您的最愛專輯與曲目匯入本機音樂庫。';
+      } else {
+        if (btnImportTidal) btnImportTidal.style.display = 'none';
+        if (btnGoTidal) btnGoTidal.style.display = 'none';
+        if (btnLoginTidal) {
+          btnLoginTidal.style.display = 'inline-block';
+          btnLoginTidal.onclick = () => {
+            if (typeof triggerTidalDirectLogin === 'function') triggerTidalDirectLogin();
+          };
+        }
+        if (subText) subText.textContent = '您可以新增本機音樂資料夾，或登入 TIDAL 雲端串流一鍵同步您的收藏專輯與歌曲。';
+      }
+
+      if (btnAddFolder) {
+        btnAddFolder.onclick = () => {
+          const btnAdd = document.getElementById('btnAddFolder');
+          if (btnAdd) btnAdd.click();
+        };
+      }
+    } else {
+      emptyBanner.style.display = 'none';
+    }
+  }
 }
 
 let currentRecentActivityTab = 'added';
@@ -7122,6 +7174,207 @@ async function removeTidalAlbumFromLibrary(tidalAlbumId) {
   }
   return false;
 }
+
+async function importAllTidalFavAlbumsToLibrary() {
+  if (!window.tidalService || !window.tidalService.isLoggedIn) {
+    showToast('⚠️ TIDAL 服務尚未登入');
+    return false;
+  }
+
+  const progressEl = document.getElementById('tidalFavAlbumsSyncProgress');
+  const btnImport = document.getElementById('btnImportAllTidalFavAlbumsToLibrary');
+  const btnEmptyImport = document.getElementById('btnEmptyBannerImportTidal');
+
+  if (btnImport) btnImport.disabled = true;
+  if (btnEmptyImport) btnEmptyImport.disabled = true;
+
+  try {
+    let albums = (tidalCachedFavorites && tidalCachedFavorites.albums) ? tidalCachedFavorites.albums : [];
+    if (!albums || albums.length === 0) {
+      if (progressEl) {
+        progressEl.style.display = 'inline';
+        progressEl.textContent = '⏳ 正在讀取您的 TIDAL 最愛專輯列表...';
+      }
+      showToast('⏳ 正在讀取您的 TIDAL 最愛專輯列表...');
+      albums = await window.tidalService.getAllFavoriteAlbums(500);
+      if (!tidalCachedFavorites) tidalCachedFavorites = {};
+      tidalCachedFavorites.albums = albums;
+      const albumsBadge = document.getElementById('tidalFavAlbumsCountBadge');
+      if (albumsBadge) albumsBadge.textContent = albums.length;
+    }
+
+    if (!albums || albums.length === 0) {
+      showToast('ℹ️ 您的 TIDAL 帳號中沒有任何最愛專輯可供匯入');
+      if (progressEl) progressEl.style.display = 'none';
+      return false;
+    }
+
+    // Filter out albums already in the library
+    const unimportedAlbums = albums.filter(alb => !isTidalAlbumInLibrary(alb.tidalId));
+    if (unimportedAlbums.length === 0) {
+      showToast(`ℹ️ 您的全部 ${albums.length} 張 TIDAL 最愛專輯已都在音樂庫中！`);
+      if (progressEl) progressEl.style.display = 'none';
+      return true;
+    }
+
+    const confirmMsg = `發現 ${unimportedAlbums.length} 張尚未加入本機曲庫的 TIDAL 最愛專輯。\n\n確定要一鍵將這些專輯（及其曲目）全部匯入本機音樂庫嗎？`;
+    if (!confirm(confirmMsg)) {
+      if (progressEl) progressEl.style.display = 'none';
+      return false;
+    }
+
+    if (progressEl) {
+      progressEl.style.display = 'inline';
+      progressEl.textContent = `⏳ 準備匯入 ${unimportedAlbums.length} 張專輯...`;
+    }
+    showToast(`⏳ 開始匯入 ${unimportedAlbums.length} 張 TIDAL 專輯...`);
+
+    let successCount = 0;
+    let totalTracksAdded = 0;
+    const newTracks = [];
+    const now = Date.now();
+
+    // Concurrency controlled fetching (batch size = 4)
+    const batchSize = 4;
+    for (let i = 0; i < unimportedAlbums.length; i += batchSize) {
+      const chunk = unimportedAlbums.slice(i, i + batchSize);
+      await Promise.all(chunk.map(async (alb, chunkIdx) => {
+        const idx = i + chunkIdx + 1;
+        try {
+          if (progressEl) {
+            progressEl.textContent = `⏳ 正在匯入 (${idx}/${unimportedAlbums.length})：《${alb.title}》...`;
+          }
+          const albData = await window.tidalService.getAlbum(alb.tidalId);
+          if (albData && albData.tracks && albData.tracks.length > 0) {
+            albData.tracks.forEach(tr => {
+              tr.isTidal = true;
+              tr.tidalAlbumId = alb.tidalId;
+              tr.album = alb.title;
+              tr.artist = tr.artist || alb.artist;
+              tr.cover = tr.cover || alb.cover;
+              tr.genre = tr.genre || alb.genre || 'Pop';
+              tr.addedAt = now;
+              newTracks.push(tr);
+            });
+            successCount++;
+            totalTracksAdded += albData.tracks.length;
+          }
+        } catch (err) {
+          console.warn(`[TIDAL] Failed to fetch album tracks for ${alb.title}:`, err);
+        }
+      }));
+    }
+
+    if (newTracks.length > 0) {
+      state.tracks = [...state.tracks, ...newTracks];
+      rebuildLibraryCollections();
+      viewDirtyState.overview = true;
+      viewDirtyState.albums = true;
+      viewDirtyState.artists = true;
+      viewDirtyState.tracks = true;
+
+      if (window.electronAPI && window.electronAPI.saveLibraryTracks) {
+        await window.electronAPI.saveLibraryTracks(state.tracks);
+      }
+
+      // Update buttons in UI
+      document.querySelectorAll('.btn-tidal-lib-action').forEach(btn => {
+        const id = btn.getAttribute('data-tidal-id');
+        if (id && isTidalAlbumInLibrary(id)) {
+          btn.className = 'btn-tidal-lib-action in-library';
+          btn.innerHTML = '✓ 已在曲庫';
+        }
+      });
+
+      if (state.currentView === 'overview') renderOverview();
+      else if (state.currentView === 'albums') renderAlbums();
+
+      showToast(`🎉 成功匯入 ${successCount} 張 TIDAL 專輯 (共 ${totalTracksAdded} 首曲目) 至本機音樂庫！`);
+    } else {
+      showToast('⚠️ 未能成功匯入曲目，請檢查網路連線');
+    }
+
+    if (progressEl) {
+      progressEl.textContent = `✅ 已成功匯入 ${successCount} 張專輯 (${totalTracksAdded} 首曲目)`;
+      setTimeout(() => { progressEl.style.display = 'none'; }, 6000);
+    }
+    return true;
+  } catch (e) {
+    console.error('[TIDAL] Batch import failed:', e);
+    showToast(`❌ 匯入失敗: ${e.message || '未知錯誤'}`);
+    if (progressEl) progressEl.style.display = 'none';
+    return false;
+  } finally {
+    if (btnImport) btnImport.disabled = false;
+    if (btnEmptyImport) btnEmptyImport.disabled = false;
+  }
+}
+window.importAllTidalFavAlbumsToLibrary = importAllTidalFavAlbumsToLibrary;
+
+async function importTidalFavTracksToLibrary() {
+  if (!window.tidalService || !window.tidalService.isLoggedIn) {
+    showToast('⚠️ TIDAL 服務尚未登入');
+    return false;
+  }
+
+  try {
+    let tracks = (tidalCachedFavorites && tidalCachedFavorites.tracks) ? tidalCachedFavorites.tracks : [];
+    if (!tracks || tracks.length === 0) {
+      showToast('⏳ 正在讀取您的 TIDAL 最愛歌曲列表...');
+      tracks = await window.tidalService.getAllFavoriteTracks(1000);
+      if (!tidalCachedFavorites) tidalCachedFavorites = {};
+      tidalCachedFavorites.tracks = tracks;
+      const tracksBadge = document.getElementById('tidalFavTracksCountBadge');
+      if (tracksBadge) tracksBadge.textContent = tracks.length;
+    }
+
+    if (!tracks || tracks.length === 0) {
+      showToast('ℹ️ 您的 TIDAL 帳號中沒有最愛歌曲可供匯入');
+      return false;
+    }
+
+    const existingTrackKeys = new Set((state.tracks || []).map(t => getTrackKey(t)));
+    const newTracks = [];
+    const now = Date.now();
+
+    tracks.forEach(t => {
+      const key = getTrackKey(t);
+      if (!existingTrackKeys.has(key)) {
+        t.isTidal = true;
+        t.addedAt = now;
+        newTracks.push(t);
+        existingTrackKeys.add(key);
+      }
+    });
+
+    if (newTracks.length === 0) {
+      showToast(`ℹ️ 您的全部 ${tracks.length} 首 TIDAL 最愛歌曲已都在音樂庫中！`);
+      return true;
+    }
+
+    state.tracks = [...state.tracks, ...newTracks];
+    rebuildLibraryCollections();
+    viewDirtyState.overview = true;
+    viewDirtyState.albums = true;
+    viewDirtyState.artists = true;
+    viewDirtyState.tracks = true;
+
+    if (window.electronAPI && window.electronAPI.saveLibraryTracks) {
+      await window.electronAPI.saveLibraryTracks(state.tracks);
+    }
+
+    if (state.currentView === 'overview') renderOverview();
+    else if (state.currentView === 'tracks') renderTracks();
+
+    showToast(`🎉 成功匯入 ${newTracks.length} 首 TIDAL 最愛歌曲至本機音樂庫！`);
+    return true;
+  } catch (e) {
+    console.error('[TIDAL] Import tracks failed:', e);
+    showToast(`❌ 匯入歌曲失敗: ${e.message || '未知錯誤'}`);
+    return false;
+  }
+}
+window.importTidalFavTracksToLibrary = importTidalFavTracksToLibrary;
 
 async function playTidalAlbum(tidalAlbumId) {
   if (!window.tidalService) {
@@ -19580,6 +19833,20 @@ function setupTidalExplorerUI() {
     });
   }
 
+  const btnImportAllFavAlbums = document.getElementById('btnImportAllTidalFavAlbumsToLibrary');
+  if (btnImportAllFavAlbums) {
+    btnImportAllFavAlbums.addEventListener('click', () => {
+      importAllTidalFavAlbumsToLibrary();
+    });
+  }
+
+  const btnImportFavTracksToLib = document.getElementById('btnImportTidalFavTracksToLibrary');
+  if (btnImportFavTracksToLib) {
+    btnImportFavTracksToLib.addEventListener('click', () => {
+      importTidalFavTracksToLibrary();
+    });
+  }
+
   // Playlist detail back button
   if (btnPlaylistBack) {
     btnPlaylistBack.addEventListener('click', () => {
@@ -19954,11 +20221,15 @@ async function loadTidalCollection(force = false) {
 
   if (!window.tidalService || !window.tidalService.isLoggedIn) return;
 
+  if (force) {
+    tidalCachedFavorites = null;
+  }
+
   try {
     // 1. Fetch Favorite Albums
     if (force || !tidalCachedFavorites || !tidalCachedFavorites.albums) {
       if (albumsGrid) albumsGrid.innerHTML = '<div class="tidal-loading-indicator">⏳ 正在載入您的 TIDAL 最愛專輯...</div>';
-      const favAlbums = await window.tidalService.getFavoriteAlbums(100);
+      const favAlbums = await window.tidalService.getAllFavoriteAlbums(500);
       if (!tidalCachedFavorites) tidalCachedFavorites = {};
       tidalCachedFavorites.albums = favAlbums;
       if (albumsBadge) albumsBadge.textContent = favAlbums.length;
@@ -19977,7 +20248,7 @@ async function loadTidalCollection(force = false) {
 
     // 2. Fetch Favorite Tracks
     if (force || !tidalCachedFavorites || !tidalCachedFavorites.tracks) {
-      const favTracks = await window.tidalService.getFavoriteTracks(100);
+      const favTracks = await window.tidalService.getAllFavoriteTracks(1000);
       if (!tidalCachedFavorites) tidalCachedFavorites = {};
       tidalCachedFavorites.tracks = favTracks;
       if (tracksBadge) tracksBadge.textContent = favTracks.length;

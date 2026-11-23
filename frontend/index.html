@@ -231,6 +231,20 @@
           </div>
         </div>
 
+        <!-- Empty Library Action Banner -->
+        <div id="overviewEmptyLibraryBanner" class="roo-section-banner" style="display: none; margin-bottom: 24px; padding: 20px 24px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.08)); border: 1px solid var(--border-color); border-radius: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: var(--text-main);">🎵 目前音樂庫尚無曲目</h3>
+            <p id="overviewEmptyBannerSub" style="margin: 0; font-size: 13px; color: var(--text-muted);">您可以匯入本機音樂資料夾，或從已登入的 TIDAL 雲端曲庫一鍵同步您的收藏專輯與歌曲。</p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" id="btnEmptyBannerImportTidal" style="display: none;">📥 一鍵匯入 TIDAL 最愛專輯</button>
+            <button class="btn btn-secondary btn-sm" id="btnEmptyBannerGoTidal" style="display: none;">🌊 前往 TIDAL 探索</button>
+            <button class="btn btn-secondary btn-sm" id="btnEmptyBannerLoginTidal">🔑 登入 TIDAL</button>
+            <button class="btn btn-primary btn-sm" id="btnEmptyBannerAddFolder">📁 新增本機音樂資料夾</button>
+          </div>
+        </div>
+
         <!-- 1.2 近期活動 Recent Activity (經典藍底卡片) -->
         <div class="roo-section-banner roo-recent-activity-card">
           <div class="roo-banner-top-bar">
@@ -1715,6 +1729,12 @@
 
                 <!-- Sub-pane 3-1: Fav Albums Grid -->
                 <div id="tidalSubViewFavAlbums">
+                  <div class="tidal-fav-albums-toolbar" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding: 10px 14px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border-color); flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <button class="btn btn-primary btn-sm" id="btnImportAllTidalFavAlbumsToLibrary">📥 一鍵匯入全部最愛專輯至音樂庫</button>
+                    </div>
+                    <div id="tidalFavAlbumsSyncProgress" style="font-size: 13px; color: var(--primary-color); font-weight: 500; display: none;"></div>
+                  </div>
                   <div class="album-grid" id="tidalFavAlbumsGrid">
                     <div class="tidal-loading-indicator">⏳ 正在載入您的 TIDAL 最愛專輯...</div>
                   </div>
@@ -1724,6 +1744,7 @@
                 <div id="tidalSubViewFavTracks" style="display: none;">
                   <div class="tidal-tracklist-toolbar">
                     <button class="btn btn-primary btn-sm" id="btnPlayAllTidalFavTracks">▶ 播放全部最愛歌曲</button>
+                    <button class="btn btn-primary btn-sm" id="btnImportTidalFavTracksToLibrary">📥 匯入最愛歌曲至本機曲庫</button>
                     <button class="btn btn-secondary btn-sm" id="btnImportTidalFavTracksToQueue">📥 匯入至播放佇列</button>
                   </div>
                   <div class="tracklist-table-container">
