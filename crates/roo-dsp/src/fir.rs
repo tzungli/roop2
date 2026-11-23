@@ -206,17 +206,33 @@ pub fn build_fir_phases(gf: &FirFilter) -> Option<PolyphaseBank> {
 
 #[inline]
 pub fn fir_sample(input: &[f64], in_len: usize, out_idx: usize, ratio: f64, gf: &FirFilter) -> f64 {
-    // Fast path: contiguous polyphase scan with precomputed bank
+    // Fast path: contiguous polyphase scan with precomputed bank (4-way unrolled for AVX2+FMA)
     if let Some(ph) = &gf.poly_phases {
         let phi = out_idx % ph.p;
         let entry = &ph.entries[phi];
         let k_base = entry.k0 + (out_idx / ph.p) as i32 * ph.q as i32;
         let t = entry.t;
         if k_base >= 0 && (k_base as usize + t) <= in_len {
-            let mut acc = 0.0;
             let start = k_base as usize;
-            for j in 0..t {
-                acc += input[start + j] * entry.g[j];
+            let x = &input[start..start + t];
+            let g = &entry.g[..t];
+            let mut s0 = 0.0f64;
+            let mut s1 = 0.0f64;
+            let mut s2 = 0.0f64;
+            let mut s3 = 0.0f64;
+            let chunks = t / 4;
+            let mut j = 0usize;
+            for _ in 0..chunks {
+                s0 += x[j] * g[j];
+                s1 += x[j + 1] * g[j + 1];
+                s2 += x[j + 2] * g[j + 2];
+                s3 += x[j + 3] * g[j + 3];
+                j += 4;
+            }
+            let mut acc = (s0 + s1) + (s2 + s3);
+            while j < t {
+                acc += x[j] * g[j];
+                j += 1;
             }
             return acc;
         }
@@ -282,7 +298,7 @@ pub fn kaiser_sinc_fir(fs_out: f64, src_rate: f64, as_db: f64, fc_factor: f64, t
 
     let ratio = fs_out / src_rate;
     let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
-    let s = if integer_ratio { 1 } else { 8 };
+    let s = if integer_ratio { 1 } else { 32 };
 
     let i0_beta = bessel_i0(beta);
     let ext_tap = |t: f64| -> f64 {
@@ -335,7 +351,7 @@ pub fn kaiser_sinc_fir(fs_out: f64, src_rate: f64, as_db: f64, fc_factor: f64, t
 pub fn build_precise_linear_filter(fs_out: f64, src_rate: f64) -> FirFilter {
     let ratio = fs_out / src_rate;
     let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
-    let s = if integer_ratio { 1 } else { 8 };
+    let s = if integer_ratio { 1 } else { 32 };
 
     let as_db = 140.0;
     let beta = 0.1102 * (as_db - 8.7);
@@ -402,7 +418,7 @@ pub fn build_precise_min_filter(fs_out: f64, src_rate: f64) -> FirFilter {
 pub fn build_smooth_linear_filter(fs_out: f64, src_rate: f64) -> FirFilter {
     let ratio = fs_out / src_rate;
     let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
-    let s = if integer_ratio { 1 } else { 8 };
+    let s = if integer_ratio { 1 } else { 32 };
 
     let fc = (0.45 * src_rate).min(0.45 * fs_out);
     let l_in = 32i32;
@@ -491,7 +507,7 @@ pub fn windowed_sinc_fir_ext(
 ) -> FirFilter {
     let ratio = fs_out / src_rate;
     let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
-    let s = if integer_ratio { 1 } else { 8 };
+    let s = if integer_ratio { 1 } else { 32 };
 
     let fc = (cutoff_rel * src_rate / 2.0).min(0.45 * fs_out);
     let l = ((taps as f64 / 2.0).round() as i32).max(8);

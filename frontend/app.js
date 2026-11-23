@@ -16941,7 +16941,7 @@ function setupScannerEvents() {
   if (btnAutoDiscoverSamba) {
     btnAutoDiscoverSamba.addEventListener('click', async () => {
       if (!window.electronAPI || !window.electronAPI.discoverSambaServers) {
-        alert('請在 Electron 桌面環境中執行此功能');
+        alert('請在桌面應用程式環境中執行此功能');
         return;
       }
 
@@ -17112,7 +17112,7 @@ function setupScannerEvents() {
   if (btnBrowseNetworkFolder) {
     btnBrowseNetworkFolder.addEventListener('click', async () => {
       if (!window.electronAPI || !window.electronAPI.selectNetworkFolder) {
-        alert('請在 Electron 桌面環境中執行此功能');
+        alert('請在桌面應用程式環境中執行此功能');
         return;
       }
       const folderPath = await window.electronAPI.selectNetworkFolder();
@@ -17125,7 +17125,7 @@ function setupScannerEvents() {
   if (btnConnectManualSamba) {
     btnConnectManualSamba.addEventListener('click', async () => {
       if (!window.electronAPI || !window.electronAPI.connectSambaShare) {
-        alert('請在 Electron 桌面環境中執行此功能');
+        alert('請在桌面應用程式環境中執行此功能');
         return;
       }
       const host = (document.getElementById('sambaInputHost')?.value || '').trim();
@@ -17169,7 +17169,7 @@ function setupScannerEvents() {
   if (btnExportLibrary) {
     btnExportLibrary.addEventListener('click', async () => {
       if (!window.electronAPI || !window.electronAPI.exportLibrary) {
-        alert('請在 Electron 桌面環境中執行此功能');
+        alert('請在桌面應用程式環境中執行此功能');
         return;
       }
 
@@ -17220,7 +17220,7 @@ function setupScannerEvents() {
   if (btnImportLibrary) {
     btnImportLibrary.addEventListener('click', async () => {
       if (!window.electronAPI || !window.electronAPI.importLibrary) {
-        alert('請在 Electron 桌面環境中執行此功能');
+        alert('請在桌面應用程式環境中執行此功能');
         return;
       }
 

@@ -147,17 +147,25 @@ impl ConvolutionEngine {
         ch.ring[ch.ring_pos].copy_from_slice(&ch.x_buf);
         ch.ring_pos = (ch.ring_pos + 1) % k_total;
 
-        for i in 0..CONV_FFT_SIZE {
+        let half = CONV_FFT_SIZE / 2;
+        for i in 0..=half {
             y_buf[i] = Complex64::new(0.0, 0.0);
         }
 
+        // Real-input conjugate symmetry: accumulate only DC..Nyquist (N/2 + 1 bins),
+        // cutting partition multiply-add work in half with exact mathematical equivalence.
         for k in 0..k_total {
             let x_idx = (ch.ring_pos + 2 * k_total - 1 - k) % k_total;
-            let x = &ch.ring[x_idx];
-            let h = &ch.parts[k].h;
-            for i in 0..CONV_FFT_SIZE {
+            let x = &ch.ring[x_idx][..=half];
+            let h = &ch.parts[k].h[..=half];
+            for i in 0..=half {
                 y_buf[i] += x[i] * h[i];
             }
+        }
+
+        // Mirror conjugate-symmetric upper half once before inverse FFT
+        for i in 1..half {
+            y_buf[CONV_FFT_SIZE - i] = y_buf[i].conj();
         }
 
         fft_inv.process(y_buf);

@@ -169,8 +169,8 @@ fn render_pcm_range_helper(
     let seed_r1 = 0x0123_4567_89ab_cdef ^ ((start_f as u64) << 18);
     let seed_r2 = 0x9876_5432_10fe_dcba ^ ((start_f as u64) << 19);
     let mut ditherer = roo_dsp::StereoPcmDitherer {
-        left: roo_dsp::PcmChannelDither::new(seed_l1, seed_l2),
-        right: roo_dsp::PcmChannelDither::new(seed_r1, seed_r2),
+        left: roo_dsp::PcmChannelDither::with_sample_rate(seed_l1, seed_l2, target_rate as f64),
+        right: roo_dsp::PcmChannelDither::with_sample_rate(seed_r1, seed_r2, target_rate as f64),
     };
 
     for i in start_f..end_f {
@@ -863,7 +863,7 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
 
         // 24-bit PCM samples with dither
         let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Tpdf);
-        let mut ditherer = roo_dsp::StereoPcmDitherer::new();
+        let mut ditherer = roo_dsp::StereoPcmDitherer::with_sample_rate(target_rate as f64);
 
         for i in 0..out_frames {
             let (i_l, i_r) = ditherer.quantize_24bit(up_l[i], up_r[i], dither_type);

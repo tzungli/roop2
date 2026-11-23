@@ -383,4 +383,48 @@ mod tests {
         assert!(ids.contains(&"smooth-linear"));
         assert!(ids.contains(&"smooth-min"));
     }
+
+    #[test]
+    fn test_convolution_conjugate_symmetry_accuracy() {
+        // Multi-partition IR (> CONV_BLOCK_SIZE = 2048): impulse at tap 5 (0.75) and tap 2500 (-0.25)
+        let mut ir = vec![0.0f64; 3000];
+        ir[5] = 0.75;
+        ir[2500] = -0.25;
+        let mut eng = ConvolutionEngine::new(48000.0, &ir, &ir).expect("conv engine");
+
+        // Feed unit impulse at sample 0, followed by zeros across 3 blocks (6144 samples)
+        let n = 6144;
+        let mut in_l = vec![0.0f64; n];
+        in_l[0] = 1.0;
+        let in_r = in_l.clone();
+        let mut out_l = vec![0.0f64; n];
+        let mut out_r = vec![0.0f64; n];
+        eng.apply_arrays(&in_l, &in_r, &mut out_l, &mut out_r);
+
+        // ConvolutionEngine has 1-block (CONV_BLOCK_SIZE - 1 = 2047) latency before first block drains
+        // Find peaks in output matching 0.75 and -0.25 separated by 2495 samples
+        let (p1_idx, &p1_val) = out_l
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .unwrap();
+        assert!((p1_val - 0.75).abs() < 1e-10, "Primary IR tap mismatch: {}", p1_val);
+        let p2_val = out_l[p1_idx + 2495];
+        assert!((p2_val - (-0.25)).abs() < 1e-10, "Second-partition IR tap mismatch: {}", p2_val);
+        assert!((out_l[p1_idx + 10]).abs() < 1e-10, "Unexpected ringing: {}", out_l[p1_idx + 10]);
+    }
+
+    #[test]
+    fn test_dither_gauss_cached_and_highrate_shaping() {
+        let mut d44 = StereoPcmDitherer::with_sample_rate(44100.0);
+        let mut d192 = StereoPcmDitherer::with_sample_rate(192000.0);
+        for i in 0..4096 {
+            let s = 0.5 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / 44100.0).sin();
+            let (gl, gr) = d44.quantize_24bit(s, -s, DitherType::Gauss);
+            assert!(gl.abs() <= 8388607 && gr.abs() <= 8388607);
+            let (nl, nr) = d192.quantize_24bit(s, -s, DitherType::NoiseShaped);
+            assert!(nl.abs() <= 8388607 && nr.abs() <= 8388607);
+        }
+        assert!(d192.left.err_history[0].is_finite() && d192.left.err_history[0].abs() < 10.0);
+    }
 }

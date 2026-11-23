@@ -241,14 +241,14 @@ pub async fn library_import(
     let json: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| format!("JSON 解析失敗: {}", e))?;
 
-    let existing_folders: std::collections::HashSet<String> = state
+    let mut existing_folders: std::collections::HashSet<String> = state
         .db
         .get_folders()
         .unwrap_or_default()
         .into_iter()
         .collect();
 
-    let existing_tracks: std::collections::HashSet<String> = state
+    let mut existing_tracks: std::collections::HashSet<String> = state
         .db
         .get_all_tracks()
         .unwrap_or_default()
@@ -267,43 +267,19 @@ pub async fn library_import(
     if let Some(folders) = folders_array {
         for f in folders {
             if let Some(folder_str) = f.as_str() {
+                if folder_str.trim().is_empty() {
+                    continue;
+                }
                 if existing_folders.contains(folder_str) {
                     folders_skipped.push(serde_json::json!({
                         "path": folder_str,
                         "reason": "已存在於曲庫中"
                     }));
                 } else {
-                    let _ = state.db.add_folder(folder_str);
-                    folders_added.push(folder_str.to_string());
-                }
-            }
-        }
-    }
-
-    let mut tracks_added_count = 0usize;
-    let mut tracks_skipped = Vec::new();
-
-    let tracks_array = json
-        .get("tracks")
-        .or_else(|| json.get("data").and_then(|d| d.get("tracks")))
-        .and_then(|v| v.as_array());
-
-    if let Some(tracks) = tracks_array {
-        for t_val in tracks {
-            if let Ok(mut track) = serde_json::from_value::<TrackRecord>(t_val.clone()) {
-                if track.album_artist.is_empty() {
-                    track.album_artist = track.artist.clone();
-                }
-                if existing_tracks.contains(&track.path) {
-                    tracks_skipped.push(serde_json::json!({
-                        "title": track.title,
-                        "artist": track.artist,
-                        "path": track.path,
-                        "reason": "曲目路徑已存在，已自動略過重複"
-                    }));
-                } else {
-                    let _ = state.db.insert_or_update_track(&track);
-                    tracks_added_count += 1;
+                    if state.db.add_folder(folder_str).is_ok() {
+                        existing_folders.insert(folder_str.to_string());
+                        folders_added.push(folder_str.to_string());
+                    }
                 }
             }
         }
@@ -313,6 +289,63 @@ pub async fn library_import(
         .get("extra")
         .cloned()
         .unwrap_or_else(|| json.clone());
+
+    // Also persist imported networkFolders into SQLite folders table so they survive restart
+    if let Some(net_folders) = extra.get("networkFolders").and_then(|v| v.as_array()) {
+        for nf in net_folders {
+            if let Some(folder_str) = nf.as_str() {
+                if !folder_str.trim().is_empty() && !existing_folders.contains(folder_str) {
+                    if state.db.add_folder(folder_str).is_ok() {
+                        existing_folders.insert(folder_str.to_string());
+                        folders_added.push(folder_str.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let mut tracks_to_insert: Vec<TrackRecord> = Vec::new();
+    let mut tracks_skipped = Vec::new();
+
+    let tracks_array = json
+        .get("tracks")
+        .or_else(|| json.get("data").and_then(|d| d.get("tracks")))
+        .and_then(|v| v.as_array());
+
+    if let Some(tracks) = tracks_array {
+        tracks_to_insert.reserve(tracks.len());
+        for t_val in tracks {
+            let mut track = TrackRecord::from_json_value(t_val);
+            if track.path.trim().is_empty() {
+                tracks_skipped.push(serde_json::json!({
+                    "title": track.title,
+                    "artist": track.artist,
+                    "path": "",
+                    "reason": "曲目缺少有效路徑，已略過"
+                }));
+                continue;
+            }
+            if track.album_artist.is_empty() {
+                track.album_artist = track.artist.clone();
+            }
+            if existing_tracks.contains(&track.path) {
+                tracks_skipped.push(serde_json::json!({
+                    "title": track.title,
+                    "artist": track.artist,
+                    "path": track.path,
+                    "reason": "曲目路徑已存在，已自動略過重複"
+                }));
+            } else {
+                existing_tracks.insert(track.path.clone());
+                tracks_to_insert.push(track);
+            }
+        }
+    }
+
+    let tracks_added_count = state
+        .db
+        .bulk_upsert_tracks(&tracks_to_insert)
+        .map_err(|e| format!("寫入曲庫資料失敗: {}", e))?;
 
     let imported_favorites = extra.get("favorites").cloned();
     let imported_favorite_snapshots = extra.get("favoriteSnapshots").cloned();

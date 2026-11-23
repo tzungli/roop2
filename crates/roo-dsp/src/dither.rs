@@ -115,15 +115,23 @@ pub struct PcmChannelDither {
     pub prng2: u64,
     pub prev_tpdf: f64,
     pub err_history: [f64; 3],
+    pub gauss_spare: Option<f64>,
+    pub sample_rate: f64,
 }
 
 impl PcmChannelDither {
     pub fn new(seed1: u64, seed2: u64) -> Self {
+        Self::with_sample_rate(seed1, seed2, 44100.0)
+    }
+
+    pub fn with_sample_rate(seed1: u64, seed2: u64, sample_rate: f64) -> Self {
         Self {
             prng1: if seed1 == 0 { 0x5a17_1932_74a8_b3c1 } else { seed1 },
             prng2: if seed2 == 0 { 0x3f98_2c41_d7e0_95a2 } else { seed2 },
             prev_tpdf: 0.0,
             err_history: [0.0; 3],
+            gauss_spare: None,
+            sample_rate: if sample_rate > 0.0 { sample_rate } else { 44100.0 },
         }
     }
 
@@ -147,12 +155,29 @@ impl PcmChannelDither {
                 rand_u01(&mut self.prng1) - rand_u01(&mut self.prng2)
             }
             DitherType::Gauss => {
-                // Box-Muller transform for normal distribution N(0, sigma^2), sigma = 0.5 LSB
+                // Box-Muller transform caching both sin & cos samples (50% fewer transcendental calls)
+                if let Some(spare) = self.gauss_spare.take() {
+                    return spare;
+                }
                 let u1 = rand_u01(&mut self.prng1).max(1e-15);
                 let u2 = rand_u01(&mut self.prng2);
                 let r = (-2.0 * u1.ln()).sqrt() * 0.5;
-                r * (2.0 * PI * u2).cos()
+                let (s, c) = (2.0 * PI * u2).sin_cos();
+                self.gauss_spare = Some(r * s);
+                r * c
             }
+        }
+    }
+
+    #[inline(always)]
+    fn noise_shaping_feedback(&self) -> f64 {
+        if self.sample_rate <= 50_000.0 {
+            // 44.1 / 48 kHz: Lipshitz-Vanderkooy 3rd-order F-weighted (3.5-4 kHz hearing notch)
+            1.623 * self.err_history[0] - 0.982 * self.err_history[1] + 0.109 * self.err_history[2]
+        } else {
+            // High-rate PCM (>= 88.2 kHz): gentle 2nd-order high-pass error feedback
+            // Keeps audible band (0-20 kHz) ultra-quiet without shifting a notch into 15-30 kHz.
+            1.40 * self.err_history[0] - 0.50 * self.err_history[1]
         }
     }
 
@@ -169,12 +194,7 @@ impl PcmChannelDither {
                 ((x + d).round() as i64).clamp(-8388608, 8388607) as i32
             }
             DitherType::NoiseShaped => {
-                // Lipshitz-Vanderkooy 3rd-order F-weighted coefficients
-                // H_err(z) = 1.623 z^-1 - 0.982 z^-2 + 0.109 z^-3
-                let feedback = 1.623 * self.err_history[0]
-                    - 0.982 * self.err_history[1]
-                    + 0.109 * self.err_history[2];
-
+                let feedback = self.noise_shaping_feedback();
                 let d = self.next_dither_lsb(DitherType::Tpdf);
                 let input_with_fb = x - feedback;
                 let target = input_with_fb + d;
@@ -203,10 +223,7 @@ impl PcmChannelDither {
                 ((x + d).round() as i64).clamp(-32768, 32767) as i16
             }
             DitherType::NoiseShaped => {
-                let feedback = 1.623 * self.err_history[0]
-                    - 0.982 * self.err_history[1]
-                    + 0.109 * self.err_history[2];
-
+                let feedback = self.noise_shaping_feedback();
                 let d = self.next_dither_lsb(DitherType::Tpdf);
                 let input_with_fb = x - feedback;
                 let target = input_with_fb + d;
@@ -232,16 +249,20 @@ pub struct StereoPcmDitherer {
 
 impl Default for StereoPcmDitherer {
     fn default() -> Self {
-        Self {
-            left: PcmChannelDither::new(0x1234_5678_9abc_def0, 0xfedc_ba98_7654_3210),
-            right: PcmChannelDither::new(0x0123_4567_89ab_cdef, 0x9876_5432_10fe_dcba),
-        }
+        Self::with_sample_rate(44100.0)
     }
 }
 
 impl StereoPcmDitherer {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_sample_rate(sample_rate: f64) -> Self {
+        Self {
+            left: PcmChannelDither::with_sample_rate(0x1234_5678_9abc_def0, 0xfedc_ba98_7654_3210, sample_rate),
+            right: PcmChannelDither::with_sample_rate(0x0123_4567_89ab_cdef, 0x9876_5432_10fe_dcba, sample_rate),
+        }
     }
 
     #[inline]

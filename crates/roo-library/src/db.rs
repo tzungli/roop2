@@ -361,6 +361,23 @@ impl LibraryDatabase {
         Self::upsert_track_with_conn(&conn, t)
     }
 
+    /// Insert or update a batch of tracks inside a single SQLite transaction
+    /// (orders of magnitude faster than per-row autocommit during library import).
+    pub fn bulk_upsert_tracks(&self, tracks: &[TrackRecord]) -> Result<usize> {
+        if tracks.is_empty() {
+            return Ok(0);
+        }
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let mut count = 0usize;
+        for t in tracks {
+            Self::upsert_track_with_conn(&tx, t)?;
+            count += 1;
+        }
+        tx.commit()?;
+        Ok(count)
+    }
+
     /// Persist all tracks (upserting local & TIDAL tracks) and prune any previously stored
     /// TIDAL tracks that were removed from the library.
     pub fn sync_library_tracks(&self, tracks: &[TrackRecord]) -> Result<()> {
@@ -570,5 +587,32 @@ mod tests {
         assert_eq!(loaded[0].tidal_album_id.as_deref(), Some("9999"));
         assert_eq!(loaded[0].disk_number, Some(1));
         assert_eq!(loaded[0].cover_path.as_deref(), Some("https://resources.tidal.com/images/abc.jpg"));
+    }
+
+    #[test]
+    fn test_bulk_upsert_tracks_transaction_speed_and_accuracy() {
+        let db = LibraryDatabase::in_memory().unwrap();
+        let mut batch = Vec::with_capacity(1000);
+        for i in 0..1000 {
+            let raw = serde_json::json!({
+                "id": format!("trk_{}", i),
+                "filePath": format!("D:\\Music\\Album\\{:04}.flac", i),
+                "path": format!("D:\\Music\\Album\\{:04}.flac", i),
+                "title": format!("Track {}", i),
+                "artist": "Test Artist",
+                "album": "Test Album",
+                "sampleRate": 192000,
+                "bitsPerSample": 24,
+                "dateAdded": 1700000000000u64 + i as u64,
+                "addedAt": 1700000000000u64 + i as u64
+            });
+            batch.push(TrackRecord::from_json_value(&raw));
+        }
+        let t0 = std::time::Instant::now();
+        let inserted = db.bulk_upsert_tracks(&batch).unwrap();
+        let elapsed = t0.elapsed();
+        assert_eq!(inserted, 1000);
+        assert_eq!(db.get_all_tracks().unwrap().len(), 1000);
+        assert!(elapsed.as_millis() < 2000, "Bulk import took too long: {:?}", elapsed);
     }
 }
