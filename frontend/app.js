@@ -20911,21 +20911,51 @@ function updateTidalUIStatus() {
   }
 })();
 
-// ================= Roon-style Collapsible Sidebar Drawer (<= 900px) =================
+// ================= Roon-style Collapsible Sidebar Drawer (<= 900px) & Pin =================
 (function initCollapsibleSidebarDrawer() {
   const appContainer = document.getElementById('appContainer');
   const sidebar = document.getElementById('sidebar');
   const toggleBtn = document.getElementById('btnSidebarToggle');
   const backdrop = document.getElementById('sidebarBackdrop');
+  const pinBtn = document.getElementById('btnPinSidebar');
   if (!appContainer || !sidebar || !toggleBtn || !backdrop) return;
 
   const mq = window.matchMedia('(max-width: 900px)');
+  let isPinned = false;
+  try {
+    isPinned = localStorage.getItem('roo_sidebar_pinned') === '1';
+  } catch (e) {}
 
   function setOpen(open) {
-    const isOpen = !!open && mq.matches;
+    const isOpen = !!open && mq.matches && !isPinned;
     appContainer.classList.toggle('sidebar-drawer-open', isOpen);
     toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     toggleBtn.title = isOpen ? '收合選單' : '開啟選單';
+  }
+
+  function applyPinned(pinned) {
+    isPinned = !!pinned;
+    appContainer.classList.toggle('sidebar-pinned', isPinned);
+    if (pinBtn) {
+      pinBtn.classList.toggle('is-pinned', isPinned);
+      pinBtn.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+      pinBtn.title = isPinned ? '取消釘選（縮小視窗時自動收折）' : '釘選左選單（縮小視窗時不自動收折）';
+    }
+    if (isPinned) {
+      setOpen(false);
+    }
+    try {
+      localStorage.setItem('roo_sidebar_pinned', isPinned ? '1' : '0');
+    } catch (e) {}
+  }
+
+  applyPinned(isPinned);
+
+  if (pinBtn) {
+    pinBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyPinned(!isPinned);
+    });
   }
 
   toggleBtn.addEventListener('click', (e) => {
@@ -20936,7 +20966,7 @@ function updateTidalUIStatus() {
   backdrop.addEventListener('click', () => setOpen(false));
 
   sidebar.addEventListener('click', (e) => {
-    if (mq.matches && e.target.closest('.nav-item')) {
+    if (mq.matches && !isPinned && e.target.closest('.nav-item')) {
       setOpen(false);
     }
   });

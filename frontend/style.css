@@ -13078,7 +13078,68 @@ body.table-col-resizing * {
 
 /* ============================================================
    Roon-Style Responsive Collapsible Sidebar Drawer (<= 900px)
+   & Pin Toggle Button
    ============================================================ */
+.nav-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 4px;
+  margin-bottom: 2px;
+}
+
+.nav-title-row .nav-title {
+  margin-bottom: 0;
+  padding-bottom: 4px;
+}
+
+.sidebar-pin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.18s ease;
+}
+
+.sidebar-pin-btn svg {
+  display: block;
+  transform: rotate(35deg);
+  transition: transform 0.18s ease;
+}
+
+.sidebar-pin-btn:hover {
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--text-main);
+}
+
+.sidebar-pin-btn.is-pinned {
+  background: rgba(124, 92, 255, 0.2);
+  border-color: rgba(124, 92, 255, 0.36);
+  color: #c4b5fd;
+}
+
+.sidebar-pin-btn.is-pinned svg {
+  transform: rotate(0deg);
+}
+
+[data-theme="light"] .sidebar-pin-btn:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #1e2330;
+}
+
+[data-theme="light"] .sidebar-pin-btn.is-pinned {
+  background: #e2e2fc;
+  border-color: #c4b5fd;
+  color: #4f3cc9;
+}
+
 .sidebar-toggle-btn {
   display: none;
 }
@@ -13088,11 +13149,11 @@ body.table-col-resizing * {
 }
 
 @media (max-width: 900px) {
-  .sidebar-toggle-btn {
+  #appContainer:not(.sidebar-pinned) .sidebar-toggle-btn {
     display: inline-flex;
   }
 
-  #sidebar {
+  #appContainer:not(.sidebar-pinned) #sidebar {
     position: absolute;
     top: 0;
     left: 0;
@@ -13104,16 +13165,16 @@ body.table-col-resizing * {
     transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease;
   }
 
-  #appContainer.sidebar-drawer-open #sidebar {
+  #appContainer:not(.sidebar-pinned).sidebar-drawer-open #sidebar {
     transform: translateX(0);
     box-shadow: 12px 0 36px rgba(0, 0, 0, 0.45);
   }
 
-  [data-theme="light"] #appContainer.sidebar-drawer-open #sidebar {
+  [data-theme="light"] #appContainer:not(.sidebar-pinned).sidebar-drawer-open #sidebar {
     box-shadow: 12px 0 36px rgba(15, 23, 42, 0.18);
   }
 
-  .sidebar-backdrop {
+  #appContainer:not(.sidebar-pinned) .sidebar-backdrop {
     display: block;
     position: absolute;
     inset: 0;
@@ -13124,11 +13185,11 @@ body.table-col-resizing * {
     transition: opacity 0.22s ease;
   }
 
-  [data-theme="light"] .sidebar-backdrop {
+  [data-theme="light"] #appContainer:not(.sidebar-pinned) .sidebar-backdrop {
     background: rgba(15, 23, 42, 0.28);
   }
 
-  #appContainer.sidebar-drawer-open .sidebar-backdrop {
+  #appContainer:not(.sidebar-pinned).sidebar-drawer-open .sidebar-backdrop {
     opacity: 1;
     pointer-events: auto;
   }
