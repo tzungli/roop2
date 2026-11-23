@@ -312,6 +312,7 @@
 
     // TIDAL Streaming Subsystem
     tidalLoginWithWindow: () => invoke('tidal_login_with_window'),
+    tidalFocusLoginWindow: () => invoke('tidal_focus_login_window'),
     tidalProbeAuth: () => invoke('tidal_probe_auth'),
     tidalGetStoredAuth: () => invoke('tidal_get_stored_auth'),
     tidalSaveAuth: (data) => invoke('tidal_save_auth', { data }),

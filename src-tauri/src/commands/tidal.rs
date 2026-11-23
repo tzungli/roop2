@@ -54,6 +54,18 @@ pub async fn tidal_logout(state: State<'_, TidalState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn tidal_focus_login_window(app: AppHandle) -> Result<bool, String> {
+    if let Some(win) = app.get_webview_window("tidal-login") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
 pub async fn tidal_probe_auth(app: AppHandle) -> Result<serde_json::Value, String> {
     if let Some(win) = app.get_webview_window("tidal-login") {
         let _ = win.eval(r#"
@@ -92,7 +104,7 @@ pub async fn tidal_login_with_window(
     let login_url = tauri::Url::parse("https://listen.tidal.com/login")
         .map_err(|e| format!("Failed to parse login URL: {}", e))?;
 
-    // In-page token capture script
+    // In-page token capture script (Intercept headers, OAuth json responses, and storage)
     let init_script = r#"
         (function() {
             var captured = false;
@@ -107,10 +119,20 @@ pub async fn tidal_login_with_window(
                 } catch(_) {}
             }
 
-            // Hook fetch
+            // Hook fetch (both request headers and json responses)
             var origFetch = window.fetch;
             window.fetch = function() {
                 try {
+                    var req = arguments[0];
+                    if (req && req.headers) {
+                        var h0 = req.headers;
+                        var auth0 = (typeof Headers !== 'undefined' && h0 instanceof Headers)
+                            ? (h0.get('authorization') || h0.get('Authorization'))
+                            : (h0['Authorization'] || h0['authorization']);
+                        if (auth0 && String(auth0).toLowerCase().indexOf('bearer ') === 0) {
+                            sendToken(String(auth0).slice(7).trim());
+                        }
+                    }
                     var opts = arguments[1];
                     if (opts && opts.headers) {
                         var h = opts.headers;
@@ -125,7 +147,24 @@ pub async fn tidal_login_with_window(
                         }
                     }
                 } catch(_) {}
-                return origFetch.apply(this, arguments);
+
+                var p = origFetch.apply(this, arguments);
+                if (p && typeof p.then === 'function') {
+                    p.then(function(res) {
+                        try {
+                            if (res && res.clone) {
+                                res.clone().json().then(function(data) {
+                                    if (data) {
+                                        if (data.access_token) sendToken(data.access_token);
+                                        else if (data.token) sendToken(data.token);
+                                        else if (data.session && data.session.token) sendToken(data.session.token);
+                                    }
+                                }).catch(function() {});
+                            }
+                        } catch(_) {}
+                    }).catch(function() {});
+                }
+                return p;
             };
 
             // Hook XMLHttpRequest
@@ -141,7 +180,7 @@ pub async fn tidal_login_with_window(
                 };
             }
 
-            // Periodic storage scan
+            // Periodic storage scan (every 400ms)
             function scanStorage() {
                 if (captured) return;
                 try {
@@ -163,7 +202,7 @@ pub async fn tidal_login_with_window(
                 } catch(_) {}
             }
 
-            setInterval(scanStorage, 800);
+            setInterval(scanStorage, 400);
             if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 scanStorage();
             } else {
@@ -187,7 +226,7 @@ pub async fn tidal_login_with_window(
                         if (document.body) document.body.appendChild(banner);
                     }
                 }
-            }, 1500);
+            }, 1000);
         })();
     "#;
 
@@ -217,6 +256,10 @@ pub async fn tidal_login_with_window(
         })
         .build()
         .map_err(|e| format!("Failed to create TIDAL login window: {}", e))?;
+
+    let _ = win.show();
+    let _ = win.unminimize();
+    let _ = win.set_focus();
 
     let close_tx_clone = close_tx.clone();
     win.on_window_event(move |event| {

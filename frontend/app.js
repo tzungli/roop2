@@ -4413,8 +4413,17 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
     if (descEl) descEl.innerHTML = '比對線上音樂資料庫，為您挖掘該歌手尚未收藏的經典專輯。 <a href="#" id="linkLoginTidalFromArtist" style="color:#00e5ff;margin-left:8px;font-weight:bold;text-decoration:underline;cursor:pointer;">💎 登入 TIDAL 一鍵串流與收錄</a>';
     setTimeout(() => {
       const link = document.getElementById('linkLoginTidalFromArtist');
-      if (link && typeof openTidalLoginModal === 'function') {
-        link.onclick = (e) => { e.preventDefault(); openTidalLoginModal(); };
+      if (link) {
+        link.onclick = (e) => {
+          e.preventDefault();
+          if (tidalService && tidalService.isLoggedIn) {
+            navigateTo('tidal');
+          } else if (typeof triggerTidalDirectLogin === 'function') {
+            triggerTidalDirectLogin();
+          } else {
+            openTidalLoginModal();
+          }
+        };
       }
     }, 50);
   }
@@ -19186,6 +19195,82 @@ function initKkboxStreaming() {
 // TIDAL Streaming & Account Subsystem UI Integration
 // ==========================================================
 let tidalService = null;
+let isTidalLoginInProgress = false;
+
+async function triggerTidalDirectLogin() {
+  if (isTidalLoginInProgress) {
+    showToast('🔑 TIDAL 官方登入視窗已開啟，請在該視窗中進行登入');
+    if (window.electronAPI && window.electronAPI.tidalFocusLoginWindow) {
+      window.electronAPI.tidalFocusLoginWindow().catch(() => {});
+    }
+    return;
+  }
+
+  if (!tidalService) {
+    showToast('⚠️ TIDAL 串流核心尚未就緒，請稍候重試');
+    return;
+  }
+
+  isTidalLoginInProgress = true;
+  closeTidalLoginModal();
+
+  const btnConnectNow = document.getElementById('btnTidalConnectNow');
+  const btnAccount = document.getElementById('btnOpenTidalAccount');
+  const btnStartLogin = document.getElementById('btnTidalStartLogin');
+  const loadingIndicator = document.getElementById('tidalLoginLoading');
+
+  const origConnectHtml = btnConnectNow ? btnConnectNow.innerHTML : '';
+  const origAccountHtml = btnAccount ? btnAccount.innerHTML : '';
+
+  if (btnConnectNow) {
+    btnConnectNow.disabled = true;
+    btnConnectNow.innerHTML = '⏳ 正在開啟官方登入視窗...';
+  }
+  if (btnAccount && (!tidalService || !tidalService.isLoggedIn)) {
+    btnAccount.innerHTML = '⏳ 等待官方登入中...';
+  }
+  if (btnStartLogin) {
+    btnStartLogin.disabled = true;
+  }
+  if (loadingIndicator) {
+    loadingIndicator.style.display = 'block';
+  }
+
+  showToast('🔑 正在直接開啟 TIDAL 官方登入視窗...');
+
+  try {
+    const res = await tidalService.loginWithWindow();
+    if (res && res.success) {
+      showToast('🎉 TIDAL 官方帳號已成功登入！');
+      updateTidalUIStatus();
+      if (state.currentView === 'tidal') {
+        onOpenTidalView();
+      }
+    }
+  } catch (err) {
+    console.warn('[TIDAL] Login cancelled or failed:', err);
+    const msg = (err && err.message) ? err.message : '';
+    if (msg.includes('關閉') || msg.includes('取消') || msg.includes('cancel')) {
+      showToast('ℹ️ 已關閉 TIDAL 官方登入視窗');
+    } else {
+      showToast(`ℹ️ TIDAL 登入狀態: ${msg || '未完成'}`);
+    }
+  } finally {
+    isTidalLoginInProgress = false;
+    if (btnConnectNow) {
+      btnConnectNow.disabled = false;
+      btnConnectNow.innerHTML = origConnectHtml || '立即登入 TIDAL';
+    }
+    if (btnStartLogin) {
+      btnStartLogin.disabled = false;
+    }
+    if (loadingIndicator) {
+      loadingIndicator.style.display = 'none';
+    }
+    updateTidalUIStatus();
+  }
+}
+window.triggerTidalDirectLogin = triggerTidalDirectLogin;
 
 function openTidalLoginModal() {
   const modal = document.getElementById('tidalLoginModal');
@@ -19206,15 +19291,12 @@ async function initTidalStreaming() {
     window.tidalService = tidalService;
 
     // When an expired access token (HTTP 401) is detected in the TIDAL subsystem,
-    // prompt re-login only while the user is actually on the TIDAL page. Other pages
-    // (e.g. overview TIDAL recommendations) just fail quietly - no startup prompts.
+    // prompt re-login only while the user is actually on the TIDAL page.
     tidalService.onAuthExpired = () => {
       updateTidalUIStatus();
       if (state.currentView !== 'tidal') return;
-      const loginModal = document.getElementById('tidalLoginModal');
-      if (loginModal && loginModal.style.display === 'flex') return; // already prompting
-      showToast('🔒 TIDAL 登入已過期，請重新連線串流帳號');
-      openTidalLoginModal();
+      showToast('🔒 TIDAL 登入已過期，正在為您開啟官方登入視窗...');
+      triggerTidalDirectLogin();
     };
 
     await tidalService.init();
@@ -19250,27 +19332,11 @@ async function initTidalStreaming() {
     });
   }
 
-  // Start window login
+  // Start window login (direct call)
   if (btnStartLogin) {
-    btnStartLogin.addEventListener('click', async () => {
-      if (!tidalService) return;
-      if (loadingIndicator) loadingIndicator.style.display = 'block';
-      btnStartLogin.disabled = true;
-
-      try {
-        const res = await tidalService.loginWithWindow();
-        if (res && res.success) {
-          showToast('🎉 TIDAL 官方帳號已成功登入！');
-          updateTidalUIStatus();
-          if (state.currentView === 'tidal') onOpenTidalView();
-        }
-      } catch (err) {
-        console.warn('[TIDAL] Login cancelled or failed:', err);
-        showToast(`ℹ️ TIDAL 登入狀態: ${err.message || '已取消'}`);
-      } finally {
-        if (loadingIndicator) loadingIndicator.style.display = 'none';
-        btnStartLogin.disabled = false;
-      }
+    btnStartLogin.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerTidalDirectLogin();
     });
   }
 
@@ -19322,10 +19388,11 @@ async function initTidalStreaming() {
     });
   }
 
-  // Relogin
+  // Relogin (Directly launch official login window)
   if (btnRelogin) {
-    btnRelogin.addEventListener('click', async () => {
-      if (btnStartLogin) btnStartLogin.click();
+    btnRelogin.addEventListener('click', () => {
+      closeTidalLoginModal();
+      triggerTidalDirectLogin();
     });
   }
 
@@ -19406,9 +19473,23 @@ function setupTidalExplorerUI() {
   }
   if (btnBackFromSearch) btnBackFromSearch.addEventListener('click', () => switchTidalTab('featured'));
 
-  // Account / Login triggers
-  if (btnAccount) btnAccount.addEventListener('click', openTidalLoginModal);
-  if (btnConnectNow) btnConnectNow.addEventListener('click', openTidalLoginModal);
+  // Account / Login triggers (Direct login if logged out; Account settings if logged in)
+  if (btnAccount) {
+    btnAccount.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (tidalService && tidalService.isLoggedIn) {
+        openTidalLoginModal();
+      } else {
+        triggerTidalDirectLogin();
+      }
+    });
+  }
+  if (btnConnectNow) {
+    btnConnectNow.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerTidalDirectLogin();
+    });
+  }
 
   // Close Banner
   if (btnCloseBanner && infoBanner) {
@@ -19519,9 +19600,10 @@ function onOpenTidalView() {
   // Token already proven expired: prompt re-login directly instead of firing requests
   // that would all fail with 401.
   if (svc && svc.authExpired) {
-    if (notConnectedBanner) notConnectedBanner.style.display = 'none';
+    if (notConnectedBanner) notConnectedBanner.style.display = 'flex';
     if (explorerContainer) explorerContainer.style.display = 'none';
-    openTidalLoginModal();
+    showToast('🔒 TIDAL 登入已過期，正在為您開啟官方登入視窗...');
+    triggerTidalDirectLogin();
     return;
   }
 
@@ -20125,6 +20207,17 @@ function updateTidalUIStatus() {
     } else {
       loggedOutView.style.display = 'block';
       loggedInView.style.display = 'none';
+    }
+  }
+
+  const btnAccount = document.getElementById('btnOpenTidalAccount');
+  if (btnAccount && !isTidalLoginInProgress) {
+    if (isLoggedIn) {
+      btnAccount.innerHTML = '💎 TIDAL 帳號';
+      btnAccount.title = '檢視 TIDAL 帳號連線資訊與設定';
+    } else {
+      btnAccount.innerHTML = '💎 登入 TIDAL';
+      btnAccount.title = '直接開啟 TIDAL 官方登入視窗';
     }
   }
 }
