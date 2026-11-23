@@ -34,6 +34,9 @@
     '檢視原文': 'View original',
 
     // ===== 左側選單 =====
+    '音樂庫': 'LIBRARY',
+    '總覽': 'Overview',
+    '曲風流派': 'Genres',
     '音樂庫 LIBRARY': 'LIBRARY',
     '總覽 Overview': 'Overview',
     '專輯 Albums': 'Albums',
@@ -42,11 +45,14 @@
     '曲風流派 Genres': 'Genres',
     '播放紀錄': 'Play History',
     '播放清單': 'Playlists',
+    '我的最愛': 'FAVORITES',
     '我的最愛 FAVORITES': 'FAVORITES',
     '最愛專輯': 'Favorite Albums',
     '最愛歌曲': 'Favorite Tracks',
     '最愛演出者': 'Favorite Artists',
+    '線上串流': 'STREAMING',
     '線上串流 STREAMING': 'STREAMING',
+    '管理與設定': 'SETTINGS & STORAGE',
     '管理與設定 SETTINGS': 'SETTINGS & STORAGE',
     '本機資料夾管理': 'Local Folders',
     '網路資料夾設定': 'Network Storage (SAMBA)',
@@ -676,9 +682,14 @@
       return;
     }
 
-    const key = normalize(raw);
-    if (!key || !CJK.test(key)) return;
-    const translated = translateString(key);
+    const explicitEn = parent.getAttribute && parent.getAttribute('data-i18n-en');
+    let translated = explicitEn || null;
+
+    if (!translated) {
+      const key = normalize(raw);
+      if (!key || !CJK.test(key)) return;
+      translated = translateString(key);
+    }
     if (translated === null) return;
     if (!originalText.has(node)) originalText.set(node, raw);
     const lead = (raw.match(/^[ \t\r\n\u00a0]*/) || [''])[0];
