@@ -171,11 +171,14 @@ async fn fetch_device_desc(client: &reqwest::Client, location: &str) -> Result<D
     let udn = extract_xml_value(&xml, "UDN").unwrap_or_else(|| location.to_string());
     let ip = loc_url.host_str().unwrap_or("").to_string();
 
+    // Proactively exclude network equipment (routers, APs, WiFi nodes, gateways, printers)
+    if is_network_or_non_audio_device(&xml, &name, &model, &manufacturer) {
+        bail!("Device '{}' ({}) at {} is network equipment and was excluded", name, model, location);
+    }
+
+    // Must have a valid AVTransport service to receive and play audio streams
     let (av_transport_url, av_transport_service_type) = extract_service(&xml, "AVTransport", &base_url)
-        .unwrap_or_else(|| {
-            let fallback_url = resolve_url(&base_url, "/AVTransport/control");
-            (fallback_url, default_av_transport_service_type())
-        });
+        .ok_or_else(|| anyhow::anyhow!("Device '{}' at {} has no AVTransport service", name, location))?;
 
     let (rendering_control_url, rendering_control_service_type) = extract_service(&xml, "RenderingControl", &base_url)
         .unwrap_or_else(|| {
@@ -195,6 +198,60 @@ async fn fetch_device_desc(client: &reqwest::Client, location: &str) -> Result<D
         av_transport_service_type,
         rendering_control_service_type,
     })
+}
+
+pub fn is_network_or_non_audio_device(xml: &str, name: &str, model: &str, manufacturer: &str) -> bool {
+    let lower_xml = xml.to_lowercase();
+    let lower_name = name.to_lowercase();
+    let lower_model = model.to_lowercase();
+    let lower_mfr = manufacturer.to_lowercase();
+
+    // 1. UPnP deviceTypes representing non-audio network hardware
+    let non_audio_types = [
+        "internetgatewaydevice",
+        "wandevice",
+        "wanconnectiondevice",
+        "landevice",
+        "lanhostconfigmanagement",
+        "device:basic",
+        "device:printer",
+        "device:scanner",
+        "wfa-wsc",
+        "wsc:1",
+        "wps",
+    ];
+    for dt in &non_audio_types {
+        if lower_xml.contains(dt) && !lower_xml.contains("device:mediarenderer") {
+            return true;
+        }
+    }
+
+    // 2. Pure MediaServer without MediaRenderer (e.g. NAS or router USB drive share)
+    if lower_xml.contains("device:mediaserver") && !lower_xml.contains("device:mediarenderer") {
+        return true;
+    }
+
+    // 3. Keywords identifying routers, wireless APs, mesh nodes, switches, modems
+    let network_keywords = [
+        "router", "gateway", "access point", "accesspoint", "wireless-ap",
+        "無線分享器", "路由器", "交換器", "延伸器", "基地台", "無線路由器", "分享器",
+        "mesh", "wi-fi node", "wifi node", "wifi-node", "repeater", "extender",
+        "broadband", "modem", "switch", "ethernet",
+        "rt-ax", "rt-ac", "archer", "deco", "orbi", "velop", "zenwifi",
+        "asuswrt", "openwrt", "dd-wrt", "amplifi", "airies", "unifi",
+        "synology router", "draytek", "vigor", "zyxel", "linksys", "fritz!box",
+        "huawei home gateway", "smart wifi", "netgear nighthawk", "xiaomi router"
+    ];
+
+    for kw in &network_keywords {
+        if lower_name.contains(kw) || lower_model.contains(kw) || lower_mfr.contains(kw) {
+            if !lower_xml.contains("device:mediarenderer") && !lower_xml.contains("audiospeaker") {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 pub fn resolve_url(base: &reqwest::Url, rel: &str) -> String {
@@ -276,6 +333,30 @@ mod tests {
         let (rc_url, rc_st) = extract_service(xml, "RenderingControl", &base).unwrap();
         assert_eq!(rc_url, "http://192.168.1.88:8080/upnp/control/rendering");
         assert_eq!(rc_st, "urn:schemas-upnp-org:service:RenderingControl:1");
+    }
+
+    #[test]
+    fn test_is_network_or_non_audio_device() {
+        // Router / Gateway XML
+        let router_xml = r#"<device>
+            <deviceType>urn:schemas-upnp-org:device:InternetGatewayDevice:1</deviceType>
+            <friendlyName>RT-AX86U Wireless Router</friendlyName>
+        </device>"#;
+        assert!(is_network_or_non_audio_device(router_xml, "RT-AX86U", "RT-AX86U", "ASUSTeK"));
+
+        // WiFi Mesh Node
+        let node_xml = r#"<device>
+            <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
+            <friendlyName>Deco X60 Wi-Fi Node</friendlyName>
+        </device>"#;
+        assert!(is_network_or_non_audio_device(node_xml, "Deco X60 Wi-Fi Node", "Deco X60", "TP-Link"));
+
+        // Legitimate Audio MediaRenderer
+        let renderer_xml = r#"<device>
+            <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+            <friendlyName>Eversolo DMP-A6</friendlyName>
+        </device>"#;
+        assert!(!is_network_or_non_audio_device(renderer_xml, "Eversolo DMP-A6", "DMP-A6", "Eversolo"));
     }
 
     #[tokio::test]

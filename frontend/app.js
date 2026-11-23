@@ -12602,6 +12602,14 @@ function initRooVolumeControls() {
     const isHidden = rooVolumePopover.style.display === 'none' || !rooVolumePopover.style.display;
     const shouldOpen = (force !== undefined) ? force : isHidden;
     if (shouldOpen) {
+      if (typeof window.toggleRooOutputPopover === 'function') {
+        window.toggleRooOutputPopover(false);
+      } else {
+        const rooOutputPopover = document.getElementById('rooOutputPopover');
+        if (rooOutputPopover) rooOutputPopover.style.display = 'none';
+        const btnAudioOutput = document.getElementById('btnAudioOutput');
+        if (btnAudioOutput) btnAudioOutput.classList.remove('active');
+      }
       rooVolumePopover.style.display = 'block';
       if (btnRooVolumeToggle) btnRooVolumeToggle.classList.add('active');
     } else {
@@ -12609,6 +12617,7 @@ function initRooVolumeControls() {
       if (btnRooVolumeToggle) btnRooVolumeToggle.classList.remove('active');
     }
   }
+  window.toggleRooVolumePopover = toggleRooVolumePopover;
 
   if (btnRooVolumeToggle) {
     btnRooVolumeToggle.addEventListener('click', (e) => {
@@ -12673,10 +12682,14 @@ function initRooVolumeControls() {
     popoverBtnTransfer.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleRooVolumePopover(false);
-      const audioDeviceModal = document.getElementById('audioDeviceModal');
-      if (audioDeviceModal) {
-        audioDeviceModal.style.display = 'flex';
-        refreshAudioDevices(false);
+      if (typeof window.toggleRooOutputPopover === 'function') {
+        window.toggleRooOutputPopover(true);
+      } else {
+        const audioDeviceModal = document.getElementById('audioDeviceModal');
+        if (audioDeviceModal) {
+          audioDeviceModal.style.display = 'flex';
+          refreshAudioDevices(false);
+        }
       }
     });
   }
@@ -17306,32 +17319,105 @@ function setupPlayerControls() {
 }
 
 // ----------------- DLNA / UPnP Audio Zones Engine -----------------
+function isAudioRendererDevice(dev) {
+  if (!dev) return false;
+  if (dev.isLocal) return true;
+  const name = (dev.name || '').toLowerCase();
+  const model = (dev.model || '').toLowerCase();
+  const mfr = (dev.manufacturer || '').toLowerCase();
+
+  const excluded = [
+    'router', 'gateway', 'access point', 'accesspoint', 'wireless-ap',
+    '無線分享器', '路由器', '交換器', '延伸器', '基地台', '無線路由器', '分享器',
+    'mesh', 'wi-fi node', 'wifi node', 'wifi-node', 'repeater', 'extender',
+    'broadband', 'modem', 'switch', 'ethernet',
+    'rt-ax', 'rt-ac', 'archer', 'deco', 'orbi', 'velop', 'zenwifi',
+    'asuswrt', 'openwrt', 'dd-wrt', 'amplifi', 'airies', 'unifi',
+    'synology router', 'draytek', 'vigor', 'zyxel', 'linksys', 'fritz!box',
+    'huawei home gateway', 'smart wifi', 'netgear nighthawk', 'xiaomi router'
+  ];
+
+  for (const kw of excluded) {
+    if (name.includes(kw) || model.includes(kw) || mfr.includes(kw)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function toggleRooOutputPopover(force) {
+  const rooOutputPopover = document.getElementById('rooOutputPopover');
+  const btnAudioOutput = document.getElementById('btnAudioOutput');
+  if (!rooOutputPopover) return;
+  const isHidden = rooOutputPopover.style.display === 'none' || !rooOutputPopover.style.display;
+  const shouldOpen = (force !== undefined) ? force : isHidden;
+  if (shouldOpen) {
+    // Mutual exclusivity: Close volume popover and signal path popover if open
+    if (typeof window.toggleRooVolumePopover === 'function') {
+      window.toggleRooVolumePopover(false);
+    } else {
+      const rooVolumePopover = document.getElementById('rooVolumePopover');
+      if (rooVolumePopover) rooVolumePopover.style.display = 'none';
+      const btnRooVolumeToggle = document.getElementById('btnRooVolumeToggle');
+      if (btnRooVolumeToggle) btnRooVolumeToggle.classList.remove('active');
+    }
+    const rooSignalPathPopover = document.getElementById('rooSignalPathPopover');
+    if (rooSignalPathPopover && rooSignalPathPopover.style.display !== 'none') {
+      rooSignalPathPopover.style.display = 'none';
+      const btnSignalPath = document.getElementById('btnSignalPath');
+      if (btnSignalPath) btnSignalPath.classList.remove('active');
+    }
+
+    rooOutputPopover.style.display = 'flex';
+    if (btnAudioOutput) btnAudioOutput.classList.add('active');
+    refreshAudioDevices(false);
+  } else {
+    rooOutputPopover.style.display = 'none';
+    if (btnAudioOutput) btnAudioOutput.classList.remove('active');
+  }
+}
+window.toggleRooOutputPopover = toggleRooOutputPopover;
+
 function initAudioZones() {
   const btnAudioOutput = document.getElementById('btnAudioOutput');
-  const audioDeviceModal = document.getElementById('audioDeviceModal');
+  const rooOutputPopover = document.getElementById('rooOutputPopover');
   const btnCloseAudioDevice = document.getElementById('btnCloseAudioDevice');
   const btnRefreshDevices = document.getElementById('btnRefreshDevices');
   const localAudioCard = document.getElementById('localAudioCard');
   const inputDirectIp = document.getElementById('inputDirectIp');
   const btnProbeDirectIp = document.getElementById('btnProbeDirectIp');
 
-  if (btnAudioOutput && audioDeviceModal) {
-    btnAudioOutput.addEventListener('click', () => {
-      audioDeviceModal.style.display = 'flex';
-      refreshAudioDevices(false);
+  if (btnAudioOutput) {
+    btnAudioOutput.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRooOutputPopover();
     });
   }
 
-  if (btnCloseAudioDevice && audioDeviceModal) {
+  if (btnCloseAudioDevice) {
     btnCloseAudioDevice.addEventListener('click', () => {
-      audioDeviceModal.style.display = 'none';
-    });
-    audioDeviceModal.addEventListener('click', (e) => {
-      if (e.target === audioDeviceModal) {
-        audioDeviceModal.style.display = 'none';
-      }
+      toggleRooOutputPopover(false);
     });
   }
+
+  // Click outside to close output popover
+  document.addEventListener('click', (e) => {
+    const pop = document.getElementById('rooOutputPopover');
+    const btn = document.getElementById('btnAudioOutput');
+    if (pop && pop.style.display !== 'none') {
+      if (!pop.contains(e.target) && (!btn || !btn.contains(e.target))) {
+        toggleRooOutputPopover(false);
+      }
+    }
+  });
+
+  // Escape key to close output popover
+  document.addEventListener('keydown', (e) => {
+    const pop = document.getElementById('rooOutputPopover');
+    if (e.key === 'Escape' && pop && pop.style.display !== 'none') {
+      toggleRooOutputPopover(false);
+    }
+  });
 
   if (btnRefreshDevices) {
     btnRefreshDevices.addEventListener('click', () => {
@@ -17365,11 +17451,17 @@ function initAudioZones() {
         if (window.electronAPI && window.electronAPI.probeDlnaIp) {
           const res = await window.electronAPI.probeDlnaIp(ip);
           if (res && res.success && res.device) {
+            if (!isAudioRendererDevice(res.device)) {
+              showToast(`⚠️ 設備 ${res.device.name} 辨識為網路設備或非音訊播放端點，已排除`);
+              return;
+            }
             showToast(`✅ 成功辨識硬體：${res.device.name} (${ip})`);
             if (res.devices) {
-              state.availableDevices = res.devices;
+              state.availableDevices = res.devices.filter(isAudioRendererDevice);
             } else {
-              state.availableDevices.push(res.device);
+              if (!state.availableDevices.some(d => d.id === res.device.id)) {
+                state.availableDevices.push(res.device);
+              }
             }
             renderAudioDevicesList();
             switchAudioZone(res.device);
@@ -17396,7 +17488,7 @@ function initAudioZones() {
   if (window.electronAPI) {
     if (window.electronAPI.onDlnaDevicesChanged) {
       window.electronAPI.onDlnaDevicesChanged((list) => {
-        state.availableDevices = list || [];
+        state.availableDevices = (list || []).filter(isAudioRendererDevice);
         renderAudioDevicesList();
       });
     }
@@ -17419,7 +17511,7 @@ function initAudioZones() {
     if (window.electronAPI.getDlnaDevices) {
       window.electronAPI.getDlnaDevices().then(devices => {
         if (devices && devices.length > 0) {
-          state.availableDevices = devices;
+          state.availableDevices = devices.filter(isAudioRendererDevice);
           renderAudioDevicesList();
         }
       }).catch(err => console.warn('getDlnaDevices error:', err));
@@ -17435,7 +17527,7 @@ async function refreshAudioDevices(showFeedback = false) {
   if (window.electronAPI && window.electronAPI.scanDlnaDevices) {
     try {
       const devices = await window.electronAPI.scanDlnaDevices();
-      state.availableDevices = devices || [];
+      state.availableDevices = (devices || []).filter(isAudioRendererDevice);
       renderAudioDevicesList();
       const dlnaCount = state.availableDevices.filter(d => !d.isLocal).length;
       if (showFeedback) {
@@ -17457,8 +17549,8 @@ function renderAudioDevicesList() {
   const localCard = document.getElementById('localAudioCard');
   const localBadge = document.getElementById('localBadge');
 
-  // Exclude local from DLNA network list count
-  const dlnaList = (state.availableDevices || []).filter(d => !d.isLocal);
+  // Exclude local from DLNA network list count and filter out network equipment
+  const dlnaList = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
 
   if (countEl) countEl.textContent = dlnaList.length;
 
@@ -17624,7 +17716,10 @@ async function switchAudioZone(target) {
     }
   }
 
-  // Close modal after selection
+  // Close output popover after selection
+  if (typeof toggleRooOutputPopover === 'function') {
+    toggleRooOutputPopover(false);
+  }
   const modal = document.getElementById('audioDeviceModal');
   if (modal) modal.style.display = 'none';
 }
