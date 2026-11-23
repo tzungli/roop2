@@ -170,9 +170,15 @@ impl DlnaManager {
                     on_progress(pos, dur, &state);
 
                     // A track has finished only if it was genuinely playing AND:
-                    // 1. Explicitly reported STOPPED or NO_MEDIA_PRESENT after playing for > 4s
+                    // 1. Explicitly reported STOPPED or NO_MEDIA_PRESENT/COMPLETED and is actually near the end of track
                     // 2. Or reached duration for at least 2 consecutive ticks after playing for > 4s
-                    let finished_by_state = was_playing && play_seconds > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT" || state_upper == "COMPLETED");
+                    let is_near_end = if dur > 5.0 {
+                        pos >= (dur - 4.0)
+                    } else {
+                        play_seconds > 4
+                    };
+
+                    let finished_by_state = was_playing && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT" || state_upper == "COMPLETED") && is_near_end;
                     
                     if was_playing && play_seconds > 4 && dur > 5.0 && pos >= (dur - 1.5) {
                         near_end_count += 1;
@@ -184,6 +190,9 @@ impl DlnaManager {
                     if finished_by_state || finished_by_time {
                         tracing::info!("Track finished on DLNA renderer (state={}, pos={}, dur={})", state, pos, dur);
                         on_ended();
+                        break;
+                    } else if was_playing && play_seconds > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT") {
+                        tracing::warn!("DLNA renderer stopped prematurely midway (state={}, pos={}, dur={}). Ending poll without on_ended to prevent track skip loop.", state, pos, dur);
                         break;
                     }
                 }

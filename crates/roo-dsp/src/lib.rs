@@ -200,6 +200,35 @@ mod tests {
     }
 
     #[test]
+    fn test_dsd_modulation_hermite_speed() {
+        use std::f64::consts::PI;
+
+        let src_rate = 44100.0;
+        let dsd_rate = 11289600.0; // DSD256
+        let mut modulator = DsdModulator::new(7, "precise-linear", DitherType::Gauss1, None);
+
+        let n_src = 44100; // 1s
+        let freq = 1000.0;
+        let left: Vec<f64> = (0..n_src).map(|i| 0.5 * (2.0 * PI * freq * i as f64 / src_rate).sin()).collect();
+        let right: Vec<f64> = (0..n_src).map(|i| 0.5 * (2.0 * PI * freq * i as f64 / src_rate).cos()).collect();
+
+        let num_blocks = 344; // ~1 full second of DSD256!
+        let mut out = vec![0u8; DSD_BLOCK_SIZE * 2 * num_blocks];
+        let inv_ratio = src_rate / dsd_rate;
+
+        let t0 = std::time::Instant::now();
+        modulator.run_blocks(&left, &right, n_src, 0, num_blocks, inv_ratio, &mut out);
+        let elapsed = t0.elapsed();
+        println!("Modulating 1.0s of DSD256 (Hermite) took: {:?}", elapsed);
+
+        // 1 second of DSD256 must process faster than real-time (1000ms in release, 4000ms in debug)
+        let max_ms = if cfg!(debug_assertions) { 4000 } else { 1000 };
+        assert!(elapsed.as_millis() < max_ms, "Hermite modulation took too long: {:?}", elapsed);
+        assert!(modulator.s1_l.is_finite());
+        assert!(out.iter().any(|&b| b != 0x00 && b != 0xFF));
+    }
+
+    #[test]
     fn test_flagship_src_filters() {
         let src_rate = 44100.0;
         let dst_rate = 176400.0; // 4x PCM

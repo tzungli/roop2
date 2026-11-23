@@ -335,16 +335,14 @@ impl DsdDitherer {
                 (dl * 0.5, dr * 0.5)
             }
             DitherType::Gauss => {
-                // Box-Muller normal distribution for DSD
-                let u1_l = rand_u01(&mut self.prng_l1).max(1e-15);
-                let u2_l = rand_u01(&mut self.prng_l2);
-                let r_l = (-2.0 * u1_l.ln()).sqrt() * (DSD_DITHER_AMP * 0.707);
-                let dl = r_l * (2.0 * PI * u2_l).cos();
-
-                let u1_r = rand_u01(&mut self.prng_r1).max(1e-15);
-                let u2_r = rand_u01(&mut self.prng_r2);
-                let r_r = (-2.0 * u1_r.ln()).sqrt() * (DSD_DITHER_AMP * 0.707);
-                let dr = r_r * (2.0 * PI * u2_r).cos();
+                // Box-Muller normal distribution for DSD: compute independent Left and Right
+                // Gaussian variables simultaneously via sin_cos from a single (u1, u2) pair.
+                let u1 = rand_u01(&mut self.prng_l1).max(1e-15);
+                let u2 = rand_u01(&mut self.prng_l2);
+                let r = (-2.0 * u1.ln()).sqrt() * (DSD_DITHER_AMP * 0.707);
+                let (sin_t, cos_t) = (2.0 * PI * u2).sin_cos();
+                let dl = r * cos_t;
+                let dr = r * sin_t;
 
                 (dl, dr)
             }
