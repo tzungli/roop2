@@ -7611,18 +7611,18 @@ body.table-col-resizing * {
 }
 
 .now-playing-controls-box {
-  margin-top: auto;
-  padding-top: 14px;
-  padding-bottom: 6px;
+  margin-top: 18px;
+  padding-top: 0;
+  padding-bottom: 0;
   width: 100%;
 }
 
-/* Real-time spectrum visualizer (above the progress bar) - no panel background or border */
+/* Real-time spectrum visualizer (below playback buttons) - no panel background or border */
 .now-playing-spectrum-wrap {
   position: relative;
   width: 100%;
-  height: 110px;
-  margin-bottom: 12px;
+  height: 60px;
+  margin-top: 16px;
   overflow: hidden;
 }
 
@@ -7638,7 +7638,7 @@ body.table-col-resizing * {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .now-playing-time {
