@@ -20911,6 +20911,49 @@ function updateTidalUIStatus() {
   }
 })();
 
+// ================= Roon-style Collapsible Sidebar Drawer (<= 1080px) =================
+(function initCollapsibleSidebarDrawer() {
+  const appContainer = document.getElementById('appContainer');
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('btnSidebarToggle');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!appContainer || !sidebar || !toggleBtn || !backdrop) return;
+
+  const mq = window.matchMedia('(max-width: 1080px)');
+
+  function setOpen(open) {
+    const isOpen = !!open && mq.matches;
+    appContainer.classList.toggle('sidebar-drawer-open', isOpen);
+    toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    toggleBtn.title = isOpen ? '收合選單' : '開啟選單';
+  }
+
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOpen(!appContainer.classList.contains('sidebar-drawer-open'));
+  });
+
+  backdrop.addEventListener('click', () => setOpen(false));
+
+  sidebar.addEventListener('click', (e) => {
+    if (mq.matches && e.target.closest('.nav-item')) {
+      setOpen(false);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && appContainer.classList.contains('sidebar-drawer-open')) {
+      setOpen(false);
+    }
+  });
+
+  const onViewportChange = (e) => {
+    if (!e.matches) setOpen(false);
+  };
+  if (mq.addEventListener) mq.addEventListener('change', onViewportChange);
+  else if (mq.addListener) mq.addListener(onViewportChange);
+})();
+
 // Start application
 if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', initApp);

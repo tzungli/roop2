@@ -276,7 +276,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   overflow: hidden;
   position: relative;
-  min-width: 840px;
+  min-width: 0;
 }
 
 /* Sidebar */
@@ -13074,4 +13074,62 @@ body.table-col-resizing * {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ============================================================
+   Roon-Style Responsive Collapsible Sidebar Drawer (<= 1080px)
+   ============================================================ */
+.sidebar-toggle-btn {
+  display: none;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .sidebar-toggle-btn {
+    display: inline-flex;
+  }
+
+  #sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 224px;
+    z-index: 120;
+    transform: translateX(-104%);
+    box-shadow: none;
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease;
+  }
+
+  #appContainer.sidebar-drawer-open #sidebar {
+    transform: translateX(0);
+    box-shadow: 12px 0 36px rgba(0, 0, 0, 0.45);
+  }
+
+  [data-theme="light"] #appContainer.sidebar-drawer-open #sidebar {
+    box-shadow: 12px 0 36px rgba(15, 23, 42, 0.18);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 110;
+    background: rgba(0, 0, 0, 0.48);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+  }
+
+  [data-theme="light"] .sidebar-backdrop {
+    background: rgba(15, 23, 42, 0.28);
+  }
+
+  #appContainer.sidebar-drawer-open .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
