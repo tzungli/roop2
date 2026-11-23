@@ -4720,10 +4720,9 @@ function renderTracks() {
     allTracksTbody.innerHTML = `
       <tr>
         <td colspan="8" style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
-          <div style="font-size: 40px; margin-bottom: 12px;">🎵</div>
           <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無曲目</div>
-          <div style="font-size: 13px; margin-bottom: 20px;">點擊下方按鈕前往設定，選擇音樂資料夾進行掃描匯入。</div>
-          <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">📂 匯入音樂資料夾</button>
+          <div style="font-size: 13px; margin-bottom: 20px;">點擊下方按鈕前往本機資料夾管理，選擇音樂資料夾進行掃描匯入。</div>
+          <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">匯入音樂資料夾</button>
         </td>
       </tr>
     `;
@@ -4817,7 +4816,7 @@ function ensureTracksSentinel() {
     allTracksTbody.appendChild(sentinel);
   }
   sentinel.innerHTML = `
-    <td colspan="7" style="text-align: center; padding: 12px; color: var(--text-muted); font-size: 12px; border: none; background: transparent;">
+    <td colspan="8" style="text-align: center; padding: 12px; color: var(--text-muted); font-size: 12px; border: none; background: transparent;">
       <span class="spinner" style="display:inline-block; width:12px; height:12px; margin-right:6px; vertical-align:middle;"></span>
       已載入 ${tracksRenderOffset} / ${currentDisplayTracks.length} 首曲目 (向下滾動持續載入)...
     </td>
