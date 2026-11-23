@@ -20619,14 +20619,16 @@ function updateTidalUIStatus() {
   if (badge) {
     if (isLoggedIn) {
       badge.textContent = '已連線';
-      badge.style.background = 'rgba(0, 229, 255, 0.2)';
-      badge.style.color = '#00e5ff';
-      badge.style.borderColor = 'rgba(0, 229, 255, 0.5)';
+      badge.classList.add('is-online');
+      badge.style.background = '';
+      badge.style.color = '';
+      badge.style.borderColor = '';
     } else {
       badge.textContent = '未登入';
-      badge.style.background = 'rgba(255, 255, 255, 0.08)';
-      badge.style.color = 'var(--text-muted)';
-      badge.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      badge.classList.remove('is-online');
+      badge.style.background = '';
+      badge.style.color = '';
+      badge.style.borderColor = '';
     }
   }
 
@@ -20657,10 +20659,10 @@ function updateTidalUIStatus() {
   const btnAccount = document.getElementById('btnOpenTidalAccount');
   if (btnAccount && !isTidalLoginInProgress) {
     if (isLoggedIn) {
-      btnAccount.innerHTML = '💎 TIDAL 帳號';
+      btnAccount.textContent = 'TIDAL 帳號';
       btnAccount.title = '檢視 TIDAL 帳號連線資訊與設定';
     } else {
-      btnAccount.innerHTML = '💎 登入 TIDAL';
+      btnAccount.textContent = '登入 TIDAL';
       btnAccount.title = '直接開啟 TIDAL 官方登入視窗';
     }
   }

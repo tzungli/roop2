@@ -12387,3 +12387,460 @@ body.table-col-resizing * {
   border-color: #cbd5e1;
   color: #0f172a;
 }
+
+/* ============================================================
+   Unified Minimalist Streaming Views (TIDAL & KKBOX)
+   Aligns with rooPlayer's clean monochrome + soft lavender UI
+   ============================================================ */
+
+/* Sidebar Streaming Status Badges */
+.streaming-status-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-weight: 600;
+}
+
+.streaming-status-badge.is-online {
+  background: rgba(124, 92, 255, 0.18);
+  color: #c4b5fd;
+  border-color: rgba(124, 92, 255, 0.36);
+}
+
+[data-theme="light"] .streaming-status-badge {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .streaming-status-badge.is-online {
+  background: #e2e2fc;
+  color: #4f3cc9;
+  border-color: #c4b5fd;
+}
+
+/* Shared Streaming Page Layout */
+.streaming-unified-view {
+  background: transparent !important;
+  padding: 0 4px 28px;
+}
+
+.streaming-unified-view .kkbox-header-bar,
+.streaming-unified-view .tidal-header-bar {
+  background: transparent !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  padding: 0 0 14px 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.streaming-unified-view .kkbox-brand-badge,
+.streaming-unified-view .tidal-brand-badge {
+  gap: 0;
+}
+
+.streaming-unified-view .kkbox-badge-name,
+.streaming-unified-view .tidal-badge-name {
+  margin: 0;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  color: var(--text-main) !important;
+}
+
+.streaming-unified-view .kkbox-header-right,
+.streaming-unified-view .tidal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Search Box */
+.streaming-unified-view .kkbox-search-box,
+.streaming-unified-view .tidal-search-box {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 999px !important;
+  padding: 3px 4px 3px 12px !important;
+  box-shadow: none !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.streaming-unified-view .kkbox-search-box:focus-within,
+.streaming-unified-view .tidal-search-box:focus-within {
+  border-color: #7c5cff !important;
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16) !important;
+}
+
+.streaming-unified-view .kkbox-search-icon,
+.streaming-unified-view .tidal-search-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.streaming-unified-view .btn-kkbox-search,
+.streaming-unified-view .btn-tidal-search {
+  background: rgba(124, 92, 255, 0.2) !important;
+  color: #ddd6fe !important;
+  border: 1px solid rgba(124, 92, 255, 0.35) !important;
+  border-radius: 999px !important;
+  padding: 4px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .btn-kkbox-search:hover,
+.streaming-unified-view .btn-tidal-search:hover {
+  background: #6d5ce8 !important;
+  color: #ffffff !important;
+  border-color: #6d5ce8 !important;
+}
+
+/* Account / Logout Buttons */
+.streaming-unified-view .btn-tidal-account,
+.streaming-unified-view .btn-kkbox-login {
+  background: transparent !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 999px !important;
+  padding: 6px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .btn-tidal-account:hover,
+.streaming-unified-view .btn-kkbox-login:hover {
+  background: rgba(124, 92, 255, 0.14) !important;
+  border-color: rgba(124, 92, 255, 0.4) !important;
+  color: #ddd6fe !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .btn-kkbox-logout {
+  background: transparent !important;
+  color: #f43f5e !important;
+  border: 1px solid rgba(244, 63, 94, 0.35) !important;
+  border-radius: 999px !important;
+  padding: 6px 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Sub-Navigation Bar (Minimalist Underline Tabs) */
+.streaming-unified-view .kkbox-subnav-bar,
+.streaming-unified-view .tidal-subnav-bar {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  padding: 0 0 0 0 !important;
+  margin-bottom: 20px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.streaming-unified-view .kkbox-subnav-tabs,
+.streaming-unified-view .tidal-subnav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.streaming-unified-view .kkbox-subnav-tab,
+.streaming-unified-view .kkbox-switch-btn,
+.streaming-unified-view .tidal-subnav-tab {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  padding: 10px 14px !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.streaming-unified-view .kkbox-subnav-tab:hover,
+.streaming-unified-view .kkbox-switch-btn:hover,
+.streaming-unified-view .tidal-subnav-tab:hover {
+  background: transparent !important;
+  color: var(--text-main) !important;
+}
+
+.streaming-unified-view .kkbox-subnav-tab.active,
+.streaming-unified-view .kkbox-switch-btn.active,
+.streaming-unified-view .tidal-subnav-tab.active {
+  background: transparent !important;
+  color: #a78bfa !important;
+  border-bottom-color: #7c5cff !important;
+  box-shadow: none !important;
+}
+
+/* Inner Content Container */
+.streaming-unified-view .kkbox-api-view-inner,
+.streaming-unified-view .tidal-api-view-inner {
+  padding: 0 !important;
+}
+
+.streaming-unified-view .kkbox-section-title-wrap,
+.streaming-unified-view .tidal-section-title-wrap {
+  margin-bottom: 16px !important;
+  padding-bottom: 0 !important;
+  border-bottom: none !important;
+}
+
+.streaming-unified-view .kkbox-section-title-wrap h2,
+.streaming-unified-view .tidal-section-title-wrap h2 {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: var(--text-main) !important;
+  margin-bottom: 2px;
+}
+
+.streaming-unified-view .kkbox-sub-desc,
+.streaming-unified-view .tidal-sub-desc {
+  font-size: 12.5px !important;
+  color: var(--text-muted) !important;
+}
+
+/* Filter Chips & Collection Sub-Tabs (Unified Lavender Pill Style) */
+.streaming-unified-view .tidal-chip-btn,
+.streaming-unified-view .kkbox-cat-chip,
+.streaming-unified-view .btn-sub-tab {
+  border-radius: 999px !important;
+  padding: 5px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-sub) !important;
+  box-shadow: none !important;
+  transition: all 0.16s ease;
+}
+
+.streaming-unified-view .tidal-chip-btn:hover,
+.streaming-unified-view .kkbox-cat-chip:hover,
+.streaming-unified-view .btn-sub-tab:hover {
+  background: rgba(124, 92, 255, 0.12) !important;
+  border-color: rgba(124, 92, 255, 0.32) !important;
+  color: var(--text-main) !important;
+}
+
+.streaming-unified-view .tidal-chip-btn.active,
+.streaming-unified-view .kkbox-cat-chip.active,
+.streaming-unified-view .btn-sub-tab.active {
+  background: rgba(124, 92, 255, 0.22) !important;
+  border-color: #7c5cff !important;
+  color: #ddd6fe !important;
+  box-shadow: none !important;
+}
+
+/* Cards, Banners & Track Rows */
+.streaming-unified-view .kkbox-playlist-header-card,
+.streaming-unified-view .kkbox-detail-banner,
+.streaming-unified-view .tidal-detail-banner,
+.streaming-unified-view .tidal-not-connected-banner,
+.streaming-unified-view .tidal-fav-albums-toolbar {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .tidal-fav-albums-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.streaming-unified-view .tidal-not-connected-banner .not-connected-icon {
+  color: #7c5cff;
+  margin-bottom: 10px;
+}
+
+.streaming-unified-view .kkbox-track-row,
+.streaming-unified-view .tidal-track-row {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .kkbox-track-row:hover,
+.streaming-unified-view .tidal-track-row:hover {
+  background: rgba(124, 92, 255, 0.08) !important;
+  border-color: rgba(124, 92, 255, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .kkbox-playlist-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.streaming-unified-view .kkbox-playlist-card:hover {
+  border-color: rgba(124, 92, 255, 0.35) !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08) !important;
+}
+
+.streaming-unified-view .btn-tidal-track-play,
+.streaming-unified-view .kkbox-btn-play-now {
+  background: rgba(124, 92, 255, 0.16) !important;
+  border: 1px solid rgba(124, 92, 255, 0.34) !important;
+  color: #c4b5fd !important;
+}
+
+.streaming-unified-view .btn-tidal-track-play:hover,
+.streaming-unified-view .kkbox-btn-play-now:hover {
+  background: #6d5ce8 !important;
+  border-color: #6d5ce8 !important;
+  color: #ffffff !important;
+}
+
+.streaming-unified-view .kkbox-detail-badge,
+.streaming-unified-view .tidal-detail-badge {
+  background: rgba(124, 92, 255, 0.16) !important;
+  color: #c4b5fd !important;
+  border: 1px solid rgba(124, 92, 255, 0.32) !important;
+}
+
+/* Light Theme Refinements for Unified Streaming Views */
+[data-theme="light"] .streaming-unified-view .kkbox-search-box,
+[data-theme="light"] .streaming-unified-view .tidal-search-box {
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+[data-theme="light"] .streaming-unified-view .btn-kkbox-search,
+[data-theme="light"] .streaming-unified-view .btn-tidal-search {
+  background: #e2e2fc !important;
+  color: #4f3cc9 !important;
+  border-color: #c4b5fd !important;
+}
+
+[data-theme="light"] .streaming-unified-view .btn-kkbox-search:hover,
+[data-theme="light"] .streaming-unified-view .btn-tidal-search:hover {
+  background: #5b46e8 !important;
+  color: #ffffff !important;
+  border-color: #5b46e8 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .btn-tidal-account,
+[data-theme="light"] .streaming-unified-view .btn-kkbox-login {
+  background: #ffffff !important;
+  color: #1e2330 !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+}
+
+[data-theme="light"] .streaming-unified-view .btn-tidal-account:hover,
+[data-theme="light"] .streaming-unified-view .btn-kkbox-login:hover {
+  background: #f5f3ff !important;
+  border-color: #c4b5fd !important;
+  color: #4f3cc9 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-subnav-bar,
+[data-theme="light"] .streaming-unified-view .tidal-subnav-bar {
+  border-bottom-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-subnav-tab,
+[data-theme="light"] .streaming-unified-view .kkbox-switch-btn,
+[data-theme="light"] .streaming-unified-view .tidal-subnav-tab {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-subnav-tab:hover,
+[data-theme="light"] .streaming-unified-view .kkbox-switch-btn:hover,
+[data-theme="light"] .streaming-unified-view .tidal-subnav-tab:hover {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-subnav-tab.active,
+[data-theme="light"] .streaming-unified-view .kkbox-switch-btn.active,
+[data-theme="light"] .streaming-unified-view .tidal-subnav-tab.active {
+  color: #4f3cc9 !important;
+  border-bottom-color: #5b46e8 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .tidal-chip-btn,
+[data-theme="light"] .streaming-unified-view .kkbox-cat-chip,
+[data-theme="light"] .streaming-unified-view .btn-sub-tab {
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  color: #475569 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .tidal-chip-btn:hover,
+[data-theme="light"] .streaming-unified-view .kkbox-cat-chip:hover,
+[data-theme="light"] .streaming-unified-view .btn-sub-tab:hover {
+  background: #f8fafc !important;
+  border-color: rgba(124, 92, 255, 0.3) !important;
+  color: #1e2330 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .tidal-chip-btn.active,
+[data-theme="light"] .streaming-unified-view .kkbox-cat-chip.active,
+[data-theme="light"] .streaming-unified-view .btn-sub-tab.active {
+  background: #e2e2fc !important;
+  border-color: #c4b5fd !important;
+  color: #4f3cc9 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-playlist-header-card,
+[data-theme="light"] .streaming-unified-view .kkbox-detail-banner,
+[data-theme="light"] .streaming-unified-view .tidal-detail-banner,
+[data-theme="light"] .streaming-unified-view .tidal-not-connected-banner,
+[data-theme="light"] .streaming-unified-view .tidal-fav-albums-toolbar,
+[data-theme="light"] .streaming-unified-view .kkbox-playlist-card {
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-track-row,
+[data-theme="light"] .streaming-unified-view .tidal-track-row {
+  border-bottom-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-track-row:hover,
+[data-theme="light"] .streaming-unified-view .tidal-track-row:hover {
+  background: #f5f3ff !important;
+  border-color: rgba(124, 92, 255, 0.18) !important;
+}
+
+[data-theme="light"] .streaming-unified-view .btn-tidal-track-play,
+[data-theme="light"] .streaming-unified-view .kkbox-btn-play-now {
+  background: #e2e2fc !important;
+  border-color: #c4b5fd !important;
+  color: #4f3cc9 !important;
+}
+
+[data-theme="light"] .streaming-unified-view .btn-tidal-track-play:hover,
+[data-theme="light"] .streaming-unified-view .kkbox-btn-play-now:hover {
+  background: #5b46e8 !important;
+  border-color: #5b46e8 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .streaming-unified-view .kkbox-detail-badge,
+[data-theme="light"] .streaming-unified-view .tidal-detail-badge {
+  background: #e2e2fc !important;
+  color: #4f3cc9 !important;
+  border-color: #c4b5fd !important;
+}
