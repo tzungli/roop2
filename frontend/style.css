@@ -6189,9 +6189,10 @@ body.table-col-resizing * {
   gap: 3px;
   background: transparent;
   border: 1px solid transparent;
-  padding: 4px 10px;
-  min-width: 62px;
-  height: 44px;
+  padding: 4px 8px;
+  min-width: 64px;
+  min-height: 48px;
+  height: auto;
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-sub);
@@ -6237,6 +6238,8 @@ body.table-col-resizing * {
 }
 
 .roo-bottom-svg {
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   color: inherit;
   transition: opacity 0.15s ease;
