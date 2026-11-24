@@ -144,6 +144,7 @@ let filterPlugins = null;
 const FALLBACK_FILTER_PLUGINS = [
   { id: 'precise-linear', label: '精準，線性相位', sound: '極陡峭滾降、-140dB 深度阻帶抑制，絕對零相位失真，最高保真度 (旗艦預設推薦)', kind: 'fir' },
   { id: 'precise-min', label: '精準，最小相位', sound: '極陡峭滾降，無預響鈴 (Zero Pre-ringing)，打擊樂瞬態衝擊力極強、結像鮮明凝聚', kind: 'fir' },
+  { id: 'gauss-long', label: '高斯長階，線性相位', sound: '仿 HQPlayer poly-sinc-gauss-long：20kHz 內極致平坦、奈奎斯特 -140dB 深度阻帶，純高斯包絡極低自然響鈴，音場寬鬆立體', kind: 'fir' },
   { id: 'smooth-linear', label: '平滑，線性相位', sound: '高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢', kind: 'fir' },
   { id: 'smooth-min', label: '平滑，最小相位', sound: '無預響鈴且極低後響鈴，最符合人耳聽覺物理掩蔽效應，類比黑膠般溫潤耐聽', kind: 'fir' }
 ];

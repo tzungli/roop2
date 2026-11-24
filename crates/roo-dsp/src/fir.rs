@@ -480,8 +480,57 @@ pub fn build_hqp_ps_ext2_filter(fs_out: f64, src_rate: f64) -> FirFilter {
     build_precise_linear_filter(fs_out, src_rate)
 }
 
+/// 高斯長階，線性相位 (Gauss Long, Linear Phase — 仿 HQPlayer poly-sinc-gauss-long)
+///
+/// 演算法特點：
+/// - 純高斯窗（Pure Gaussian Window）加權長階多相 Sinc 濾波器（單側 224 輸入取樣點，總跨度 449 階）
+/// - sigma = 0.17 * L，窗邊緣自然衰減 < -150 dB，無截斷旁瓣洩漏
+/// - 截止頻率 0.476 * fs_in（44.1kHz 下約 20.99 kHz），0–20 kHz 通帶極致平坦，奈奎斯特點即達 -140 dB 以上深度阻帶抑制
+/// - 嚴格線性相位對稱，時域衝激響應呈平滑高斯包絡、無硬切邊震盪，兼顧高解析、寬鬆音場與自然瞬態
 pub fn build_hq_poly_sinc_gauss_long_filter(fs_out: f64, src_rate: f64) -> FirFilter {
-    build_smooth_linear_filter(fs_out, src_rate)
+    let ratio = fs_out / src_rate;
+    let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
+    let s = if integer_ratio { 1 } else { 32 };
+
+    let fc = (0.476 * src_rate).min(0.485 * fs_out);
+    let l_in = 224i32;
+    let l = (l_in as f64 * ratio).round().max(16.0) as i32;
+    let sigma = 0.17 * l as f64;
+
+    let half = l * s as i32;
+    let n = (2 * half + 2) as usize;
+    let mut h = vec![0.0; n];
+
+    for j in -half..=half {
+        let t = j as f64 / s as f64;
+        let x = 2.0 * fc * t / fs_out;
+        let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
+        let u = t / sigma;
+        let w = (-0.5 * u * u).exp();
+        h[(j + half) as usize] = (2.0 * fc / fs_out) * sinc * w;
+    }
+
+    let sum: f64 = h[..n - 1].iter().sum();
+    let g = if sum.abs() > 1e-12 { ratio * s as f64 / sum } else { 1.0 };
+    for x in &mut h {
+        *x *= g;
+    }
+
+    let mut filter = FirFilter {
+        h,
+        s,
+        lo: -l,
+        hi: l,
+        ratio,
+        integer_ratio,
+        fs_out,
+        src_rate,
+        minimum_phase: false,
+        taps: (2 * half + 1) as usize,
+        poly_phases: None,
+    };
+    filter.poly_phases = build_fir_phases(&filter);
+    filter
 }
 
 pub fn build_gauss_filter(fs_out: f64, src_rate: f64, minimum_phase: bool) -> FirFilter {

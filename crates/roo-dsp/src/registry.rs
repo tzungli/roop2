@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use crate::fir::{
-    build_precise_linear_filter, build_precise_min_filter, build_smooth_linear_filter,
-    build_smooth_min_filter, kaiser_sinc_fir, windowed_sinc_fir_ext, FirFilter,
+    build_hq_poly_sinc_gauss_long_filter, build_precise_linear_filter, build_precise_min_filter,
+    build_smooth_linear_filter, build_smooth_min_filter, kaiser_sinc_fir, windowed_sinc_fir_ext,
+    FirFilter,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +101,13 @@ impl FilterRegistry {
                 dsd_safe: true,
             },
             FilterDescriptor {
+                id: "gauss-long".to_string(),
+                label: "高斯長階，線性相位".to_string(),
+                sound: "仿 HQPlayer poly-sinc-gauss-long：20kHz 內極致平坦、奈奎斯特 -140dB 深度阻帶，純高斯包絡極低自然響鈴，音場寬鬆立體".to_string(),
+                kind: "fir".to_string(),
+                dsd_safe: true,
+            },
+            FilterDescriptor {
                 id: "smooth-linear".to_string(),
                 label: "平滑，線性相位".to_string(),
                 sound: "高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢".to_string(),
@@ -120,8 +128,21 @@ impl FilterRegistry {
     }
 
     pub fn list(&self) -> Vec<FilterDescriptor> {
+        const CORE_ORDER: [&str; 5] = [
+            "precise-linear",
+            "precise-min",
+            "gauss-long",
+            "smooth-linear",
+            "smooth-min",
+        ];
         let map = self.plugins.read().unwrap();
-        map.values().cloned().collect()
+        let mut items: Vec<FilterDescriptor> = map.values().cloned().collect();
+        items.sort_by(|a, b| {
+            let ia = CORE_ORDER.iter().position(|&id| id == a.id).unwrap_or(usize::MAX);
+            let ib = CORE_ORDER.iter().position(|&id| id == b.id).unwrap_or(usize::MAX);
+            ia.cmp(&ib).then_with(|| a.id.cmp(&b.id))
+        });
+        items
     }
 
     pub fn get(&self, id: &str) -> Option<FilterDescriptor> {
@@ -133,12 +154,13 @@ impl FilterRegistry {
         match phase_id {
             "precise-linear" => Some(build_precise_linear_filter(fs_out, src_rate)),
             "precise-min" => Some(build_precise_min_filter(fs_out, src_rate)),
+            "gauss-long" | "poly-sinc-gauss-long" => Some(build_hq_poly_sinc_gauss_long_filter(fs_out, src_rate)),
             "smooth-linear" => Some(build_smooth_linear_filter(fs_out, src_rate)),
             "smooth-min" => Some(build_smooth_min_filter(fs_out, src_rate)),
             // 舊版過渡別名相容
             "linear" | "pure-flat" | "poly-ext2" | "hqp-ps-ext2" => Some(build_precise_linear_filter(fs_out, src_rate)),
             "minimum" => Some(build_precise_min_filter(fs_out, src_rate)),
-            "intermediate" | "gauss-long" | "poly-sinc-gauss-long" => Some(build_smooth_linear_filter(fs_out, src_rate)),
+            "intermediate" => Some(build_smooth_linear_filter(fs_out, src_rate)),
             "gauss-min" => Some(build_smooth_min_filter(fs_out, src_rate)),
             id if id.starts_with("uf-") => {
                 let slots = self.user_slots.read().unwrap();
