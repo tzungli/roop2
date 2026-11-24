@@ -1309,6 +1309,18 @@ fn modulate_channel5_ec(
     let use_no_dither = matches!(dither_type, DitherType::None);
 
     if gf.is_none() && w_period > 0 {
+        #[cfg(target_arch = "x86_64")]
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // Safety: runtime-checked AVX2 + FMA support
+            unsafe {
+                modulate_channel5_ec_avx2(
+                    pcm, in_len, start_bit, total_bytes, p,
+                    dither_type, ditherer, w_period, beam, ch_out,
+                );
+            }
+            return;
+        }
+
         let inv_w = 1.0 / w_period as f64;
         let mut cur_idx = start_bit / w_period;
         let mut cur_phi = start_bit - cur_idx * w_period;
@@ -1455,6 +1467,18 @@ fn modulate_channel7_ec(
     let use_no_dither = matches!(dither_type, DitherType::None);
 
     if gf.is_none() && w_period > 0 {
+        #[cfg(target_arch = "x86_64")]
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // Safety: runtime-checked AVX2 + FMA support
+            unsafe {
+                modulate_channel7_ec_avx2(
+                    pcm, in_len, start_bit, total_bytes, p,
+                    dither_type, ditherer, w_period, beam, ch_out,
+                );
+            }
+            return;
+        }
+
         let inv_w = 1.0 / w_period as f64;
         let mut cur_idx = start_bit / w_period;
         let mut cur_phi = start_bit - cur_idx * w_period;
@@ -1574,5 +1598,502 @@ fn modulate_channel7_ec(
 
     if use_fast_gauss {
         ditherer.prng1 = prng;
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+const LANE_PERM_64: [i64; 4] = [
+    0x0000_0001_0000_0000u64 as i64,
+    0x0000_0003_0000_0002u64 as i64,
+    0x0000_0005_0000_0004u64 as i64,
+    0x0000_0007_0000_0006u64 as i64,
+];
+
+#[cfg(target_arch = "x86_64")]
+const Y_MASK_LUT: [[f64; 4]; 16] = [
+    [-1.0, -1.0, -1.0, -1.0], [ 1.0, -1.0, -1.0, -1.0], [-1.0,  1.0, -1.0, -1.0], [ 1.0,  1.0, -1.0, -1.0],
+    [-1.0, -1.0,  1.0, -1.0], [ 1.0, -1.0,  1.0, -1.0], [-1.0,  1.0,  1.0, -1.0], [ 1.0,  1.0,  1.0, -1.0],
+    [-1.0, -1.0, -1.0,  1.0], [ 1.0, -1.0, -1.0,  1.0], [-1.0,  1.0, -1.0,  1.0], [ 1.0,  1.0, -1.0,  1.0],
+    [-1.0, -1.0,  1.0,  1.0], [ 1.0, -1.0,  1.0,  1.0], [-1.0,  1.0,  1.0,  1.0], [ 1.0,  1.0,  1.0,  1.0],
+];
+
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+fn cmp_swap_u64(a: &mut u64, b: &mut u64) {
+    let x = *a;
+    let y = *b;
+    *a = x.min(y);
+    *b = x.max(y);
+}
+
+/// Ultra-fast branchless Batcher bitonic half-cleaner on u64-packed (f32_bits << 3 | idx).
+/// For non-negative f32 costs, IEEE-754 bit order is strictly monotonic; returns 4 winning indices (0..7)
+/// with result[0] guaranteed to be the global minimum.
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+fn select_top4_of_8_fast(pos_bits: [u32; 4], neg_bits: [u32; 4]) -> [usize; 4] {
+    let mut l0 = ((pos_bits[0] as u64) << 3) | 0;
+    let mut l1 = ((pos_bits[1] as u64) << 3) | 1;
+    let mut l2 = ((pos_bits[2] as u64) << 3) | 2;
+    let mut l3 = ((pos_bits[3] as u64) << 3) | 3;
+    let mut h0 = ((neg_bits[0] as u64) << 3) | 4;
+    let mut h1 = ((neg_bits[1] as u64) << 3) | 5;
+    let mut h2 = ((neg_bits[2] as u64) << 3) | 6;
+    let mut h3 = ((neg_bits[3] as u64) << 3) | 7;
+
+    // 4 parent-pair comparisons
+    cmp_swap_u64(&mut l0, &mut h0);
+    cmp_swap_u64(&mut l1, &mut h1);
+    cmp_swap_u64(&mut l2, &mut h2);
+    cmp_swap_u64(&mut l3, &mut h3);
+
+    // 5-op sorting network on l0..l3
+    cmp_swap_u64(&mut l0, &mut l1);
+    cmp_swap_u64(&mut l2, &mut l3);
+    cmp_swap_u64(&mut l0, &mut l2);
+    cmp_swap_u64(&mut l1, &mut l3);
+    cmp_swap_u64(&mut l1, &mut l2);
+
+    // 5-op sorting network on h0..h3
+    cmp_swap_u64(&mut h0, &mut h1);
+    cmp_swap_u64(&mut h2, &mut h3);
+    cmp_swap_u64(&mut h0, &mut h2);
+    cmp_swap_u64(&mut h1, &mut h3);
+    cmp_swap_u64(&mut h1, &mut h2);
+
+    // 3-op bitonic merge
+    let w0 = l0;
+    let w1 = l1.min(h2);
+    let w2 = l2.min(h1);
+    let w3 = l3.min(h0);
+    [(w0 & 7) as usize, (w1 & 7) as usize, (w2 & 7) as usize, (w3 & 7) as usize]
+}
+
+/// AVX2 + FMA 4-wide SoA Trellis kernel for ASDM5EC (M = 4 paths in parallel YMM registers, L = 32).
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+#[allow(clippy::too_many_arguments)]
+unsafe fn modulate_channel5_ec_avx2(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    total_bytes: usize,
+    p: Ciff5Coeffs,
+    dither_type: DitherType,
+    ditherer: &mut DsdChannelDither,
+    w_period: usize,
+    beam: &mut [TrellisPath5; EC_BEAM_WIDTH],
+    ch_out: &mut [u8],
+) {
+    use std::arch::x86_64::*;
+
+    let scale = CIFFR_5_SCALE;
+    let clamp = CIFFR_5_CLAMP;
+    let inv_w = 1.0 / w_period as f64;
+    let mut cur_idx = start_bit / w_period;
+    let mut cur_phi = start_bit - cur_idx * w_period;
+    let (mut r0, mut r1, mut r2, mut r3) = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+    for _ in 0..cur_phi {
+        r0 += r1; r1 += r2; r2 += r3;
+    }
+
+    let mut prng = if ditherer.prng1 == 0 { 0x9e37_79b9_7f4a_7c15 } else { ditherer.prng1 };
+    let use_fast_gauss = matches!(dither_type, DitherType::Gauss);
+    let use_no_dither = matches!(dither_type, DitherType::None);
+
+    // Load SoA state into YMM registers (lane 0..3 = beam[0..3])
+    let mut vs1 = _mm256_setr_pd(beam[0].s1, beam[1].s1, beam[2].s1, beam[3].s1);
+    let mut vs2 = _mm256_setr_pd(beam[0].s2, beam[1].s2, beam[2].s2, beam[3].s2);
+    let mut vs3 = _mm256_setr_pd(beam[0].s3, beam[1].s3, beam[2].s3, beam[3].s3);
+    let mut vs4 = _mm256_setr_pd(beam[0].s4, beam[1].s4, beam[2].s4, beam[3].s4);
+    let mut vs5 = _mm256_setr_pd(beam[0].s5, beam[1].s5, beam[2].s5, beam[3].s5);
+    let mut vy = _mm256_setr_pd(beam[0].y, beam[1].y, beam[2].y, beam[3].y);
+    let mut vcost = _mm256_setr_pd(
+        beam[0].cost.min(1e20),
+        beam[1].cost.min(1e20),
+        beam[2].cost.min(1e20),
+        beam[3].cost.min(1e20),
+    );
+    let mut bits = [beam[0].bits, beam[1].bits, beam[2].bits, beam[3].bits];
+
+    let vleak = _mm256_set1_pd(0.999999);
+    let vc1 = _mm256_set1_pd(CIFFR_5_C[0]);
+    let vc2 = _mm256_set1_pd(CIFFR_5_C[1]);
+    let vc3 = _mm256_set1_pd(CIFFR_5_C[2]);
+    let vc4 = _mm256_set1_pd(CIFFR_5_C[3]);
+    let vc5 = _mm256_set1_pd(CIFFR_5_C[4]);
+    let vg1 = _mm256_set1_pd(p.g1);
+    let vg2 = _mm256_set1_pd(p.g2);
+    let va1 = _mm256_set1_pd(p.a[0]);
+    let va2 = _mm256_set1_pd(p.a[1]);
+    let va3 = _mm256_set1_pd(p.a[2]);
+    let va4 = _mm256_set1_pd(p.a[3]);
+    let va5 = _mm256_set1_pd(p.a[4]);
+    let vone = _mm256_set1_pd(1.0);
+    let vzero = _mm256_setzero_pd();
+    let vhalf = _mm256_set1_pd(0.5);
+    let vthresh = _mm256_set1_pd(3.5);
+    let vsign_mask = _mm256_set1_pd(-0.0);
+    let vclamp_pos = _mm256_set1_pd(clamp);
+    let vclamp_neg = _mm256_set1_pd(-clamp);
+
+    let mut c_all = [0.0f64; 8];
+    let mut pos_bits = [0u32; 4];
+    let mut neg_bits = [0u32; 4];
+
+    for byte_idx in 0..total_bytes {
+        let mut byte_val = 0u8;
+        for bit in 0..8 {
+            let u = r0;
+            r0 += r1; r1 += r2; r2 += r3;
+            cur_phi += 1;
+            if cur_phi == w_period {
+                cur_phi = 0;
+                cur_idx += 1;
+                let d = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+                r0 = d.0; r1 = d.1; r2 = d.2; r3 = d.3;
+            }
+
+            let dither = if use_fast_gauss {
+                next_reg_gauss(&mut prng)
+            } else if use_no_dither {
+                0.0
+            } else {
+                ditherer.next_dither(dither_type)
+            };
+
+            let vu = _mm256_set1_pd(u);
+            let ns1 = _mm256_fmadd_pd(vs1, vleak, _mm256_mul_pd(vc1, _mm256_sub_pd(vu, vy)));
+            let ns2 = _mm256_fnmadd_pd(vg1, vs3, _mm256_fmadd_pd(vs2, vleak, _mm256_mul_pd(vc2, ns1)));
+            let ns3 = _mm256_fmadd_pd(vs3, vleak, _mm256_mul_pd(vc3, ns2));
+            let ns4 = _mm256_fnmadd_pd(vg2, vs5, _mm256_fmadd_pd(vs4, vleak, _mm256_mul_pd(vc4, ns3)));
+            let ns5 = _mm256_fmadd_pd(vs5, vleak, _mm256_mul_pd(vc5, ns4));
+
+            let mut sigma = _mm256_set1_pd(u + dither);
+            sigma = _mm256_fmadd_pd(va1, ns1, sigma);
+            sigma = _mm256_fmadd_pd(va2, ns2, sigma);
+            sigma = _mm256_fmadd_pd(va3, ns3, sigma);
+            sigma = _mm256_fmadd_pd(va4, ns4, sigma);
+            sigma = _mm256_fmadd_pd(va5, ns5, sigma);
+
+            let abs_s5 = _mm256_andnot_pd(vsign_mask, ns5);
+            let ex = _mm256_max_pd(_mm256_sub_pd(abs_s5, vthresh), vzero);
+            let base = _mm256_fmadd_pd(vhalf, _mm256_mul_pd(ex, ex), vcost);
+
+            let e_pos = _mm256_sub_pd(sigma, vone);
+            let e_neg = _mm256_add_pd(sigma, vone);
+            let vc_pos = _mm256_fmadd_pd(e_pos, e_pos, base);
+            let vc_neg = _mm256_fmadd_pd(e_neg, e_neg, base);
+
+            _mm256_storeu_pd(c_all.as_mut_ptr(), vc_pos);
+            _mm256_storeu_pd(c_all.as_mut_ptr().add(4), vc_neg);
+            _mm_storeu_si128(pos_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_pos)));
+            _mm_storeu_si128(neg_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_neg)));
+
+            let w = select_top4_of_8_fast(pos_bits, neg_bits);
+            let p0 = w[0] & 3;
+            let p1 = w[1] & 3;
+            let p2 = w[2] & 3;
+            let p3 = w[3] & 3;
+
+            let vperm = _mm256_setr_epi64x(
+                LANE_PERM_64[p0],
+                LANE_PERM_64[p1],
+                LANE_PERM_64[p2],
+                LANE_PERM_64[p3],
+            );
+            vs1 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns1), vperm));
+            vs2 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns2), vperm));
+            vs3 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns3), vperm));
+            vs4 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns4), vperm));
+            vs5 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns5), vperm));
+
+            let b0 = ((w[0] & 4) == 0) as usize;
+            let b1 = ((w[1] & 4) == 0) as usize;
+            let b2 = ((w[2] & 4) == 0) as usize;
+            let b3 = ((w[3] & 4) == 0) as usize;
+            let y_mask = b0 | (b1 << 1) | (b2 << 2) | (b3 << 3);
+            vy = _mm256_loadu_pd(Y_MASK_LUT[y_mask].as_ptr());
+
+            let nb0 = (bits[p0] << 1) | (b0 as u64);
+            let nb1 = (bits[p1] << 1) | (b1 as u64);
+            let nb2 = (bits[p2] << 1) | (b2 as u64);
+            let nb3 = (bits[p3] << 1) | (b3 as u64);
+            bits = [nb0, nb1, nb2, nb3];
+
+            let out_bit = ((nb0 >> (EC_TRACEBACK - 1)) & 1) as u8;
+            byte_val |= out_bit << bit;
+
+            // Ancestor pruning: penalize any lane whose bit at EC_TRACEBACK-1 disagrees with out_bit
+            let c0 = c_all[w[0]];
+            let c1 = if (((nb1 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[1]] };
+            let c2 = if (((nb2 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[2]] };
+            let c3 = if (((nb3 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[3]] };
+            vcost = _mm256_setr_pd(c0, c1, c2, c3);
+        }
+
+        // Per-byte cost re-zeroing (clamped >= 0.0 for monotonic f32 bit sorting) and rare stability clamp
+        let base_c = _mm256_broadcastsd_pd(_mm256_castpd256_pd128(vcost));
+        vcost = _mm256_max_pd(_mm256_sub_pd(vcost, base_c), vzero);
+
+        let abs1 = _mm256_andnot_pd(vsign_mask, vs1);
+        let abs5 = _mm256_andnot_pd(vsign_mask, vs5);
+        let ov = _mm256_or_pd(
+            _mm256_cmp_pd(abs1, vclamp_pos, _CMP_GT_OQ),
+            _mm256_cmp_pd(abs5, vclamp_pos, _CMP_GT_OQ),
+        );
+        if _mm256_movemask_pd(ov) != 0 {
+            vs1 = _mm256_min_pd(_mm256_max_pd(vs1, vclamp_neg), vclamp_pos);
+            vs2 = _mm256_min_pd(_mm256_max_pd(vs2, vclamp_neg), vclamp_pos);
+            vs3 = _mm256_min_pd(_mm256_max_pd(vs3, vclamp_neg), vclamp_pos);
+            vs4 = _mm256_min_pd(_mm256_max_pd(vs4, vclamp_neg), vclamp_pos);
+            vs5 = _mm256_min_pd(_mm256_max_pd(vs5, vclamp_neg), vclamp_pos);
+        }
+        ch_out[byte_idx] = byte_val;
+    }
+
+    if use_fast_gauss {
+        ditherer.prng1 = prng;
+    }
+
+    let mut a1 = [0.0f64; 4]; let mut a2 = [0.0f64; 4]; let mut a3 = [0.0f64; 4];
+    let mut a4 = [0.0f64; 4]; let mut a5 = [0.0f64; 4];
+    let mut ay = [0.0f64; 4]; let mut ac = [0.0f64; 4];
+    _mm256_storeu_pd(a1.as_mut_ptr(), vs1);
+    _mm256_storeu_pd(a2.as_mut_ptr(), vs2);
+    _mm256_storeu_pd(a3.as_mut_ptr(), vs3);
+    _mm256_storeu_pd(a4.as_mut_ptr(), vs4);
+    _mm256_storeu_pd(a5.as_mut_ptr(), vs5);
+    _mm256_storeu_pd(ay.as_mut_ptr(), vy);
+    _mm256_storeu_pd(ac.as_mut_ptr(), vcost);
+    for k in 0..4 {
+        beam[k] = TrellisPath5 {
+            s1: a1[k], s2: a2[k], s3: a3[k], s4: a4[k], s5: a5[k],
+            y: ay[k],
+            cost: if ac[k] >= 1e19 { 1e30 } else { ac[k] },
+            bits: bits[k],
+        };
+    }
+}
+
+/// AVX2 + FMA 4-wide SoA Trellis kernel for ASDM7EC (M = 4 paths in parallel YMM registers, L = 32).
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+#[allow(clippy::too_many_arguments)]
+unsafe fn modulate_channel7_ec_avx2(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    total_bytes: usize,
+    p: Ciff7Coeffs,
+    dither_type: DitherType,
+    ditherer: &mut DsdChannelDither,
+    w_period: usize,
+    beam: &mut [TrellisPath7; EC_BEAM_WIDTH],
+    ch_out: &mut [u8],
+) {
+    use std::arch::x86_64::*;
+
+    let scale = CIFFR_7_SCALE;
+    let clamp = CIFFR_7_CLAMP;
+    let inv_w = 1.0 / w_period as f64;
+    let mut cur_idx = start_bit / w_period;
+    let mut cur_phi = start_bit - cur_idx * w_period;
+    let (mut r0, mut r1, mut r2, mut r3) = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+    for _ in 0..cur_phi {
+        r0 += r1; r1 += r2; r2 += r3;
+    }
+
+    let mut prng = if ditherer.prng1 == 0 { 0x9e37_79b9_7f4a_7c15 } else { ditherer.prng1 };
+    let use_fast_gauss = matches!(dither_type, DitherType::Gauss);
+    let use_no_dither = matches!(dither_type, DitherType::None);
+
+    let mut vs1 = _mm256_setr_pd(beam[0].s1, beam[1].s1, beam[2].s1, beam[3].s1);
+    let mut vs2 = _mm256_setr_pd(beam[0].s2, beam[1].s2, beam[2].s2, beam[3].s2);
+    let mut vs3 = _mm256_setr_pd(beam[0].s3, beam[1].s3, beam[2].s3, beam[3].s3);
+    let mut vs4 = _mm256_setr_pd(beam[0].s4, beam[1].s4, beam[2].s4, beam[3].s4);
+    let mut vs5 = _mm256_setr_pd(beam[0].s5, beam[1].s5, beam[2].s5, beam[3].s5);
+    let mut vs6 = _mm256_setr_pd(beam[0].s6, beam[1].s6, beam[2].s6, beam[3].s6);
+    let mut vs7 = _mm256_setr_pd(beam[0].s7, beam[1].s7, beam[2].s7, beam[3].s7);
+    let mut vy = _mm256_setr_pd(beam[0].y, beam[1].y, beam[2].y, beam[3].y);
+    let mut vcost = _mm256_setr_pd(
+        beam[0].cost.min(1e20),
+        beam[1].cost.min(1e20),
+        beam[2].cost.min(1e20),
+        beam[3].cost.min(1e20),
+    );
+    let mut bits = [beam[0].bits, beam[1].bits, beam[2].bits, beam[3].bits];
+
+    let vleak = _mm256_set1_pd(0.999999);
+    let vc1 = _mm256_set1_pd(CIFFR_7_C[0]);
+    let vc2 = _mm256_set1_pd(CIFFR_7_C[1]);
+    let vc3 = _mm256_set1_pd(CIFFR_7_C[2]);
+    let vc4 = _mm256_set1_pd(CIFFR_7_C[3]);
+    let vc5 = _mm256_set1_pd(CIFFR_7_C[4]);
+    let vc6 = _mm256_set1_pd(CIFFR_7_C[5]);
+    let vc7 = _mm256_set1_pd(CIFFR_7_C[6]);
+    let vg1 = _mm256_set1_pd(p.g1);
+    let vg2 = _mm256_set1_pd(p.g2);
+    let vg3 = _mm256_set1_pd(p.g3);
+    let va1 = _mm256_set1_pd(p.a[0]);
+    let va2 = _mm256_set1_pd(p.a[1]);
+    let va3 = _mm256_set1_pd(p.a[2]);
+    let va4 = _mm256_set1_pd(p.a[3]);
+    let va5 = _mm256_set1_pd(p.a[4]);
+    let va6 = _mm256_set1_pd(p.a[5]);
+    let va7 = _mm256_set1_pd(p.a[6]);
+    let vone = _mm256_set1_pd(1.0);
+    let vzero = _mm256_setzero_pd();
+    let vhalf = _mm256_set1_pd(0.5);
+    let vthresh = _mm256_set1_pd(3.5);
+    let vsign_mask = _mm256_set1_pd(-0.0);
+    let vclamp_pos = _mm256_set1_pd(clamp);
+    let vclamp_neg = _mm256_set1_pd(-clamp);
+
+    let mut c_all = [0.0f64; 8];
+    let mut pos_bits = [0u32; 4];
+    let mut neg_bits = [0u32; 4];
+
+    for byte_idx in 0..total_bytes {
+        let mut byte_val = 0u8;
+        for bit in 0..8 {
+            let u = r0;
+            r0 += r1; r1 += r2; r2 += r3;
+            cur_phi += 1;
+            if cur_phi == w_period {
+                cur_phi = 0;
+                cur_idx += 1;
+                let d = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+                r0 = d.0; r1 = d.1; r2 = d.2; r3 = d.3;
+            }
+
+            let dither = if use_fast_gauss {
+                next_reg_gauss(&mut prng)
+            } else if use_no_dither {
+                0.0
+            } else {
+                ditherer.next_dither(dither_type)
+            };
+
+            let vu = _mm256_set1_pd(u);
+            let ns1 = _mm256_fmadd_pd(vs1, vleak, _mm256_mul_pd(vc1, _mm256_sub_pd(vu, vy)));
+            let ns2 = _mm256_fnmadd_pd(vg1, vs3, _mm256_fmadd_pd(vs2, vleak, _mm256_mul_pd(vc2, ns1)));
+            let ns3 = _mm256_fmadd_pd(vs3, vleak, _mm256_mul_pd(vc3, ns2));
+            let ns4 = _mm256_fnmadd_pd(vg2, vs5, _mm256_fmadd_pd(vs4, vleak, _mm256_mul_pd(vc4, ns3)));
+            let ns5 = _mm256_fmadd_pd(vs5, vleak, _mm256_mul_pd(vc5, ns4));
+            let ns6 = _mm256_fnmadd_pd(vg3, vs7, _mm256_fmadd_pd(vs6, vleak, _mm256_mul_pd(vc6, ns5)));
+            let ns7 = _mm256_fmadd_pd(vs7, vleak, _mm256_mul_pd(vc7, ns6));
+
+            let mut sigma = _mm256_set1_pd(u + dither);
+            sigma = _mm256_fmadd_pd(va1, ns1, sigma);
+            sigma = _mm256_fmadd_pd(va2, ns2, sigma);
+            sigma = _mm256_fmadd_pd(va3, ns3, sigma);
+            sigma = _mm256_fmadd_pd(va4, ns4, sigma);
+            sigma = _mm256_fmadd_pd(va5, ns5, sigma);
+            sigma = _mm256_fmadd_pd(va6, ns6, sigma);
+            sigma = _mm256_fmadd_pd(va7, ns7, sigma);
+
+            let abs_s7 = _mm256_andnot_pd(vsign_mask, ns7);
+            let ex = _mm256_max_pd(_mm256_sub_pd(abs_s7, vthresh), vzero);
+            let base = _mm256_fmadd_pd(vhalf, _mm256_mul_pd(ex, ex), vcost);
+
+            let e_pos = _mm256_sub_pd(sigma, vone);
+            let e_neg = _mm256_add_pd(sigma, vone);
+            let vc_pos = _mm256_fmadd_pd(e_pos, e_pos, base);
+            let vc_neg = _mm256_fmadd_pd(e_neg, e_neg, base);
+
+            _mm256_storeu_pd(c_all.as_mut_ptr(), vc_pos);
+            _mm256_storeu_pd(c_all.as_mut_ptr().add(4), vc_neg);
+            _mm_storeu_si128(pos_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_pos)));
+            _mm_storeu_si128(neg_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_neg)));
+
+            let w = select_top4_of_8_fast(pos_bits, neg_bits);
+            let p0 = w[0] & 3;
+            let p1 = w[1] & 3;
+            let p2 = w[2] & 3;
+            let p3 = w[3] & 3;
+
+            let vperm = _mm256_setr_epi64x(
+                LANE_PERM_64[p0],
+                LANE_PERM_64[p1],
+                LANE_PERM_64[p2],
+                LANE_PERM_64[p3],
+            );
+            vs1 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns1), vperm));
+            vs2 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns2), vperm));
+            vs3 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns3), vperm));
+            vs4 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns4), vperm));
+            vs5 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns5), vperm));
+            vs6 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns6), vperm));
+            vs7 = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(ns7), vperm));
+
+            let b0 = ((w[0] & 4) == 0) as usize;
+            let b1 = ((w[1] & 4) == 0) as usize;
+            let b2 = ((w[2] & 4) == 0) as usize;
+            let b3 = ((w[3] & 4) == 0) as usize;
+            let y_mask = b0 | (b1 << 1) | (b2 << 2) | (b3 << 3);
+            vy = _mm256_loadu_pd(Y_MASK_LUT[y_mask].as_ptr());
+
+            let nb0 = (bits[p0] << 1) | (b0 as u64);
+            let nb1 = (bits[p1] << 1) | (b1 as u64);
+            let nb2 = (bits[p2] << 1) | (b2 as u64);
+            let nb3 = (bits[p3] << 1) | (b3 as u64);
+            bits = [nb0, nb1, nb2, nb3];
+
+            let out_bit = ((nb0 >> (EC_TRACEBACK - 1)) & 1) as u8;
+            byte_val |= out_bit << bit;
+
+            let c0 = c_all[w[0]];
+            let c1 = if (((nb1 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[1]] };
+            let c2 = if (((nb2 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[2]] };
+            let c3 = if (((nb3 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[3]] };
+            vcost = _mm256_setr_pd(c0, c1, c2, c3);
+        }
+
+        let base_c = _mm256_broadcastsd_pd(_mm256_castpd256_pd128(vcost));
+        vcost = _mm256_max_pd(_mm256_sub_pd(vcost, base_c), vzero);
+
+        let abs1 = _mm256_andnot_pd(vsign_mask, vs1);
+        let abs7 = _mm256_andnot_pd(vsign_mask, vs7);
+        let ov = _mm256_or_pd(
+            _mm256_cmp_pd(abs1, vclamp_pos, _CMP_GT_OQ),
+            _mm256_cmp_pd(abs7, vclamp_pos, _CMP_GT_OQ),
+        );
+        if _mm256_movemask_pd(ov) != 0 {
+            vs1 = _mm256_min_pd(_mm256_max_pd(vs1, vclamp_neg), vclamp_pos);
+            vs2 = _mm256_min_pd(_mm256_max_pd(vs2, vclamp_neg), vclamp_pos);
+            vs3 = _mm256_min_pd(_mm256_max_pd(vs3, vclamp_neg), vclamp_pos);
+            vs4 = _mm256_min_pd(_mm256_max_pd(vs4, vclamp_neg), vclamp_pos);
+            vs5 = _mm256_min_pd(_mm256_max_pd(vs5, vclamp_neg), vclamp_pos);
+            vs6 = _mm256_min_pd(_mm256_max_pd(vs6, vclamp_neg), vclamp_pos);
+            vs7 = _mm256_min_pd(_mm256_max_pd(vs7, vclamp_neg), vclamp_pos);
+        }
+        ch_out[byte_idx] = byte_val;
+    }
+
+    if use_fast_gauss {
+        ditherer.prng1 = prng;
+    }
+
+    let mut a1 = [0.0f64; 4]; let mut a2 = [0.0f64; 4]; let mut a3 = [0.0f64; 4];
+    let mut a4 = [0.0f64; 4]; let mut a5 = [0.0f64; 4]; let mut a6 = [0.0f64; 4];
+    let mut a7 = [0.0f64; 4]; let mut ay = [0.0f64; 4]; let mut ac = [0.0f64; 4];
+    _mm256_storeu_pd(a1.as_mut_ptr(), vs1);
+    _mm256_storeu_pd(a2.as_mut_ptr(), vs2);
+    _mm256_storeu_pd(a3.as_mut_ptr(), vs3);
+    _mm256_storeu_pd(a4.as_mut_ptr(), vs4);
+    _mm256_storeu_pd(a5.as_mut_ptr(), vs5);
+    _mm256_storeu_pd(a6.as_mut_ptr(), vs6);
+    _mm256_storeu_pd(a7.as_mut_ptr(), vs7);
+    _mm256_storeu_pd(ay.as_mut_ptr(), vy);
+    _mm256_storeu_pd(ac.as_mut_ptr(), vcost);
+    for k in 0..4 {
+        beam[k] = TrellisPath7 {
+            s1: a1[k], s2: a2[k], s3: a3[k], s4: a4[k],
+            s5: a5[k], s6: a6[k], s7: a7[k],
+            y: ay[k],
+            cost: if ac[k] >= 1e19 { 1e30 } else { ac[k] },
+            bits: bits[k],
+        };
     }
 }

@@ -2216,7 +2216,7 @@
                 <br>• <strong>5 階 (CRFB)</strong>：級聯共振回授架構（H<sub>&infin;</sub> = 1.55），高頻噪聲抬升適度，類比氛圍感強烈，CPU 佔用極低。
                 <br>• <strong>7 階 (CLANS)</strong>：閉迴路局部反饋噪聲整形（H<sub>&infin;</sub> = 1.50），NTF 噪聲整形斜率高達 <strong>52.6 dB/oct</strong>，可聽頻帶內背景極致純黑寧靜。
                 <br>• <strong>ASDM5EC（5 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM5EC</code> 原理，採用專屬高增益 5 階 NTF（<strong>H<sub>&infin;</sub> = 1.85</strong>）搭配 <strong>M=4 路徑、32 步回溯深度的狀態機 M-Algorithm Trellis（含祖先一致性剪枝）</strong>，在 DSD64/128/256 全規格將可聽帶 SNR 穩定拉高 <strong>+13.3 ～ +14.1 dB</strong>、THD 壓低 <strong>-14.4 ～ -17.5 dB</strong>、超聲噪聲再降 <strong>-11.8 ～ -14.0 dB</strong>，且 0 dBFS 滿度輸入仍完全穩定。
-                <br>• <strong>ASDM7EC（7 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM7EC</code> 原理，採用專屬高增益 7 階 NTF（<strong>H<sub>&infin;</sub> = 1.75</strong>）搭配 <strong>M=4、L=32 狀態機 M-Algorithm Trellis</strong>，DSD64 帶內 SNR 暴增 <strong>+19.55 dB（達 154.99 dB）</strong>、DSD128 暴增 <strong>+20.86 dB（達 201.16 dB）</strong>、超聲噪聲（20k–50kHz）全面再降 <strong>-17.6 ～ -19.6 dB</strong>，同時將高階積分器峰值偏移壓低 <strong>50% ～ 85%</strong>（建議搭配 DSD64 / DSD128 使用，高階 CPU 可開啟 DSD256）。
+                <br>• <strong>ASDM7EC（7 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM7EC</code> 原理，採用專屬高增益 7 階 NTF（<strong>H<sub>&infin;</sub> = 1.75</strong>）搭配 <strong>AVX2+FMA 四路平行 M=4 / L=32 狀態機 Trellis</strong>，DSD64 帶內 SNR 暴增 <strong>+19.55 dB（達 154.99 dB）</strong>、DSD128 暴增 <strong>+20.86 dB（達 201.16 dB）</strong>、超聲噪聲（20k–50kHz）全面再降 <strong>-17.6 ～ -19.6 dB</strong>，同時將高階積分器峰值偏移壓低 <strong>50% ～ 82%</strong>，DSD256 仍達 <strong>2.3x 即時速度</strong>（DSD64 / DSD128 / DSD256 皆可流暢播放）。
               </p>
 
               <!-- 表 2-2: ASDM5EC / ASDM7EC 同調 FFT 實測對比表 -->
@@ -2250,7 +2250,7 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-149.47 dB (-16.92)</td>
                       <td style="padding: 8px 10px; color: #34d399;">-78.66 dB (-13.13)</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.161 (-58%)</td>
-                      <td style="padding: 8px 10px;">212.7 ms (4.7x)</td>
+                      <td style="padding: 8px 10px;">97.0 ms (10.3x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px;">7 階 (CLANS)</td>
@@ -2266,7 +2266,7 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-169.62 dB (-17.43)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-77.71 dB (-18.41)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.437 (-61%)</td>
-                      <td style="padding: 8px 10px;">314.8 ms (3.2x)</td>
+                      <td style="padding: 8px 10px;">110.0 ms (9.1x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td rowspan="4" style="padding: 8px 10px; font-weight: 600; color: #38bdf8; vertical-align: top;">DSD128<br>(5.64MHz)</td>
@@ -2275,7 +2275,7 @@
                       <td style="padding: 8px 10px;">-164.56 dB</td>
                       <td style="padding: 8px 10px;">-98.93 dB</td>
                       <td style="padding: 8px 10px;">0.305</td>
-                      <td style="padding: 8px 10px;">59.0 ms (17x)</td>
+                      <td style="padding: 8px 10px;">62.0 ms (16x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">ASDM5EC</td>
@@ -2283,7 +2283,7 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-178.98 dB (-14.42)</td>
                       <td style="padding: 8px 10px; color: #34d399;">-110.71 dB (-11.78)</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.272 (-11%)</td>
-                      <td style="padding: 8px 10px;">419.5 ms (2.4x)</td>
+                      <td style="padding: 8px 10px;">190.9 ms (5.2x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px;">7 階 (CLANS)</td>
@@ -2291,15 +2291,15 @@
                       <td style="padding: 8px 10px;">-193.33 dB</td>
                       <td style="padding: 8px 10px;">-103.72 dB</td>
                       <td style="padding: 8px 10px;">1.122</td>
-                      <td style="padding: 8px 10px;">76.7 ms (13x)</td>
+                      <td style="padding: 8px 10px;">77.3 ms (13x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">ASDM7EC</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">201.16 dB (+20.86)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-213.94 dB (-20.61)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-123.33 dB (-19.61)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.589 (-48%)</td>
-                      <td style="padding: 8px 10px;">633.9 ms (1.6x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.297 (-74%)</td>
+                      <td style="padding: 8px 10px;">215.0 ms (4.7x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td rowspan="4" style="padding: 8px 10px; font-weight: 600; color: #a78bfa; vertical-align: top;">DSD256<br>(11.29MHz)</td>
@@ -2308,15 +2308,15 @@
                       <td style="padding: 8px 10px;">-193.15 dB</td>
                       <td style="padding: 8px 10px;">-131.26 dB</td>
                       <td style="padding: 8px 10px;">0.415</td>
-                      <td style="padding: 8px 10px;">119.7 ms (8.4x)</td>
+                      <td style="padding: 8px 10px;">129.5 ms (7.7x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">ASDM5EC</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">196.08 dB (+13.48)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-210.68 dB (-17.53)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-145.24 dB (-13.98)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.238 (-43%)</td>
-                      <td style="padding: 8px 10px;">813.8 ms (1.2x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.194 (-53%)</td>
+                      <td style="padding: 8px 10px;">394.2 ms (2.5x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px;">7 階 (CLANS)</td>
@@ -2324,15 +2324,15 @@
                       <td style="padding: 8px 10px;">-236.89 dB</td>
                       <td style="padding: 8px 10px;">-150.78 dB</td>
                       <td style="padding: 8px 10px;">1.456</td>
-                      <td style="padding: 8px 10px;">151.5 ms (6.6x)</td>
+                      <td style="padding: 8px 10px;">164.2 ms (6.1x)</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">ASDM7EC</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">231.14 dB (+5.77)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-250.81 dB (-13.92)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-168.36 dB (-17.58)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.215 (-85%)</td>
-                      <td style="padding: 8px 10px;">1347.6 ms (高階 CPU)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">239.66 dB (+14.29)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-254.73 dB (-17.84)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-168.95 dB (-18.17)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.257 (-82%)</td>
+                      <td style="padding: 8px 10px;">437.6 ms (2.3x)</td>
                     </tr>
                   </tbody>
                 </table>
