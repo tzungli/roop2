@@ -16653,14 +16653,14 @@ function openPlaylistNameModal(mode, options = {}) {
     appendQueue: '將播放隊列加入清單',
   };
   const hints = {
-    create: '建立一個空白清單，之後可用「加入目前隊列」或從專輯、曲目頁面把歌曲存進來。',
-    rename: '只改名稱，清單內的曲目與順序不變。',
+    create: '建立空白播放清單。',
+    rename: '僅變更名稱，曲目與順序不變。',
     saveQueue: queueCount > 0
-      ? `將把目前播放隊列的 ${queueCount} 首歌曲依序存成一個新的播放清單。`
-      : '目前播放隊列是空的，儲存後會得到一個空白清單。',
+      ? `將目前隊列中的 ${queueCount} 首歌曲依序存為新清單。`
+      : '目前播放隊列為空，將建立空白清單。',
     appendQueue: queueCount > 0
-      ? `將目前播放隊列的 ${queueCount} 首歌曲依序附加到「${options.playlistName || '這個清單'}」後面。`
-      : '目前播放隊列是空的，不會加入任何曲目。',
+      ? `將目前隊列中的 ${queueCount} 首歌曲加入「${options.playlistName || '此清單'}」。`
+      : '目前播放隊列為空。',
   };
 
   if (titleEl) titleEl.textContent = titles[mode] || '播放清單';
@@ -17195,6 +17195,12 @@ function setupPlaylistEvents() {
   if (btnNameCancel) btnNameCancel.addEventListener('click', () => closePlaylistNameModal());
   const btnNameClose = document.getElementById('btnClosePlaylistName');
   if (btnNameClose) btnNameClose.addEventListener('click', () => closePlaylistNameModal());
+  const plModalBackdrop = document.getElementById('playlistNameModal');
+  if (plModalBackdrop) {
+    plModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === plModalBackdrop) closePlaylistNameModal();
+    });
+  }
   const nameInput = document.getElementById('playlistNameInput');
   if (nameInput) nameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); confirmPlaylistNameModal(); }

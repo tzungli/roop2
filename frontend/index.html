@@ -3650,22 +3650,22 @@
   <!-- Database Import Report Modal -->
   <!-- 播放清單命名 Modal（新增／重新命名／儲存隊列） -->
   <div id="playlistNameModal" class="modal-overlay" style="display: none;">
-    <div class="modal-card" style="width: 470px; max-width: 92vw;">
-      <div class="modal-header">
-        <div class="modal-title-wrap" style="display: flex; align-items: center;">
-          <span style="background: #8b5cf6; color: #fff; font-weight: 800; padding: 2px 8px; border-radius: 2px; font-size: 12px; margin-right: 10px; letter-spacing: 0.5px;">PLAYLIST</span>
-          <h3 style="margin: 0; font-size: 16px; font-weight: 600;" id="playlistNameModalTitle">儲存播放清單</h3>
+    <div class="modal-card playlist-name-modal-card">
+      <div class="playlist-modal-head">
+        <div class="playlist-modal-title-wrap">
+          <span class="ui-svg-icon playlist-modal-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></span>
+          <h3 id="playlistNameModalTitle">儲存播放清單</h3>
         </div>
-        <button class="icon-btn" id="btnClosePlaylistName">✕</button>
+        <button class="icon-btn playlist-modal-close" id="btnClosePlaylistName" title="關閉">✕</button>
       </div>
-      <div class="modal-body" style="padding: 22px 24px;">
-        <label for="playlistNameInput" style="display:block; font-size: 12px; font-weight: 600; color: var(--text-sub); margin-bottom: 8px;">清單名稱</label>
-        <input type="text" id="playlistNameInput" maxlength="60" placeholder="例如：深夜爵士" autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 3px; font-size: 14px;">
-        <div id="playlistNameModalHint" style="margin-top: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.6;"></div>
+      <div class="playlist-modal-body">
+        <label for="playlistNameInput" class="playlist-modal-label">清單名稱</label>
+        <input type="text" id="playlistNameInput" class="playlist-modal-input" maxlength="60" placeholder="例如：深夜爵士" autocomplete="off">
+        <div id="playlistNameModalHint" class="playlist-modal-hint"></div>
       </div>
-      <div class="modal-footer" style="padding: 14px 24px; display: flex; justify-content: flex-end; gap: 10px;">
-        <button class="btn btn-secondary btn-sm" id="btnPlaylistNameCancel">取消</button>
-        <button class="btn btn-primary btn-sm" id="btnPlaylistNameConfirm">儲存</button>
+      <div class="playlist-modal-footer">
+        <button class="btn btn-secondary" id="btnPlaylistNameCancel">取消</button>
+        <button class="btn btn-primary" id="btnPlaylistNameConfirm">儲存</button>
       </div>
     </div>
   </div>

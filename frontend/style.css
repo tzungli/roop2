@@ -10577,6 +10577,114 @@ body.table-col-resizing * {
   font-size: 13px;
 }
 
+/* Unified Minimalist Playlist Name Modal */
+.playlist-name-modal-card {
+  max-width: 420px;
+  width: 92%;
+  background: var(--bg-panel, #161822);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+
+.playlist-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.playlist-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.playlist-modal-icon {
+  color: var(--accent-purple, #6366f1);
+  display: inline-flex;
+  align-items: center;
+}
+
+.playlist-modal-title-wrap h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.playlist-modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.playlist-modal-body {
+  padding: 18px;
+}
+
+.playlist-modal-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  margin-bottom: 8px;
+}
+
+.playlist-modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border-radius: 4px;
+  font-size: 13.5px;
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.playlist-modal-input:focus {
+  border-color: var(--accent-purple, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+.playlist-modal-hint {
+  margin-top: 9px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.playlist-modal-footer {
+  padding: 12px 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.playlist-modal-footer .btn {
+  border-radius: 4px;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+[data-theme="light"] .playlist-name-modal-card {
+  background: #ffffff;
+  border-color: var(--border-color);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .playlist-modal-input {
+  background: #f8fafc;
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
 .nav-item[data-view="tidal"]:hover .nav-icon {
   filter: none;
 }
