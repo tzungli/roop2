@@ -2209,6 +2209,7 @@ function renderViewIfNeeded(viewId) {
     renderRecentPlayedAlbums();
     renderRooRecentActivity(currentRecentActivityTab, currentRecentActivityPage);
     renderRooListeningAnalytics();
+    renderRooRecentlyPlayedArtists(currentRecentArtistsPage);
   }
   // If not dirty and not kkbox or tidal, preserve already-built DOM and avoid reflow
   if (!viewDirtyState[viewId] && viewId !== 'kkbox' && viewId !== 'tidal') return;
@@ -3877,12 +3878,12 @@ function renderRooListeningAnalytics() {
       const maxSecs = Math.max(1, topArtists[0].secs);
       topArtists.forEach(a => {
         const liveArtist = (state.artists || []).find(art => norm(art.name) === norm(a.name));
-        const avatarSrc = (liveArtist && liveArtist.avatar) || createSvgCover(a.name, '', '#27272a', '#18181b');
+        const avatarSrc = getImmediateArtistAvatarSrc(a.name, liveArtist);
         const fill = Math.max(8, Math.round((a.secs / maxSecs) * 100));
         const item = document.createElement('div');
         item.className = 'top-rank-item';
         item.innerHTML = `
-          <img src="${avatarSrc}" class="top-rank-avatar" alt="${escapeXml(a.name)}">
+          <img src="${avatarSrc}" class="top-rank-avatar" alt="${escapeXml(a.name)}" loading="lazy">
           <div class="top-rank-content">
             <div class="top-rank-name" title="${escapeXml(a.name)}">${escapeXml(a.name)}</div>
             <div class="top-rank-progress-bar">
@@ -3891,6 +3892,8 @@ function renderRooListeningAnalytics() {
           </div>
           <div class="top-rank-duration">${formatListeningDuration(a.secs)}</div>
         `;
+        const imgEl = item.querySelector('img.top-rank-avatar');
+        hydrateSingleArtistImg(a.name, imgEl);
         if (liveArtist) {
           item.style.cursor = 'pointer';
           item.onclick = () => openArtistDetail(liveArtist);
@@ -3939,27 +3942,220 @@ function renderRooListeningAnalytics() {
   }
 }
 
-function renderRooRecentlyPlayedArtists() {
+let currentRecentArtistsPage = 0;
+
+function resolveArtistAvatarUrl(pictureOrUrl) {
+  if (!pictureOrUrl) return '';
+  const s = String(pictureOrUrl).trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s) || s.startsWith('data:')) return s;
+  if (window.tidalService && typeof window.tidalService.getCoverUrl === 'function') {
+    return window.tidalService.getCoverUrl(s, 320) || '';
+  }
+  return '';
+}
+
+function getImmediateArtistAvatarSrc(artistName, liveArt) {
+  const key = normArtistKey(artistName);
+  const cached = key ? artistAvatarCache.get(key) : '';
+  const cachedUrl = resolveArtistAvatarUrl(cached);
+  if (cachedUrl) return cachedUrl;
+  if (liveArt && liveArt.picture) {
+    const u = resolveArtistAvatarUrl(liveArt.picture);
+    if (u) return u;
+  }
+  if (liveArt && liveArt.avatar) return formatCoverSrc(liveArt.avatar);
+  // Fallback to this artist's album cover in library before generic SVG
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const alb = (state.albums || []).find(a => norm(a.artist) === norm(artistName) && a.cover);
+  if (alb && alb.cover) return formatCoverSrc(alb.cover);
+  return createSvgCover(artistName, '', '#27272a', '#18181b');
+}
+
+const _artistPortraitPending = new Map(); // key -> Promise<string>
+
+async function fetchArtistPortraitOnline(artistName) {
+  const name = String(artistName || '').trim();
+  const key = normArtistKey(name);
+  if (!key || isUnknownArtist(name)) return '';
+
+  const cached = artistAvatarCache.get(key);
+  if (cached) return resolveArtistAvatarUrl(cached);
+
+  if (_artistPortraitPending.has(key)) return _artistPortraitPending.get(key);
+
+  const task = (async () => {
+    try {
+      // 1. Try TIDAL Artist Search first when logged in
+      if (window.tidalService && window.tidalService.isLoggedIn) {
+        try {
+          const res = await window.tidalService.search(name, 5);
+          const items = (res && res.artists) || [];
+          const hit = items.find(a => normArtistKey(a.name) === key)
+            || items.find(a => looseArtistKey(a.name) && looseArtistKey(a.name) === looseArtistKey(name))
+            || items[0];
+          const pic = hit && (hit.picture || hit.image);
+          if (pic) {
+            artistAvatarCache.set(key, pic);
+            saveArtistAvatarCache();
+            return resolveArtistAvatarUrl(pic);
+          }
+        } catch (_) {}
+      }
+
+      // 2. Online fallback: Deezer Public Artist Search API (high quality square portraits, no key required)
+      try {
+        const dzResp = await fetch(`https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}&limit=5`);
+        if (dzResp.ok) {
+          const dzJson = await dzResp.json();
+          const list = (dzJson && dzJson.data) || [];
+          const hit = list.find(a => normArtistKey(a.name) === key)
+            || list.find(a => looseArtistKey(a.name) && looseArtistKey(a.name) === looseArtistKey(name))
+            || list[0];
+          const picUrl = hit && (hit.picture_medium || hit.picture_big || hit.picture);
+          if (picUrl && /^https?:\/\//i.test(picUrl)) {
+            artistAvatarCache.set(key, picUrl);
+            saveArtistAvatarCache();
+            return picUrl;
+          }
+        }
+      } catch (_) {}
+
+      // 3. Online fallback: Wikipedia REST Summary thumbnail (great for Mandopop / Cantopop / Classical artists)
+      for (const lang of ['zh', 'en']) {
+        try {
+          const wpResp = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
+          if (wpResp.ok) {
+            const wpJson = await wpResp.json();
+            const thumb = wpJson && wpJson.thumbnail && wpJson.thumbnail.source;
+            if (thumb && /^https?:\/\//i.test(thumb)) {
+              artistAvatarCache.set(key, thumb);
+              saveArtistAvatarCache();
+              return thumb;
+            }
+          }
+        } catch (_) {}
+      }
+    } finally {
+      _artistPortraitPending.delete(key);
+    }
+    return '';
+  })();
+
+  _artistPortraitPending.set(key, task);
+  return task;
+}
+
+function hydrateSingleArtistImg(artistName, imgEl) {
+  if (!artistName || !imgEl) return;
+  const key = normArtistKey(artistName);
+  if (!key || artistAvatarCache.has(key)) return;
+  fetchArtistPortraitOnline(artistName).then(url => {
+    if (url && imgEl.isConnected) {
+      imgEl.src = url;
+    }
+  }).catch(() => {});
+}
+
+function renderRooRecentlyPlayedArtists(page = 0) {
   const grid = document.getElementById('recentPlayedArtistsGrid');
   if (!grid) return;
+
+  const MAX_ARTISTS = 10;
+  const PAGE_SIZE = 5;
+  const norm = (s) => String(s || '').trim().toLowerCase();
+
+  // Collect real recently played artists in chronological order (most recent first)
+  const orderedArtists = [];
+  const seen = new Set();
+  const pushArtist = (name) => {
+    const clean = String(name || '').trim();
+    const k = norm(clean);
+    if (!k || isUnknownArtist(clean) || seen.has(k)) return;
+    seen.add(k);
+    orderedArtists.push(clean);
+  };
+
+  // 1. From real playback history (includes both local & TIDAL)
+  const history = getPlaybackHistory() || [];
+  for (let i = 0; i < history.length && orderedArtists.length < MAX_ARTISTS; i++) {
+    if (history[i] && history[i].artist) pushArtist(history[i].artist);
+  }
+
+  // 2. From recently played albums if fewer than MAX_ARTISTS
+  if (orderedArtists.length < MAX_ARTISTS) {
+    const recAlbs = getRecentlyPlayedAlbums(20) || [];
+    for (let i = 0; i < recAlbs.length && orderedArtists.length < MAX_ARTISTS; i++) {
+      if (recAlbs[i] && recAlbs[i].artist) pushArtist(recAlbs[i].artist);
+    }
+  }
+
+  // 3. Fallback to most-played artists from playStats if history is empty
+  if (orderedArtists.length === 0) {
+    const stats = getPlayStatsRef();
+    const scoreMap = new Map();
+    (state.tracks || []).forEach(t => {
+      const tKey = t.id || `${t.title}___${t.artist}`;
+      const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+      if (plays > 0 && t.artist && !isUnknownArtist(t.artist)) {
+        const k = norm(t.artist);
+        const prev = scoreMap.get(k);
+        if (prev) prev.plays += plays;
+        else scoreMap.set(k, { name: t.artist.trim(), plays });
+      }
+    });
+    Array.from(scoreMap.values())
+      .sort((a, b) => b.plays - a.plays)
+      .slice(0, MAX_ARTISTS)
+      .forEach(x => pushArtist(x.name));
+  }
+
+  const totalPages = Math.max(1, Math.ceil(orderedArtists.length / PAGE_SIZE));
+  currentRecentArtistsPage = Math.max(0, Math.min(page, totalPages - 1));
+
+  const btnPrev = document.getElementById('btnRecentArtistsPrev');
+  const btnNext = document.getElementById('btnRecentArtistsNext');
+  if (btnPrev) {
+    const canPrev = currentRecentArtistsPage > 0;
+    btnPrev.disabled = !canPrev;
+    btnPrev.style.opacity = canPrev ? '1' : '0.4';
+    btnPrev.onclick = () => {
+      if (currentRecentArtistsPage > 0) renderRooRecentlyPlayedArtists(currentRecentArtistsPage - 1);
+    };
+  }
+  if (btnNext) {
+    const canNext = currentRecentArtistsPage < totalPages - 1;
+    btnNext.disabled = !canNext;
+    btnNext.style.opacity = canNext ? '1' : '0.4';
+    btnNext.onclick = () => {
+      if (currentRecentArtistsPage < totalPages - 1) renderRooRecentlyPlayedArtists(currentRecentArtistsPage + 1);
+    };
+  }
+
   grid.innerHTML = '';
+  if (orderedArtists.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">尚無播放紀錄，聆聽音樂後將自動顯示您最近聆聽的藝術家</div>';
+    return;
+  }
 
-  const artists = [
-    'Kiroro', '郭伯瑜', 'A-Lin', '宇宙人', '陳鈺華'
-  ];
+  const startIdx = currentRecentArtistsPage * PAGE_SIZE;
+  const pageArtists = orderedArtists.slice(startIdx, startIdx + PAGE_SIZE);
 
-  artists.forEach((name, i) => {
-    const liveArt = (state.artists || []).find(a => a.name && a.name.includes(name)) || (state.artists && state.artists[i]);
-    const aSrc = (liveArt && liveArt.avatar) || createSvgCover(name, '', '#27272a', '#18181b');
+  pageArtists.forEach((name) => {
+    const liveArt = (state.artists || []).find(a => norm(a.name) === norm(name));
+    const aSrc = getImmediateArtistAvatarSrc(name, liveArt);
     const card = document.createElement('div');
     card.className = 'circle-artist-card';
     card.innerHTML = `
-      <img src="${aSrc}" class="circle-artist-avatar" alt="${escapeXml(name)}" loading="lazy">
-      <div class="circle-artist-name">${escapeXml(name)}</div>
+      <img src="${aSrc}" class="circle-artist-avatar" alt="${escapeXml(name)}" loading="lazy" style="object-fit: cover;">
+      <div class="circle-artist-name" title="${escapeXml(name)}">${escapeXml(name)}</div>
     `;
+    const imgEl = card.querySelector('img.circle-artist-avatar');
+    hydrateSingleArtistImg(name, imgEl);
+
     card.onclick = () => {
       if (liveArt) openArtistDetail(liveArt);
-      else showToast(`正在載入 ${name}...`);
+      else openArtistDetail({ name, albums: [], tracks: [] });
     };
     grid.appendChild(card);
   });
@@ -4474,8 +4670,7 @@ function saveArtistAvatarCache() {
 const normArtistKey = (s) => String(s || '').toLowerCase().trim();
 const looseArtistKey = (s) => normArtistKey(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\u4e00-\u9fa5]/g, '');
 function applyArtistAvatar(card, pictureId) {
-  if (!pictureId || !window.tidalService) return;
-  const url = window.tidalService.getCoverUrl(pictureId, 320);
+  const url = resolveArtistAvatarUrl(pictureId);
   if (!url) return;
   const avatar = card.querySelector('.artist-avatar');
   if (!avatar || avatar.querySelector('img')) return;
