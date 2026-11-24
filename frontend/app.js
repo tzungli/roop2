@@ -14702,34 +14702,51 @@ btnVolumeIcon.addEventListener('click', () => {
 });
 
 const btnLineOut = document.getElementById('btnLineOut');
-btnLineOut.addEventListener('click', () => {
+function syncLineOutUI(enabled) {
+  const isOn = !!enabled;
   const btnVolStepDown = document.getElementById('btnVolStepDown');
   const btnVolStepUp = document.getElementById('btnVolStepUp');
+  if (volumeSlider) volumeSlider.disabled = isOn;
+  if (btnVolumeIcon) btnVolumeIcon.disabled = isOn;
+  if (btnVolStepDown) { btnVolStepDown.disabled = isOn; btnVolStepDown.style.opacity = isOn ? '0.35' : '1'; }
+  if (btnVolStepUp) { btnVolStepUp.disabled = isOn; btnVolStepUp.style.opacity = isOn ? '0.35' : '1'; }
+  if (btnLineOut) btnLineOut.classList.toggle('line-out-active', isOn);
+}
+
+btnLineOut.addEventListener('click', () => {
+  const activeZ = state.activeAudioZone || 'local';
+  const z = (state.zones && state.zones[activeZ]) || null;
   if (!state.lineOut) {
     lineOutRestoreVolume = state.volume;
+    if (typeof saveZoneVolume === 'function') saveZoneVolume(activeZ, state.volume);
     state.lineOut = true;
-    volumeSlider.value = 1;
-    volumeSlider.disabled = true;
-    btnVolumeIcon.disabled = true;
-    if (btnVolStepDown) { btnVolStepDown.disabled = true; btnVolStepDown.style.opacity = '0.35'; }
-    if (btnVolStepUp) { btnVolStepUp.disabled = true; btnVolStepUp.style.opacity = '0.35'; }
-    btnLineOut.classList.add('line-out-active');
+    if (typeof saveZoneLineOut === 'function') saveZoneLineOut(activeZ, true);
+    if (z) {
+      z.lineOut = true;
+      z.lineOutRestoreVolume = lineOutRestoreVolume;
+    }
+    syncLineOutUI(true);
+    if (volumeSlider) volumeSlider.value = 1;
     applyVolume(1);
-    showToast('🔌 Line Out 已啟用：輸出音量鎖定為最大');
+    showToast('🔌 Line Out 已啟用：此裝置輸出音量鎖定為最大');
   } else {
     state.lineOut = false;
-    volumeSlider.disabled = false;
-    btnVolumeIcon.disabled = false;
-    if (btnVolStepDown) { btnVolStepDown.disabled = false; btnVolStepDown.style.opacity = '1'; }
-    if (btnVolStepUp) { btnVolStepUp.disabled = false; btnVolStepUp.style.opacity = '1'; }
-    btnLineOut.classList.remove('line-out-active');
-    const restore = lineOutRestoreVolume === null ? 1 : lineOutRestoreVolume;
+    if (typeof saveZoneLineOut === 'function') saveZoneLineOut(activeZ, false);
+    syncLineOutUI(false);
+    const fallbackVol = (typeof getSavedZoneVolume === 'function') ? getSavedZoneVolume(activeZ, 1.0) : 1.0;
+    const restore = lineOutRestoreVolume === null ? fallbackVol : lineOutRestoreVolume;
     lineOutRestoreVolume = null;
-    volumeSlider.value = restore;
+    if (z) {
+      z.lineOut = false;
+      z.lineOutRestoreVolume = restore;
+    }
+    if (volumeSlider) volumeSlider.value = restore;
     applyVolume(restore);
-    showToast('🔌 Line Out 已解除：恢復音量調整');
-    // 獨佔輸出必然伴隨最大音量直出：解除音量鎖定時一併解除獨佔輸出
-    if (state.exclusive) setExclusiveOff('WASAPI 獨佔輸出需鎖定最大音量，已一併解除');
+    showToast('🔌 Line Out 已解除：恢復此裝置音量調整');
+    // 獨佔輸出僅限本機，且必然伴隨最大音量直出：解除本機音量鎖定時一併解除獨佔輸出
+    if (activeZ === 'local' && state.exclusive) {
+      setExclusiveOff('WASAPI 獨佔輸出需鎖定最大音量，已一併解除');
+    }
   }
 });
 
@@ -14881,10 +14898,20 @@ function initRooVolumeControls() {
     });
   }
 
-  // Initial volume sync: restore last saved volume for active zone (local defaults to 100%)
+  // Initial volume & Line Out sync: restore last saved settings for active zone (local defaults to 100%, Line Out off)
   const initZoneId = state.activeAudioZone || 'local';
   const savedInitVol = (typeof getSavedZoneVolume === 'function') ? getSavedZoneVolume(initZoneId, 1.0) : 1.0;
-  applyVolume(savedInitVol);
+  const savedInitLineOut = (typeof getSavedZoneLineOut === 'function') ? getSavedZoneLineOut(initZoneId, false) : false;
+  state.lineOut = savedInitLineOut;
+  if (state.lineOut) {
+    lineOutRestoreVolume = savedInitVol;
+    syncLineOutUI(true);
+    applyVolume(1);
+  } else {
+    lineOutRestoreVolume = null;
+    syncLineOutUI(false);
+    applyVolume(savedInitVol);
+  }
 }
 
 // ----------------- Floating Signal Path Popover Controls -----------------
@@ -15268,18 +15295,19 @@ if (btnExclusive) {
       }
       state.exclusive = true;
       try { localStorage.setItem('rooplayer_exclusive_output', '1'); } catch (err) {}
-      // 獨佔輸出由裝置決定音量：同步啟用 LINE OUT 鎖定，音量滑桿停用
+      // 獨佔輸出由裝置決定音量：同步啟用本機 LINE OUT 鎖定，音量滑桿停用
       if (!state.lineOut) {
+        const activeZ = state.activeAudioZone || 'local';
         lineOutRestoreVolume = state.volume;
+        if (typeof saveZoneVolume === 'function') saveZoneVolume(activeZ, state.volume);
         state.lineOut = true;
-        volumeSlider.value = 1;
-        volumeSlider.disabled = true;
-        btnVolumeIcon.disabled = true;
-        const btnVolStepDown = document.getElementById('btnVolStepDown');
-        const btnVolStepUp = document.getElementById('btnVolStepUp');
-        if (btnVolStepDown) { btnVolStepDown.disabled = true; btnVolStepDown.style.opacity = '0.35'; }
-        if (btnVolStepUp) { btnVolStepUp.disabled = true; btnVolStepUp.style.opacity = '0.35'; }
-        btnLineOut.classList.add('line-out-active');
+        if (typeof saveZoneLineOut === 'function') saveZoneLineOut(activeZ, true);
+        if (state.zones && state.zones[activeZ]) {
+          state.zones[activeZ].lineOut = true;
+          state.zones[activeZ].lineOutRestoreVolume = lineOutRestoreVolume;
+        }
+        syncLineOutUI(true);
+        if (volumeSlider) volumeSlider.value = 1;
         applyVolume(1);
       }
       updateExclusiveBtnState();
@@ -19923,6 +19951,30 @@ async function refreshAudioDevices(showFeedback = false) {
 
 const ZONE_DSP_STORAGE_KEY = 'rooplayer_zone_dsp_profiles';
 const ZONE_VOL_STORAGE_KEY = 'rooplayer_zone_volumes';
+const ZONE_LINEOUT_STORAGE_KEY = 'rooplayer_zone_lineout';
+
+function loadAllZoneLineOut() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ZONE_LINEOUT_STORAGE_KEY) || '{}');
+    return (raw && typeof raw === 'object') ? raw : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveZoneLineOut(zoneId, enabled) {
+  if (!zoneId) return;
+  try {
+    const all = loadAllZoneLineOut();
+    all[zoneId] = !!enabled;
+    localStorage.setItem(ZONE_LINEOUT_STORAGE_KEY, JSON.stringify(all));
+  } catch (_) {}
+}
+
+function getSavedZoneLineOut(zoneId, fallback = false) {
+  const saved = loadAllZoneLineOut()[zoneId];
+  return (typeof saved === 'boolean') ? saved : fallback;
+}
 
 function loadAllZoneVolumes() {
   try {
@@ -20198,6 +20250,8 @@ function ensureZoneState(zoneId, deviceObj = null) {
       currentTrackIndex: -1,
       isPlaying: false,
       volume: getSavedZoneVolume(zoneId, 1.0),
+      lineOut: getSavedZoneLineOut(zoneId, false),
+      lineOutRestoreVolume: getSavedZoneVolume(zoneId, 1.0),
       repeatMode: 'none',
       isShuffling: false,
       currentSec: 0,
@@ -20222,6 +20276,11 @@ function saveActiveZoneSnapshot() {
   z.currentTrackIndex = state.currentTrackIndex;
   z.isPlaying = !!state.isPlaying;
   z.volume = state.volume;
+  z.lineOut = !!state.lineOut;
+  z.lineOutRestoreVolume = (lineOutRestoreVolume !== null)
+    ? lineOutRestoreVolume
+    : getSavedZoneVolume(zId, state.volume);
+  saveZoneLineOut(zId, z.lineOut);
   z.repeatMode = state.repeatMode || 'none';
   z.isShuffling = !!state.isShuffling;
   // Save per-zone independent rooDSP profile
@@ -20292,6 +20351,11 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   state.currentTrackIndex = z.currentTrackIndex;
   state.isPlaying = !!z.isPlaying;
   state.volume = typeof z.volume === 'number' ? z.volume : getSavedZoneVolume(zoneId, 1.0);
+  state.lineOut = (typeof z.lineOut === 'boolean') ? z.lineOut : getSavedZoneLineOut(zoneId, false);
+  lineOutRestoreVolume = state.lineOut
+    ? ((typeof z.lineOutRestoreVolume === 'number') ? z.lineOutRestoreVolume : getSavedZoneVolume(zoneId, 1.0))
+    : null;
+  if (typeof syncLineOutUI === 'function') syncLineOutUI(state.lineOut);
   state.repeatMode = z.repeatMode || 'none';
   state.isShuffling = !!z.isShuffling;
 
@@ -20317,6 +20381,8 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   const volFill = document.getElementById('volumeFill');
   const curNum = document.getElementById('currentVolumeNumber');
   const popNum = document.getElementById('popoverVolumeNumber');
+  const bottomVolSvg = document.getElementById('bottomVolSvg');
+  const btnVolIcon = document.getElementById('btnVolumeIcon');
   if (volSlider) {
     volSlider.value = state.lineOut ? 1 : state.volume;
     volSlider.style.setProperty('--vol-percent', `${state.lineOut ? 100 : volPct}%`);
@@ -20324,6 +20390,9 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   if (volFill) volFill.style.width = `${state.lineOut ? 100 : volPct}%`;
   if (curNum) curNum.textContent = state.lineOut ? '100' : volPct;
   if (popNum) popNum.textContent = state.lineOut ? '100' : volPct;
+  const isMuted = state.volume === 0 && !state.lineOut;
+  if (btnVolIcon) btnVolIcon.classList.toggle('muted', isMuted);
+  if (bottomVolSvg) bottomVolSvg.classList.toggle('muted', isMuted);
   syncPlayerBarForActiveZone();
 }
 
