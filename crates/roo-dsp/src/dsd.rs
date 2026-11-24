@@ -642,7 +642,12 @@ impl DsdModulator {
     pub fn new(order: u8, phase_name: &str, dither: DitherType, gf: Option<FirFilter>) -> Self {
         let poly_phases = gf.as_ref().and_then(|f| f.poly_phases.clone().or_else(|| crate::fir::build_fir_phases(f)));
         Self {
-            order: match order { 7 => 7, _ => 5 },
+            order: match order {
+                7 => 7,
+                50 => 50, // ASDM5EC (5th-order 2-step Lookahead Trellis Enhanced Correction)
+                70 => 70, // ASDM7EC (7th-order 2-step Lookahead Trellis Enhanced Correction)
+                _ => 5,
+            },
             dither_type: dither,
             dsd_ditherer: DsdDitherer::new(),
             gf,
@@ -687,6 +692,8 @@ impl DsdModulator {
         }
         match self.order {
             7 => self.run_blocks7(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
+            50 => self.run_blocks5_ec(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
+            70 => self.run_blocks7_ec(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
             _ => self.run_blocks5(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
         }
     }
@@ -839,4 +846,592 @@ impl DsdModulator {
         self.s1_r = st_r.s1; self.s2_r = st_r.s2; self.s3_r = st_r.s3; self.s4_r = st_r.s4;
         self.s5_r = st_r.s5; self.s6_r = st_r.s6; self.s7_r = st_r.s7; self.y_r = st_r.y;
     }
+
+    fn run_blocks5_ec(
+        &mut self,
+        left: &[f64],
+        right: &[f64],
+        in_len: usize,
+        start_bit: usize,
+        num_blocks: usize,
+        inv_ratio: f64,
+        out: &mut [u8],
+    ) {
+        let osr = self.dsd_rate.map(|r| r as f64 / 44100.0).unwrap_or_else(|| 1.0 / inv_ratio);
+        let p = get_ciff5_params_for_osr(osr);
+
+        let ratio = 1.0 / inv_ratio;
+        let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
+        let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
+
+        let mut st_l = ChanState5 { s1: self.s1_l, s2: self.s2_l, s3: self.s3_l, s4: self.s4_l, s5: self.s5_l, y: self.y_l };
+        let mut st_r = ChanState5 { s1: self.s1_r, s2: self.s2_r, s3: self.s3_r, s4: self.s4_r, s5: self.s5_r, y: self.y_r };
+
+        let ch_bytes = num_blocks * DSD_BLOCK_SIZE;
+        let mut left_out = vec![0u8; ch_bytes];
+        let mut right_out = vec![0u8; ch_bytes];
+
+        let dither_type = self.dither_type;
+        let gf = self.gf.as_ref();
+        let poly_phases = self.poly_phases.as_ref();
+        let phase_name = self.phase_name.as_str();
+        let dither_l = &mut self.dsd_ditherer.left;
+        let dither_r = &mut self.dsd_ditherer.right;
+
+        if num_blocks >= 2 {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    modulate_channel5_ec(
+                        left, in_len, start_bit, num_blocks, inv_ratio, p,
+                        dither_type, dither_l, gf, poly_phases, phase_name,
+                        w_period, &mut st_l, &mut left_out,
+                    );
+                });
+                modulate_channel5_ec(
+                    right, in_len, start_bit, num_blocks, inv_ratio, p,
+                    dither_type, dither_r, gf, poly_phases, phase_name,
+                    w_period, &mut st_r, &mut right_out,
+                );
+            });
+        } else {
+            modulate_channel5_ec(
+                left, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_l, gf, poly_phases, phase_name,
+                w_period, &mut st_l, &mut left_out,
+            );
+            modulate_channel5_ec(
+                right, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_r, gf, poly_phases, phase_name,
+                w_period, &mut st_r, &mut right_out,
+            );
+        }
+
+        for b in 0..num_blocks {
+            let src_off = b * DSD_BLOCK_SIZE;
+            let dst_off = b * 2 * DSD_BLOCK_SIZE;
+            out[dst_off..dst_off + DSD_BLOCK_SIZE].copy_from_slice(&left_out[src_off..src_off + DSD_BLOCK_SIZE]);
+            out[dst_off + DSD_BLOCK_SIZE..dst_off + 2 * DSD_BLOCK_SIZE].copy_from_slice(&right_out[src_off..src_off + DSD_BLOCK_SIZE]);
+        }
+
+        self.s1_l = st_l.s1; self.s2_l = st_l.s2; self.s3_l = st_l.s3; self.s4_l = st_l.s4; self.s5_l = st_l.s5; self.y_l = st_l.y;
+        self.s1_r = st_r.s1; self.s2_r = st_r.s2; self.s3_r = st_r.s3; self.s4_r = st_r.s4; self.s5_r = st_r.s5; self.y_r = st_r.y;
+    }
+
+    fn run_blocks7_ec(
+        &mut self,
+        left: &[f64],
+        right: &[f64],
+        in_len: usize,
+        start_bit: usize,
+        num_blocks: usize,
+        inv_ratio: f64,
+        out: &mut [u8],
+    ) {
+        let osr = self.dsd_rate.map(|r| r as f64 / 44100.0).unwrap_or_else(|| 1.0 / inv_ratio);
+        let p = get_ciff7_params_for_osr(osr);
+
+        let ratio = 1.0 / inv_ratio;
+        let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
+        let w_period = if is_exact_frac && ratio >= 1.0 && ratio <= 1024.0 { ratio.round() as usize } else { 0 };
+
+        let mut st_l = ChanState7 {
+            s1: self.s1_l, s2: self.s2_l, s3: self.s3_l, s4: self.s4_l,
+            s5: self.s5_l, s6: self.s6_l, s7: self.s7_l, y: self.y_l,
+        };
+        let mut st_r = ChanState7 {
+            s1: self.s1_r, s2: self.s2_r, s3: self.s3_r, s4: self.s4_r,
+            s5: self.s5_r, s6: self.s6_r, s7: self.s7_r, y: self.y_r,
+        };
+
+        let ch_bytes = num_blocks * DSD_BLOCK_SIZE;
+        let mut left_out = vec![0u8; ch_bytes];
+        let mut right_out = vec![0u8; ch_bytes];
+
+        let dither_type = self.dither_type;
+        let gf = self.gf.as_ref();
+        let poly_phases = self.poly_phases.as_ref();
+        let phase_name = self.phase_name.as_str();
+        let dither_l = &mut self.dsd_ditherer.left;
+        let dither_r = &mut self.dsd_ditherer.right;
+
+        if num_blocks >= 2 {
+            std::thread::scope(|s| {
+                s.spawn(|| {
+                    modulate_channel7_ec(
+                        left, in_len, start_bit, num_blocks, inv_ratio, p,
+                        dither_type, dither_l, gf, poly_phases, phase_name,
+                        w_period, &mut st_l, &mut left_out,
+                    );
+                });
+                modulate_channel7_ec(
+                    right, in_len, start_bit, num_blocks, inv_ratio, p,
+                    dither_type, dither_r, gf, poly_phases, phase_name,
+                    w_period, &mut st_r, &mut right_out,
+                );
+            });
+        } else {
+            modulate_channel7_ec(
+                left, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_l, gf, poly_phases, phase_name,
+                w_period, &mut st_l, &mut left_out,
+            );
+            modulate_channel7_ec(
+                right, in_len, start_bit, num_blocks, inv_ratio, p,
+                dither_type, dither_r, gf, poly_phases, phase_name,
+                w_period, &mut st_r, &mut right_out,
+            );
+        }
+
+        for b in 0..num_blocks {
+            let src_off = b * DSD_BLOCK_SIZE;
+            let dst_off = b * 2 * DSD_BLOCK_SIZE;
+            out[dst_off..dst_off + DSD_BLOCK_SIZE].copy_from_slice(&left_out[src_off..src_off + DSD_BLOCK_SIZE]);
+            out[dst_off + DSD_BLOCK_SIZE..dst_off + 2 * DSD_BLOCK_SIZE].copy_from_slice(&right_out[src_off..src_off + DSD_BLOCK_SIZE]);
+        }
+
+        self.s1_l = st_l.s1; self.s2_l = st_l.s2; self.s3_l = st_l.s3; self.s4_l = st_l.s4;
+        self.s5_l = st_l.s5; self.s6_l = st_l.s6; self.s7_l = st_l.s7; self.y_l = st_l.y;
+
+        self.s1_r = st_r.s1; self.s2_r = st_r.s2; self.s3_r = st_r.s3; self.s4_r = st_r.s4;
+        self.s5_r = st_r.s5; self.s6_r = st_r.s6; self.s7_r = st_r.s7; self.y_r = st_r.y;
+    }
+}
+
+/// 2-step Lookahead Trellis cost decision for ASDM5EC (5th-order Enhanced Correction).
+/// Evaluates all 4 depth-2 bit sequences `(y0, y1) ∈ {±1}²` plus optimal greedy `y2`,
+/// minimizing weighted loop-filter quantization error energy + high-order state excursion.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn asdm5ec_choose_bit(
+    s1: f64, s2: f64, s3: f64, s4: f64, s5: f64,
+    u0: f64, u1: f64, u2: f64,
+    sigma0: f64,
+    p: &Ciff5Coeffs,
+) -> bool {
+    // Fast-path when decision is overwhelmingly certain (keeps DSD256/512 fast with zero quality loss)
+    if sigma0 > 1.15 {
+        return true;
+    }
+    if sigma0 < -1.15 {
+        return false;
+    }
+
+    let c1 = CIFFR_5_C[0];
+    let c2 = CIFFR_5_C[1];
+    let c3 = CIFFR_5_C[2];
+    let c4 = CIFFR_5_C[3];
+    let c5 = CIFFR_5_C[4];
+    let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3]; let a5 = p.a[4];
+    let g1 = p.g1; let g2 = p.g2;
+
+    let eval_branch = |y0: f64| -> f64 {
+        let e0 = sigma0 - y0;
+        let cost0 = e0 * e0;
+
+        // Step 1 state given y0
+        let t1 = s1 * 0.999999 + c1 * (u1 - y0);
+        let t2 = s2 * 0.999999 + c2 * t1 - g1 * s3;
+        let t3 = s3 * 0.999999 + c3 * t2;
+        let t4 = s4 * 0.999999 + c4 * t3 - g2 * s5;
+        let t5 = s5 * 0.999999 + c5 * t4;
+        let sigma1 = u1 + a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5;
+
+        // Evaluate both y1 = +1 and y1 = -1 at step 1 -> step 2
+        let mut best_sub = f64::INFINITY;
+        for &y1 in &[1.0f64, -1.0f64] {
+            let e1 = sigma1 - y1;
+            let v1 = t1 * 0.999999 + c1 * (u2 - y1);
+            let v2 = t2 * 0.999999 + c2 * v1 - g1 * t3;
+            let v3 = t3 * 0.999999 + c3 * v2;
+            let v4 = t4 * 0.999999 + c4 * v3 - g2 * t5;
+            let v5 = t5 * 0.999999 + c5 * v4;
+            let sigma2 = u2 + a1 * v1 + a2 * v2 + a3 * v3 + a4 * v4 + a5 * v5;
+            let y2 = if sigma2 >= 0.0 { 1.0 } else { -1.0 };
+            let e2 = sigma2 - y2;
+            let pen = if v5.abs() > 3.5 { 0.05 * (v5 * v5) } else { 0.0 };
+            let sub = 0.85 * (e1 * e1) + 0.65 * (e2 * e2) + pen;
+            if sub < best_sub {
+                best_sub = sub;
+            }
+        }
+        cost0 + best_sub
+    };
+
+    let _ = u0;
+    eval_branch(1.0) <= eval_branch(-1.0)
+}
+
+/// 2-step Lookahead Trellis cost decision for ASDM7EC (7th-order Enhanced Correction).
+/// Evaluates all 4 depth-2 bit sequences `(y0, y1) ∈ {±1}²` plus optimal greedy `y2`,
+/// minimizing weighted loop-filter quantization error energy + 7th-order state excursion.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn asdm7ec_choose_bit(
+    s1: f64, s2: f64, s3: f64, s4: f64, s5: f64, s6: f64, s7: f64,
+    u0: f64, u1: f64, u2: f64,
+    sigma0: f64,
+    p: &Ciff7Coeffs,
+) -> bool {
+    if sigma0 > 1.15 {
+        return true;
+    }
+    if sigma0 < -1.15 {
+        return false;
+    }
+
+    let c1 = CIFFR_7_C[0]; let c2 = CIFFR_7_C[1]; let c3 = CIFFR_7_C[2];
+    let c4 = CIFFR_7_C[3]; let c5 = CIFFR_7_C[4]; let c6 = CIFFR_7_C[5]; let c7 = CIFFR_7_C[6];
+    let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3];
+    let a5 = p.a[4]; let a6 = p.a[5]; let a7 = p.a[6];
+    let g1 = p.g1; let g2 = p.g2; let g3 = p.g3;
+
+    let eval_branch = |y0: f64| -> f64 {
+        let e0 = sigma0 - y0;
+        let cost0 = e0 * e0;
+
+        let t1 = s1 * 0.999999 + c1 * (u1 - y0);
+        let t2 = s2 * 0.999999 + c2 * t1 - g1 * s3;
+        let t3 = s3 * 0.999999 + c3 * t2;
+        let t4 = s4 * 0.999999 + c4 * t3 - g2 * s5;
+        let t5 = s5 * 0.999999 + c5 * t4;
+        let t6 = s6 * 0.999999 + c6 * t5 - g3 * s7;
+        let t7 = s7 * 0.999999 + c7 * t6;
+        let sigma1 = u1 + a1 * t1 + a2 * t2 + a3 * t3 + a4 * t4 + a5 * t5 + a6 * t6 + a7 * t7;
+
+        let mut best_sub = f64::INFINITY;
+        for &y1 in &[1.0f64, -1.0f64] {
+            let e1 = sigma1 - y1;
+            let v1 = t1 * 0.999999 + c1 * (u2 - y1);
+            let v2 = t2 * 0.999999 + c2 * v1 - g1 * t3;
+            let v3 = t3 * 0.999999 + c3 * v2;
+            let v4 = t4 * 0.999999 + c4 * v3 - g2 * t5;
+            let v5 = t5 * 0.999999 + c5 * v4;
+            let v6 = t6 * 0.999999 + c6 * v5 - g3 * t7;
+            let v7 = t7 * 0.999999 + c7 * v6;
+            let sigma2 = u2 + a1 * v1 + a2 * v2 + a3 * v3 + a4 * v4 + a5 * v5 + a6 * v6 + a7 * v7;
+            let y2 = if sigma2 >= 0.0 { 1.0 } else { -1.0 };
+            let e2 = sigma2 - y2;
+            let pen = if v7.abs() > 3.5 { 0.05 * (v7 * v7) } else { 0.0 };
+            let sub = 0.85 * (e1 * e1) + 0.65 * (e2 * e2) + pen;
+            if sub < best_sub {
+                best_sub = sub;
+            }
+        }
+        cost0 + best_sub
+    };
+
+    let _ = u0;
+    eval_branch(1.0) <= eval_branch(-1.0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn modulate_channel5_ec(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    num_blocks: usize,
+    inv_ratio: f64,
+    p: Ciff5Coeffs,
+    dither_type: DitherType,
+    ditherer: &mut DsdChannelDither,
+    gf: Option<&FirFilter>,
+    _poly_phases: Option<&PolyphaseBank>,
+    phase_name: &str,
+    w_period: usize,
+    st: &mut ChanState5,
+    ch_out: &mut [u8],
+) {
+    let total_bytes = num_blocks * DSD_BLOCK_SIZE;
+    let mut s1 = st.s1; let mut s2 = st.s2; let mut s3 = st.s3; let mut s4 = st.s4; let mut s5 = st.s5;
+    let mut y = st.y;
+    let c1 = CIFFR_5_C[0]; let c2 = CIFFR_5_C[1]; let c3 = CIFFR_5_C[2]; let c4 = CIFFR_5_C[3]; let c5 = CIFFR_5_C[4];
+    let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3]; let a5 = p.a[4];
+    let g1 = p.g1; let g2 = p.g2;
+    let scale = CIFFR_5_SCALE;
+    let clamp = CIFFR_5_CLAMP;
+    let ratio = 1.0 / inv_ratio;
+    let is_min_phase = phase_name == "minimum";
+
+    let mut prng = if ditherer.prng1 == 0 { 0x9e37_79b9_7f4a_7c15 } else { ditherer.prng1 };
+    let use_fast_gauss = matches!(dither_type, DitherType::Gauss);
+    let use_no_dither = matches!(dither_type, DitherType::None);
+
+    if gf.is_none() && w_period > 0 {
+        let inv_w = 1.0 / w_period as f64;
+        let mut cur_idx = start_bit / w_period;
+        let mut cur_phi = start_bit - cur_idx * w_period;
+        let (mut r0, mut r1, mut r2, mut r3) = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+        for _ in 0..cur_phi {
+            r0 += r1; r1 += r2; r2 += r3;
+        }
+
+        for byte_idx in 0..total_bytes {
+            let mut byte_val = 0u8;
+            for bit in 0..8 {
+                let u0 = r0;
+                // O(1) exact polynomial lookahead for u1 and u2
+                let u1 = r0 + r1;
+                let u2 = u1 + r1 + r2;
+
+                r0 += r1; r1 += r2; r2 += r3;
+                cur_phi += 1;
+                if cur_phi == w_period {
+                    cur_phi = 0;
+                    cur_idx += 1;
+                    let d = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+                    r0 = d.0; r1 = d.1; r2 = d.2; r3 = d.3;
+                }
+
+                s1 = s1 * 0.999999 + c1 * (u0 - y);
+                s2 = s2 * 0.999999 + c2 * s1 - g1 * s3;
+                s3 = s3 * 0.999999 + c3 * s2;
+                s4 = s4 * 0.999999 + c4 * s3 - g2 * s5;
+                s5 = s5 * 0.999999 + c5 * s4;
+
+                let dither = if use_fast_gauss {
+                    next_reg_gauss(&mut prng)
+                } else if use_no_dither {
+                    0.0
+                } else {
+                    ditherer.next_dither(dither_type)
+                };
+                let sigma0 = u0 + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
+                let is_pos = asdm5ec_choose_bit(s1, s2, s3, s4, s5, u0, u1, u2, sigma0, &p);
+                y = if is_pos { 1.0 } else { -1.0 };
+                byte_val |= (is_pos as u8) << bit;
+            }
+            if s1.abs() > clamp || s5.abs() > clamp || !s5.is_finite() {
+                s1 = s1.clamp(-clamp, clamp);
+                s2 = s2.clamp(-clamp, clamp);
+                s3 = s3.clamp(-clamp, clamp);
+                s4 = s4.clamp(-clamp, clamp);
+                s5 = s5.clamp(-clamp, clamp);
+            }
+            ch_out[byte_idx] = byte_val;
+        }
+    } else {
+        let mut out_idx = start_bit;
+        let sample_at = |idx: usize| -> f64 {
+            let s_raw = if let Some(gf_ref) = gf {
+                fir_sample(pcm, in_len, idx, ratio, gf_ref)
+            } else {
+                let t_src = idx as f64 * inv_ratio;
+                let k = t_src.floor() as usize;
+                let frac = t_src - k as f64;
+                let p0 = if k > 0 { pcm[(k - 1).min(in_len - 1)] } else { pcm[0] };
+                let p1 = pcm[k.min(in_len - 1)];
+                let p2 = pcm[(k + 1).min(in_len - 1)];
+                let p3 = pcm[(k + 2).min(in_len - 1)];
+                if is_min_phase {
+                    interpolate_minimum(p0, p1, p2, p3, frac)
+                } else {
+                    interpolate_linear(p0, p1, p2, p3, frac)
+                }
+            };
+            s_raw * scale
+        };
+
+        let mut u0 = sample_at(out_idx);
+        let mut u1 = sample_at(out_idx + 1);
+        for byte_idx in 0..total_bytes {
+            let mut byte_val = 0u8;
+            for bit in 0..8 {
+                let u2 = sample_at(out_idx + 2);
+                s1 = s1 * 0.999999 + c1 * (u0 - y);
+                s2 = s2 * 0.999999 + c2 * s1 - g1 * s3;
+                s3 = s3 * 0.999999 + c3 * s2;
+                s4 = s4 * 0.999999 + c4 * s3 - g2 * s5;
+                s5 = s5 * 0.999999 + c5 * s4;
+
+                let dither = if use_fast_gauss {
+                    next_reg_gauss(&mut prng)
+                } else if use_no_dither {
+                    0.0
+                } else {
+                    ditherer.next_dither(dither_type)
+                };
+                let sigma0 = u0 + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
+                let is_pos = asdm5ec_choose_bit(s1, s2, s3, s4, s5, u0, u1, u2, sigma0, &p);
+                y = if is_pos { 1.0 } else { -1.0 };
+                byte_val |= (is_pos as u8) << bit;
+                u0 = u1;
+                u1 = u2;
+                out_idx += 1;
+            }
+            if s1.abs() > clamp || s5.abs() > clamp || !s5.is_finite() {
+                s1 = s1.clamp(-clamp, clamp);
+                s2 = s2.clamp(-clamp, clamp);
+                s3 = s3.clamp(-clamp, clamp);
+                s4 = s4.clamp(-clamp, clamp);
+                s5 = s5.clamp(-clamp, clamp);
+            }
+            ch_out[byte_idx] = byte_val;
+        }
+    }
+
+    if use_fast_gauss {
+        ditherer.prng1 = prng;
+    }
+    st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4; st.s5 = s5; st.y = y;
+}
+
+#[allow(clippy::too_many_arguments)]
+fn modulate_channel7_ec(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    num_blocks: usize,
+    inv_ratio: f64,
+    p: Ciff7Coeffs,
+    dither_type: DitherType,
+    ditherer: &mut DsdChannelDither,
+    gf: Option<&FirFilter>,
+    _poly_phases: Option<&PolyphaseBank>,
+    phase_name: &str,
+    w_period: usize,
+    st: &mut ChanState7,
+    ch_out: &mut [u8],
+) {
+    let total_bytes = num_blocks * DSD_BLOCK_SIZE;
+    let mut s1 = st.s1; let mut s2 = st.s2; let mut s3 = st.s3; let mut s4 = st.s4;
+    let mut s5 = st.s5; let mut s6 = st.s6; let mut s7 = st.s7;
+    let mut y = st.y;
+    let c1 = CIFFR_7_C[0]; let c2 = CIFFR_7_C[1]; let c3 = CIFFR_7_C[2];
+    let c4 = CIFFR_7_C[3]; let c5 = CIFFR_7_C[4]; let c6 = CIFFR_7_C[5]; let c7 = CIFFR_7_C[6];
+    let a1 = p.a[0]; let a2 = p.a[1]; let a3 = p.a[2]; let a4 = p.a[3];
+    let a5 = p.a[4]; let a6 = p.a[5]; let a7 = p.a[6];
+    let g1 = p.g1; let g2 = p.g2; let g3 = p.g3;
+    let scale = CIFFR_7_SCALE;
+    let clamp = CIFFR_7_CLAMP;
+    let ratio = 1.0 / inv_ratio;
+    let is_min_phase = phase_name == "minimum";
+
+    let mut prng = if ditherer.prng1 == 0 { 0x9e37_79b9_7f4a_7c15 } else { ditherer.prng1 };
+    let use_fast_gauss = matches!(dither_type, DitherType::Gauss);
+    let use_no_dither = matches!(dither_type, DitherType::None);
+
+    if gf.is_none() && w_period > 0 {
+        let inv_w = 1.0 / w_period as f64;
+        let mut cur_idx = start_bit / w_period;
+        let mut cur_phi = start_bit - cur_idx * w_period;
+        let (mut r0, mut r1, mut r2, mut r3) = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+        for _ in 0..cur_phi {
+            r0 += r1; r1 += r2; r2 += r3;
+        }
+
+        for byte_idx in 0..total_bytes {
+            let mut byte_val = 0u8;
+            for bit in 0..8 {
+                let u0 = r0;
+                let u1 = r0 + r1;
+                let u2 = u1 + r1 + r2;
+
+                r0 += r1; r1 += r2; r2 += r3;
+                cur_phi += 1;
+                if cur_phi == w_period {
+                    cur_phi = 0;
+                    cur_idx += 1;
+                    let d = load_hermite_forward_diffs(pcm, in_len, cur_idx, inv_w, scale);
+                    r0 = d.0; r1 = d.1; r2 = d.2; r3 = d.3;
+                }
+
+                s1 = s1 * 0.999999 + c1 * (u0 - y);
+                s2 = s2 * 0.999999 + c2 * s1 - g1 * s3;
+                s3 = s3 * 0.999999 + c3 * s2;
+                s4 = s4 * 0.999999 + c4 * s3 - g2 * s5;
+                s5 = s5 * 0.999999 + c5 * s4;
+                s6 = s6 * 0.999999 + c6 * s5 - g3 * s7;
+                s7 = s7 * 0.999999 + c7 * s6;
+
+                let dither = if use_fast_gauss {
+                    next_reg_gauss(&mut prng)
+                } else if use_no_dither {
+                    0.0
+                } else {
+                    ditherer.next_dither(dither_type)
+                };
+                let sigma0 = u0 + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
+                let is_pos = asdm7ec_choose_bit(s1, s2, s3, s4, s5, s6, s7, u0, u1, u2, sigma0, &p);
+                y = if is_pos { 1.0 } else { -1.0 };
+                byte_val |= (is_pos as u8) << bit;
+            }
+            if s1.abs() > clamp || s7.abs() > clamp || !s7.is_finite() {
+                s1 = s1.clamp(-clamp, clamp);
+                s2 = s2.clamp(-clamp, clamp);
+                s3 = s3.clamp(-clamp, clamp);
+                s4 = s4.clamp(-clamp, clamp);
+                s5 = s5.clamp(-clamp, clamp);
+                s6 = s6.clamp(-clamp, clamp);
+                s7 = s7.clamp(-clamp, clamp);
+            }
+            ch_out[byte_idx] = byte_val;
+        }
+    } else {
+        let mut out_idx = start_bit;
+        let sample_at = |idx: usize| -> f64 {
+            let s_raw = if let Some(gf_ref) = gf {
+                fir_sample(pcm, in_len, idx, ratio, gf_ref)
+            } else {
+                let t_src = idx as f64 * inv_ratio;
+                let k = t_src.floor() as usize;
+                let frac = t_src - k as f64;
+                let p0 = if k > 0 { pcm[(k - 1).min(in_len - 1)] } else { pcm[0] };
+                let p1 = pcm[k.min(in_len - 1)];
+                let p2 = pcm[(k + 1).min(in_len - 1)];
+                let p3 = pcm[(k + 2).min(in_len - 1)];
+                if is_min_phase {
+                    interpolate_minimum(p0, p1, p2, p3, frac)
+                } else {
+                    interpolate_linear(p0, p1, p2, p3, frac)
+                }
+            };
+            s_raw * scale
+        };
+
+        let mut u0 = sample_at(out_idx);
+        let mut u1 = sample_at(out_idx + 1);
+        for byte_idx in 0..total_bytes {
+            let mut byte_val = 0u8;
+            for bit in 0..8 {
+                let u2 = sample_at(out_idx + 2);
+                s1 = s1 * 0.999999 + c1 * (u0 - y);
+                s2 = s2 * 0.999999 + c2 * s1 - g1 * s3;
+                s3 = s3 * 0.999999 + c3 * s2;
+                s4 = s4 * 0.999999 + c4 * s3 - g2 * s5;
+                s5 = s5 * 0.999999 + c5 * s4;
+                s6 = s6 * 0.999999 + c6 * s5 - g3 * s7;
+                s7 = s7 * 0.999999 + c7 * s6;
+
+                let dither = if use_fast_gauss {
+                    next_reg_gauss(&mut prng)
+                } else if use_no_dither {
+                    0.0
+                } else {
+                    ditherer.next_dither(dither_type)
+                };
+                let sigma0 = u0 + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
+                let is_pos = asdm7ec_choose_bit(s1, s2, s3, s4, s5, s6, s7, u0, u1, u2, sigma0, &p);
+                y = if is_pos { 1.0 } else { -1.0 };
+                byte_val |= (is_pos as u8) << bit;
+                u0 = u1;
+                u1 = u2;
+                out_idx += 1;
+            }
+            if s1.abs() > clamp || s7.abs() > clamp || !s7.is_finite() {
+                s1 = s1.clamp(-clamp, clamp);
+                s2 = s2.clamp(-clamp, clamp);
+                s3 = s3.clamp(-clamp, clamp);
+                s4 = s4.clamp(-clamp, clamp);
+                s5 = s5.clamp(-clamp, clamp);
+                s6 = s6.clamp(-clamp, clamp);
+                s7 = s7.clamp(-clamp, clamp);
+            }
+            ch_out[byte_idx] = byte_val;
+        }
+    }
+
+    if use_fast_gauss {
+        ditherer.prng1 = prng;
+    }
+    st.s1 = s1; st.s2 = s2; st.s3 = s3; st.s4 = s4; st.s5 = s5; st.s6 = s6; st.s7 = s7; st.y = y;
 }

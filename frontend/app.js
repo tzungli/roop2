@@ -159,6 +159,14 @@ function isValidFilterPhaseId(id) {
   return filterPluginList().some(p => p.id === id);
 }
 
+function dsdOrderLabel(order) {
+  const n = parseInt(order, 10);
+  if (n === 50) return 'ASDM5EC';
+  if (n === 70) return 'ASDM7EC';
+  if (n === 7) return '7 階 (CLANS)';
+  return '5 階 (CRFB)';
+}
+
 function filterLabel(id) {
   const p = filterPluginList().find(x => x.id === id);
   return p ? p.label : '精準，線性相位';
@@ -270,7 +278,7 @@ const state = {
       return {
         enabled: saved.enabled === true,
         rateMode: saved.rateMode || '4x',
-        dsdOrder: [5, 7].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
+        dsdOrder: [5, 7, 50, 70].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
         filterPhase: isValidFilterPhaseId(saved.filterPhase) ? saved.filterPhase : 'precise-linear',
         ultrasonicFilter: ['none', '20k', '30k', '40k', '50k'].includes(saved.ultrasonicFilter) ? saved.ultrasonicFilter : '30k',
         dither: ['none', 'tpdf', 'hp-tpdf', 'shaped', 'gauss', 'gauss1'].includes(saved.dither) ? saved.dither : 'tpdf',
@@ -9951,7 +9959,7 @@ async function playSoxTrack(track, startSec = 0) {
       const phaseText = filterLabel(filterPhase);
       if (isDsd) {
         const mhz = getDsdMhz(state.dsp.rateMode);
-        showToast(`⚡ 1-bit DSD 調變: PCM ➔ ${state.dsp.rateMode.toUpperCase()} (${dsdOrder} 階 • ${phaseText} • ${mhz})`);
+        showToast(`⚡ 1-bit DSD 調變: PCM ➔ ${state.dsp.rateMode.toUpperCase()} (${dsdOrderLabel(dsdOrder)} • ${phaseText} • ${mhz})`);
       } else if (!engineOn) {
         const proc = [];
         if (countActivePeqBands() > 0) proc.push(`PEQ ${countActivePeqBands()} 段`);
@@ -10135,14 +10143,15 @@ function updateSignalPathUI(track = null) {
       const mhz = getDsdMhz(state.dsp.rateMode);
       const modeUpper = state.dsp.rateMode.toUpperCase();
 
-      if (signalPathBadge) signalPathBadge.textContent = `DSP (${modeUpper} / ${orderNum}階) | 1-bit / ${mhz} ⚡`;
-      if (statusPill) statusPill.textContent = `DSP ENHANCED (PCM ➔ ${modeUpper} ${orderNum}階)`;
+      const orderTag = dsdOrderLabel(orderNum);
+      if (signalPathBadge) signalPathBadge.textContent = `DSP (${modeUpper} / ${orderTag}) | 1-bit / ${mhz} ⚡`;
+      if (statusPill) statusPill.textContent = `DSP ENHANCED (PCM ➔ ${modeUpper} ${orderTag})`;
       if (sourceTitle) sourceTitle.textContent = `${trkFmt} ${track.bitDepth || track.bitsPerSample || 16}-bit / ${srcKhz} (${track.title || ''})`;
       if (sourceDesc) sourceDesc.textContent = customSourceDesc;
 
       if (signalSoxArrow) signalSoxArrow.style.display = 'block';
       if (signalSoxStage) signalSoxStage.style.display = 'flex';
-      if (signalSoxTitle) signalSoxTitle.textContent = `升頻引擎：1-bit ${modeUpper} Delta-Sigma 調變 (${orderNum} 階)`;
+      if (signalSoxTitle) signalSoxTitle.textContent = `升頻引擎：1-bit ${modeUpper} Delta-Sigma 調變 (${orderTag})`;
       if (signalSoxDesc) signalSoxDesc.textContent = `超取樣升頻規格：PCM ${srcKhz} ➔ ${modeUpper} (1-bit / ${mhz} • ${orderNum} 階 Delta-Sigma 噪聲整形 • ${phaseDesc})`;
 
       if (engineTitle) engineTitle.textContent = `rooPlayer 1-bit DSD Modulator Engine (${orderNum} 階)`;
@@ -10463,7 +10472,7 @@ function updateSignalPathUI(track = null) {
             if (isDsdDsp) {
               const mhz = getDsdMhz(curRateMode);
               const modeUpper = curRateMode.toUpperCase();
-              const orderStr = (state.dsp.dsdOrder === 7) ? '7階 (CLANS)' : '5階 (CRFB)';
+              const orderStr = dsdOrderLabel(state.dsp.dsdOrder);
               const ultrasonic = (state.dsp.ultrasonicFilter && state.dsp.ultrasonicFilter !== 'none') ? ` • 防護 ${state.dsp.ultrasonicFilter}` : '';
               timelineDspDesc.textContent = `64-bit 浮點即時超取樣調變 ➔ ${modeUpper} (1-bit / ${mhz} • ${orderStr} • ${phaseName}${ultrasonic})`;
             } else {

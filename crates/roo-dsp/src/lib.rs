@@ -529,6 +529,151 @@ mod tests {
     }
 
     #[test]
+    fn test_asdm_ec_benchmarks() {
+        use rustfft::{num_complex::Complex, FftPlanner};
+
+        // Measure 1 kHz -6 dBFS sine across DSD64, DSD128, DSD256 for orders 5, 7, 50 (ASDM5EC), 70 (ASDM7EC)
+        let src_rate = 352_800.0; // Stage-1 upsampled rate (same as production DSD pipeline)
+        let amp = 0.5; // -6 dBFS
+        let freq = 1000.0;
+        let in_len = 352_800usize + 64; // 1.0s
+        let mut pcm = vec![0.0f64; in_len];
+        for i in 0..in_len {
+            pcm[i] = amp * (2.0 * std::f64::consts::PI * freq * i as f64 / src_rate).sin();
+        }
+
+        let fft_n = 262_144usize; // 2^18 FFT window on decoded bitstream
+        let mut planner = FftPlanner::<f64>::new();
+        let fft = planner.plan_fft_forward(fft_n);
+
+        // Precompute Blackman-Harris window for > -92 dB sidelobes (clean 150+ dB dynamic range)
+        let mut win = vec![0.0f64; fft_n];
+        let mut win_sum = 0.0;
+        for i in 0..fft_n {
+            let p = 2.0 * std::f64::consts::PI * i as f64 / (fft_n - 1) as f64;
+            let w = 0.35875 - 0.48829 * p.cos() + 0.14128 * (2.0 * p).cos() - 0.01168 * (3.0 * p).cos();
+            win[i] = w;
+            win_sum += w;
+        }
+
+        let analyze_bits = |bits_l: &[u8], dsd_rate: f64, tone_hz: f64| -> (f64, f64, f64) {
+            // Skip first 65536 bits (startup transient), take fft_n bits
+            let skip_bytes = 8192usize;
+            let mut buf = vec![Complex::new(0.0, 0.0); fft_n];
+            for k in 0..fft_n {
+                let b_idx = skip_bytes + (k >> 3);
+                let bit = (bits_l[b_idx] >> (k & 7)) & 1;
+                let v = if bit == 1 { 1.0 } else { -1.0 };
+                buf[k].re = v * win[k];
+            }
+            fft.process(&mut buf);
+
+            let bin_hz = dsd_rate / fft_n as f64;
+            let f1_bin = (tone_hz / bin_hz).round() as usize;
+            let bin_20k = (20_000.0 / bin_hz).floor() as usize;
+            let bin_50k = (50_000.0 / bin_hz).floor() as usize;
+
+            let mut sig_pow = 0.0;
+            let mut noise_pow = 0.0;
+            let mut ultra_pow = 0.0;
+            let mut harm_pow = 0.0;
+            let scale2 = 4.0 / (win_sum * win_sum);
+
+            for k in 4..=bin_50k.min(fft_n / 2 - 1) {
+                let p = (buf[k].re * buf[k].re + buf[k].im * buf[k].im) * scale2;
+                if k >= f1_bin.saturating_sub(6) && k <= f1_bin + 6 {
+                    sig_pow += p;
+                } else if k <= bin_20k {
+                    noise_pow += p;
+                    // Check 2nd..5th harmonics
+                    for h in 2..=5 {
+                        let hb = f1_bin * h;
+                        if k >= hb.saturating_sub(3) && k <= hb + 3 {
+                            harm_pow += p;
+                        }
+                    }
+                } else {
+                    ultra_pow += p;
+                }
+            }
+            let snr_db = 10.0 * (sig_pow / noise_pow.max(1e-30)).log10();
+            let thd_db = 10.0 * (harm_pow / sig_pow.max(1e-30)).log10();
+            let ultra_db = 10.0 * ultra_pow.max(1e-30).log10();
+            (snr_db, thd_db, ultra_db)
+        };
+
+        let modes: [(&str, u32, usize); 3] = [
+            ("DSD64", 2_822_400, 8),
+            ("DSD128", 5_644_800, 16),
+            ("DSD256", 11_289_600, 32),
+        ];
+        let orders: [(&str, u8); 4] = [
+            ("5th-CRFB", 5),
+            ("ASDM5EC", 50),
+            ("7th-CLANS", 7),
+            ("ASDM7EC", 70),
+        ];
+
+        for &(mode_name, dsd_rate, stage2_ratio) in &modes {
+            // Coherent bin-aligned ~1 kHz tone for exact zero-leakage FFT measurement
+            let bin_hz = dsd_rate as f64 / fft_n as f64;
+            let tone_hz = (freq / bin_hz).round() * bin_hz;
+            for i in 0..in_len {
+                pcm[i] = amp * (2.0 * std::f64::consts::PI * tone_hz * i as f64 / src_rate).sin();
+            }
+
+            let num_blocks = (dsd_rate as usize + DSD_SAMPLES_PER_BLOCK - 1) / DSD_SAMPLES_PER_BLOCK;
+            let inv_ratio = 1.0 / stage2_ratio as f64;
+            let mut prev_bits_5: Vec<u8> = Vec::new();
+            let mut prev_bits_7: Vec<u8> = Vec::new();
+
+            for &(ord_name, ord) in &orders {
+                let mut m = DsdModulator::new(ord, "precise-linear", DitherType::Gauss, None);
+                m.set_dsd_rate(dsd_rate);
+                let mut out = vec![0u8; num_blocks * 2 * DSD_BLOCK_SIZE];
+                let t0 = std::time::Instant::now();
+                m.run_blocks(&pcm, &pcm, in_len, 0, num_blocks, inv_ratio, &mut out);
+                let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+                // Extract Left channel contiguous bytes
+                let mut l_bytes = Vec::with_capacity(num_blocks * DSD_BLOCK_SIZE);
+                for b in 0..num_blocks {
+                    let off = b * 2 * DSD_BLOCK_SIZE;
+                    l_bytes.extend_from_slice(&out[off..off + DSD_BLOCK_SIZE]);
+                }
+
+                let (snr_db, thd_db, ultra_db) = analyze_bits(&l_bytes, dsd_rate as f64, tone_hz);
+                let max_state = [m.s1_l, m.s2_l, m.s3_l, m.s4_l, m.s5_l, m.s6_l, m.s7_l]
+                    .iter()
+                    .map(|v| v.abs())
+                    .fold(0.0f64, f64::max);
+
+                let hamming_note = if ord == 5 {
+                    prev_bits_5 = l_bytes.clone();
+                    String::new()
+                } else if ord == 50 {
+                    let diff_bits: usize = l_bytes.iter().zip(prev_bits_5.iter()).map(|(a, b)| (a ^ b).count_ones() as usize).sum();
+                    format!(", diff_vs_5th={:.1}%", 100.0 * diff_bits as f64 / (l_bytes.len() * 8) as f64)
+                } else if ord == 7 {
+                    prev_bits_7 = l_bytes.clone();
+                    String::new()
+                } else {
+                    let diff_bits: usize = l_bytes.iter().zip(prev_bits_7.iter()).map(|(a, b)| (a ^ b).count_ones() as usize).sum();
+                    format!(", diff_vs_7th={:.1}%", 100.0 * diff_bits as f64 / (l_bytes.len() * 8) as f64)
+                };
+
+                println!(
+                    "[{} {:9}] SNR={:6.2} dB | THD={:7.2} dB | Ultra(20-50k)={:7.2} dB | MaxState={:.3} | 1s={:6.1} ms{}",
+                    mode_name, ord_name, snr_db, thd_db, ultra_db, max_state, elapsed_ms, hamming_note
+                );
+
+                assert!(max_state < 6.0 && max_state.is_finite(), "{} {} unstable: {}", mode_name, ord_name, max_state);
+                assert!(snr_db > 75.0, "{} {} SNR too low: {:.2}", mode_name, ord_name, snr_db);
+            }
+        }
+    }
+
+    #[test]
     fn test_poly_ext2_frequency_response() {
         let src_rate = 44100.0;
         let fs_out = 176400.0;
