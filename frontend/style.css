@@ -13972,3 +13972,144 @@ body.table-col-resizing * {
   max-width: 190px;
   margin-top: 1px;
 }
+
+/* =========================================================================
+   Multi-Zone Phase 2: Roon-style Rich Zone Picker Cards
+   ========================================================================= */
+.roon-zone-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.16s ease, background 0.16s ease;
+  margin-bottom: 6px;
+}
+
+.roon-zone-card:hover {
+  border-color: rgba(124, 92, 255, 0.35);
+  background: rgba(124, 92, 255, 0.06);
+}
+
+.roon-zone-card.active {
+  border-color: rgba(124, 92, 255, 0.55);
+  background: rgba(124, 92, 255, 0.11);
+}
+
+.roon-zone-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.roon-zone-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.roon-zone-dsp-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-purple);
+  background: rgba(124, 92, 255, 0.12);
+  border: 1px solid rgba(124, 92, 255, 0.28);
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.roon-zone-track-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.roon-zone-mini-cover {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.roon-zone-idle-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.roon-zone-inline-play {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(124, 92, 255, 0.38);
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.16s ease;
+}
+
+.roon-zone-inline-play:hover,
+.roon-zone-inline-play.playing {
+  background: var(--accent-purple);
+  color: #ffffff;
+  border-color: var(--accent-purple);
+}
+
+.roon-zone-vol-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.roon-zone-vol-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.roon-zone-vol-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--accent-purple);
+  cursor: pointer;
+}
+
+.roon-zone-vol-val {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  width: 32px;
+  text-align: right;
+}
+
+[data-theme="light"] .roon-zone-card {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.09);
+}
+
+[data-theme="light"] .roon-zone-card.active {
+  background: #f5f3ff;
+  border-color: rgba(124, 92, 255, 0.45);
+}
+
+[data-theme="light"] .roon-zone-vol-row {
+  border-top-color: rgba(15, 23, 42, 0.07);
+}

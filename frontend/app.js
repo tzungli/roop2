@@ -208,20 +208,21 @@ async function loadFilterPluginsUI() {
 // Single builder for the engine dspOptions (DLNA playTrack). When the upsampling engine is
 // off but PEQ / convolution is active, sampleRate stays at the track's native rate
 // (native-rate-only processing).
-function buildDspOptions(track) {
-  const engineOn = !!(state.dsp && state.dsp.enabled);
+function buildDspOptions(track, dspOverride = null) {
+  const dspCfg = dspOverride || state.dsp || {};
+  const engineOn = !!dspCfg.enabled;
   const peqPayload = buildPeqPayload();
   const convPayload = buildConvPayload();
   if (!engineOn && !peqPayload && !convPayload) return null;
   const srcRate = (track && track.sampleRate) || 44100;
   return {
     enabled: engineOn,
-    sampleRate: engineOn ? calculateTargetSampleRate(srcRate, state.dsp.rateMode) : srcRate,
-    dsdMode: engineOn && isDsdRateMode(state.dsp.rateMode) ? state.dsp.rateMode : '',
-    dsdOrder: state.dsp.dsdOrder || 5,
-    filterPhase: state.dsp.filterPhase || 'precise-linear',
-    ultrasonicFilter: (state.dsp && state.dsp.ultrasonicFilter) || '30k',
-    dither: (state.dsp && state.dsp.dither) || 'tpdf',
+    sampleRate: engineOn ? calculateTargetSampleRate(srcRate, dspCfg.rateMode) : srcRate,
+    dsdMode: engineOn && isDsdRateMode(dspCfg.rateMode) ? dspCfg.rateMode : '',
+    dsdOrder: dspCfg.dsdOrder || 5,
+    filterPhase: dspCfg.filterPhase || 'precise-linear',
+    ultrasonicFilter: dspCfg.ultrasonicFilter || '30k',
+    dither: dspCfg.dither || 'tpdf',
     peq: peqPayload,
     conv: convPayload
   };
@@ -11794,6 +11795,9 @@ function initMuseControls() {
 }
 
 function updateLocalDsdNotice() {
+  if (typeof saveZoneDspProfile === 'function' && state.dsp) {
+    saveZoneDspProfile(state.activeAudioZone || 'local', state.dsp);
+  }
   const notice = document.getElementById('dspLocalDsdNotice');
   if (!notice) return;
   const isLocal = !(state.activeAudioZone !== 'local' && state.activeDlnaDevice);
@@ -19745,11 +19749,34 @@ function initAudioZones() {
 
   if (btnPauseAllZones) {
     btnPauseAllZones.addEventListener('click', () => {
+      let pausedAny = false;
+      // 1. Pause active zone
       if (state.isPlaying) {
         if (typeof togglePlayPause === 'function') {
           togglePlayPause();
         }
-        btnPauseAllZones.classList.remove('is-active');
+        pausedAny = true;
+      }
+      // 2. Pause all background playing zones (DLNA + local)
+      if (state.zones) {
+        Object.keys(state.zones).forEach((zId) => {
+          if (zId === state.activeAudioZone) return;
+          const z = state.zones[zId];
+          if (z && z.isPlaying) {
+            z.isPlaying = false;
+            pausedAny = true;
+            if (zId === 'local') {
+              if (nativeAudio) nativeAudio.pause();
+              if (typeof exclusiveStopStream === 'function') exclusiveStopStream();
+            } else if (window.electronAPI && window.electronAPI.pauseDlna) {
+              window.electronAPI.pauseDlna(zId).catch(() => {});
+            }
+          }
+        });
+      }
+      btnPauseAllZones.classList.remove('is-active');
+      renderAudioDevicesList();
+      if (pausedAny) {
         showToast('⏸️ 已暫停所有播放區域');
       }
     });
@@ -19890,15 +19917,206 @@ async function refreshAudioDevices(showFeedback = false) {
   }, 900);
 }
 
-function getZoneDisplayStatus(zoneId) {
-  if (zoneId === state.activeAudioZone) {
-    const trk = state.queue && state.queue[state.currentTrackIndex];
-    return (state.isPlaying && trk) ? (trk.title || trk.album || '') : '';
+const ZONE_DSP_STORAGE_KEY = 'rooplayer_zone_dsp_profiles';
+
+function cloneDspConfig(dspObj) {
+  const src = dspObj || {};
+  return {
+    enabled: !!src.enabled,
+    rateMode: src.rateMode || '2x',
+    dsdOrder: src.dsdOrder || 5,
+    filterPhase: src.filterPhase || 'precise-linear',
+    ultrasonicFilter: src.ultrasonicFilter || '30k',
+    dither: src.dither || 'tpdf',
+  };
+}
+
+function loadAllZoneDspProfiles() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ZONE_DSP_STORAGE_KEY) || '{}');
+    return (raw && typeof raw === 'object') ? raw : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveZoneDspProfile(zoneId, dspObj) {
+  if (!zoneId) return;
+  try {
+    const all = loadAllZoneDspProfiles();
+    all[zoneId] = cloneDspConfig(dspObj);
+    localStorage.setItem(ZONE_DSP_STORAGE_KEY, JSON.stringify(all));
+  } catch (_) {}
+}
+
+function getZoneDspProfile(zoneId) {
+  if (zoneId === state.activeAudioZone && state.dsp) {
+    return cloneDspConfig(state.dsp);
   }
   const z = state.zones && state.zones[zoneId];
-  if (!z || !z.isPlaying) return '';
-  const trk = z.queue && z.queue[z.currentTrackIndex];
-  return trk ? (trk.title || trk.album || '') : '';
+  if (z && z.dsp) return cloneDspConfig(z.dsp);
+  const saved = loadAllZoneDspProfiles()[zoneId];
+  if (saved) return cloneDspConfig(saved);
+  return cloneDspConfig(state.dsp);
+}
+
+function formatZoneDspSummary(dspObj, isLocalZone = false) {
+  if (!dspObj || !dspObj.enabled) return '原生直通';
+  const mode = String(dspObj.rateMode || '2x').toLowerCase();
+  if (isDsdRateMode(mode)) {
+    if (isLocalZone) return '2x PCM';
+    const ord = dspObj.dsdOrder === 70 ? 'ASDM7EC' : (dspObj.dsdOrder === 50 ? 'ASDM5EC' : `${dspObj.dsdOrder || 5}階`);
+    return `${mode.toUpperCase()} • ${ord}`;
+  }
+  return `${mode.toUpperCase()} PCM`;
+}
+
+function getZoneLiveInfo(zoneId) {
+  if (zoneId === state.activeAudioZone) {
+    const trk = (state.queue && state.queue[state.currentTrackIndex]) || null;
+    return {
+      isPlaying: !!state.isPlaying,
+      track: trk,
+      volume: typeof state.volume === 'number' ? state.volume : 0.8,
+      dsp: cloneDspConfig(state.dsp),
+    };
+  }
+  const z = state.zones && state.zones[zoneId];
+  const trk = (z && z.queue && z.queue[z.currentTrackIndex]) || null;
+  return {
+    isPlaying: !!(z && z.isPlaying),
+    track: trk,
+    volume: (z && typeof z.volume === 'number') ? z.volume : 0.8,
+    dsp: getZoneDspProfile(zoneId),
+  };
+}
+
+async function toggleZoneInlinePlayPause(zoneId) {
+  if (zoneId === state.activeAudioZone) {
+    if (typeof togglePlayPause === 'function') {
+      togglePlayPause();
+    }
+    setTimeout(() => renderAudioDevicesList(), 60);
+    return;
+  }
+  const z = state.zones && state.zones[zoneId];
+  if (!z || !z.queue || z.currentTrackIndex < 0 || !z.queue[z.currentTrackIndex]) return;
+  if (z.isPlaying) {
+    z.isPlaying = false;
+    if (zoneId === 'local') {
+      if (nativeAudio) nativeAudio.pause();
+      if (typeof exclusiveStopStream === 'function') exclusiveStopStream();
+    } else if (window.electronAPI && window.electronAPI.pauseDlna) {
+      window.electronAPI.pauseDlna(zoneId).catch(() => {});
+    }
+  } else {
+    z.isPlaying = true;
+    if (zoneId === 'local') {
+      if (nativeAudio) nativeAudio.play().catch(() => {});
+    } else if (window.electronAPI && window.electronAPI.resumeDlna) {
+      window.electronAPI.resumeDlna(zoneId).catch(() => {});
+    }
+  }
+  renderAudioDevicesList();
+}
+
+function setZoneInlineVolume(zoneId, pct) {
+  const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
+  const vol = clamped / 100;
+  if (zoneId === state.activeAudioZone) {
+    state.volume = vol;
+    const volSlider = document.getElementById('volumeSlider');
+    const volFill = document.getElementById('volumeFill');
+    if (volSlider) volSlider.value = clamped;
+    if (volFill) volFill.style.width = `${clamped}%`;
+    if (zoneId === 'local') {
+      if (nativeAudio) nativeAudio.volume = vol;
+    } else if (window.electronAPI && window.electronAPI.setDlnaVolume) {
+      window.electronAPI.setDlnaVolume(zoneId, Math.round((state.lineOut ? 1 : vol) * 100)).catch(() => {});
+    }
+  } else {
+    const z = ensureZoneState(zoneId);
+    z.volume = vol;
+    if (zoneId === 'local') {
+      if (nativeAudio) nativeAudio.volume = vol;
+    } else if (window.electronAPI && window.electronAPI.setDlnaVolume) {
+      window.electronAPI.setDlnaVolume(zoneId, clamped).catch(() => {});
+    }
+  }
+}
+
+function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSelect }) {
+  const info = getZoneLiveInfo(zoneId);
+  const dspTag = formatZoneDspSummary(info.dsp, zoneId === 'local');
+  const volPct = Math.round(info.volume * 100);
+  const hasTrack = !!info.track;
+
+  const card = document.createElement('div');
+  card.className = `roon-zone-card ${isActive ? 'active' : ''} ${info.isPlaying ? 'is-playing' : ''}`;
+  card.setAttribute('data-device-id', zoneId);
+  if (zoneId === 'local') card.id = 'localAudioCard';
+  if (tooltip) card.title = tooltip;
+
+  const playSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="margin-left:1px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
+  const pauseSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
+  const volSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+
+  card.innerHTML = `
+    <div class="roon-zone-card-main">
+      <span class="roon-zone-icon">${getRoonDeviceIconSvg(iconKind, false)}</span>
+      <div class="roon-zone-meta">
+        <div class="roon-zone-title-line">
+          <span class="roon-zone-name">${escapeXml(name)}</span>
+          <span class="roon-zone-dsp-pill">${escapeXml(dspTag)}</span>
+        </div>
+        ${hasTrack ? `
+          <div class="roon-zone-track-line">
+            <img class="roon-zone-mini-cover" src="${escapeXml(info.track.cover || 'icon.png')}" alt="">
+            <span class="roon-zone-now-playing">${info.isPlaying ? '▶ ' : '⏸ '}${escapeXml(info.track.title || info.track.album || '')}</span>
+          </div>
+        ` : `<div class="roon-zone-idle-label">待命中</div>`}
+      </div>
+      ${hasTrack ? `
+        <button type="button" class="roon-zone-inline-play ${info.isPlaying ? 'playing' : ''}" title="${info.isPlaying ? '暫停此區域' : '繼續播放此區域'}">
+          ${info.isPlaying ? pauseSvg : playSvg}
+        </button>
+      ` : ''}
+    </div>
+    <div class="roon-zone-vol-row">
+      <span class="roon-zone-vol-icon">${volSvg}</span>
+      <input type="range" class="roon-zone-vol-slider" min="0" max="100" value="${volPct}" aria-label="音量">
+      <span class="roon-zone-vol-val">${volPct}%</span>
+    </div>
+  `;
+
+  card.querySelector('.roon-zone-card-main').addEventListener('click', () => {
+    onSelect();
+  });
+
+  const playBtn = card.querySelector('.roon-zone-inline-play');
+  if (playBtn) {
+    playBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleZoneInlinePlayPause(zoneId);
+    });
+  }
+
+  const volRow = card.querySelector('.roon-zone-vol-row');
+  if (volRow) {
+    volRow.addEventListener('click', (e) => e.stopPropagation());
+  }
+  const volSlider = card.querySelector('.roon-zone-vol-slider');
+  const volVal = card.querySelector('.roon-zone-vol-val');
+  if (volSlider) {
+    volSlider.addEventListener('input', (e) => {
+      e.stopPropagation();
+      const v = e.target.value;
+      if (volVal) volVal.textContent = `${v}%`;
+      setZoneInlineVolume(zoneId, v);
+    });
+  }
+
+  return card;
 }
 
 function renderAudioDevicesList() {
@@ -19907,57 +20125,32 @@ function renderAudioDevicesList() {
 
   // Filter out local duplicates & non-audio network equipment (routers, Wi-Fi nodes, etc.)
   const dlnaList = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
-
   listEl.innerHTML = '';
 
-  // 1. Network Audio Streamers / DLNA Devices first (matching Roon zone order: e.g. Eversolo T8 on top)
+  // 1. Network Audio Streamers / DLNA Devices first
   dlnaList.forEach(dev => {
     const isDevActive = state.activeAudioZone === dev.id;
     const kind = getDeviceIconKind(dev);
     const detailTooltip = [dev.model, dev.ip ? `IP: ${dev.ip}` : ''].filter(Boolean).join(' • ');
-    const playingTitle = getZoneDisplayStatus(dev.id);
-
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = `roon-zone-row ${isDevActive ? 'active' : ''}`;
-    row.setAttribute('data-device-id', dev.id);
-    if (detailTooltip) row.title = detailTooltip;
-
-    row.innerHTML = `
-      <span class="roon-zone-icon">${getRoonDeviceIconSvg(kind, false)}</span>
-      <span class="roon-zone-meta">
-        <span class="roon-zone-name">${escapeXml(dev.name || 'UPnP MediaRenderer')}</span>
-        ${playingTitle ? `<span class="roon-zone-now-playing">▶ ${escapeXml(playingTitle)}</span>` : ''}
-      </span>
-    `;
-
-    row.addEventListener('click', () => {
-      switchAudioZone(dev);
-    });
-
-    listEl.appendChild(row);
+    listEl.appendChild(buildZoneCardElement({
+      zoneId: dev.id,
+      name: dev.name || 'UPnP MediaRenderer',
+      iconKind: kind,
+      tooltip: detailTooltip,
+      isActive: isDevActive,
+      onSelect: () => switchAudioZone(dev),
+    }));
   });
 
-  // 2. Local System Output row (matching Roon's System Output row below network devices)
-  const isLocal = state.activeAudioZone === 'local';
-  const localPlayingTitle = getZoneDisplayStatus('local');
-  const localRow = document.createElement('button');
-  localRow.type = 'button';
-  localRow.id = 'localAudioCard';
-  localRow.className = `roon-zone-row ${isLocal ? 'active' : ''}`;
-  localRow.setAttribute('data-device-id', 'local');
-  localRow.title = 'Windows WASAPI Exclusive / DirectSound 本機輸出';
-  localRow.innerHTML = `
-    <span class="roon-zone-icon">${getRoonDeviceIconSvg('speaker', false)}</span>
-    <span class="roon-zone-meta">
-      <span class="roon-zone-name">System Output</span>
-      ${localPlayingTitle ? `<span class="roon-zone-now-playing">▶ ${escapeXml(localPlayingTitle)}</span>` : ''}
-    </span>
-  `;
-  localRow.addEventListener('click', () => {
-    switchAudioZone('local');
-  });
-  listEl.appendChild(localRow);
+  // 2. Local System Output row
+  listEl.appendChild(buildZoneCardElement({
+    zoneId: 'local',
+    name: 'System Output',
+    iconKind: 'speaker',
+    tooltip: 'Windows WASAPI Exclusive / DirectSound 本機輸出',
+    isActive: state.activeAudioZone === 'local',
+    onSelect: () => switchAudioZone('local'),
+  }));
 }
 
 // ----------------- Multi-Zone Independent Playback State (Phase 1) -----------------
@@ -19997,6 +20190,9 @@ function saveActiveZoneSnapshot() {
   z.volume = state.volume;
   z.repeatMode = state.repeatMode || 'none';
   z.isShuffling = !!state.isShuffling;
+  // Save per-zone independent rooDSP profile
+  z.dsp = cloneDspConfig(state.dsp);
+  saveZoneDspProfile(zId, z.dsp);
   if (zId === 'local') {
     const baseOff = isCurrentDsd ? currentDsdOffset : (isCurrentSox ? currentSoxOffset : 0);
     z.currentSec = baseOff + (nativeAudio && isFinite(nativeAudio.currentTime) ? nativeAudio.currentTime : 0);
@@ -20058,6 +20254,14 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   state.volume = typeof z.volume === 'number' ? z.volume : 0.8;
   state.repeatMode = z.repeatMode || 'none';
   state.isShuffling = !!z.isShuffling;
+
+  // Restore per-zone independent rooDSP profile
+  const zoneDsp = z.dsp || loadAllZoneDspProfiles()[zoneId];
+  if (zoneDsp && state.dsp) {
+    Object.assign(state.dsp, cloneDspConfig(zoneDsp));
+    try { localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp)); } catch (_) {}
+    if (typeof renderDspView === 'function') renderDspView();
+  }
   if (zoneId !== 'local') {
     dlnaPosEstSec = z.dlnaPosEstSec || z.currentSec || 0;
     dlnaPosEstAtMs = z.dlnaPosEstAtMs || performance.now();
@@ -20126,7 +20330,8 @@ async function advanceBackgroundDlnaZoneTrack(deviceId) {
       if (cached) track.filePath = cached;
     }
     if (window.electronAPI && window.electronAPI.playDlnaTrack) {
-      const dspOpts = typeof buildDspOptions === 'function' ? buildDspOptions(track) : null;
+      const zoneDsp = getZoneDspProfile(deviceId);
+      const dspOpts = typeof buildDspOptions === 'function' ? buildDspOptions(track, zoneDsp) : null;
       await window.electronAPI.playDlnaTrack(deviceId, track, 0, dspOpts);
     }
   } catch (err) {
