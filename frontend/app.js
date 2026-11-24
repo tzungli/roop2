@@ -4737,41 +4737,113 @@ function renderRooRecommendedArtistsWithCues(page = 0) {
 }
 
 function renderRooMusicianSpotlight() {
+  const nameEl = document.getElementById('spotlightArtistName');
   const btnPlay = document.getElementById('btnSpotlightPlayTracks');
-  if (btnPlay) {
-    btnPlay.onclick = (e) => {
-      e.stopPropagation();
-      const tracks = state.tracks || [];
-      if (tracks.length) {
-        setQueueAndPlay(tracks.slice(0, 10), 0);
-        showToast('正在播放 Patrice Rushen 精選作品');
-      }
-    };
-  }
-
   const row = document.getElementById('spotlightCollaboratorsRow');
   if (!row) return;
   row.innerHTML = '';
 
-  const collabs = [
-    { name: 'Tom Braxton', track: "Haven't You Heard" },
-    { name: '神保彰', track: 'Forget Me Nots' },
-    { name: 'Terri Lyne Carrington', track: 'When I Found You' }
-  ];
+  const allAlbums = state.albums || [];
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const stats = getPlayStatsRef();
+  const history = getPlaybackHistory() || [];
 
-  collabs.forEach((c, idx) => {
-    const alb = (state.albums && state.albums[idx % state.albums.length]);
-    const cSrc = alb && alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(c.name, c.track, '#b91c1c', '#7f1d1d');
+  // Group all albums (local + TIDAL) by normalized artist name
+  const artistBuckets = new Map();
+  allAlbums.forEach(alb => {
+    if (!alb || !alb.artist || isUnknownArtist(alb.artist)) return;
+    const k = norm(alb.artist);
+    let b = artistBuckets.get(k);
+    if (!b) {
+      b = { name: String(alb.artist).trim(), albums: [], score: 0 };
+      artistBuckets.set(k, b);
+    }
+    b.albums.push(alb);
+    const albPlays = getAlbumPlayCount(alb);
+    b.score += albPlays * 3 + (isAlbumFavorite(alb) ? 5 : 0) + 0.05;
+  });
+
+  // Boost scores from playback history & favorite artists
+  history.slice(0, 150).forEach((h, idx) => {
+    if (!h || !h.artist) return;
+    const b = artistBuckets.get(norm(h.artist));
+    if (b) b.score += idx < 30 ? 4 : 2;
+  });
+  ((state.favorites && state.favorites.artists) || []).forEach(art => {
+    const b = artistBuckets.get(norm(art));
+    if (b) b.score += 6;
+  });
+
+  // Top 20 most-listened artists in library (local + TIDAL)
+  const top20 = Array.from(artistBuckets.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20);
+
+  if (top20.length === 0) {
+    if (nameEl) nameEl.textContent = '尚無演出者';
+    if (btnPlay) btnPlay.onclick = () => showToast('音樂庫尚無可播放曲目');
+    return;
+  }
+
+  // Prefer artists in Top 20 who have >= 3 albums; otherwise >= 2; otherwise any of Top 20
+  const multi3 = top20.filter(b => b.albums.length >= 3);
+  const multi2 = top20.filter(b => b.albums.length >= 2);
+  const pickPool = multi3.length > 0 ? multi3 : (multi2.length > 0 ? multi2 : top20);
+  const chosenArtist = pickPool[Math.floor(Math.random() * pickPool.length)];
+
+  // Randomly pick up to 3 albums of the chosen artist (local + TIDAL)
+  const shuffledAlbs = [...chosenArtist.albums];
+  for (let i = shuffledAlbs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledAlbs[i], shuffledAlbs[j]] = [shuffledAlbs[j], shuffledAlbs[i]];
+  }
+  const chosenAlbums = shuffledAlbs.slice(0, 3);
+
+  // Build ordered playlist concatenating tracks of the 3 albums sequentially
+  const spotlightTracks = [];
+  chosenAlbums.forEach(alb => {
+    const trks = Array.isArray(alb.tracks) && alb.tracks.length > 0
+      ? alb.tracks
+      : (state.tracks || []).filter(t => norm(t.album) === norm(alb.title) && norm(t.artist) === norm(alb.artist));
+    trks.forEach(t => spotlightTracks.push(t));
+  });
+
+  if (nameEl) {
+    nameEl.textContent = chosenArtist.name;
+    nameEl.style.cursor = 'pointer';
+    nameEl.onclick = () => {
+      const liveArt = (state.artists || []).find(a => norm(a.name) === norm(chosenArtist.name));
+      openArtistDetail(liveArt || { name: chosenArtist.name, albums: chosenArtist.albums, tracks: spotlightTracks });
+    };
+  }
+
+  if (btnPlay) {
+    btnPlay.onclick = (e) => {
+      e.stopPropagation();
+      if (spotlightTracks.length > 0) {
+        setQueueAndPlay(spotlightTracks, 0);
+        showToast(`正在依序播放「${chosenArtist.name}」${chosenAlbums.length} 張專輯（共 ${spotlightTracks.length} 首）`);
+      } else {
+        showToast(`找不到「${chosenArtist.name}」的可播放曲目`);
+      }
+    };
+  }
+
+  chosenAlbums.forEach((alb) => {
+    const cSrc = alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(alb.title, alb.artist, '#b91c1c', '#7f1d1d');
+    const trkCount = (alb.tracks && alb.tracks.length) || 0;
+    const subLabel = [alb.year ? `${alb.year}` : '', trkCount > 0 ? `${trkCount} 首` : '', alb.isTidal ? 'TIDAL' : '']
+      .filter(Boolean)
+      .join(' • ');
+
     const card = document.createElement('div');
     card.className = 'collaborator-card';
     card.innerHTML = `
-      <img src="${cSrc}" class="collaborator-img" alt="${escapeXml(c.name)}" loading="lazy">
-      <div class="collaborator-name">${escapeXml(c.name)}</div>
-      <div class="collaborator-track">${escapeXml(c.track)}</div>
+      <img src="${cSrc}" class="collaborator-img" alt="${escapeXml(alb.title)}" loading="lazy">
+      <div class="collaborator-name" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
+      <div class="collaborator-track" title="${escapeXml(subLabel)}">${escapeXml(subLabel || chosenArtist.name)}</div>
     `;
-    card.onclick = () => {
-      if (alb) openAlbumDetail(alb);
-    };
+    card.onclick = () => openAlbumDetail(alb);
     row.appendChild(card);
   });
 }
