@@ -14537,6 +14537,8 @@ nativeAudio.addEventListener('timeupdate', () => {
 nativeAudio.addEventListener('ended', () => {
   if (state.activeAudioZone === 'local') {
     onTrackEnded();
+  } else {
+    advanceBackgroundLocalTrack();
   }
 });
 
@@ -19601,6 +19603,7 @@ function toggleRooOutputPopover(force) {
   const isHidden = rooOutputPopover.style.display === 'none' || !rooOutputPopover.style.display;
   const shouldOpen = (force !== undefined) ? force : isHidden;
   if (shouldOpen) {
+    renderAudioDevicesList();
     // Mutual exclusivity: Close volume popover and signal path popover if open
     if (typeof window.toggleRooVolumePopover === 'function') {
       window.toggleRooVolumePopover(false);
@@ -19841,9 +19844,12 @@ function initAudioZones() {
     }
 
     if (window.electronAPI.onDlnaTrackEnded) {
-      window.electronAPI.onDlnaTrackEnded(() => {
-        if (state.activeAudioZone !== 'local') {
+      window.electronAPI.onDlnaTrackEnded((payload) => {
+        const endedId = (payload && typeof payload === 'object' && payload.deviceId) ? payload.deviceId : state.activeAudioZone;
+        if (endedId && endedId === state.activeAudioZone && state.activeAudioZone !== 'local') {
           onTrackEnded();
+        } else if (endedId && endedId !== 'local') {
+          advanceBackgroundDlnaZoneTrack(endedId);
         }
       });
     }
@@ -19884,6 +19890,17 @@ async function refreshAudioDevices(showFeedback = false) {
   }, 900);
 }
 
+function getZoneDisplayStatus(zoneId) {
+  if (zoneId === state.activeAudioZone) {
+    const trk = state.queue && state.queue[state.currentTrackIndex];
+    return (state.isPlaying && trk) ? (trk.title || trk.album || '') : '';
+  }
+  const z = state.zones && state.zones[zoneId];
+  if (!z || !z.isPlaying) return '';
+  const trk = z.queue && z.queue[z.currentTrackIndex];
+  return trk ? (trk.title || trk.album || '') : '';
+}
+
 function renderAudioDevicesList() {
   const listEl = document.getElementById('roonZoneList');
   if (!listEl) return;
@@ -19898,6 +19915,7 @@ function renderAudioDevicesList() {
     const isDevActive = state.activeAudioZone === dev.id;
     const kind = getDeviceIconKind(dev);
     const detailTooltip = [dev.model, dev.ip ? `IP: ${dev.ip}` : ''].filter(Boolean).join(' • ');
+    const playingTitle = getZoneDisplayStatus(dev.id);
 
     const row = document.createElement('button');
     row.type = 'button';
@@ -19907,7 +19925,10 @@ function renderAudioDevicesList() {
 
     row.innerHTML = `
       <span class="roon-zone-icon">${getRoonDeviceIconSvg(kind, false)}</span>
-      <span class="roon-zone-name">${escapeXml(dev.name || 'UPnP MediaRenderer')}</span>
+      <span class="roon-zone-meta">
+        <span class="roon-zone-name">${escapeXml(dev.name || 'UPnP MediaRenderer')}</span>
+        ${playingTitle ? `<span class="roon-zone-now-playing">▶ ${escapeXml(playingTitle)}</span>` : ''}
+      </span>
     `;
 
     row.addEventListener('click', () => {
@@ -19919,6 +19940,7 @@ function renderAudioDevicesList() {
 
   // 2. Local System Output row (matching Roon's System Output row below network devices)
   const isLocal = state.activeAudioZone === 'local';
+  const localPlayingTitle = getZoneDisplayStatus('local');
   const localRow = document.createElement('button');
   localRow.type = 'button';
   localRow.id = 'localAudioCard';
@@ -19927,12 +19949,217 @@ function renderAudioDevicesList() {
   localRow.title = 'Windows WASAPI Exclusive / DirectSound 本機輸出';
   localRow.innerHTML = `
     <span class="roon-zone-icon">${getRoonDeviceIconSvg('speaker', false)}</span>
-    <span class="roon-zone-name">System Output</span>
+    <span class="roon-zone-meta">
+      <span class="roon-zone-name">System Output</span>
+      ${localPlayingTitle ? `<span class="roon-zone-now-playing">▶ ${escapeXml(localPlayingTitle)}</span>` : ''}
+    </span>
   `;
   localRow.addEventListener('click', () => {
     switchAudioZone('local');
   });
   listEl.appendChild(localRow);
+}
+
+// ----------------- Multi-Zone Independent Playback State (Phase 1) -----------------
+function ensureZoneState(zoneId, deviceObj = null) {
+  if (!state.zones) state.zones = {};
+  if (!state.zones[zoneId]) {
+    state.zones[zoneId] = {
+      id: zoneId,
+      device: deviceObj || null,
+      queue: [],
+      currentTrackIndex: -1,
+      isPlaying: false,
+      volume: typeof state.volume === 'number' ? state.volume : 0.8,
+      repeatMode: 'none',
+      isShuffling: false,
+      currentSec: 0,
+      durationSec: 0,
+      dlnaPosEstSec: 0,
+      dlnaPosEstAtMs: 0,
+      dlnaRate: 1.0,
+      dlnaTrackStartTime: 0,
+      dlnaHasStartedPlaying: false,
+      dlnaMaxProgressSec: 0,
+    };
+  } else if (deviceObj) {
+    state.zones[zoneId].device = deviceObj;
+  }
+  return state.zones[zoneId];
+}
+
+function saveActiveZoneSnapshot() {
+  const zId = state.activeAudioZone || 'local';
+  const z = ensureZoneState(zId, state.activeDlnaDevice);
+  z.queue = Array.isArray(state.queue) ? state.queue.slice() : [];
+  z.currentTrackIndex = state.currentTrackIndex;
+  z.isPlaying = !!state.isPlaying;
+  z.volume = state.volume;
+  z.repeatMode = state.repeatMode || 'none';
+  z.isShuffling = !!state.isShuffling;
+  if (zId === 'local') {
+    const baseOff = isCurrentDsd ? currentDsdOffset : (isCurrentSox ? currentSoxOffset : 0);
+    z.currentSec = baseOff + (nativeAudio && isFinite(nativeAudio.currentTime) ? nativeAudio.currentTime : 0);
+    const trk = z.queue[z.currentTrackIndex];
+    z.durationSec = (trk && trk.duration) || (nativeAudio && isFinite(nativeAudio.duration) ? nativeAudio.duration : 0);
+  } else {
+    z.currentSec = dlnaSmoothedPosSec();
+    z.durationSec = state.dlnaTotalSec || 0;
+    z.dlnaPosEstSec = dlnaPosEstSec;
+    z.dlnaPosEstAtMs = dlnaPosEstAtMs;
+    z.dlnaRate = dlnaRate;
+    z.dlnaTrackStartTime = state.dlnaTrackStartTime || 0;
+    z.dlnaHasStartedPlaying = !!state.dlnaHasStartedPlaying;
+    z.dlnaMaxProgressSec = state.dlnaMaxProgressSec || 0;
+  }
+}
+
+function syncPlayerBarForActiveZone() {
+  const track = state.queue[state.currentTrackIndex] || null;
+  if (track) {
+    playerTitle.textContent = track.title || '未知曲目';
+    playerArtist.textContent = `${track.artist || '未知藝術家'} — ${track.album || ''}`.replace(/ — $/, '');
+    if (playerAlbumArt) {
+      playerAlbumArt.src = track.cover || 'icon.png';
+    }
+    const z = ensureZoneState(state.activeAudioZone || 'local', state.activeDlnaDevice);
+    const cur = state.activeAudioZone === 'local'
+      ? ((isCurrentDsd ? currentDsdOffset : (isCurrentSox ? currentSoxOffset : 0)) + (nativeAudio && isFinite(nativeAudio.currentTime) ? nativeAudio.currentTime : 0))
+      : dlnaSmoothedPosSec();
+    const dur = (track.duration && track.duration > 0) ? track.duration : (z.durationSec || 0);
+    const pct = dur > 0 ? Math.min(100, (cur / dur) * 100) : 0;
+    if (scrubberFill) scrubberFill.style.width = `${pct}%`;
+    if (currentTimeLabel) currentTimeLabel.textContent = formatDuration(cur);
+    if (totalTimeLabel) totalTimeLabel.textContent = formatDuration(dur);
+    if (typeof updateSignalPathUI === 'function') updateSignalPathUI(track);
+  } else {
+    playerTitle.textContent = '尚未選擇曲目';
+    playerArtist.textContent = state.activeAudioZone === 'local'
+      ? 'System Output 待命中'
+      : `${(state.activeDlnaDevice && state.activeDlnaDevice.name) || 'DLNA 裝置'} 待命中`;
+    if (scrubberFill) scrubberFill.style.width = '0%';
+    if (currentTimeLabel) currentTimeLabel.textContent = '0:00';
+    if (totalTimeLabel) totalTimeLabel.textContent = '0:00';
+  }
+  if (typeof updatePlayPauseBtnUI === 'function') {
+    updatePlayPauseBtnUI();
+  } else if (btnPlayPause) {
+    btnPlayPause.textContent = state.isPlaying ? '⏸' : '▶';
+  }
+  if (typeof renderQueue === 'function') renderQueue();
+  if (typeof updateNowPlayingPlaybackProgress === 'function') updateNowPlayingPlaybackProgress();
+}
+
+function restoreZoneSnapshot(zoneId, deviceObj = null) {
+  const z = ensureZoneState(zoneId, deviceObj);
+  state.queue = Array.isArray(z.queue) ? z.queue.slice() : [];
+  state.currentTrackIndex = z.currentTrackIndex;
+  state.isPlaying = !!z.isPlaying;
+  state.volume = typeof z.volume === 'number' ? z.volume : 0.8;
+  state.repeatMode = z.repeatMode || 'none';
+  state.isShuffling = !!z.isShuffling;
+  if (zoneId !== 'local') {
+    dlnaPosEstSec = z.dlnaPosEstSec || z.currentSec || 0;
+    dlnaPosEstAtMs = z.dlnaPosEstAtMs || performance.now();
+    dlnaRate = z.dlnaRate || 1.0;
+    state.dlnaTotalSec = z.durationSec || 0;
+    state.dlnaTrackStartTime = z.dlnaTrackStartTime || 0;
+    state.dlnaHasStartedPlaying = !!z.dlnaHasStartedPlaying;
+    state.dlnaMaxProgressSec = z.dlnaMaxProgressSec || 0;
+  }
+  // Sync volume slider UI without mutating other zone's hardware volume
+  const volSlider = document.getElementById('volumeSlider');
+  const volFill = document.getElementById('volumeFill');
+  if (volSlider) volSlider.value = Math.round(state.volume * 100);
+  if (volFill) volFill.style.width = `${Math.round(state.volume * 100)}%`;
+  syncPlayerBarForActiveZone();
+}
+
+function nextIndexForZone(z) {
+  if (!z || !z.queue || z.queue.length === 0) return -1;
+  if (z.repeatMode === 'one') return z.currentTrackIndex;
+  if (z.isShuffling && z.queue.length > 1) {
+    let idx = z.currentTrackIndex;
+    while (idx === z.currentTrackIndex) {
+      idx = Math.floor(Math.random() * z.queue.length);
+    }
+    return idx;
+  }
+  if (z.currentTrackIndex + 1 < z.queue.length) return z.currentTrackIndex + 1;
+  if (z.repeatMode === 'all') return 0;
+  return -1;
+}
+
+async function advanceBackgroundDlnaZoneTrack(deviceId) {
+  const z = state.zones && state.zones[deviceId];
+  if (!z || !z.isPlaying) return;
+  const nextIdx = nextIndexForZone(z);
+  if (nextIdx < 0 || !z.queue[nextIdx]) {
+    z.isPlaying = false;
+    renderAudioDevicesList();
+    return;
+  }
+  z.currentTrackIndex = nextIdx;
+  const track = z.queue[nextIdx];
+  z.currentSec = 0;
+  z.durationSec = track.duration || 0;
+  z.dlnaPosEstSec = 0;
+  z.dlnaPosEstAtMs = performance.now();
+  z.dlnaTrackStartTime = Date.now();
+  z.dlnaHasStartedPlaying = false;
+  z.dlnaMaxProgressSec = 0;
+  renderAudioDevicesList();
+
+  try {
+    if (track.isTidal && (!track.filePath || !String(track.filePath).endsWith('.flac')) && window.electronAPI && window.electronAPI.tidalCacheTrack) {
+      let cached = await window.electronAPI.tidalCacheTrack(track.tidalId);
+      if (!cached && window.tidalService) {
+        const info = await window.tidalService.getTrackStreamUrl(track.tidalId, 'HI_RES_LOSSLESS');
+        if (info && info.url) {
+          track.streamUrl = info.url;
+          cached = await window.electronAPI.tidalCacheTrack(track.tidalId, info.url, info.manifest ? {
+            manifest: info.manifest, manifestMimeType: info.manifestMimeType,
+            bitDepth: info.bitDepth, sampleRate: info.sampleRate, audioQuality: info.audioQuality
+          } : undefined);
+        }
+      }
+      if (cached) track.filePath = cached;
+    }
+    if (window.electronAPI && window.electronAPI.playDlnaTrack) {
+      const dspOpts = typeof buildDspOptions === 'function' ? buildDspOptions(track) : null;
+      await window.electronAPI.playDlnaTrack(deviceId, track, 0, dspOpts);
+    }
+  } catch (err) {
+    console.warn(`[Multi-Zone] Background DLNA auto-next failed for ${deviceId}:`, err);
+    z.isPlaying = false;
+    renderAudioDevicesList();
+  }
+}
+
+async function advanceBackgroundLocalTrack() {
+  const z = state.zones && state.zones['local'];
+  if (!z || !z.isPlaying) return;
+  const nextIdx = nextIndexForZone(z);
+  if (nextIdx < 0 || !z.queue[nextIdx]) {
+    z.isPlaying = false;
+    renderAudioDevicesList();
+    return;
+  }
+  z.currentTrackIndex = nextIdx;
+  const track = z.queue[nextIdx];
+  z.currentSec = 0;
+  z.durationSec = track.duration || 0;
+  renderAudioDevicesList();
+  try {
+    if (track.filePath && window.electronAPI && window.electronAPI.getMediaUrl) {
+      nativeAudio.src = window.electronAPI.getMediaUrl(track.filePath);
+      await nativeAudio.play();
+    }
+  } catch (err) {
+    console.warn('[Multi-Zone] Background local auto-next failed:', err);
+    z.isPlaying = false;
+    renderAudioDevicesList();
+  }
 }
 
 async function switchAudioZone(target) {
@@ -19944,10 +20171,9 @@ async function switchAudioZone(target) {
 
   if (target === 'local') {
     if (state.activeAudioZone !== 'local') {
-      // Stopping previous DLNA device if playing
-      if (state.activeDlnaDevice && window.electronAPI && window.electronAPI.stopDlna) {
-        window.electronAPI.stopDlna(state.activeDlnaDevice.id).catch(() => {});
-      }
+      // Multi-Zone Phase 1: keep previous DLNA zone playing independently — just snapshot it!
+      saveActiveZoneSnapshot();
+
       state.activeAudioZone = 'local';
       state.activeDlnaDevice = null;
       clearDlnaPrepareUi();
@@ -19963,40 +20189,22 @@ async function switchAudioZone(target) {
       if (signalOutputTitle) signalOutputTitle.textContent = 'Windows WASAPI Exclusive / DirectSound';
       if (signalOutputDesc) signalOutputDesc.textContent = '輸出至本機預設音訊裝置';
 
+      restoreZoneSnapshot('local', null);
       renderAudioDevicesList();
-      showToast('🔊 已切換為本機音訊輸出');
-
-      // If currently playing, resume current track on local
-      if (state.isPlaying && state.currentTrackIndex >= 0) {
-        playCurrentTrack();
-      }
+      showToast('🔊 已切換控制區域：System Output（其他裝置保持獨立播放）');
     }
   } else {
     // DLNA target
     const dev = target;
     if (state.activeAudioZone !== dev.id) {
-      // If nativeAudio was playing locally, pause it
-      if (nativeAudio) {
-        nativeAudio.pause();
-      }
-      exclusiveStopStream(); // 切換到 DLNA 輸出時必須釋放獨佔裝置
-      stopDemoSynth();
-      stopVirtualProgress();
-
-      // If playing on another DLNA device, stop that
-      if (state.activeDlnaDevice && state.activeDlnaDevice.id !== dev.id && window.electronAPI && window.electronAPI.stopDlna) {
-        window.electronAPI.stopDlna(state.activeDlnaDevice.id).catch(() => {});
-      }
+      // Multi-Zone Phase 1: keep local / other DLNA zones playing independently — just snapshot!
+      saveActiveZoneSnapshot();
 
       state.activeAudioZone = dev.id;
       state.activeDlnaDevice = dev;
       clearDlnaPrepareUi();
       if (window.electronAPI && window.electronAPI.selectDlnaDevice) {
         window.electronAPI.selectDlnaDevice(dev.id).catch(() => {});
-      }
-      // 套用目前音量到新裝置（Line Out 鎖定時為 100）
-      if (window.electronAPI && window.electronAPI.setDlnaVolume) {
-        window.electronAPI.setDlnaVolume(dev.id, Math.round((state.lineOut ? 1 : state.volume) * 100)).catch(() => {});
       }
 
       if (currentZoneName) currentZoneName.textContent = dev.name;
@@ -20013,13 +20221,9 @@ async function switchAudioZone(target) {
         }
       }
 
+      restoreZoneSnapshot(dev.id, dev);
       renderAudioDevicesList();
-      showToast(`📡 已連線至串流節點：${dev.name}`);
-
-      // If currently playing, start streaming to this DLNA device
-      if (state.isPlaying && state.currentTrackIndex >= 0) {
-        playCurrentTrack();
-      }
+      showToast(`📡 已切換控制區域：${dev.name}（其他裝置保持獨立播放）`);
     }
   }
 
@@ -20125,7 +20329,28 @@ function dlnaResetPosClock(sec) {
 }
 
 function handleDlnaProgress(prog) {
-  if (state.activeAudioZone === 'local' || !prog) return;
+  if (!prog) return;
+  const progZoneId = prog.deviceId || state.activeAudioZone;
+
+  // Background DLNA zone progress update: update only that zone's state snapshot
+  if (progZoneId && progZoneId !== state.activeAudioZone) {
+    const z = state.zones && state.zones[progZoneId];
+    if (z) {
+      const cur = prog.currentSec || 0;
+      const trk = z.queue && z.queue[z.currentTrackIndex];
+      const dur = prog.durationSec > 0 ? prog.durationSec : (trk ? trk.duration : z.durationSec || 0);
+      const stUpper = String(prog.state || '').toUpperCase();
+      z.currentSec = cur;
+      z.durationSec = dur;
+      z.dlnaPosEstSec = cur;
+      z.dlnaPosEstAtMs = performance.now();
+      if (stUpper === 'PLAYING' || cur > 0.5) z.dlnaHasStartedPlaying = true;
+      if (cur > 0 && cur <= dur + 5) z.dlnaMaxProgressSec = Math.max(cur, z.dlnaMaxProgressSec || 0);
+    }
+    return;
+  }
+
+  if (state.activeAudioZone === 'local') return;
 
   if (dlnaPreparing) {
     clearDlnaPrepareUi();

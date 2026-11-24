@@ -260,8 +260,10 @@ pub async fn dlna_play_track(
     let stream_filename = if is_dsd { "audio.dsf" } else { "audio.wav" };
     let stream_url = format!("http://{}:39840/stream/{}/{}", local_ip, stream_token, stream_filename);
 
-    // Cancel any prior progressive stream sessions
-    roo_streamer::cancel_all_progressive_streams();
+    // Cancel ONLY this device's prior progressive stream (other zones keep streaming!)
+    if let Some(old_tok) = manager.replace_device_token(&device_id, stream_token.clone()) {
+        roo_streamer::cancel_progressive_stream(&old_tok);
+    }
 
     if is_native_dsf && !is_dsd_upsample && peq_json.is_empty() && conv_json.is_empty() {
         if let Err(e) = roo_streamer::register_direct_file_stream(
@@ -301,6 +303,8 @@ pub async fn dlna_play_track(
 
     let app_clone = app.clone();
     let app_clone2 = app.clone();
+    let dev_id_prog = device_id.clone();
+    let dev_id_end = device_id.clone();
     let res = manager.play(
         &device_id,
         &stream_url,
@@ -313,6 +317,7 @@ pub async fn dlna_play_track(
         start,
         move |pos, dur, state| {
             let _ = app_clone.emit("dlna:progress", serde_json::json!({
+                "deviceId": dev_id_prog,
                 "currentSec": pos,
                 "positionSec": pos,
                 "durationSec": dur,
@@ -323,7 +328,9 @@ pub async fn dlna_play_track(
             }));
         },
         move || {
-            let _ = app_clone2.emit("dlna:trackEnded", ());
+            let _ = app_clone2.emit("dlna:trackEnded", serde_json::json!({
+                "deviceId": dev_id_end
+            }));
         },
     ).await;
 
@@ -357,7 +364,9 @@ pub async fn dlna_resume(manager: State<'_, DlnaManager>, device_id: String) -> 
 
 #[tauri::command]
 pub async fn dlna_stop(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
-    roo_streamer::cancel_all_progressive_streams();
+    if let Some(old_tok) = manager.take_device_token(&device_id) {
+        roo_streamer::cancel_progressive_stream(&old_tok);
+    }
     manager.stop(&device_id).await.map(|_| true).map_err(|e| e.to_string())
 }
 

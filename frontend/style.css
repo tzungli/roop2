@@ -13952,3 +13952,23 @@ body.table-col-resizing * {
   border-color: rgba(15, 23, 42, 0.15);
   color: #0f172a;
 }
+
+/* Multi-Zone live playing subtitle in Zone Picker */
+.roon-zone-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1;
+}
+
+.roon-zone-now-playing {
+  font-size: 11px;
+  color: var(--accent-purple);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+  margin-top: 1px;
+}

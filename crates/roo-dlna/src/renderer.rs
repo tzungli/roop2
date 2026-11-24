@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::watch;
@@ -9,8 +10,12 @@ pub struct DlnaManager {
     controller: Arc<UpnpController>,
     devices: Arc<RwLock<Vec<DlnaDevice>>>,
     selected_device_id: Arc<RwLock<Option<String>>>,
-    active_device: Arc<RwLock<Option<DlnaDevice>>>,
-    stop_tx: Arc<RwLock<Option<watch::Sender<bool>>>>,
+    /// Per-zone active DLNA devices (supports independent multi-zone playback)
+    active_devices: Arc<RwLock<HashMap<String, DlnaDevice>>>,
+    /// Per-zone polling stop channels keyed by device_id
+    stop_txs: Arc<RwLock<HashMap<String, watch::Sender<bool>>>>,
+    /// Per-zone active progressive stream token keyed by device_id
+    active_tokens: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl Default for DlnaManager {
@@ -25,9 +30,24 @@ impl DlnaManager {
             controller: Arc::new(UpnpController::new()),
             devices: Arc::new(RwLock::new(Vec::new())),
             selected_device_id: Arc::new(RwLock::new(None)),
-            active_device: Arc::new(RwLock::new(None)),
-            stop_tx: Arc::new(RwLock::new(None)),
+            active_devices: Arc::new(RwLock::new(HashMap::new())),
+            stop_txs: Arc::new(RwLock::new(HashMap::new())),
+            active_tokens: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Record the new stream token for `device_id`, returning its previous token (if any)
+    /// so the caller can cancel ONLY that device's old stream without affecting other zones.
+    pub fn replace_device_token(&self, device_id: &str, new_token: String) -> Option<String> {
+        self.active_tokens
+            .write()
+            .unwrap()
+            .insert(device_id.to_string(), new_token)
+    }
+
+    /// Remove and return the active stream token for `device_id` (if any).
+    pub fn take_device_token(&self, device_id: &str) -> Option<String> {
+        self.active_tokens.write().unwrap().remove(device_id)
     }
 
     pub fn set_devices(&self, list: Vec<DlnaDevice>) {
@@ -52,39 +72,54 @@ impl DlnaManager {
         }
     }
 
-    /// Stop whatever DLNA device is currently playing/selected (used during app shutdown
-    /// so hardware renderers immediately mute & flush their audio buffer instead of playing it out).
+    /// Stop ALL active DLNA devices concurrently (used during app shutdown so every
+    /// hardware renderer immediately mutes & flushes its audio buffer).
     pub async fn stop_active(&self) {
-        if let Some(tx) = self.stop_tx.write().unwrap().take() {
+        let txs: Vec<watch::Sender<bool>> = {
+            let mut map = self.stop_txs.write().unwrap();
+            map.drain().map(|(_, tx)| tx).collect()
+        };
+        for tx in txs {
             let _ = tx.send(true);
         }
-        let target_dev = self
-            .active_device
-            .write()
-            .unwrap()
-            .take()
-            .or_else(|| self.get_selected_device());
 
-        if let Some(dev) = target_dev {
-            tracing::info!("Force-stopping active DLNA renderer on shutdown: {} ({})", dev.name, dev.ip);
-            // 1. Pause first: instantly mutes DAC output on renderers that fade/drain on Stop
-            let _ = tokio::time::timeout(
-                Duration::from_millis(500),
-                self.controller.pause(&dev.av_transport_url, &dev.av_transport_service_type),
-            )
-            .await;
-            // 2. Stop transport
-            let _ = tokio::time::timeout(
-                Duration::from_millis(800),
-                self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type),
-            )
-            .await;
-            // 3. Clear AVTransport URI to force hardware pipeline teardown & ring-buffer flush
-            let _ = tokio::time::timeout(
-                Duration::from_millis(500),
-                self.controller.clear_uri(&dev.av_transport_url, &dev.av_transport_service_type),
-            )
-            .await;
+        let mut targets: Vec<DlnaDevice> = {
+            let mut map = self.active_devices.write().unwrap();
+            map.drain().map(|(_, dev)| dev).collect()
+        };
+        if let Some(sel_dev) = self.get_selected_device() {
+            if !targets.iter().any(|d| d.id == sel_dev.id) {
+                targets.push(sel_dev);
+            }
+        }
+        self.active_tokens.write().unwrap().clear();
+
+        let mut handles = Vec::new();
+        for dev in targets {
+            let ctrl = self.controller.clone();
+            handles.push(tokio::spawn(async move {
+                tracing::info!("Force-stopping active DLNA renderer on shutdown: {} ({})", dev.name, dev.ip);
+                let _ = tokio::time::timeout(
+                    Duration::from_millis(500),
+                    ctrl.pause(&dev.av_transport_url, &dev.av_transport_service_type),
+                )
+                .await;
+                let _ = tokio::time::timeout(
+                    Duration::from_millis(800),
+                    ctrl.stop(&dev.av_transport_url, &dev.av_transport_service_type),
+                )
+                .await;
+                let _ = tokio::time::timeout(
+                    Duration::from_millis(500),
+                    ctrl.clear_uri(&dev.av_transport_url, &dev.av_transport_service_type),
+                )
+                .await;
+            }));
+        }
+        for h in handles {
+            let _ = h.await;
+        }
+        if !self.devices.read().unwrap().is_empty() {
             tokio::time::sleep(Duration::from_millis(80)).await;
         }
     }
@@ -114,15 +149,17 @@ impl DlnaManager {
         on_progress: impl Fn(f64, f64, &str) + Send + Sync + 'static,
         on_ended: impl Fn() + Send + Sync + 'static,
     ) -> Result<()> {
-        *self.selected_device_id.write().unwrap() = Some(device_id.to_string());
         let dev = match self.get_device(device_id) {
             Some(d) => d,
             None => bail!("Device not found: {}", device_id),
         };
-        *self.active_device.write().unwrap() = Some(dev.clone());
+        self.active_devices
+            .write()
+            .unwrap()
+            .insert(device_id.to_string(), dev.clone());
 
-        // Stop any previous progress loop
-        if let Some(tx) = self.stop_tx.write().unwrap().take() {
+        // Stop only THIS device's previous progress loop (leave other zones running!)
+        if let Some(tx) = self.stop_txs.write().unwrap().remove(device_id) {
             let _ = tx.send(true);
         }
 
@@ -180,9 +217,12 @@ impl DlnaManager {
             });
         }
 
-        // 5. Start position and state polling loop
+        // 5. Start position and state polling loop for this zone
         let (tx, rx) = watch::channel(false);
-        *self.stop_tx.write().unwrap() = Some(tx);
+        self.stop_txs
+            .write()
+            .unwrap()
+            .insert(device_id.to_string(), tx);
 
         let ctrl = self.controller.clone();
         let av_url = dev.av_transport_url.clone();
@@ -258,10 +298,10 @@ impl DlnaManager {
     }
 
     pub async fn stop(&self, device_id: &str) -> Result<()> {
-        if let Some(tx) = self.stop_tx.write().unwrap().take() {
+        if let Some(tx) = self.stop_txs.write().unwrap().remove(device_id) {
             let _ = tx.send(true);
         }
-        *self.active_device.write().unwrap() = None;
+        self.active_devices.write().unwrap().remove(device_id);
         let dev = self.get_device_by_id(device_id)?;
         let res = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
         let _ = self.controller.clear_uri(&dev.av_transport_url, &dev.av_transport_service_type).await;
