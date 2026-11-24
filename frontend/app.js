@@ -20467,7 +20467,6 @@ function syncPlayerBarForActiveZone() {
     if (scrubberFill) scrubberFill.style.width = `${pct}%`;
     if (currentTimeLabel) currentTimeLabel.textContent = formatDuration(cur);
     if (totalTimeLabel) totalTimeLabel.textContent = formatDuration(dur);
-    if (typeof updateSignalPathUI === 'function') updateSignalPathUI(track);
   } else {
     playerTitle.textContent = '尚未選擇曲目';
     playerArtist.textContent = state.activeAudioZone === 'local'
@@ -20477,6 +20476,7 @@ function syncPlayerBarForActiveZone() {
     if (currentTimeLabel) currentTimeLabel.textContent = '0:00';
     if (totalTimeLabel) totalTimeLabel.textContent = '0:00';
   }
+  if (typeof updateSignalPathUI === 'function') updateSignalPathUI(track);
   if (typeof updatePlayPauseBtnUI === 'function') {
     updatePlayPauseBtnUI();
   } else if (btnPlayPause) {
