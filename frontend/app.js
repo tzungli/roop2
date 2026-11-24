@@ -11241,6 +11241,11 @@ function initMuseControls() {
       state.dsp.crossfeedEnabled = toggleMuseCrossfeed.checked;
       const statusEl = document.getElementById('museCrossfeedStatus');
       if (statusEl) statusEl.textContent = toggleMuseCrossfeed.checked ? '啟用' : '停用';
+      if (toggleMuseCrossfeed.checked) {
+        const bypassEl = document.getElementById('toggleMuseBypassAll');
+        if (bypassEl) bypassEl.checked = false;
+      }
+      localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
       peqScheduleReapply();
     });
   }
@@ -11251,6 +11256,10 @@ function initMuseControls() {
       state.dsp.peq.enabled = toggleMusePeq.checked;
       const statusEl = document.getElementById('musePeqStatus');
       if (statusEl) statusEl.textContent = toggleMusePeq.checked ? '啟用' : '停用';
+      if (toggleMusePeq.checked) {
+        const bypassEl = document.getElementById('toggleMuseBypassAll');
+        if (bypassEl) bypassEl.checked = false;
+      }
       drawMusePeqCanvas();
       updatePeqHeadroomNote();
       updatePeqHint();
@@ -11265,6 +11274,10 @@ function initMuseControls() {
       state.dsp.conv.enabled = toggleMuseConv.checked;
       const statusEl = document.getElementById('museConvStatus');
       if (statusEl) statusEl.textContent = toggleMuseConv.checked ? '啟用' : '停用';
+      if (toggleMuseConv.checked) {
+        const bypassEl = document.getElementById('toggleMuseBypassAll');
+        if (bypassEl) bypassEl.checked = false;
+      }
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
       peqScheduleReapply();
     });
@@ -11275,17 +11288,18 @@ function initMuseControls() {
     toggleMuseBypassAll.addEventListener('change', () => {
       const bypass = toggleMuseBypassAll.checked;
       if (bypass) {
-        state.dsp._savedEnabled = state.dsp.enabled;
-        state.dsp._savedPeqEnabled = state.dsp.peq ? state.dsp.peq.enabled : false;
-        state.dsp._savedConvEnabled = state.dsp.conv ? state.dsp.conv.enabled : false;
-        state.dsp.enabled = false;
+        state.dsp._savedCrossfeedEnabled = !!state.dsp.crossfeedEnabled;
+        state.dsp._savedPeqEnabled = state.dsp.peq ? !!state.dsp.peq.enabled : false;
+        state.dsp._savedConvEnabled = state.dsp.conv ? !!state.dsp.conv.enabled : false;
+        state.dsp.crossfeedEnabled = false;
         if (state.dsp.peq) state.dsp.peq.enabled = false;
         if (state.dsp.conv) state.dsp.conv.enabled = false;
       } else {
-        if (state.dsp._savedEnabled !== undefined) state.dsp.enabled = state.dsp._savedEnabled;
+        if (state.dsp._savedCrossfeedEnabled !== undefined) state.dsp.crossfeedEnabled = state.dsp._savedCrossfeedEnabled;
         if (state.dsp.peq && state.dsp._savedPeqEnabled !== undefined) state.dsp.peq.enabled = state.dsp._savedPeqEnabled;
         if (state.dsp.conv && state.dsp._savedConvEnabled !== undefined) state.dsp.conv.enabled = state.dsp._savedConvEnabled;
       }
+      localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
       renderDspView();
       peqScheduleReapply();
     });
