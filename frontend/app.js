@@ -2972,7 +2972,6 @@ function renderOverview() {
   renderRooRecentlyPlayedArtists();
   renderRooRecommendedGenres();
   renderRooRecommendedArtistsWithCues();
-  renderRooMusicianSpotlight();
   setupRooDiscoverBanner();
 }
 
