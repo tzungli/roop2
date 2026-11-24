@@ -343,6 +343,229 @@ pub async fn tidal_login_with_window(
     }
 }
 
+/// Silently refresh an expired TIDAL JWT access token in a hidden background WebView2 window
+/// using the persisted `listen.tidal.com` login cookies. Ignores the previous expired token
+/// and verifies any captured candidate against `/v1/sessions` before accepting it.
+#[tauri::command]
+pub async fn tidal_silent_refresh(
+    app: AppHandle,
+    state: State<'_, TidalState>,
+) -> Result<serde_json::Value, String> {
+    if let Some(existing) = app.get_webview_window("tidal-silent-refresh") {
+        let _ = existing.close();
+    }
+
+    let old_token = state
+        .auth_data
+        .read()
+        .unwrap()
+        .as_ref()
+        .and_then(|v| v.get("accessToken"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let (token_tx, mut token_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+    let refresh_url = tauri::Url::parse("https://listen.tidal.com/")
+        .map_err(|e| format!("Failed to parse TIDAL URL: {}", e))?;
+
+    let old_token_json = serde_json::to_string(&old_token).unwrap_or_else(|_| "\"\"".to_string());
+    let init_script = format!(
+        r#"
+        (function() {{
+            var oldToken = {old_token_json};
+            var sentSet = {{}};
+            function sendToken(token) {{
+                if (!token) return;
+                token = String(token).trim();
+                if (token.length < 25) return;
+                if (!token.startsWith('eyJ') && token.indexOf('.') === -1) return;
+                if (oldToken && token === oldToken) return;
+                if (sentSet[token]) return;
+                sentSet[token] = true;
+                try {{
+                    window.location.href = 'https://rooplayer.local/silent-auth?token=' + encodeURIComponent(token);
+                }} catch(_) {{}}
+            }}
+
+            var origFetch = window.fetch;
+            window.fetch = function() {{
+                try {{
+                    var req = arguments[0];
+                    if (req && req.headers) {{
+                        var h0 = req.headers;
+                        var auth0 = (typeof Headers !== 'undefined' && h0 instanceof Headers)
+                            ? (h0.get('authorization') || h0.get('Authorization'))
+                            : (h0['Authorization'] || h0['authorization']);
+                        if (auth0 && String(auth0).toLowerCase().indexOf('bearer ') === 0) {{
+                            sendToken(String(auth0).slice(7).trim());
+                        }}
+                    }}
+                    var opts = arguments[1];
+                    if (opts && opts.headers) {{
+                        var h = opts.headers;
+                        var auth = (typeof Headers !== 'undefined' && h instanceof Headers)
+                            ? (h.get('authorization') || h.get('Authorization'))
+                            : (h['Authorization'] || h['authorization']);
+                        if (auth && String(auth).toLowerCase().indexOf('bearer ') === 0) {{
+                            sendToken(String(auth).slice(7).trim());
+                        }}
+                    }}
+                }} catch(_) {{}}
+
+                var p = origFetch.apply(this, arguments);
+                if (p && typeof p.then === 'function') {{
+                    p.then(function(res) {{
+                        try {{
+                            if (res && res.clone) {{
+                                res.clone().json().then(function(data) {{
+                                    if (data) {{
+                                        if (data.access_token) sendToken(data.access_token);
+                                        else if (data.token) sendToken(data.token);
+                                        else if (data.session && data.session.token) sendToken(data.session.token);
+                                    }}
+                                }}).catch(function() {{}});
+                            }}
+                        }} catch(_) {{}}
+                    }}).catch(function() {{}});
+                }}
+                return p;
+            }};
+
+            if (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) {{
+                var origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+                XMLHttpRequest.prototype.setRequestHeader = function(header, value) {{
+                    try {{
+                        if (header && String(header).toLowerCase() === 'authorization' && value && String(value).toLowerCase().indexOf('bearer ') === 0) {{
+                            sendToken(String(value).slice(7).trim());
+                        }}
+                    }} catch(_) {{}}
+                    return origSetHeader.apply(this, arguments);
+                }};
+            }}
+
+            function scanStorage() {{
+                try {{
+                    var stores = [window.localStorage, window.sessionStorage];
+                    for (var sIdx = 0; sIdx < stores.length; sIdx++) {{
+                        var s = stores[sIdx];
+                        if (!s) continue;
+                        for (var i = 0; i < s.length; i++) {{
+                            var v = s.getItem(s.key(i));
+                            if (!v) continue;
+                            var matches = v.match(/eyJ[A-Za-z0-9_-]{{15,}}\.[A-Za-z0-9_-]{{15,}}\.[A-Za-z0-9_-]{{10,}}/g);
+                            if (matches) {{
+                                for (var j = 0; j < matches.length; j++) {{
+                                    sendToken(matches[j]);
+                                }}
+                            }}
+                        }}
+                    }}
+                }} catch(_) {{}}
+            }}
+
+            setInterval(scanStorage, 350);
+            setTimeout(scanStorage, 200);
+        }})();
+        "#
+    );
+
+    let token_tx_clone = token_tx.clone();
+    let win_res = WebviewWindowBuilder::new(&app, "tidal-silent-refresh", WebviewUrl::External(refresh_url))
+        .title("TIDAL Silent Refresh")
+        .inner_size(400.0, 400.0)
+        .visible(false)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        .initialization_script(&init_script)
+        .on_navigation(move |url| {
+            if url.host_str() == Some("rooplayer.local") {
+                if let Some(query) = url.query() {
+                    for param in query.split('&') {
+                        let mut parts = param.splitn(2, '=');
+                        if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
+                            if k == "token" {
+                                let decoded = urlencoding::decode(v).unwrap_or_default().to_string();
+                                let _ = token_tx_clone.send(decoded);
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            true
+        })
+        .build();
+
+    if let Err(e) = win_res {
+        return Ok(serde_json::json!({ "success": false, "error": format!("Silent refresh window error: {}", e) }));
+    }
+
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    let mut refreshed_auth: Option<serde_json::Value> = None;
+
+    while tokio::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(remaining, token_rx.recv()).await {
+            Ok(Some(token)) => {
+                let sess_resp = state
+                    .http_client
+                    .get("https://api.tidal.com/v1/sessions")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .send()
+                    .await;
+
+                if let Ok(resp) = sess_resp {
+                    if resp.status().is_success() {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await {
+                            let user_id = json.get("userId").and_then(|v| v.as_i64()).map(|id| id.to_string()).unwrap_or_default();
+                            let session_id = json.get("sessionId").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            let country_code = json.get("countryCode").and_then(|v| v.as_str()).unwrap_or("TW").to_string();
+                            let now_iso = format!(
+                                "{}Z",
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs()
+                            );
+                            let auth_data = serde_json::json!({
+                                "accessToken": token,
+                                "userId": user_id,
+                                "sessionId": session_id,
+                                "countryCode": country_code,
+                                "channel": "",
+                                "updatedAt": now_iso
+                            });
+                            *state.auth_data.write().unwrap() = Some(auth_data.clone());
+                            if let Some(parent) = state.cache_file.parent() {
+                                let _ = fs::create_dir_all(parent);
+                            }
+                            let _ = fs::write(
+                                &state.cache_file,
+                                serde_json::to_string_pretty(&auth_data).unwrap_or_default(),
+                            );
+                            tracing::info!("TIDAL token silently refreshed successfully");
+                            refreshed_auth = Some(auth_data);
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => break,
+        }
+    }
+
+    if let Some(w) = app.get_webview_window("tidal-silent-refresh") {
+        let _ = w.close();
+    }
+
+    if let Some(auth) = refreshed_auth {
+        Ok(serde_json::json!({ "success": true, "auth": auth }))
+    } else {
+        Ok(serde_json::json!({ "success": false, "error": "Silent refresh timed out" }))
+    }
+}
+
 #[tauri::command]
 pub async fn tidal_api(
     state: State<'_, TidalState>,

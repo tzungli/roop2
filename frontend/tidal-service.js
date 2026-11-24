@@ -17,6 +17,7 @@ class TidalService {
     // True once a 401 has proven the stored token expired; the TIDAL page uses this
     // to prompt re-login directly. Never checked at app startup.
     this.authExpired = false;
+    this._refreshPromise = null;
   }
 
   /**
@@ -161,9 +162,41 @@ class TidalService {
   }
 
   /**
-   * Universal API call helper
+   * Silently refresh an expired access token via hidden WebView2 window using persisted cookies.
+   * Concurrent callers share the same in-flight promise so only one refresh runs at a time.
    */
-  async api(endpoint, params = {}, method = 'GET', body = null) {
+  async silentRefresh() {
+    if (!window.electronAPI || typeof window.electronAPI.tidalSilentRefresh !== 'function') {
+      return false;
+    }
+    if (this._refreshPromise) return this._refreshPromise;
+    this._refreshPromise = (async () => {
+      try {
+        console.info('[TIDAL] Access token expired — attempting silent background refresh...');
+        const res = await window.electronAPI.tidalSilentRefresh();
+        if (res && res.success && res.auth && res.auth.accessToken) {
+          this.auth = res.auth;
+          this.countryCode = res.auth.countryCode || this.countryCode;
+          this.isLoggedIn = true;
+          this.authExpired = false;
+          this._authExpiredNotified = false;
+          console.info('[TIDAL] Silent token refresh succeeded.');
+          return true;
+        }
+      } catch (e) {
+        console.warn('[TIDAL] Silent token refresh failed:', e);
+      }
+      return false;
+    })().finally(() => {
+      this._refreshPromise = null;
+    });
+    return this._refreshPromise;
+  }
+
+  /**
+   * Universal API call helper (with automatic silent token refresh & retry on HTTP 401)
+   */
+  async api(endpoint, params = {}, method = 'GET', body = null, _retried = false) {
     if (!this.auth || !this.auth.accessToken) {
       throw new Error('TIDAL 尚未登入');
     }
@@ -182,6 +215,10 @@ class TidalService {
       : (qs ? `${endpoint}?${qs}` : endpoint);
 
     const handle401 = async () => {
+      // First try silent background refresh (using persisted WebView2 cookies) before failing
+      if (!_retried && await this.silentRefresh()) {
+        return 'RETRY';
+      }
       // A 401 on /sessions itself, or a failed /sessions probe, means the token is expired.
       if (finalEndpoint.startsWith('/sessions') || !(await this._probeSessionValid())) {
         this._handleAuthExpired();
@@ -200,11 +237,16 @@ class TidalService {
           token: this.auth.accessToken
         });
       } catch (err) {
-        if (/\b401\b/.test(String(err && err.message))) {
-          const expired = await handle401();
-          if (expired) throw expired;
+        // Tauri invoke rejects with a plain string, not an Error object
+        const errMsg = (err && typeof err === 'object' && err.message) ? err.message : String(err || '');
+        if (/\b401\b/.test(errMsg) || /token.*expired|unauthorized/i.test(errMsg)) {
+          const res401 = await handle401();
+          if (res401 === 'RETRY') {
+            return this.api(endpoint, params, method, body, true);
+          }
+          if (res401 instanceof Error) throw res401;
         }
-        throw err;
+        throw (err instanceof Error) ? err : new Error(errMsg || 'TIDAL API 呼叫失敗');
       }
     }
 
@@ -227,8 +269,11 @@ class TidalService {
     });
 
     if (res.status === 401) {
-      const expired = await handle401();
-      if (expired) throw expired;
+      const res401 = await handle401();
+      if (res401 === 'RETRY') {
+        return this.api(endpoint, params, method, body, true);
+      }
+      if (res401 instanceof Error) throw res401;
       throw new Error(`TIDAL API HTTP 401: ${res.statusText}`);
     }
     if (!res.ok) {

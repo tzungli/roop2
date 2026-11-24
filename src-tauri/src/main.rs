@@ -323,6 +323,7 @@ async fn main() {
             tidal_probe_auth,
             tidal_focus_login_window,
             tidal_login_with_window,
+            tidal_silent_refresh,
             tidal_api,
             tidal_get_stream_url,
             tidal_cache_track,
