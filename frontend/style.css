@@ -3054,25 +3054,22 @@ body.table-col-resizing * {
 }
 
 .detail-actions #btnShuffleAlbum:hover,
+.detail-actions #btnFavAlbumDetail:hover,
 .detail-actions #btnListenLaterAlbumDetail:hover,
 .detail-actions #btnTidalLibraryToggle:hover {
-  color: #ffffff;
-  background-color: rgba(255, 255, 255, 0.14);
+  color: var(--accent-purple);
+  background-color: rgba(124, 92, 255, 0.14);
+  border-color: rgba(124, 92, 255, 0.42);
   transform: scale(1.08);
 }
 
-.detail-actions #btnFavAlbumDetail:hover {
-  color: #f43f5e;
-  background-color: rgba(244, 63, 94, 0.12);
-  border-color: rgba(244, 63, 94, 0.35);
-  transform: scale(1.08);
-}
-
-.detail-actions #btnFavAlbumDetail.active {
-  color: #f43f5e;
-  border-color: rgba(244, 63, 94, 0.5);
-  background-color: rgba(244, 63, 94, 0.16);
-  box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+.detail-actions #btnFavAlbumDetail.active,
+.detail-actions #btnListenLaterAlbumDetail.active,
+.detail-actions #btnTidalLibraryToggle.in-library {
+  color: var(--accent-purple);
+  border-color: rgba(124, 92, 255, 0.5);
+  background-color: rgba(124, 92, 255, 0.18);
+  box-shadow: 0 0 8px rgba(124, 92, 255, 0.2);
 }
 
 /* Light Theme Overrides */
@@ -3080,29 +3077,27 @@ body.table-col-resizing * {
 [data-theme="light"] .detail-actions #btnFavAlbumDetail,
 [data-theme="light"] .detail-actions #btnListenLaterAlbumDetail,
 [data-theme="light"] .detail-actions #btnTidalLibraryToggle {
-  background-color: rgba(0, 0, 0, 0.03);
-  color: #475569;
-  border-color: rgba(15, 23, 42, 0.18);
+  background-color: rgba(124, 92, 255, 0.04);
+  color: #5b5575;
+  border-color: rgba(124, 92, 255, 0.22);
 }
 
 [data-theme="light"] .detail-actions #btnShuffleAlbum:hover,
+[data-theme="light"] .detail-actions #btnFavAlbumDetail:hover,
 [data-theme="light"] .detail-actions #btnListenLaterAlbumDetail:hover,
 [data-theme="light"] .detail-actions #btnTidalLibraryToggle:hover {
-  color: #0f172a;
-  background-color: rgba(0, 0, 0, 0.07);
-  border-color: rgba(15, 23, 42, 0.32);
+  color: var(--accent-purple);
+  background-color: rgba(124, 92, 255, 0.11);
+  border-color: rgba(124, 92, 255, 0.42);
 }
 
-[data-theme="light"] .detail-actions #btnFavAlbumDetail:hover {
-  color: #f43f5e;
-  background-color: rgba(244, 63, 94, 0.08);
-  border-color: rgba(244, 63, 94, 0.35);
-}
-
-[data-theme="light"] .detail-actions #btnFavAlbumDetail.active {
-  color: #f43f5e;
-  background-color: rgba(244, 63, 94, 0.12);
-  border-color: rgba(244, 63, 94, 0.45);
+[data-theme="light"] .detail-actions #btnFavAlbumDetail.active,
+[data-theme="light"] .detail-actions #btnListenLaterAlbumDetail.active,
+[data-theme="light"] .detail-actions #btnTidalLibraryToggle.in-library {
+  color: var(--accent-purple);
+  background-color: rgba(124, 92, 255, 0.14);
+  border-color: rgba(124, 92, 255, 0.48);
+  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.14);
 }
 
 .album-detail-tracklist h3 {
@@ -11056,21 +11051,21 @@ body.table-col-resizing * {
   text-overflow: ellipsis;
 }
 
-/* TIDAL Library Toggle Button in Album Detail */
+/* TIDAL Library Toggle Button in Album Detail (unified lavender palette) */
 #btnTidalLibraryToggle {
   transition: all 0.2s ease;
 }
 
 #btnTidalLibraryToggle.in-library {
-  background: rgba(0, 229, 255, 0.18);
-  border-color: rgba(0, 229, 255, 0.5);
-  color: #00e5ff;
+  background: rgba(124, 92, 255, 0.18);
+  border-color: rgba(124, 92, 255, 0.5);
+  color: var(--accent-purple);
 }
 
 #btnTidalLibraryToggle.in-library:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.6);
-  color: #ef4444;
+  background: rgba(124, 92, 255, 0.26);
+  border-color: rgba(124, 92, 255, 0.65);
+  color: var(--accent-purple);
 }
 
 /* TIDAL Discography Cards */
@@ -11786,9 +11781,9 @@ body.table-col-resizing * {
 }
 
 [data-theme="light"] #btnTidalLibraryToggle.in-library {
-  background: rgba(8, 145, 178, 0.12);
-  border-color: rgba(8, 145, 178, 0.4);
-  color: var(--accent-cyan);
+  background: rgba(124, 92, 255, 0.14);
+  border-color: rgba(124, 92, 255, 0.48);
+  color: var(--accent-purple);
 }
 
 [data-theme="light"] .tidal-card-actions {
