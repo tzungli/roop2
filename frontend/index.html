@@ -2972,17 +2972,17 @@
                           <input type="range" id="ufAsSlider" min="40" max="180" step="5" value="100">
                         </div>
                         <div class="uf-field" id="ufSigmaRow" style="display:none;">
-                          <label>Gauss 窗寬 σ <span class="uf-val" id="ufSigmaVal">0.30 ×L</span></label>
-                          <input type="range" id="ufSigmaSlider" min="20" max="50" step="1" value="30">
+                          <label>Gauss 窗寬 σ <span class="uf-val" id="ufSigmaVal">0.25 ×L</span></label>
+                          <input type="range" id="ufSigmaSlider" min="15" max="40" step="1" value="25">
                         </div>
                         <div class="uf-grid2">
                           <div class="uf-field">
-                            <label>截止延伸 <span class="uf-val" id="ufCutVal">1.13 ×源Nyq</span></label>
-                            <input type="range" id="ufCutSlider" min="80" max="135" step="1" value="113">
+                            <label title="不可超過 1.00 × 源 Nyquist，避免升頻鏡像混疊洩漏">截止頻率 <span class="uf-val" id="ufCutVal">0.95 ×源Nyq</span></label>
+                            <input type="range" id="ufCutSlider" min="75" max="99" step="1" value="95">
                           </div>
                           <div class="uf-field">
-                            <label>濾波長度 <span class="uf-val" id="ufTapVal">96 taps</span> <span class="uf-load" id="ufLoadBadge">低負荷</span></label>
-                            <input type="range" id="ufTapSlider" min="16" max="512" step="8" value="96">
+                            <label title="每相輸入取樣階數，不同升頻倍數下維持一致過渡帶寬度">濾波長度 <span class="uf-val" id="ufTapVal">128 taps</span> <span class="uf-load" id="ufLoadBadge">低負荷</span></label>
+                            <input type="range" id="ufTapSlider" min="32" max="512" step="8" value="128">
                           </div>
                         </div>
                         <div class="uf-field">

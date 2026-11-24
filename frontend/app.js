@@ -12042,10 +12042,10 @@ function ufSpecFromForm() {
     sound: (document.getElementById('ufSoundInput').value || '').trim(),
     window: windowBtn ? windowBtn.getAttribute('data-window') : 'blackmanHarris',
     phase: phaseBtn ? phaseBtn.getAttribute('data-phase') : 'linear',
-    cutoffRel: (parseInt(document.getElementById('ufCutSlider').value, 10) || 113) / 100,
-    taps: parseInt(document.getElementById('ufTapSlider').value, 10) || 96,
+    cutoffRel: (parseInt(document.getElementById('ufCutSlider').value, 10) || 95) / 100,
+    taps: parseInt(document.getElementById('ufTapSlider').value, 10) || 128,
     asDb: parseInt(document.getElementById('ufAsSlider').value, 10) || 100,
-    sigmaRel: (parseInt(document.getElementById('ufSigmaSlider').value, 10) || 30) / 100
+    sigmaRel: (parseInt(document.getElementById('ufSigmaSlider').value, 10) || 25) / 100
   };
 }
 
@@ -12057,19 +12057,18 @@ function ufUpdateFormReadouts() {
   document.getElementById('ufAsRow').style.display = (spec.window === 'kaiser' || spec.window === 'chebyshev') ? '' : 'none';
   document.getElementById('ufSigmaRow').style.display = spec.window === 'gauss' ? '' : 'none';
   const ctx = ufPreviewContext();
-  // 截止延伸若被升頻脈絡截斷（0.45·輸出取樣率），readout 要顯示真正生效的數字，
-  // 否則使用者拖到最大卻看到曲線沒動，會以為壞了。
-  const relCeil = 0.45 * ctx.targetRate / (ctx.srcRate / 2);
+  // 依取樣定理，抗鏡像截止點不得超過 0.99 × 源 Nyquist（且受限於 0.485 × 輸出取樣率）
+  const relCeil = Math.min(0.99, 0.485 * ctx.targetRate / (ctx.srcRate / 2));
   const effRel = Math.min(spec.cutoffRel, relCeil);
-  const cutTxt = spec.cutoffRel.toFixed(2) + ' ×源Nyq';
+  const fcKhz = ((effRel * (ctx.srcRate || 44100) / 2) / 1000).toFixed(1);
+  const cutTxt = `${spec.cutoffRel.toFixed(2)} ×源Nyq (${fcKhz}k)`;
   document.getElementById('ufCutVal').textContent = effRel + 0.005 < spec.cutoffRel
     ? `${cutTxt}（此脈絡最高 ${effRel.toFixed(2)}）`
     : cutTxt;
-  // 多相升頻 FIR 的真實雙聲道運算量：每個輸入樣本貢獻 2 * spec.taps 個係數
-  // 實體運算量 = (2 * taps) * srcRate * 2 聲道
-  const mmac = Math.round(spec.taps * 2 * (ctx.srcRate || 44100) * 2 / 1e6);
+  // 多相升頻 FIR 的真實雙聲道運算量：每個輸出樣本計算 taps 次乘加 × 雙聲道
+  const mmac = Math.round(spec.taps * (ctx.targetRate || 176400) * 2 / 1e6);
   const badge = document.getElementById('ufLoadBadge');
-  const level = mmac < 40 ? '低' : (mmac < 100 ? '中' : '高');
+  const level = mmac < 60 ? '低' : (mmac < 160 ? '中' : '高');
   badge.textContent = `${level}負荷 ~${mmac}MMAC/s`;
   badge.className = 'uf-load' + (level === '中' ? ' load-mid' : (level === '高' ? ' load-high' : ''));
 }
@@ -12119,8 +12118,8 @@ async function ufDoPreview() {
   // （sincWindowTapFn: fc = min(cutoffRel·源Nyq, 0.45·fsOut)）。把該上限反推回滑桿刻度，
   // 就是「圖上拖曳／滑桿」真正能到的最大延伸（例如 192k 升頻下只有 ~0.98×源Nyq）；
   // 超過的部分拖了也不會有反應，不給拖。
-  const relCeil = 0.45 * ctx.targetRate / (ctx.srcRate / 2);
-  ufCutRelMax = Math.max(0.8, Math.min(1.35, relCeil));
+  const relCeil = 0.485 * ctx.targetRate / (ctx.srcRate / 2);
+  ufCutRelMax = Math.max(0.75, Math.min(0.99, relCeil));
   let data = null;
   // 預覽不需要名稱（引擎驗證要求名稱）；尚未命名時用預覽專用名稱，讓滑桿可以邊拖邊看
   const previewSpec = ufSpecFromForm();
@@ -12143,7 +12142,7 @@ let ufCutDragging = false;
 let ufPreviewData = null;   // 含 fcHz / transLoHz / srcNyq / fsOut
 let ufPreviewCtx = null;    // { srcRate, targetRate }
 let ufPreviewGeom = null;   // 最近一次繪製的座標映射
-let ufCutRelMax = 1.35;     // 目前升頻脈絡下截止延伸真正能到的上限（0.45·fsOut 反推）
+let ufCutRelMax = 0.99;     // 目前升頻脈絡下截止頻率真正能到的上限（嚴格 <= 0.99 × 源Nyq）
 
 function ufCutFromPointer(clientX) {
   const cv = document.getElementById('ufPreviewCanvas');
@@ -12153,8 +12152,8 @@ function ufCutFromPointer(clientX) {
   const x = Math.min(Math.max(rect.left + g.padL, clientX), rect.right - g.padR);
   const fc = g.fMin + ((x - (rect.left + g.padL)) / (g.plotW || 1)) * (g.fMax - g.fMin);
   const srcRate = (ufPreviewCtx && ufPreviewCtx.srcRate) || 44100;
-  // 上限用 ufCutRelMax（引擎截斷後真正可達的延伸），不是滑桿的理論最大值
-  const rel = Math.min(ufCutRelMax, Math.max(0.8, Math.round((fc / (srcRate / 2)) * 100) / 100));
+  // 上限用 ufCutRelMax（引擎截斷後真正可達的上限），不超過 0.99 × 源Nyq
+  const rel = Math.min(ufCutRelMax, Math.max(0.75, Math.round((fc / (srcRate / 2)) * 100) / 100));
   const slider = document.getElementById('ufCutSlider');
   if (!slider) return;
   const v = Math.round(rel * 100);
@@ -12495,10 +12494,10 @@ function openUfEditor(slotId) {
   document.getElementById('ufEditorTitle').textContent = slot ? `編輯濾波器（${slot.id}）` : '新建濾波器';
   document.getElementById('ufNameInput').value = slot ? slot.name : '';
   document.getElementById('ufSoundInput').value = slot ? (slot.sound || '') : '';
-  document.getElementById('ufCutSlider').value = slot ? Math.round(slot.cutoffRel * 100) : 113;
-  document.getElementById('ufTapSlider').value = slot ? slot.taps : 96;
+  document.getElementById('ufCutSlider').value = slot ? Math.min(99, Math.max(75, Math.round(slot.cutoffRel * 100))) : 95;
+  document.getElementById('ufTapSlider').value = slot ? Math.min(512, Math.max(32, slot.taps)) : 128;
   document.getElementById('ufAsSlider').value = slot ? slot.asDb : 100;
-  document.getElementById('ufSigmaSlider').value = slot ? Math.round((slot.sigmaRel || 0.3) * 100) : 30;
+  document.getElementById('ufSigmaSlider').value = slot ? Math.min(40, Math.max(15, Math.round((slot.sigmaRel || 0.25) * 100))) : 25;
   const win = slot ? slot.window : 'blackmanHarris';
   document.querySelectorAll('#ufWindowSeg .uf-seg-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-window') === win));
   const phase = slot ? slot.phase : 'linear';

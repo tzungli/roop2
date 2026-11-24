@@ -127,7 +127,39 @@ mod tests {
             let p = preview.unwrap();
             assert_eq!(p.xs.len(), 512);
             assert!(p.ys_db.iter().all(|&y| y.is_finite()));
+            // Verify cutoff_rel > 1.0 is safely clamped below source Nyquist
+            assert!(p.fc_hz < 44100.0 * 0.5, "fc_hz must be < src Nyquist, got {}", p.fc_hz);
         }
+
+        // Verify Kaiser respects taps and minimum_phase
+        let kaiser_min = UserFilterSpec {
+            id: "k-min".to_string(),
+            name: "Kaiser Min".to_string(),
+            sound: None,
+            window: "kaiser".to_string(),
+            cutoff_rel: 0.95,
+            taps: 128,
+            as_db: Some(120.0),
+            sigma_rel: None,
+            phase: Some("minimum".to_string()),
+            minimum_phase: Some(true),
+        };
+        let kf = REGISTRY.build_user_filter(176400.0, 44100.0, &kaiser_min).expect("kaiser min");
+        assert!(kf.minimum_phase);
+        assert_eq!(kf.lo, 0);
+        // 128 input taps at 4x => l = 64 * 4 = 256 => 513 output taps
+        assert_eq!(kf.taps, 513);
+
+        // Verify Dolph-Chebyshev window is distinct from Kaiser and symmetric
+        let cheb = dolph_chebyshev_window(129, 100.0);
+        assert_eq!(cheb.len(), 129);
+        assert!((cheb[64] - 1.0).abs() < 1e-12);
+        assert!((cheb[0] - cheb[128]).abs() < 1e-12);
+        assert!((cheb[10] - cheb[118]).abs() < 1e-12);
+        let cheb_f = windowed_sinc_fir_ext(176400.0, 44100.0, 0.95, 128, "chebyshev", 0.25, 100.0);
+        let kais_f = windowed_sinc_fir_ext(176400.0, 44100.0, 0.95, 128, "kaiser", 0.25, 100.0);
+        let diff: f64 = cheb_f.h.iter().zip(kais_f.h.iter()).map(|(a, b)| (a - b).abs()).sum();
+        assert!(diff > 1e-3, "Chebyshev and Kaiser must produce distinct filters, diff={}", diff);
     }
 
     #[test]

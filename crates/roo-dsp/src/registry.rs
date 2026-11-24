@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::fir::{
     build_hq_poly_sinc_gauss_long_filter, build_poly_ext2_filter, build_precise_linear_filter,
     build_precise_min_filter, build_smooth_linear_filter, build_smooth_min_filter,
-    kaiser_sinc_fir, windowed_sinc_fir_ext, FirFilter,
+    windowed_sinc_fir_ext, FirFilter,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,30 +189,16 @@ impl FilterRegistry {
     }
 
     pub fn build_user_filter(&self, fs_out: f64, src_rate: f64, spec: &UserFilterSpec) -> Option<FirFilter> {
-        let taps = spec.taps.clamp(16, 512);
-        let cutoff_rel = spec.cutoff_rel.clamp(0.8, 1.4);
+        let taps = spec.taps.clamp(32, 512);
+        let cutoff_rel = spec.cutoff_rel.clamp(0.70, 0.995);
         let as_db = spec.as_db.unwrap_or(100.0).clamp(40.0, 180.0);
-        let sigma_rel = spec.sigma_rel.unwrap_or(0.3).clamp(0.1, 1.0);
+        let sigma_rel = spec.sigma_rel.unwrap_or(0.25).clamp(0.12, 0.50);
 
-        if spec.window == "kaiser" {
-            let fc_factor = cutoff_rel;
-            let trans_factor = 0.1;
-            Some(kaiser_sinc_fir(fs_out, src_rate, as_db, fc_factor, trans_factor))
+        let filter = windowed_sinc_fir_ext(fs_out, src_rate, cutoff_rel, taps, &spec.window, sigma_rel, as_db);
+        if spec.is_minimum_phase() {
+            Some(crate::phase::linear_to_minimum_phase(&filter))
         } else {
-            let filter = windowed_sinc_fir_ext(fs_out, src_rate, cutoff_rel, taps, &spec.window, sigma_rel, as_db);
-            if spec.is_minimum_phase() {
-                let fc = (cutoff_rel * src_rate / 2.0).min(0.45 * fs_out);
-                let l = (taps as i32 / 2).max(8);
-                let s = filter.s;
-                let tap_fn = |t: f64| -> f64 {
-                    let x = 2.0 * fc * t / fs_out;
-                    let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
-                    (2.0 * fc / fs_out) * sinc
-                };
-                Some(crate::phase::minimum_phase_from_tap_fn(fs_out, src_rate, l, s, &tap_fn))
-            } else {
-                Some(filter)
-            }
+            Some(filter)
         }
     }
 
@@ -243,7 +229,8 @@ impl FilterRegistry {
         let n = 512;
         let h_len = gf.h.len();
         let trans_hz = if h_len > 0 { 4.0 * fs_out / h_len.max(1) as f64 } else { 0.0 };
-        let fc = (spec.cutoff_rel * src_rate / 2.0).min(0.45 * fs_out);
+        let cutoff_rel = spec.cutoff_rel.clamp(0.70, 0.995);
+        let fc = (cutoff_rel * src_rate / 2.0).min(0.485 * fs_out);
         let f_max = (fs_out / 2.0).min((1.3 * src_rate).max(fc + trans_hz));
         let h = &gf.h;
         let s_g = gf.s as f64;
@@ -265,7 +252,7 @@ impl FilterRegistry {
             }
             let mag = (re * re + im * im).sqrt() / norm;
             xs.push(f);
-            ys_db.push((-120.0f64).max(20.0 * (mag.max(1e-7)).log10()));
+            ys_db.push((-160.0f64).max(20.0 * (mag.max(1e-8)).log10()));
         }
 
         Some(FilterPreviewResult {

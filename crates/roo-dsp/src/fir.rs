@@ -591,8 +591,47 @@ pub fn build_gauss_filter(fs_out: f64, src_rate: f64, minimum_phase: bool) -> Fi
     }
 }
 
+/// True Dolph-Chebyshev symmetric window of odd length `m = 2*l + 1` with equiripple
+/// sidelobe attenuation `as_db` (dB), computed via exact Chebyshev polynomial + IDFT.
+pub fn dolph_chebyshev_window(m: usize, as_db: f64) -> Vec<f64> {
+    if m <= 3 {
+        return vec![1.0; m];
+    }
+    let atten = as_db.clamp(20.0, 180.0);
+    let r = 10.0f64.powf(atten / 20.0);
+    let n_ord = (m - 1) as f64;
+    let beta = (r.acosh() / n_ord).cosh();
+
+    let mut planner = rustfft::FftPlanner::<f64>::new();
+    let ifft = planner.plan_fft_inverse(m);
+    let mut spec = Vec::with_capacity(m);
+    let half = (m - 1) as f64 * 0.5;
+    for k in 0..m {
+        let x = beta * (PI * k as f64 / m as f64).cos();
+        let mag = if x.abs() <= 1.0 {
+            (n_ord * x.acos()).cos()
+        } else {
+            let v = (n_ord * x.abs().acosh()).cosh();
+            if x < 0.0 && (m - 1) % 2 == 1 { -v } else { v }
+        };
+        // Shift phase so the symmetric peak lands at index `half`
+        let shift = -2.0 * PI * k as f64 * half / m as f64;
+        spec.push(rustfft::num_complex::Complex::new(mag * shift.cos(), mag * shift.sin()));
+    }
+    ifft.process(&mut spec);
+
+    let mut w: Vec<f64> = spec.iter().map(|c| c.re.max(0.0)).collect();
+    let peak = w.iter().cloned().fold(0.0f64, f64::max);
+    if peak > 1e-12 {
+        for v in &mut w {
+            *v /= peak;
+        }
+    }
+    w
+}
+
 pub fn windowed_sinc_fir(fs_out: f64, src_rate: f64, cutoff_rel: f64, taps: usize, window: &str) -> FirFilter {
-    windowed_sinc_fir_ext(fs_out, src_rate, cutoff_rel, taps, window, 0.3, 100.0)
+    windowed_sinc_fir_ext(fs_out, src_rate, cutoff_rel, taps, window, 0.25, 100.0)
 }
 
 pub fn windowed_sinc_fir_ext(
@@ -608,8 +647,31 @@ pub fn windowed_sinc_fir_ext(
     let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
     let s = if integer_ratio { 1 } else { 32 };
 
-    let fc = (cutoff_rel * src_rate / 2.0).min(0.45 * fs_out);
-    let l = ((taps as f64 / 2.0).round() as i32).max(8);
+    // Cutoff must remain below source Nyquist (< 1.0 * src_nyq) to suppress ultrasonic mirror images
+    let eff_cut = cutoff_rel.clamp(0.70, 0.995);
+    let fc = (eff_cut * src_rate / 2.0).min(0.485 * fs_out);
+    // `taps` is input-rate polyphase tap count (consistent across 2x/4x/8x/16x ratios)
+    let l_in = ((taps as f64 / 2.0).round() as i32).max(8);
+    let l = (l_in as f64 * ratio).round().max(8.0) as i32;
+
+    let cheb_table = if window == "chebyshev" {
+        Some(dolph_chebyshev_window((2 * l + 1) as usize, as_db))
+    } else {
+        None
+    };
+
+    let kaiser_beta = if window == "kaiser" {
+        if as_db > 50.0 {
+            0.1102 * (as_db - 8.7)
+        } else if as_db > 21.0 {
+            0.5842 * (as_db - 21.0).powf(0.4) + 0.07886 * (as_db - 21.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+    let kaiser_i0_beta = if window == "kaiser" { bessel_i0(kaiser_beta) } else { 1.0 };
 
     let half = l * s as i32;
     let n = (2 * half + 2) as usize;
@@ -652,20 +714,24 @@ pub fn windowed_sinc_fir_ext(
                 a0 - a1 * (2.0 * phase).cos() + a2 * (4.0 * phase).cos() - a3 * (6.0 * phase).cos()
             }
             "gauss" => {
-                let sigma = (sigma_rel.clamp(0.1, 1.0)) * l as f64;
+                let sigma = (sigma_rel.clamp(0.12, 0.50)) * l as f64;
                 (-0.5 * (t / sigma).powi(2)).exp()
             }
-            "chebyshev" | "kaiser" => {
-                let beta = if as_db > 50.0 {
-                    0.1102 * (as_db - 8.7)
-                } else if as_db > 21.0 {
-                    0.5842 * (as_db - 21.0).powf(0.4) + 0.07886 * (as_db - 21.0)
+            "chebyshev" => {
+                let tbl = cheb_table.as_ref().unwrap();
+                let pos = (t + l as f64).clamp(0.0, (tbl.len() - 1) as f64);
+                let idx = pos.floor() as usize;
+                let frac = pos - idx as f64;
+                if idx + 1 < tbl.len() {
+                    tbl[idx] + frac * (tbl[idx + 1] - tbl[idx])
                 } else {
-                    0.0
-                };
+                    tbl[idx]
+                }
+            }
+            "kaiser" => {
                 let u = t / l as f64;
                 let arg = (0.0f64.max(1.0 - u * u)).sqrt();
-                bessel_i0(beta * arg) / bessel_i0(beta)
+                bessel_i0(kaiser_beta * arg) / kaiser_i0_beta
             }
             _ => 1.0, // rectangular
         };
