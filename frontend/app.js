@@ -8267,6 +8267,141 @@ async function fetchTidalRecommendationAlbums(album) {
   return out;
 }
 
+let albumOtherWorksRenderSeq = 0;
+
+function renderAlbumArtistOtherWorks(album) {
+  const section = document.getElementById('albumArtistOtherWorksSection');
+  const container = document.getElementById('albumArtistOtherWorksGrid');
+  const countBadge = document.getElementById('artistOtherWorksCountBadge');
+  const nameTag = document.getElementById('artistOtherWorksName');
+
+  if (!section || !container) return;
+  container.innerHTML = '';
+
+  const artistName = String((album && album.artist) || '').trim();
+  if (!artistName || isUnknownArtist(artistName) || isVariousArtistsAlbum(album)) {
+    section.style.display = 'none';
+    return;
+  }
+
+  if (nameTag) nameTag.textContent = artistName;
+
+  const selfKey = albumIdentityKey(album);
+  const selfTitleKey = titleArtistKey(album);
+  const seenKeys = new Set([selfKey]);
+  const seenTitleKeys = new Set([selfTitleKey]);
+
+  const artistLower = artistName.toLowerCase();
+  const isSameArtist = (candArtist) => {
+    const c = String(candArtist || '').trim();
+    if (!c) return false;
+    return c.toLowerCase() === artistLower || (typeof artistKeysMatch === 'function' && artistKeysMatch(c, artistName));
+  };
+
+  // 1. 本機音樂庫（與已收藏至庫中的作品）
+  const localWorks = [];
+  const libraryTidalWorks = [];
+  (state.albums || []).forEach(cand => {
+    if (!cand || !cand.title) return;
+    if (!isSameArtist(cand.artist)) return;
+    const key = albumIdentityKey(cand);
+    const titleKey = titleArtistKey(cand);
+    if (seenKeys.has(key) || seenTitleKeys.has(titleKey)) return;
+    seenKeys.add(key);
+    seenTitleKeys.add(titleKey);
+    if (cand.isTidal) libraryTidalWorks.push(cand);
+    else localWorks.push(cand);
+  });
+
+  const sortByYearDesc = (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0) || String(a.title || '').localeCompare(String(b.title || ''));
+  localWorks.sort(sortByYearDesc);
+  libraryTidalWorks.sort(sortByYearDesc);
+
+  localWorks.forEach(alb => {
+    container.appendChild(createRecommendAlbumCard(
+      alb,
+      '本機作品',
+      `${artistName} — 本機音樂庫收藏`
+    ));
+  });
+  libraryTidalWorks.forEach(alb => {
+    container.appendChild(createRecommendAlbumCard(
+      alb,
+      'TIDAL 收藏',
+      `${artistName} — TIDAL 收藏作品`
+    ));
+  });
+
+  let localCount = localWorks.length;
+  let tidalCount = libraryTidalWorks.length;
+
+  const updateHeader = () => {
+    const total = localCount + tidalCount;
+    section.style.display = total > 0 ? '' : 'none';
+    if (countBadge) {
+      if (localCount > 0 && tidalCount > 0) {
+        countBadge.textContent = `${total} 張作品 (本機 ${localCount}・TIDAL ${tidalCount})`;
+      } else if (tidalCount > 0) {
+        countBadge.textContent = `${total} 張作品 (TIDAL)`;
+      } else {
+        countBadge.textContent = `${total} 張作品 (本機)`;
+      }
+    }
+  };
+
+  updateHeader();
+
+  const isTidalLoggedIn = window.tidalService && window.tidalService.isLoggedIn;
+  if (!isTidalLoggedIn) return;
+
+  const seq = ++albumOtherWorksRenderSeq;
+  (async () => {
+    let discography = [];
+    const cached = tidalRecommendCache.get(artistName);
+    if (cached && Array.isArray(cached.discography) && cached.discography.length > 0) {
+      discography = cached.discography;
+    } else {
+      try {
+        let tidalArtistId = album.artistId || (Array.isArray(album.artists) && album.artists[0] && album.artists[0].id) || null;
+        if (!tidalArtistId) {
+          const artistObj = await window.tidalService.searchArtist(artistName);
+          if (artistObj && artistObj.id) tidalArtistId = artistObj.id;
+        }
+        if (tidalArtistId) {
+          discography = (await window.tidalService.getArtistAlbums(tidalArtistId, 30)) || [];
+        }
+      } catch (e) {
+        console.warn('[otherWorks] TIDAL artist discography fetch failed:', e);
+      }
+    }
+
+    if (seq !== albumOtherWorksRenderSeq || state.activeAlbumDetail !== album) return;
+
+    const freshTidal = [];
+    discography.forEach(alb => {
+      if (!alb || !alb.title) return;
+      const key = albumIdentityKey(alb);
+      const titleKey = titleArtistKey(alb);
+      if (seenKeys.has(key) || seenTitleKeys.has(titleKey)) return;
+      seenKeys.add(key);
+      seenTitleKeys.add(titleKey);
+      freshTidal.push(alb);
+    });
+
+    freshTidal.sort(sortByYearDesc);
+    freshTidal.slice(0, 20).forEach(alb => {
+      container.appendChild(createRecommendAlbumCard(
+        alb,
+        'TIDAL 作品',
+        `${artistName} — TIDAL 線上發行${alb.year ? ` (${alb.year})` : ''}`
+      ));
+      tidalCount++;
+    });
+
+    updateHeader();
+  })();
+}
+
 function renderAlbumRecommendations(album) {
   const container = document.getElementById('albumRecommendationsGrid');
   const countBadge = document.getElementById('recommendCountBadge');
@@ -9546,6 +9681,13 @@ function openAlbumDetail(album) {
     renderAlbumMetadata(album);
   } catch (e) {
     console.warn('renderAlbumMetadata error:', e);
+  }
+
+  // 2.5 Render Artist's Other Musical Works (Local + TIDAL) before Recommended Albums
+  try {
+    renderAlbumArtistOtherWorks(album);
+  } catch (e) {
+    console.warn('renderAlbumArtistOtherWorks error:', e);
   }
 
   // 3. Render Recommended Albums (Based on metadata & same genre)
