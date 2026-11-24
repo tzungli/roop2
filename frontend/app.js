@@ -3270,73 +3270,227 @@ function renderRooDailyPick() {
   renderDailyPickCard(dailyPickCandidates[0]);
 }
 
-function renderNewReleases(tab = 'albums') {
+let currentNewReleasesTab = 'albums';
+let currentNewReleasesPage = 0;
+let _underExploredCacheVersion = -1;
+let _underExploredAlbums = [];
+let _underExploredTracks = [];
+
+function buildUnderExploredPools() {
+  if (_underExploredCacheVersion === libraryCollectionVersion && _underExploredAlbums.length > 0) {
+    return { albums: _underExploredAlbums, tracks: _underExploredTracks };
+  }
+
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const history = getPlaybackHistory() || [];
+  const stats = getPlayStatsRef();
+
+  const artistPlayCounts = new Map();
+  const albumPlayCounts = new Map();
+  const genrePlayCounts = new Map();
+
+  const bump = (map, k, n = 1) => {
+    if (!k) return;
+    map.set(k, (map.get(k) || 0) + n);
+  };
+
+  history.forEach(h => {
+    if (!h) return;
+    bump(artistPlayCounts, norm(h.artist), 1);
+    bump(albumPlayCounts, `${norm(h.album)}___${norm(h.artist)}`, 1);
+    bump(genrePlayCounts, canonicalizeGenre(h.genre || '', h), 1);
+  });
+
+  (state.tracks || []).forEach(t => {
+    const tKey = t.id || `${t.title}___${t.artist}`;
+    const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+    if (plays > 0) {
+      bump(artistPlayCounts, norm(t.artist), plays);
+      bump(albumPlayCounts, `${norm(t.album)}___${norm(t.artist)}`, plays);
+      bump(genrePlayCounts, t.genre || canonicalizeGenre(t.genre, t), plays);
+    }
+  });
+
+  // Score albums: lower total play count across album + artist + genre = higher discovery priority
+  const scoredAlbums = (state.albums || []).map(alb => {
+    const ak = norm(alb.artist);
+    const bk = `${norm(alb.title)}___${ak}`;
+    const g = canonicalizeGenre(alb.genre || '', alb);
+    const aPlays = artistPlayCounts.get(ak) || 0;
+    const bPlays = albumPlayCounts.get(bk) || 0;
+    const gPlays = genrePlayCounts.get(g) || 0;
+    // Lower score = less listened (more under-explored)
+    const listenWeight = bPlays * 6 + aPlays * 3 + Math.min(gPlays, 20) * 0.5;
+    const hasCoverBonus = alb.cover ? -0.35 : 0;
+    const jitter = Math.random() * 1.2;
+    return { alb, g, bPlays, aPlays, gPlays, score: listenWeight + hasCoverBonus + jitter };
+  }).sort((a, b) => a.score - b.score);
+
+  // Pick up to 15 diverse under-explored albums (preferring unique artists)
+  const pickedAlbums = [];
+  const usedArtists = new Set();
+  for (const entry of scoredAlbums) {
+    if (pickedAlbums.length >= 15) break;
+    const ak = norm(entry.alb.artist);
+    if (ak && usedArtists.has(ak)) continue;
+    if (ak) usedArtists.add(ak);
+    pickedAlbums.push(entry);
+  }
+  if (pickedAlbums.length < 15) {
+    for (const entry of scoredAlbums) {
+      if (pickedAlbums.length >= 15) break;
+      if (!pickedAlbums.includes(entry)) pickedAlbums.push(entry);
+    }
+  }
+
+  // Pick up to 15 under-explored tracks (1 per album for variety)
+  const pickedTracks = [];
+  for (const entry of pickedAlbums) {
+    const trks = entry.alb.tracks || [];
+    if (trks.length > 0) {
+      const unplayed = trks.find(t => getTrackPlayCount(t) === 0) || trks[0];
+      pickedTracks.push({
+        track: unplayed,
+        alb: entry.alb,
+        g: entry.g,
+        bPlays: entry.bPlays,
+        aPlays: entry.aPlays,
+        gPlays: entry.gPlays
+      });
+    }
+  }
+
+  _underExploredAlbums = pickedAlbums;
+  _underExploredTracks = pickedTracks;
+  _underExploredCacheVersion = libraryCollectionVersion;
+  return { albums: _underExploredAlbums, tracks: _underExploredTracks };
+}
+
+function renderNewReleases(tab = 'albums', page = 0) {
+  currentNewReleasesTab = tab;
   const tabAlbums = document.getElementById('tabNewReleaseAlbums');
   const tabTracks = document.getElementById('tabNewReleaseTracks');
   if (tabAlbums && tabTracks) {
     tabAlbums.classList.toggle('active', tab === 'albums');
     tabTracks.classList.toggle('active', tab === 'tracks');
-    tabAlbums.onclick = () => renderNewReleases('albums');
-    tabTracks.onclick = () => renderNewReleases('tracks');
+    tabAlbums.onclick = () => renderNewReleases('albums', 0);
+    tabTracks.onclick = () => renderNewReleases('tracks', 0);
   }
 
   const btnMore = document.getElementById('btnNewReleasesMore');
-  if (btnMore) btnMore.onclick = () => navigateTo('albums');
+  if (btnMore) btnMore.onclick = () => navigateTo(tab === 'tracks' ? 'tracks' : 'albums');
 
-  const featured = (state.albums && state.albums[1]) || (state.albums && state.albums[0]) || {
-    title: 'BREAK EVEN',
-    artist: 'ILLIT',
-    year: 2026
-  };
+  const { albums: albumPool, tracks: trackPool } = buildUnderExploredPools();
+  const pool = tab === 'tracks' ? trackPool : albumPool;
+  const PAGE_SIZE = 5;
+  const totalPages = Math.max(1, Math.ceil(pool.length / PAGE_SIZE));
+  currentNewReleasesPage = Math.max(0, Math.min(page, totalPages - 1));
 
-  const featArtistEl = document.getElementById('featuredReleaseArtist');
-  if (featArtistEl) featArtistEl.textContent = featured.artist || 'ILLIT';
-
-  const featTitleEl = document.getElementById('featuredReleaseTitle');
-  if (featTitleEl) featTitleEl.textContent = featured.title || 'BREAK EVEN';
-
-  const featDateEl = document.getElementById('featuredReleaseDate');
-  if (featDateEl) featDateEl.textContent = `${featured.year || 2026} 十一月 26`;
-
-  const featImg = document.getElementById('featuredReleaseImg');
-  if (featImg) {
-    featImg.src = formatCoverSrc(featured.cover) || createSvgCover(featured.title, featured.artist);
+  const btnPrev = document.getElementById('btnNewReleasesPrev');
+  const btnNext = document.getElementById('btnNewReleasesNext');
+  if (btnPrev) {
+    const canPrev = currentNewReleasesPage > 0;
+    btnPrev.disabled = !canPrev;
+    btnPrev.style.opacity = canPrev ? '1' : '0.4';
+    btnPrev.onclick = () => {
+      if (currentNewReleasesPage > 0) renderNewReleases(currentNewReleasesTab, currentNewReleasesPage - 1);
+    };
+  }
+  if (btnNext) {
+    const canNext = currentNewReleasesPage < totalPages - 1;
+    btnNext.disabled = !canNext;
+    btnNext.style.opacity = canNext ? '1' : '0.4';
+    btnNext.onclick = () => {
+      if (currentNewReleasesPage < totalPages - 1) renderNewReleases(currentNewReleasesTab, currentNewReleasesPage + 1);
+    };
   }
 
+  const startIdx = currentNewReleasesPage * PAGE_SIZE;
+  const pageItems = pool.slice(startIdx, startIdx + PAGE_SIZE);
+
+  const featuredEntry = pageItems[0];
+  const featArtistEl = document.getElementById('featuredReleaseArtist');
+  const featTitleEl = document.getElementById('featuredReleaseTitle');
+  const featDateEl = document.getElementById('featuredReleaseDate');
+  const featDescEl = document.getElementById('featuredReleaseDesc');
+  const featImg = document.getElementById('featuredReleaseImg');
   const featCard = document.getElementById('featuredReleaseCard');
-  if (featCard) featCard.onclick = () => openAlbumDetail(featured);
+
+  if (featuredEntry) {
+    const alb = featuredEntry.alb;
+    const isTrackMode = tab === 'tracks' && featuredEntry.track;
+    const dispArtist = (isTrackMode ? featuredEntry.track.artist : alb.artist) || '未知演出者';
+    const dispTitle = (isTrackMode ? featuredEntry.track.title : alb.title) || '未命名作品';
+    const gInfo = getGenreIllustrationInfo(featuredEntry.g);
+    const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : featuredEntry.g) || '音樂';
+    const trackCount = (alb.tracks && alb.tracks.length) || 0;
+
+    if (featArtistEl) featArtistEl.textContent = dispArtist;
+    if (featTitleEl) featTitleEl.textContent = dispTitle;
+    if (featDateEl) {
+      const reasonTag = featuredEntry.gPlays === 0
+        ? `少聽曲風 • ${gLabel}`
+        : (featuredEntry.aPlays === 0 ? `少聽歌手 • ${gLabel}` : `尚未聆聽 • ${gLabel}`);
+      featDateEl.textContent = alb.year ? `${alb.year} 年 • ${reasonTag}` : reasonTag;
+    }
+    if (featDescEl) {
+      const lead = featuredEntry.bPlays === 0
+        ? `您尚未聆聽過 ${dispArtist} 的《${alb.title}》`
+        : `您較少聆聽 ${dispArtist} 的《${alb.title}》`;
+      const tail = isTrackMode
+        ? `，推薦從〈${dispTitle}〉開始探索您曲庫中「${gLabel}」風格的隱藏佳作。`
+        : `（${gLabel}${trackCount > 0 ? ` • 共 ${trackCount} 首` : ''}），為您從音樂庫中發掘較少接觸的精彩作品。`;
+      featDescEl.textContent = `${lead}${tail}`;
+    }
+    if (featImg) {
+      featImg.src = formatCoverSrc(alb.cover) || createSvgCover(dispTitle, dispArtist);
+    }
+    if (featCard) {
+      featCard.onclick = () => {
+        if (isTrackMode) playTrackList([featuredEntry.track], 0);
+        else openAlbumDetail(alb);
+      };
+    }
+  } else {
+    if (featArtistEl) featArtistEl.textContent = '探索音樂庫';
+    if (featTitleEl) featTitleEl.textContent = '尚無可推薦作品';
+    if (featDateEl) featDateEl.textContent = '';
+    if (featDescEl) featDescEl.textContent = '匯入本機音樂或連線 TIDAL 後，系統將自動為您發掘曲庫中較少聆聽的歌手、專輯與曲風。';
+  }
 
   const compactGrid = document.getElementById('newReleasesCompactGrid');
   if (!compactGrid) return;
   compactGrid.innerHTML = '';
 
-  const candidates = (state.albums || []).slice(2, 6);
-  const fallbackList = [
-    { title: 'Danny Elfman: Cello Concerto & Film Music', artist: 'Gautier Capuçon / Jérôme Ducros', date: '20 十一月 2026' },
-    { title: 'RITUAL', artist: 'Yo-Yo Ma / Iceland Symphony Orchestra', date: '7 十一月 2026' },
-    { title: 'Danny Elfman: Cello Concerto & Film Music', artist: 'Gautier Capuçon', date: '26 八月 2026' },
-    { title: 'JAZZED', artist: 'Eva Cassidy', date: '13 十一月 2026' }
-  ];
+  const restItems = pageItems.slice(1, 5);
+  restItems.forEach((entry) => {
+    const alb = entry.alb;
+    const isTrackMode = tab === 'tracks' && entry.track;
+    const dispArtist = (isTrackMode ? entry.track.artist : alb.artist) || '未知演出者';
+    const dispTitle = (isTrackMode ? entry.track.title : alb.title) || '未命名作品';
+    const gInfo = getGenreIllustrationInfo(entry.g);
+    const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : entry.g) || '';
+    const subTag = entry.aPlays === 0
+      ? `少聽歌手${gLabel ? ` • ${gLabel}` : ''}`
+      : (entry.gPlays === 0 ? `少聽曲風 • ${gLabel}` : (alb.year ? `${alb.year} 年${gLabel ? ` • ${gLabel}` : ''}` : gLabel));
 
-  for (let i = 0; i < 4; i++) {
-    const alb = candidates[i] || fallbackList[i];
     const item = document.createElement('div');
     item.className = 'compact-release-item';
-    const cSrc = alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(alb.title, alb.artist);
+    const cSrc = alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(dispTitle, dispArtist);
     item.innerHTML = `
       <div class="compact-release-info">
-        <div class="compact-release-artist" title="${escapeXml(alb.artist)}">${escapeXml(alb.artist)}</div>
-        <div class="compact-release-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
-        <div class="compact-release-date">${alb.date || (alb.year ? `${alb.year} 年發行` : '2026 年最新發行')}</div>
+        <div class="compact-release-artist" title="${escapeXml(dispArtist)}">${escapeXml(dispArtist)}</div>
+        <div class="compact-release-title" title="${escapeXml(dispTitle)}">${escapeXml(dispTitle)}</div>
+        <div class="compact-release-date">${escapeXml(subTag)}</div>
       </div>
       <img src="${cSrc}" class="compact-release-cover" alt="Cover" loading="lazy">
     `;
     item.onclick = () => {
-      if (alb.id || alb.tracks) openAlbumDetail(alb);
-      else showToast(`正在載入 ${alb.title}...`);
+      if (isTrackMode) playTrackList([entry.track], 0);
+      else openAlbumDetail(alb);
     };
     compactGrid.appendChild(item);
-  }
+  });
 }
 
 function renderRooDailyMixes() {
