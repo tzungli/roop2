@@ -72,12 +72,13 @@ pub async fn discover_dlna_devices(timeout_sec: u64) -> Result<Vec<DlnaDevice>> 
         let _ = socket.send_to(search_msg.as_bytes(), dest).await;
     }
 
-    let mut devices = HashMap::new();
+    let mut seen_locations = std::collections::HashSet::new();
+    let mut fetch_handles = Vec::new();
     let mut buf = [0u8; 4096];
     let end_time = tokio::time::Instant::now() + Duration::from_secs(timeout_sec.max(2));
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(2))
         .build()?;
 
     while tokio::time::Instant::now() < end_time {
@@ -86,12 +87,14 @@ pub async fn discover_dlna_devices(timeout_sec: u64) -> Result<Vec<DlnaDevice>> 
             Ok(Ok((len, _addr))) => {
                 let text = String::from_utf8_lossy(&buf[..len]);
                 if let Some(location) = parse_header_val(&text, "LOCATION") {
-                    if !devices.contains_key(&location) {
-                        if let Ok(dev) = fetch_device_desc(&client, &location).await {
-                            if dev.av_transport_url.starts_with("http") {
-                                devices.insert(location, dev);
+                    if seen_locations.insert(location.clone()) {
+                        let c = client.clone();
+                        fetch_handles.push(tokio::spawn(async move {
+                            match fetch_device_desc(&c, &location).await {
+                                Ok(dev) if dev.av_transport_url.starts_with("http") => Some(dev),
+                                _ => None,
                             }
-                        }
+                        }));
                     }
                 }
             }
@@ -99,21 +102,71 @@ pub async fn discover_dlna_devices(timeout_sec: u64) -> Result<Vec<DlnaDevice>> 
         }
     }
 
-    // Deduplicate by device UDN
+    // Collect all concurrently fetched descriptions and deduplicate by UDN
     let mut unique: HashMap<String, DlnaDevice> = HashMap::new();
-    for (_loc, dev) in devices {
-        unique.entry(dev.id.clone()).or_insert(dev);
+    for handle in fetch_handles {
+        if let Ok(Some(dev)) = handle.await {
+            unique.entry(dev.id.clone()).or_insert(dev);
+        }
     }
 
     Ok(unique.into_values().collect())
 }
 
-pub async fn probe_device_ip(ip: &str) -> Result<DlnaDevice> {
+/// Fast direct HTTP probe for a previously known UPnP description URL (< 100ms on LAN).
+pub async fn probe_device_location(location: &str, timeout_ms: u64) -> Result<DlnaDevice> {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(3))
+        .timeout(Duration::from_millis(timeout_ms.max(200)))
+        .build()?;
+    let dev = fetch_device_desc(&client, location).await?;
+    if dev.av_transport_url.starts_with("http") {
+        Ok(dev)
+    } else {
+        bail!("Device at {} has no valid AVTransport URL", location)
+    }
+}
+
+/// Concurrently probe a list of remembered `(location, ip)` entries.
+/// Tries exact `location` first (~20-80ms); if the port changed on reboot, falls back to fast parallel IP probe.
+pub async fn probe_known_devices(entries: &[(String, String)]) -> Vec<DlnaDevice> {
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    let mut handles = Vec::with_capacity(entries.len());
+    for (loc, ip) in entries {
+        let loc = loc.clone();
+        let ip = ip.clone();
+        handles.push(tokio::spawn(async move {
+            if !loc.is_empty() {
+                if let Ok(dev) = probe_device_location(&loc, 800).await {
+                    return Some(dev);
+                }
+            }
+            if !ip.is_empty() {
+                if let Ok(dev) = probe_device_ip_fast(&ip, 700).await {
+                    return Some(dev);
+                }
+            }
+            None
+        }));
+    }
+
+    let mut unique: HashMap<String, DlnaDevice> = HashMap::new();
+    for h in handles {
+        if let Ok(Some(dev)) = h.await {
+            unique.entry(dev.id.clone()).or_insert(dev);
+        }
+    }
+    unique.into_values().collect()
+}
+
+/// Fast parallel IP probe across common UPnP renderer ports/paths.
+pub async fn probe_device_ip_fast(ip: &str, timeout_ms: u64) -> Result<DlnaDevice> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(timeout_ms.max(250)))
         .build()?;
 
-    let candidate_ports = [8080, 49152, 49153, 49154, 1400, 80, 2869, 50002, 49494, 8008, 9000];
+    let candidate_ports = [49152, 49153, 49154, 8080, 1400, 49494, 50002, 80, 2869, 8008, 9000];
     let candidate_paths = [
         "description.xml",
         "devicedesc.xml",
@@ -121,21 +174,32 @@ pub async fn probe_device_ip(ip: &str) -> Result<DlnaDevice> {
         "upnp/desc.xml",
         "xml/device_description.xml",
         "dmr.xml",
-        "wps_device.xml",
     ];
 
+    let mut handles = Vec::new();
     for port in candidate_ports {
         for path in candidate_paths {
             let url = format!("http://{}:{}/{}", ip, port, path);
-            if let Ok(dev) = fetch_device_desc(&client, &url).await {
-                if dev.av_transport_url.starts_with("http") {
-                    return Ok(dev);
+            let c = client.clone();
+            handles.push(tokio::spawn(async move {
+                match fetch_device_desc(&c, &url).await {
+                    Ok(dev) if dev.av_transport_url.starts_with("http") => Some(dev),
+                    _ => None,
                 }
-            }
+            }));
         }
     }
 
+    for h in handles {
+        if let Ok(Some(dev)) = h.await {
+            return Ok(dev);
+        }
+    }
     bail!("Device not found at IP: {}", ip);
+}
+
+pub async fn probe_device_ip(ip: &str) -> Result<DlnaDevice> {
+    probe_device_ip_fast(ip, 1500).await
 }
 
 fn parse_header_val(resp: &str, header: &str) -> Option<String> {

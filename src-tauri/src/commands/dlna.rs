@@ -1,5 +1,85 @@
+use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
-use roo_dlna::{discover_dlna_devices, probe_device_ip, DlnaDevice, DlnaManager};
+use roo_dlna::{discover_dlna_devices, probe_device_ip, probe_known_devices, DlnaDevice, DlnaManager};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct KnownDlnaDevice {
+    pub id: String,
+    pub name: String,
+    pub ip: String,
+    pub location: String,
+    pub last_used: u64,
+}
+
+fn known_devices_path() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("rooPlayer")
+        .join("dlna_known_devices.json")
+}
+
+pub fn load_known_dlna_devices() -> Vec<KnownDlnaDevice> {
+    let path = known_devices_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn remember_dlna_device(dev: &DlnaDevice) {
+    if dev.location.is_empty() && dev.ip.is_empty() {
+        return;
+    }
+    let path = known_devices_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut list = load_known_dlna_devices();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    list.retain(|k| k.id != dev.id && !(k.ip == dev.ip && !dev.ip.is_empty() && k.name == dev.name));
+    list.insert(
+        0,
+        KnownDlnaDevice {
+            id: dev.id.clone(),
+            name: dev.name.clone(),
+            ip: dev.ip.clone(),
+            location: dev.location.clone(),
+            last_used: now,
+        },
+    );
+    list.truncate(16);
+
+    if let Ok(json) = serde_json::to_string_pretty(&list) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+/// Fast warm-probe of remembered DLNA devices (used on startup & start of scan).
+pub async fn warm_probe_known_dlna(app: &AppHandle, manager: &DlnaManager) -> Vec<DlnaDevice> {
+    let known = load_known_dlna_devices();
+    if known.is_empty() {
+        return Vec::new();
+    }
+    let pairs: Vec<(String, String)> = known.into_iter().map(|k| (k.location, k.ip)).collect();
+    let found = probe_known_devices(&pairs).await;
+    if !found.is_empty() {
+        let mut merged = manager.get_devices();
+        for dev in &found {
+            if let Some(existing) = merged.iter_mut().find(|d| d.id == dev.id) {
+                *existing = dev.clone();
+            } else {
+                merged.push(dev.clone());
+            }
+        }
+        manager.set_devices(merged.clone());
+        let _ = app.emit("dlna:devicesChanged", &merged);
+    }
+    found
+}
 
 pub fn resolve_local_ip_for_target(target_host_or_ip: &str) -> String {
     let host = if let Ok(url) = reqwest::Url::parse(target_host_or_ip) {
@@ -46,7 +126,29 @@ pub async fn dlna_get_devices(manager: State<'_, DlnaManager>) -> Result<Vec<Dln
 
 #[tauri::command]
 pub async fn dlna_scan(app: AppHandle, manager: State<'_, DlnaManager>) -> Result<Vec<DlnaDevice>, String> {
-    let devices = discover_dlna_devices(3).await.map_err(|e| e.to_string())?;
+    // Phase 1 (< 100ms): Instantly probe remembered DLNA devices by location/IP and emit right away
+    let fast_found = warm_probe_known_dlna(&app, &manager).await;
+
+    // Phase 2: Full concurrent SSDP multicast discovery to catch new or DHCP-changed devices
+    let ssdp_found = discover_dlna_devices(2).await.unwrap_or_default();
+
+    let mut merged: std::collections::HashMap<String, DlnaDevice> = std::collections::HashMap::new();
+    for dev in fast_found {
+        merged.insert(dev.id.clone(), dev);
+    }
+    for dev in ssdp_found {
+        merged.insert(dev.id.clone(), dev);
+    }
+
+    // Refresh remembered device location/IP if a previously known device changed address
+    let known = load_known_dlna_devices();
+    for dev in merged.values() {
+        if known.iter().any(|k| k.id == dev.id && (k.ip != dev.ip || k.location != dev.location)) {
+            remember_dlna_device(dev);
+        }
+    }
+
+    let devices: Vec<DlnaDevice> = merged.into_values().collect();
     manager.set_devices(devices.clone());
     let _ = app.emit("dlna:devicesChanged", &devices);
     Ok(devices)
@@ -55,17 +157,26 @@ pub async fn dlna_scan(app: AppHandle, manager: State<'_, DlnaManager>) -> Resul
 #[tauri::command]
 pub async fn dlna_probe_ip(manager: State<'_, DlnaManager>, ip: String) -> Result<DlnaDevice, String> {
     let dev = probe_device_ip(&ip).await.map_err(|e| e.to_string())?;
+    remember_dlna_device(&dev);
     let mut list = manager.get_devices();
-    if !list.iter().any(|d| d.id == dev.id) {
+    if let Some(existing) = list.iter_mut().find(|d| d.id == dev.id) {
+        *existing = dev.clone();
+    } else {
         list.push(dev.clone());
-        manager.set_devices(list);
     }
+    manager.set_devices(list);
     Ok(dev)
 }
 
 #[tauri::command]
 pub async fn dlna_select_device(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
-    Ok(manager.select_device(&device_id))
+    let ok = manager.select_device(&device_id);
+    if ok {
+        if let Some(dev) = manager.get_devices().into_iter().find(|d| d.id == device_id) {
+            remember_dlna_device(&dev);
+        }
+    }
+    Ok(ok)
 }
 
 static TOKEN_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -88,6 +199,9 @@ pub async fn dlna_play_track(
     let duration_sec = track.get("duration").and_then(|v| v.as_f64());
 
     let dev = manager.get_devices().into_iter().find(|d| d.id == device_id);
+    if let Some(ref d) = dev {
+        remember_dlna_device(d);
+    }
     let target_ip_or_host = dev.as_ref()
         .map(|d| if !d.ip.is_empty() { d.ip.clone() } else { d.location.clone() })
         .unwrap_or_default();

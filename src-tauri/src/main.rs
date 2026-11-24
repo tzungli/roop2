@@ -149,6 +149,12 @@ async fn main() {
                 setup_restored_flag.store(true, std::sync::atomic::Ordering::SeqCst);
             }
             let handle = app.handle().clone();
+            let dlna_warm_handle = app.handle().clone();
+            tokio::spawn(async move {
+                // Fast warm-probe of previously used DLNA devices on startup (< 100ms)
+                let mgr = dlna_warm_handle.state::<DlnaManager>();
+                let _ = commands::dlna::warm_probe_known_dlna(&dlna_warm_handle, &mgr).await;
+            });
             tokio::spawn(async move {
                 // Emergency fallback: reveal main window after 2.5s only if frontend failed to reveal it
                 tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
