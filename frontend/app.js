@@ -20098,6 +20098,17 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
   const pauseSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
   const volSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
 
+  let miniCoverSrc = 'icon.png';
+  let miniFallbackSrc = 'icon.png';
+  if (hasTrack) {
+    const foundAlb = typeof findAlbumForTrack === 'function' ? findAlbumForTrack(info.track) : null;
+    miniFallbackSrc = typeof createSvgCover === 'function'
+      ? createSvgCover(info.track.album, info.track.artist, '#27272a', '#09090b')
+      : 'icon.png';
+    const rawCov = info.track.cover || (foundAlb ? foundAlb.cover : null);
+    miniCoverSrc = (typeof formatCoverSrc === 'function' ? formatCoverSrc(rawCov) : rawCov) || miniFallbackSrc;
+  }
+
   card.innerHTML = `
     <div class="roon-zone-card-main">
       <span class="roon-zone-icon">${getRoonDeviceIconSvg(iconKind, false)}</span>
@@ -20108,7 +20119,7 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
         </div>
         ${hasTrack ? `
           <div class="roon-zone-track-line">
-            <img class="roon-zone-mini-cover" src="${escapeXml(info.track.cover || 'icon.png')}" alt="">
+            <img class="roon-zone-mini-cover" src="${escapeXml(miniCoverSrc)}" alt="">
             <span class="roon-zone-now-playing">${info.isPlaying ? '▶ ' : '⏸ '}${escapeXml(info.track.title || info.track.album || '')}</span>
           </div>
         ` : `<div class="roon-zone-idle-label">待命中</div>`}
@@ -20125,6 +20136,14 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
       <span class="roon-zone-vol-val">${volPct}%</span>
     </div>
   `;
+
+  const miniImg = card.querySelector('.roon-zone-mini-cover');
+  if (miniImg) {
+    miniImg.onerror = () => {
+      miniImg.onerror = null;
+      miniImg.src = miniFallbackSrc;
+    };
+  }
 
   card.querySelector('.roon-zone-card-main').addEventListener('click', () => {
     onSelect();
@@ -20252,8 +20271,14 @@ function syncPlayerBarForActiveZone() {
   if (track) {
     playerTitle.textContent = track.title || '未知曲目';
     playerArtist.textContent = `${track.artist || '未知藝術家'} — ${track.album || ''}`.replace(/ — $/, '');
-    if (playerAlbumArt) {
-      playerAlbumArt.src = track.cover || 'icon.png';
+    if (typeof playerCoverImg !== 'undefined' && playerCoverImg) {
+      const foundAlb = typeof findAlbumForTrack === 'function' ? findAlbumForTrack(track) : null;
+      const defaultPlayerCover = createSvgCover(track.album, track.artist, '#27272a', '#09090b');
+      playerCoverImg.src = formatCoverSrc(track.cover || (foundAlb ? foundAlb.cover : null)) || defaultPlayerCover;
+      playerCoverImg.onerror = () => {
+        playerCoverImg.onerror = null;
+        playerCoverImg.src = defaultPlayerCover;
+      };
     }
     const z = ensureZoneState(state.activeAudioZone || 'local', state.activeDlnaDevice);
     const cur = state.activeAudioZone === 'local'
