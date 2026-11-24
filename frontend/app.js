@@ -2171,8 +2171,9 @@ function rebuildLibraryCollections() {
     try { refreshKkboxMatches(); } catch (e) {}
   }
 
-  // Trigger monthly roopmix_01..05 creation/refresh on the first run of each month
+  // Trigger monthly roopmix_01..05 and daily 3-artist mix playlists
   try { ensureMonthlyRoopMixPlaylists(); } catch (e) { console.warn('ensureMonthlyRoopMixPlaylists failed:', e); }
+  try { ensureDailyArtistMixPlaylists(); } catch (e) { console.warn('ensureDailyArtistMixPlaylists failed:', e); }
 
   // Trigger background online resolution for any remaining unknown album artists
   setTimeout(() => autoResolveUnknownAlbumArtists(), 1000);
@@ -3493,31 +3494,172 @@ function renderNewReleases(tab = 'albums', page = 0) {
   });
 }
 
+const DAILYMIX_DATE_KEY = 'roo_dailymix_last_date';
+const DAILYMIX_IDS = ['dailymix_01', 'dailymix_02', 'dailymix_03'];
+
+function getCurrentDateKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function ensureDailyArtistMixPlaylists(force = false) {
+  const allTracks = Array.isArray(state.tracks) ? state.tracks : [];
+  if (allTracks.length === 0) return;
+
+  const todayKey = getCurrentDateKey();
+  const existingPlaylists = getPlaylists();
+  const hasAllThree = DAILYMIX_IDS.every(id => existingPlaylists.some(p => p && p.id === id));
+  let lastDate = '';
+  try { lastDate = localStorage.getItem(DAILYMIX_DATE_KEY) || ''; } catch (_) {}
+
+  if (!force && lastDate === todayKey && hasAllThree) {
+    return;
+  }
+
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const stats = getPlayStatsRef();
+  const history = getPlaybackHistory() || [];
+
+  // Group all library tracks (local + TIDAL) by normalized artist name
+  const tracksByArtist = new Map(); // norm -> { name, tracks: [] }
+  for (let i = 0; i < allTracks.length; i++) {
+    const t = allTracks[i];
+    if (!t || !t.artist || isUnknownArtist(t.artist)) continue;
+    const k = norm(t.artist);
+    let bucket = tracksByArtist.get(k);
+    if (!bucket) {
+      bucket = { name: String(t.artist).trim(), tracks: [], score: 0 };
+      tracksByArtist.set(k, bucket);
+    }
+    bucket.tracks.push(t);
+    const tKey = t.id || `${t.title}___${t.artist}`;
+    const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+    bucket.score += plays * 3 + (isTrackFavorite(t) ? 2 : 0) + 0.02;
+  }
+
+  // Boost score from playback history
+  history.slice(0, 150).forEach((h, idx) => {
+    if (!h || !h.artist) return;
+    const bucket = tracksByArtist.get(norm(h.artist));
+    if (bucket) bucket.score += idx < 30 ? 4 : 2;
+  });
+
+  // Boost score from favorite artists
+  ((state.favorites && state.favorites.artists) || []).forEach(art => {
+    const bucket = tracksByArtist.get(norm(art));
+    if (bucket) bucket.score += 6;
+  });
+
+  // Rank top 20 most-listened artists that exist in the library
+  const top20 = Array.from(tracksByArtist.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20);
+
+  if (top20.length === 0) return;
+
+  // Shuffle top 20 and pick 3 artists at random
+  const shuffleInPlace = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+  const chosen3 = shuffleInPlace([...top20]).slice(0, Math.min(3, top20.length));
+
+  const nowTs = Date.now();
+  const generatedDaily = chosen3.map((bucket, idx) => {
+    // Group this artist's tracks by album so the 10 songs are randomly drawn across their albums
+    const byAlbum = new Map();
+    bucket.tracks.forEach(t => {
+      const ak = norm(t.album || 'unknown');
+      if (!byAlbum.has(ak)) byAlbum.set(ak, []);
+      byAlbum.get(ak).push(t);
+    });
+    const albumLists = shuffleInPlace(Array.from(byAlbum.values()).map(list => shuffleInPlace([...list])));
+
+    const picked = [];
+    const seenIds = new Set();
+    let round = 0;
+    while (picked.length < 10) {
+      let addedInRound = false;
+      for (let a = 0; a < albumLists.length && picked.length < 10; a++) {
+        const list = albumLists[a];
+        if (round < list.length) {
+          const trk = list[round];
+          const tk = trk.id || trk.filePath || `${norm(trk.title)}___${norm(trk.album)}`;
+          if (!seenIds.has(tk)) {
+            seenIds.add(tk);
+            picked.push(trk);
+            addedInRound = true;
+          }
+        }
+      }
+      if (!addedInRound) break;
+      round++;
+    }
+
+    const items = picked.map(playlistTrackEntry).filter(Boolean);
+    const albumNames = [];
+    const seenAlbNames = new Set();
+    items.forEach(it => {
+      const an = String(it.album || '').trim();
+      if (an && !seenAlbNames.has(norm(an))) {
+        seenAlbNames.add(norm(an));
+        albumNames.push(an);
+      }
+    });
+    const subtitle = albumNames.length > 0
+      ? `精選自《${albumNames.slice(0, 2).join('》、《')}》${albumNames.length > 2 ? '等專輯' : ''} • ${items.length} 首`
+      : `每日精選 • ${items.length} 首`;
+    const firstCover = items.length > 0 ? (items[0].cover || resolvePlaylistFirstAlbumCover({ items })) : '';
+
+    return {
+      id: DAILYMIX_IDS[idx],
+      name: bucket.name,
+      isDailyMix: true,
+      artistName: bucket.name,
+      subtitle,
+      dateKey: todayKey,
+      cover: firstCover,
+      createdAt: nowTs,
+      updatedAt: nowTs,
+      items
+    };
+  });
+
+  // Preserve roopmix_01..05 and all user-created playlists; replace old dailymix_01..03 in place
+  const otherPlaylists = existingPlaylists.filter(p => p && !DAILYMIX_IDS.includes(p.id));
+  // Keep roopmix_01..05 first if present, then daily mixes, then user playlists
+  const roopMixes = otherPlaylists.filter(p => ROOPMIX_IDS.includes(p.id));
+  const userPlaylists = otherPlaylists.filter(p => !ROOPMIX_IDS.includes(p.id));
+  persistPlaylists([...roopMixes, ...generatedDaily, ...userPlaylists]);
+
+  try { localStorage.setItem(DAILYMIX_DATE_KEY, todayKey); } catch (_) {}
+}
+
 function renderRooDailyMixes() {
   const grid = document.getElementById('dailyMixesGrid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  const mixDefs = [
-    {
-      artist: (state.artists && state.artists[0] && state.artists[0].name) || '9m88',
-      collabs: '與 林宥嘉、茄子蛋、理想混蛋 等共同演出'
-    },
-    {
-      artist: (state.artists && state.artists[1] && state.artists[1].name) || 'Joan Baez',
-      collabs: '與 Bob Dylan、凱特史帝文斯、Elton John 等共同演出'
-    },
-    {
-      artist: (state.artists && state.artists[2] && state.artists[2].name) || 'Acoustic Collabo',
-      collabs: '與 金倫我、WOODZ、復活樂團 等共同演出'
-    }
-  ];
+  const allPlaylists = getPlaylists();
+  const dailyMixes = DAILYMIX_IDS
+    .map(id => allPlaylists.find(p => p && p.id === id))
+    .filter(Boolean);
 
-  mixDefs.forEach(mix => {
+  if (dailyMixes.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 18px; color: var(--text-muted); font-size: 13px;">匯入並聆聽音樂後，系統將於每日自動為您從最常聽的歌手建立 3 組精選合輯</div>';
+    return;
+  }
+
+  dailyMixes.forEach(pl => {
     const card = document.createElement('div');
     card.className = 'daily-mix-card';
-    const alb = (state.albums || []).find(a => a.artist === mix.artist) || state.albums[0];
-    const bgUrl = alb && alb.cover ? formatCoverSrc(alb.cover) : '';
+    const bgUrl = resolvePlaylistFirstAlbumCover(pl) || '';
 
     card.innerHTML = `
       <div class="daily-mix-bg" style="background-image: url('${bgUrl}');"></div>
@@ -3525,21 +3667,15 @@ function renderRooDailyMixes() {
       <div class="daily-mix-content">
         <div>
           <span class="mix-tag">每日精選合輯</span>
-          <div class="mix-title">${escapeXml(mix.artist)} 合輯</div>
+          <div class="mix-title" title="${escapeXml(pl.name)}">${escapeXml(pl.name)}</div>
         </div>
-        <div class="mix-sub">${escapeXml(mix.collabs)}</div>
+        <div class="mix-sub" title="${escapeXml(pl.subtitle || '')}">${escapeXml(pl.subtitle || `共 ${(pl.items || []).length} 首歌曲`)}</div>
       </div>
     `;
 
     card.onclick = () => {
-      const tracks = (state.tracks || []).filter(t => t.artist && t.artist.includes(mix.artist));
-      if (tracks.length) {
-        setQueueAndPlay(tracks, 0);
-        showToast(`開始播放「${mix.artist} 合輯」`);
-      } else if (state.tracks && state.tracks.length) {
-        setQueueAndPlay(state.tracks.slice(0, 15), 0);
-        showToast(`開始播放「${mix.artist} 合輯」`);
-      }
+      navigateTo('playlists');
+      openPlaylistDetail(pl.id);
     };
 
     grid.appendChild(card);
