@@ -296,9 +296,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .nav-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--text-muted);
   padding: 0 10px 6px 10px;
@@ -428,14 +428,6 @@ h1, h2, h3, h4, h5, h6 {
 
 #mainContent:has(#viewDsp.active) .content-history-nav {
   display: none !important;
-}
-
-#mainContent:has(#viewOverview.active) .content-history-nav {
-  width: 760px;
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  box-sizing: border-box;
 }
 
 .content-view {
