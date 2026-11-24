@@ -18891,6 +18891,8 @@ function setupScannerEvents() {
       const currentPlayStats = getPlayStats();
       const currentPlaybackHistory = getPlaybackHistory();
       const currentRecentAlbums = state.recentlyPlayedAlbums || [];
+      const currentAlbumRatings = getAlbumRatingsMap();
+      const currentListenLater = getListenLaterAlbums();
 
       const res = await window.electronAPI.exportLibrary(null, {
         favorites: currentFavorites,
@@ -18900,7 +18902,9 @@ function setupScannerEvents() {
         networkShares: currentNetworkShares,
         playStats: currentPlayStats,
         playbackHistory: currentPlaybackHistory,
-        recentlyPlayedAlbums: currentRecentAlbums
+        recentlyPlayedAlbums: currentRecentAlbums,
+        albumRatings: currentAlbumRatings,
+        listenLater: currentListenLater
       });
       if (res && res.canceled) return;
 
@@ -18911,7 +18915,9 @@ function setupScannerEvents() {
         const plCount = res.playlistCount || 0;
         const netFCount = res.networkFolderCount || 0;
         const histCount = res.historyCount || 0;
-        alert(`🎉 資料庫匯出成功！\n\n已儲存至：${res.filePath}\n• 收錄資料夾：${res.folderCount} 個 (含 ${netFCount} 個 SAMBA 網路資料夾)\n• 音訊曲目：${res.trackCount} 首\n• 我的最愛：${favAlbs} 張專輯 / ${favTrks} 首歌曲 / ${favArts} 位演出者\n• 播放清單：${plCount} 個\n• 包含 ${histCount} 筆播放歷史紀錄與完整統計次數`);
+        const ratingCount = res.ratingCount || 0;
+        const llCount = res.listenLaterCount || 0;
+        alert(`🎉 資料庫匯出成功！\n\n已儲存至：${res.filePath}\n• 收錄資料夾：${res.folderCount} 個 (含 ${netFCount} 個 SAMBA 網路資料夾)\n• 音訊曲目：${res.trackCount} 首\n• 我的最愛：${favAlbs} 張專輯 / ${favTrks} 首歌曲 / ${favArts} 位演出者\n• 專輯評分：${ratingCount} 筆 / 稍後聆聽：${llCount} 張\n• 播放清單：${plCount} 個\n• 包含 ${histCount} 筆播放歷史紀錄與完整統計次數`);
       } else {
         alert(`❌ 資料庫匯出失敗：${(res && res.error) || '未知錯誤'}`);
       }
@@ -19052,26 +19058,68 @@ function setupScannerEvents() {
           res.importedPlaylists.forEach(pl => {
             if (pl && pl.name) {
               const existingIdx = curPlaylists.findIndex(p => p.id === pl.id || p.name === pl.name);
+              const incomingItems = Array.isArray(pl.items) ? pl.items : (Array.isArray(pl.tracks) ? pl.tracks : []);
               if (existingIdx >= 0) {
                 const existingPl = curPlaylists[existingIdx];
-                const seenTrk = new Set((existingPl.tracks || []).map(t => t.id || t.filePath || t.title));
-                (pl.tracks || []).forEach(t => {
+                if (!Array.isArray(existingPl.items)) existingPl.items = Array.isArray(existingPl.tracks) ? existingPl.tracks : [];
+                const seenTrk = new Set(existingPl.items.map(t => t.id || t.filePath || t.title));
+                incomingItems.forEach(t => {
                   const k = t.id || t.filePath || t.title;
                   if (!seenTrk.has(k)) {
                     seenTrk.add(k);
-                    if (!existingPl.tracks) existingPl.tracks = [];
-                    existingPl.tracks.push(t);
+                    existingPl.items.push(t);
                   }
                 });
                 existingPl.updatedAt = new Date().toISOString();
                 playlistsMergedCount++;
               } else {
-                curPlaylists.push(pl);
+                const normalized = { ...pl, items: incomingItems };
+                curPlaylists.push(normalized);
                 playlistsMergedCount++;
               }
             }
           });
           persistPlaylists(curPlaylists);
+        }
+
+        // 3.65. Merge Album Ratings
+        if (res.importedAlbumRatings && typeof res.importedAlbumRatings === 'object' && !Array.isArray(res.importedAlbumRatings)) {
+          const curRatings = getAlbumRatingsMap();
+          let ratingsChanged = false;
+          Object.entries(res.importedAlbumRatings).forEach(([k, v]) => {
+            const stars = parseInt(v, 10);
+            if (k && stars >= 1 && stars <= 5 && curRatings[k] === undefined) {
+              curRatings[k] = stars;
+              ratingsChanged = true;
+            }
+          });
+          if (ratingsChanged) {
+            albumRatingsCache = curRatings;
+            try { localStorage.setItem(ALBUM_RATINGS_STORAGE_KEY, JSON.stringify(curRatings)); } catch (_) {}
+            if (state.activeAlbumDetail) renderDetailAlbumRating(state.activeAlbumDetail);
+          }
+        }
+
+        // 3.66. Merge Listen Later Albums
+        if (res.importedListenLater && Array.isArray(res.importedListenLater)) {
+          const curLL = getListenLaterAlbums();
+          const seenLL = new Set(curLL.map(item => item && item.key).filter(Boolean));
+          let llChanged = false;
+          res.importedListenLater.forEach(entry => {
+            if (entry && entry.key && !seenLL.has(entry.key)) {
+              seenLL.add(entry.key);
+              curLL.push({
+                ...entry,
+                coverUrl: sanitizeListenLaterCover(entry.coverUrl)
+              });
+              llChanged = true;
+            }
+          });
+          if (llChanged) {
+            curLL.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+            saveListenLaterAlbums(curLL);
+            renderRooListenLater();
+          }
         }
 
         // 3.7. Merge Network Folders & Shares

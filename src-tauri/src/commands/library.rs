@@ -191,6 +191,16 @@ pub async fn library_export(
         .and_then(|h| h.as_array())
         .map(|a| a.len())
         .unwrap_or(0);
+    let rating_count = extra
+        .get("albumRatings")
+        .and_then(|r| r.as_object())
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let listen_later_count = extra
+        .get("listenLater")
+        .and_then(|l| l.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
 
     let export_payload = serde_json::json!({
         "app": "rooPlayer",
@@ -218,7 +228,9 @@ pub async fn library_export(
         },
         "playlistCount": playlist_count,
         "networkFolderCount": net_folder_count,
-        "historyCount": history_count
+        "historyCount": history_count,
+        "ratingCount": rating_count,
+        "listenLaterCount": listen_later_count
     }))
 }
 
@@ -355,6 +367,8 @@ pub async fn library_import(
     let imported_play_stats = extra.get("playStats").cloned();
     let imported_playback_history = extra.get("playbackHistory").cloned();
     let imported_recently_played_albums = extra.get("recentlyPlayedAlbums").cloned();
+    let imported_album_ratings = extra.get("albumRatings").cloned();
+    let imported_listen_later = extra.get("listenLater").cloned();
 
     let all_tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
     let all_folders = state.db.get_folders().map_err(|e| e.to_string())?;
@@ -375,6 +389,8 @@ pub async fn library_import(
         "importedPlayStats": imported_play_stats,
         "importedPlaybackHistory": imported_playback_history,
         "importedRecentlyPlayedAlbums": imported_recently_played_albums,
+        "importedAlbumRatings": imported_album_ratings,
+        "importedListenLater": imported_listen_later,
         "report": {
             "folders": {
                 "added": folders_added,
