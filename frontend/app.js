@@ -9753,9 +9753,11 @@ async function playCurrentTrack() {
   // Record playback history (Recent 100 tracks, sorted newest to oldest)
   recordTrackPlaybackHistory(track, foundAlbum);
 
-  // Stop previous synth or native audio
-  stopDemoSynth();
-  nativeAudio.pause();
+  // Only stop previous local synth/audio when playing on the local zone (do not disturb background local playback when starting a DLNA zone)
+  if (state.activeAudioZone === 'local') {
+    stopDemoSynth();
+    nativeAudio.pause();
+  }
 
   // Update UI Elements
   playerTitle.textContent = track.title;
@@ -9796,18 +9798,11 @@ async function playCurrentTrack() {
 
   // 1. Play audio via DLNA if a network zone is selected
   if (state.activeAudioZone !== 'local' && state.activeDlnaDevice) {
-    isCurrentDsd = false;
-    isCurrentSox = false;
-    currentDsdOffset = 0;
-    currentSoxOffset = 0;
     dlnaResetPosClock(0);
     state.dlnaTotalSec = track.duration || 0;
     state.dlnaMaxProgressSec = 0;
     state.dlnaTrackStartTime = Date.now();
     state.dlnaHasStartedPlaying = false;
-    stopVirtualProgress();
-    stopDemoSynth();
-    nativeAudio.pause();
 
     if (track.isDemo || (!track.filePath && !track.isKkbox && !track.isTidal)) {
       showToast('⚠️ 示範音訊為合成示範曲，請選取本機音樂庫或線上串流歌曲進行 DLNA 串流播放');
@@ -14419,13 +14414,14 @@ function playPrevTrack() {
 function stopPlaybackAtEnd() {
   state.isPlaying = false;
   updatePlayPauseBtnUI();
-  stopDemoSynth();
-  stopVirtualProgress();
-  exclusiveStopStream();
-  if (nativeAudio.src) {
-    nativeAudio.pause();
-  }
-  if (state.activeAudioZone !== 'local' && state.activeDlnaDevice && window.electronAPI && window.electronAPI.stopDlna) {
+  if (state.activeAudioZone === 'local') {
+    stopDemoSynth();
+    stopVirtualProgress();
+    exclusiveStopStream();
+    if (nativeAudio.src) {
+      nativeAudio.pause();
+    }
+  } else if (state.activeDlnaDevice && window.electronAPI && window.electronAPI.stopDlna) {
     window.electronAPI.stopDlna(state.activeDlnaDevice.id).catch(() => {});
     clearDlnaPrepareUi();
   }
