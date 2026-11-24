@@ -16602,7 +16602,32 @@ function renderPlaylistsList() {
   if (detailView) detailView.style.display = 'none';
   listView.style.display = 'block';
 
+  const sortSelect = document.getElementById('playlistsSortSelect');
+  if (sortSelect && !sortSelect._boundSort) {
+    sortSelect._boundSort = true;
+    try {
+      const savedSort = localStorage.getItem('roo_playlists_sort');
+      if (savedSort) sortSelect.value = savedSort;
+    } catch (_) {}
+    sortSelect.addEventListener('change', () => {
+      try { localStorage.setItem('roo_playlists_sort', sortSelect.value); } catch (_) {}
+      renderPlaylistsList();
+    });
+  }
+  const sortMode = (sortSelect && sortSelect.value) || 'default';
+
   const playlists = getPlaylists();
+  if (sortMode === 'updatedDesc') {
+    playlists.sort((a, b) => (Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0)));
+  } else if (sortMode === 'createdDesc') {
+    playlists.sort((a, b) => (Number(b.createdAt || 0) - Number(a.createdAt || 0)));
+  } else if (sortMode === 'nameAsc') {
+    playlists.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }));
+  } else if (sortMode === 'trackCountDesc') {
+    playlists.sort((a, b) => ((Array.isArray(b.items) ? b.items.length : 0) - (Array.isArray(a.items) ? a.items.length : 0)));
+  } else if (sortMode === 'durationDesc') {
+    playlists.sort((a, b) => (playlistTotalDuration(b) - playlistTotalDuration(a)));
+  }
   if (countLabel) countLabel.textContent = `共 ${playlists.length} 個播放清單（曲目依儲存的順序播放）`;
   updatePlaylistCountBadge();
 

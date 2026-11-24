@@ -658,6 +658,14 @@
               <span class="page-subtitle" id="playlistsHeaderCount">共 0 個播放清單</span>
             </div>
             <div class="header-actions">
+              <select id="playlistsSortSelect" class="select-dropdown" title="播放清單排序方式">
+                <option value="default" selected>預設排序</option>
+                <option value="updatedDesc">依更新時間 (最新優先)</option>
+                <option value="createdDesc">依建立時間 (最新優先)</option>
+                <option value="nameAsc">依清單名稱 (A-Z)</option>
+                <option value="trackCountDesc">依曲目數 (由多到少)</option>
+                <option value="durationDesc">依總時長 (由長到短)</option>
+              </select>
               <button class="btn btn-primary btn-sm" id="btnPlaylistNew" title="新增一個空白播放清單">新增清單</button>
               <button class="btn btn-secondary btn-sm" id="btnPlaylistSaveQueue" title="將目前播放隊列的所有歌曲依序存成新的播放清單">儲存目前隊列</button>
               <button class="btn btn-secondary btn-sm" id="btnPlaylistImport" title="匯入 .m3u / .m3u8 / .json 播放清單檔">匯入清單</button>
