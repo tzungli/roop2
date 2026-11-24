@@ -10258,13 +10258,25 @@ async function playSoxTrack(track, startSec = 0) {
     }
 
     const engineOn = !!(state.dsp && state.dsp.enabled);
-    const rawTargetRate = engineOn ? calculateTargetSampleRate(track.sampleRate || 44100, state.dsp.rateMode) : (track.sampleRate || 44100);
+    const srcRate = track.sampleRate || 44100;
+    const rawTargetRate = engineOn ? calculateTargetSampleRate(srcRate, state.dsp.rateMode) : srcRate;
     const requestedDsd = engineOn && isDsdRateMode(state.dsp.rateMode);
-    // 本機 System Output (<audio> / WASAPI) 無法直出 1-bit DSF 串流：
-    // 自動改以 4x 整數倍 24-bit PCM 升頻播放並完整保留所選濾波器，同時不覆寫 state.dsp.rateMode（切回 DLNA 立即恢復 DSD）。
-    const targetRate = requestedDsd
-      ? calculateTargetSampleRate(track.sampleRate || 44100, '4x')
-      : rawTargetRate;
+    const useExclusive = !!(state.exclusive && exclusiveZoneOk());
+    // 本機 System Output 無法直出 1-bit DSF 串流：
+    // - 共享模式（WebView2 <audio>）：安全上限 96kHz（44.1k→88.2kHz、48k→96kHz，避免 176.4k/192k/384k 觸發瀏覽器不支援錯誤）
+    // - WASAPI 獨佔模式：以 4x 整數倍 24-bit PCM（由 exclusiveChooseRate 依裝置支援上限裁切）
+    // 全程不覆寫 state.dsp.rateMode，切回 DLNA 立即恢復原生 DSD 串流。
+    let targetRate = rawTargetRate;
+    if (requestedDsd) {
+      if (useExclusive) {
+        targetRate = calculateTargetSampleRate(srcRate, '4x');
+      } else {
+        targetRate = srcRate >= 88200 ? Math.min(srcRate, 96000) : calculateTargetSampleRate(srcRate, '2x');
+      }
+    } else if (!useExclusive && targetRate > 96000) {
+      // WebView2 <audio> 共享模式對 >96kHz 24-bit WAV 常回報 MEDIA_ERR_SRC_NOT_SUPPORTED，安全夾限至 2x (88.2k / 96k)
+      targetRate = (srcRate % 48000 === 0) ? 96000 : 88200;
+    }
     const isDsd = false;
     const dsdMode = '';
     const dsdOrder = state.dsp.dsdOrder || 5;
@@ -10323,7 +10335,11 @@ async function playSoxTrack(track, startSec = 0) {
       isCurrentSox = false;
       currentSoxOffset = 0;
       nativeAudio.src = window.electronAPI ? window.electronAPI.getMediaUrl(track.filePath) : track.filePath;
-      nativeAudio.play().catch(e => console.error('Fallback error:', e));
+      nativeAudio.play().then(() => {
+        state.isPlaying = true;
+        btnPlayPause.textContent = '⏸';
+        playerArtist.textContent = `${track.artist || '未知藝術家'} — ${track.title || ''}`;
+      }).catch(e => console.error('Fallback error:', e));
     });
   } catch (err) {
     console.error('getSoxStreamUrl error:', err);
@@ -20006,6 +20022,10 @@ async function switchAudioZone(target) {
         playCurrentTrack();
       }
     }
+  }
+
+  if (typeof updateLocalDsdNotice === 'function') {
+    updateLocalDsdNotice();
   }
 
   // Close output popover after selection

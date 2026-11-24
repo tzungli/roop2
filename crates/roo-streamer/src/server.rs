@@ -537,21 +537,28 @@ async fn handle_stream(
 
     let stream = match stream {
         Some(s) => s,
-        None => match generate_audio_stream(&opts) {
-            Ok(gen) => {
-                let arc_s = Arc::new(gen);
-                let mut write_cache = STREAM_CACHE.write().unwrap();
-                if write_cache.len() > 6 {
-                    write_cache.clear();
+        None => {
+            let opts_clone = opts.clone();
+            let gen_res = tokio::task::spawn_blocking(move || generate_audio_stream(&opts_clone))
+                .await
+                .map_err(|e| anyhow::anyhow!("DSP worker join error: {}", e))
+                .and_then(|r| r);
+            match gen_res {
+                Ok(gen) => {
+                    let arc_s = Arc::new(gen);
+                    let mut write_cache = STREAM_CACHE.write().unwrap();
+                    if write_cache.len() > 6 {
+                        write_cache.clear();
+                    }
+                    write_cache.insert(cache_key, arc_s.clone());
+                    arc_s
                 }
-                write_cache.insert(cache_key, arc_s.clone());
-                arc_s
+                Err(e) => {
+                    tracing::error!("DSP streaming generation failed for {}: {}", opts.file_path, e);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, format!("DSP processing error: {}", e)).into_response();
+                }
             }
-            Err(e) => {
-                tracing::error!("DSP streaming generation failed for {}: {}", opts.file_path, e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("DSP processing error: {}", e)).into_response();
-            }
-        },
+        }
     };
 
     serve_stream_data(&stream, &headers)

@@ -872,16 +872,8 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
             let out_frames = (left.len() as f64 * ratio).floor() as usize;
 
             let resampler = StageResampler::build(target_rate as f64, src_rate as f64, &opts.filter_phase);
-            if let Some(StageResampler::SincM(sinc_m)) = resampler {
-                sinc_m.upsample_range_stereo(&left, &right, 0, out_frames)
-            } else if let Some(StageResampler::Fir(filter)) = resampler {
-                let mut l_vec = Vec::with_capacity(out_frames);
-                let mut r_vec = Vec::with_capacity(out_frames);
-                for i in 0..out_frames {
-                    l_vec.push(roo_dsp::fir_sample(&left, left.len(), i, ratio, &filter));
-                    r_vec.push(roo_dsp::fir_sample(&right, right.len(), i, ratio, &filter));
-                }
-                (l_vec, r_vec)
+            if let Some(res) = resampler {
+                res.upsample_range_stereo(&left, &right, ratio, 0, out_frames)
             } else {
                 let mut l_vec = Vec::with_capacity(out_frames);
                 let mut r_vec = Vec::with_capacity(out_frames);
