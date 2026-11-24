@@ -151,10 +151,40 @@ fn upsample_stage1_stereo(
     })
 }
 
+enum StageResampler {
+    Fir(roo_dsp::FirFilter),
+    SincM(roo_dsp::SincMFftResampler),
+}
+
+impl StageResampler {
+    fn build(fs_out: f64, src_rate: f64, phase_id: &str) -> Option<Self> {
+        if roo_dsp::is_sinc_m_phase(phase_id) {
+            if let Some(fft_resampler) = roo_dsp::SincMFftResampler::new(fs_out, src_rate) {
+                return Some(Self::SincM(fft_resampler));
+            }
+        }
+        REGISTRY.build_filter(fs_out, src_rate, phase_id).map(Self::Fir)
+    }
+
+    fn upsample_range_stereo(
+        &self,
+        left: &[f64],
+        right: &[f64],
+        ratio: f64,
+        start_idx: usize,
+        end_idx: usize,
+    ) -> (Vec<f64>, Vec<f64>) {
+        match self {
+            Self::Fir(gf) => upsample_stage1_stereo(left, right, gf, ratio, start_idx, end_idx),
+            Self::SincM(resampler) => resampler.upsample_range_stereo(left, right, start_idx, end_idx),
+        }
+    }
+}
+
 fn render_pcm_range_helper(
     left: &[f64],
     right: &[f64],
-    gf: Option<&roo_dsp::FirFilter>,
+    resampler: Option<&StageResampler>,
     target_rate: u32,
     src_rate: u32,
     ratio: f64,
@@ -171,6 +201,31 @@ fn render_pcm_range_helper(
     let mut ditherer = roo_dsp::StereoPcmDitherer {
         left: roo_dsp::PcmChannelDither::with_sample_rate(seed_l1, seed_l2, target_rate as f64),
         right: roo_dsp::PcmChannelDither::with_sample_rate(seed_r1, seed_r2, target_rate as f64),
+    };
+
+    if target_rate != src_rate {
+        if let Some(StageResampler::SincM(sinc_m)) = resampler {
+            let (up_l, up_r) = sinc_m.upsample_range_stereo(left, right, start_f, end_f);
+            for (sl_f, sr_f) in up_l.into_iter().zip(up_r.into_iter()) {
+                let (i_l, i_r) = ditherer.quantize_24bit(sl_f, sr_f, dither_type);
+                let bytes_l = i_l.to_le_bytes();
+                buf[off] = bytes_l[0];
+                buf[off + 1] = bytes_l[1];
+                buf[off + 2] = bytes_l[2];
+
+                let bytes_r = i_r.to_le_bytes();
+                buf[off + 3] = bytes_r[0];
+                buf[off + 4] = bytes_r[1];
+                buf[off + 5] = bytes_r[2];
+                off += 6;
+            }
+            return;
+        }
+    }
+
+    let gf = match resampler {
+        Some(StageResampler::Fir(f)) => Some(f),
+        _ => None,
     };
 
     for i in start_f..end_f {
@@ -308,7 +363,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         let stage1_rate: u32 = if dsd_multiplier == 64 { 176400 } else { 352800 };
         let use_stage1 = src_rate < stage1_rate;
         let stage1_gf = if use_stage1 {
-            REGISTRY.build_filter(stage1_rate as f64, src_rate as f64, &opts.filter_phase).map(Arc::new)
+            StageResampler::build(stage1_rate as f64, src_rate as f64, &opts.filter_phase).map(Arc::new)
         } else {
             None
         };
@@ -322,7 +377,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         let run_dsd_batch = |m: &mut DsdModulator,
                              src_l: &[f64],
                              src_r: &[f64],
-                             s1_gf: Option<&roo_dsp::FirFilter>,
+                             s1_gf: Option<&StageResampler>,
                              start_block: usize,
                              blocks_to_run: usize,
                              out_slice: &mut [u8]| {
@@ -334,7 +389,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                 let pad_start = start_s1.saturating_sub(1);
                 let lead_pad = start_s1 - pad_start;
                 let pad_end = start_s1 + num_s1 + 3;
-                let (s1_l, s1_r) = upsample_stage1_stereo(src_l, src_r, gf, stage1_ratio, pad_start, pad_end);
+                let (s1_l, s1_r) = gf.upsample_range_stereo(src_l, src_r, stage1_ratio, pad_start, pad_end);
                 m.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, out_slice);
             } else {
                 m.run_blocks(src_l, src_r, src_l.len(), start_block * samples_per_block, blocks_to_run, inv_ratio, out_slice);
@@ -413,7 +468,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                         let pad_start = start_s1.saturating_sub(1);
                         let lead_pad = start_s1 - pad_start;
                         let pad_end = start_s1 + num_s1 + 3;
-                        let (s1_l, s1_r) = upsample_stage1_stereo(&bg_left, &bg_right, gf, stage1_ratio, pad_start, pad_end);
+                        let (s1_l, s1_r) = gf.upsample_range_stereo(&bg_left, &bg_right, stage1_ratio, pad_start, pad_end);
                         bg_modulator.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, slice);
                     } else {
                         bg_modulator.run_blocks(&bg_left, &bg_right, bg_left.len(), curr_block * samples_per_block, blocks_to_run, inv_ratio, slice);
@@ -489,7 +544,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         }
 
         let gf = if target_rate != src_rate {
-            REGISTRY.build_filter(target_rate as f64, src_rate as f64, &opts.filter_phase)
+            StageResampler::build(target_rate as f64, src_rate as f64, &opts.filter_phase)
         } else {
             None
         };
@@ -695,7 +750,7 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Gauss);
         let stage1_rate: u32 = 352800;
         let stage1_gf = if src_rate < stage1_rate {
-            REGISTRY.build_filter(stage1_rate as f64, src_rate as f64, &opts.filter_phase)
+            StageResampler::build(stage1_rate as f64, src_rate as f64, &opts.filter_phase)
         } else {
             None
         };
@@ -724,7 +779,7 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
                 let pad_start = start_s1.saturating_sub(1);
                 let lead_pad = start_s1 - pad_start;
                 let pad_end = start_s1 + num_s1 + 3;
-                let (s1_l, s1_r) = upsample_stage1_stereo(&left, &right, gf, stage1_ratio, pad_start, pad_end);
+                let (s1_l, s1_r) = gf.upsample_range_stereo(&left, &right, stage1_ratio, pad_start, pad_end);
                 let slice = &mut block_data[curr_block * 8192..(curr_block + blocks_to_run) * 8192];
                 modulator.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, slice);
                 curr_block += blocks_to_run;
@@ -816,21 +871,26 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
             let ratio = target_rate as f64 / src_rate as f64;
             let out_frames = (left.len() as f64 * ratio).floor() as usize;
 
-            let gf = REGISTRY.build_filter(target_rate as f64, src_rate as f64, &opts.filter_phase);
-            let mut l_vec = Vec::with_capacity(out_frames);
-            let mut r_vec = Vec::with_capacity(out_frames);
-            if let Some(filter) = &gf {
+            let resampler = StageResampler::build(target_rate as f64, src_rate as f64, &opts.filter_phase);
+            if let Some(StageResampler::SincM(sinc_m)) = resampler {
+                sinc_m.upsample_range_stereo(&left, &right, 0, out_frames)
+            } else if let Some(StageResampler::Fir(filter)) = resampler {
+                let mut l_vec = Vec::with_capacity(out_frames);
+                let mut r_vec = Vec::with_capacity(out_frames);
                 for i in 0..out_frames {
-                    l_vec.push(roo_dsp::fir_sample(&left, left.len(), i, ratio, filter));
-                    r_vec.push(roo_dsp::fir_sample(&right, right.len(), i, ratio, filter));
+                    l_vec.push(roo_dsp::fir_sample(&left, left.len(), i, ratio, &filter));
+                    r_vec.push(roo_dsp::fir_sample(&right, right.len(), i, ratio, &filter));
                 }
+                (l_vec, r_vec)
             } else {
+                let mut l_vec = Vec::with_capacity(out_frames);
+                let mut r_vec = Vec::with_capacity(out_frames);
                 for i in 0..out_frames {
                     l_vec.push(left[i.min(left.len() - 1)]);
                     r_vec.push(right[i.min(right.len() - 1)]);
                 }
+                (l_vec, r_vec)
             }
-            (l_vec, r_vec)
         };
 
         // Apply ultrasonic noise protection filter on PCM upsampled stream (e.g. 20k, 30k, 40k, 50k)

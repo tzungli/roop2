@@ -4,6 +4,7 @@ pub mod dsd;
 pub mod dither;
 pub mod peq;
 pub mod convolution;
+pub mod sinc_m;
 pub mod registry;
 
 pub use fir::*;
@@ -12,6 +13,7 @@ pub use dsd::*;
 pub use dither::*;
 pub use peq::*;
 pub use convolution::*;
+pub use sinc_m::*;
 pub use registry::*;
 
 #[cfg(test)]
@@ -376,12 +378,118 @@ mod tests {
 
         // 5. Registry checks
         let list = REGISTRY.list();
-        assert_eq!(list.len(), 6);
+        assert_eq!(list.len(), 7);
         let ids: Vec<&str> = list.iter().map(|d| d.id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["precise-linear", "precise-min", "gauss-long", "poly-ext2", "smooth-linear", "smooth-min"]
+            vec!["precise-linear", "precise-min", "gauss-long", "poly-ext2", "sinc-m", "smooth-linear", "smooth-min"]
         );
+    }
+
+    #[test]
+    fn test_sinc_m_fft_accuracy_and_speed() {
+        let src_rate = 44100.0;
+        let fs_out = 176400.0;
+        let t0 = std::time::Instant::now();
+        let resampler = SincMFftResampler::new(fs_out, src_rate).expect("sinc-m 4x");
+        let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        assert!(resampler.is_single_stage_integer());
+        assert_eq!(resampler.total_taps(), 262_137);
+
+        // Verify 16x (705.6k) reaches ~1 Million taps
+        let t16 = std::time::Instant::now();
+        let r16 = SincMFftResampler::new(705600.0, src_rate).expect("sinc-m 16x");
+        let build16_ms = t16.elapsed().as_secs_f64() * 1000.0;
+        assert_eq!(r16.total_taps(), 1_048_545);
+
+        // Stereo test: L = 1 kHz, R = 21.95 kHz (only 100 Hz below Nyquist!)
+        let in_len = 140_000usize; // > 3 seconds so center window has zero edge effects
+        let mut left = vec![0.0f64; in_len];
+        let mut right = vec![0.0f64; in_len];
+        for i in 0..in_len {
+            let t = i as f64 / src_rate;
+            left[i] = (2.0 * std::f64::consts::PI * 1000.0 * t).sin();
+            right[i] = (2.0 * std::f64::consts::PI * 21950.0 * t).sin();
+        }
+
+        // Upsample center 1.0s (176,400 output samples) and time it
+        let start_out = 40_000 * 4;
+        let end_out = start_out + 176_400;
+        let t_run = std::time::Instant::now();
+        let (out_l, out_r) = resampler.upsample_range_stereo(&left, &right, start_out, end_out);
+        let run_ms = t_run.elapsed().as_secs_f64() * 1000.0;
+
+        // 1. Check 1 kHz L-channel reconstruction accuracy (SNR)
+        let mut sig_pow = 0.0;
+        let mut err_pow = 0.0;
+        for (idx, &y) in out_l.iter().enumerate() {
+            let t = (start_out + idx) as f64 / fs_out;
+            let expected = (2.0 * std::f64::consts::PI * 1000.0 * t).sin();
+            sig_pow += expected * expected;
+            let e = y - expected;
+            err_pow += e * e;
+        }
+        let snr_1k_db = 10.0 * (sig_pow / err_pow.max(1e-30)).log10();
+
+        // 2. Check 21.95 kHz R-channel passband gain & 22.15 kHz mirror image suppression
+        // Goertzel/DFT projection at 21,950 Hz (passband) and 22,150 Hz (1st mirror image!)
+        let measure_tone_db = |sig: &[f64], freq_hz: f64| -> f64 {
+            let n = sig.len();
+            let mut re = 0.0;
+            let mut im = 0.0;
+            let mut w_sum = 0.0;
+            for (k, &v) in sig.iter().enumerate() {
+                // Hann window to eliminate spectral leakage
+                let win = 0.5 * (1.0 - (2.0 * std::f64::consts::PI * k as f64 / n as f64).cos());
+                let ang = 2.0 * std::f64::consts::PI * freq_hz * (start_out + k) as f64 / fs_out;
+                re += v * win * ang.cos();
+                im -= v * win * ang.sin();
+                w_sum += win;
+            }
+            let amp = 2.0 * (re * re + im * im).sqrt() / w_sum;
+            20.0 * amp.max(1e-12).log10()
+        };
+
+        let db_21_95k = measure_tone_db(&out_r, 21950.0);
+        let db_image_22_15k = measure_tone_db(&out_r, 22150.0);
+
+        println!(
+            "sinc-M: build4x={:.1}ms, build16x(1.05M taps)={:.1}ms, run4x(1s stereo)={:.1}ms, 1kHz SNR={:.2}dB, 21.95kHz={:.4}dB, 22.15kHz image={:.2}dB",
+            build_ms, build16_ms, run_ms, snr_1k_db, db_21_95k, db_image_22_15k
+        );
+
+        assert!(snr_1k_db > 150.0, "1kHz SNR should exceed 150 dB, got {:.2}", snr_1k_db);
+        assert!(db_21_95k.abs() < 0.01, "21.95kHz passband should be flat (<0.01dB), got {:.4}", db_21_95k);
+        assert!(db_image_22_15k < -150.0, "22.15kHz mirror image should be < -150dB, got {:.2}", db_image_22_15k);
+
+        // 3. Verify chunked streaming matches single-shot across block boundaries
+        let chunk_start = 65530 * 4;
+        let chunk_end = 65545 * 4;
+        let (full_l, full_r) = resampler.upsample_range_stereo(&left, &right, chunk_start, chunk_end);
+        let (c1_l, c1_r) = resampler.upsample_range_stereo(&left, &right, chunk_start, chunk_start + 31);
+        let (c2_l, c2_r) = resampler.upsample_range_stereo(&left, &right, chunk_start + 31, chunk_end);
+        for i in 0..full_l.len() {
+            let gl = if i < 31 { c1_l[i] } else { c2_l[i - 31] };
+            let gr = if i < 31 { c1_r[i] } else { c2_r[i - 31] };
+            assert!((full_l[i] - gl).abs() < 1e-13, "L chunk mismatch at {}", i);
+            assert!((full_r[i] - gr).abs() < 1e-13, "R chunk mismatch at {}", i);
+        }
+
+        // 4. Verify non-integer 2-stage upsampling (48k -> 176.4k)
+        let r_nonint = SincMFftResampler::new(176400.0, 48000.0).expect("sinc-m non-int");
+        assert!(!r_nonint.is_single_stage_integer());
+        let mut s48 = vec![0.0f64; 96_000];
+        for i in 0..s48.len() {
+            s48[i] = (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / 48000.0).sin();
+        }
+        let (ni_l, _) = r_nonint.upsample_range_stereo(&s48, &s48, 88200, 92200);
+        let mut max_err = 0.0f64;
+        for (idx, &y) in ni_l.iter().enumerate() {
+            let t = (88200 + idx) as f64 / 176400.0;
+            let exp = (2.0 * std::f64::consts::PI * 1000.0 * t).sin();
+            max_err = max_err.max((y - exp).abs());
+        }
+        assert!(max_err < 1e-4, "Non-integer sinc-M max error too high: {}", max_err);
     }
 
     #[test]
