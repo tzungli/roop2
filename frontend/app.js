@@ -20085,7 +20085,6 @@ function setZoneInlineVolume(zoneId, pct) {
 function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSelect }) {
   const info = getZoneLiveInfo(zoneId);
   const dspTag = formatZoneDspSummary(info.dsp, zoneId === 'local');
-  const volPct = Math.round(info.volume * 100);
   const hasTrack = !!info.track;
 
   const card = document.createElement('div');
@@ -20096,7 +20095,6 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
 
   const playSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="margin-left:1px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
   const pauseSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
-  const volSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
 
   let miniCoverSrc = 'icon.png';
   let miniFallbackSrc = 'icon.png';
@@ -20130,11 +20128,6 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
         </button>
       ` : ''}
     </div>
-    <div class="roon-zone-vol-row">
-      <span class="roon-zone-vol-icon">${volSvg}</span>
-      <input type="range" class="roon-zone-vol-slider" min="0" max="100" value="${volPct}" style="--zone-vol: ${volPct}%" aria-label="音量">
-      <span class="roon-zone-vol-val">${volPct}%</span>
-    </div>
   `;
 
   const miniImg = card.querySelector('.roon-zone-mini-cover');
@@ -20154,22 +20147,6 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
     playBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleZoneInlinePlayPause(zoneId);
-    });
-  }
-
-  const volRow = card.querySelector('.roon-zone-vol-row');
-  if (volRow) {
-    volRow.addEventListener('click', (e) => e.stopPropagation());
-  }
-  const volSlider = card.querySelector('.roon-zone-vol-slider');
-  const volVal = card.querySelector('.roon-zone-vol-val');
-  if (volSlider) {
-    volSlider.addEventListener('input', (e) => {
-      e.stopPropagation();
-      const v = e.target.value;
-      volSlider.style.setProperty('--zone-vol', `${v}%`);
-      if (volVal) volVal.textContent = `${v}%`;
-      setZoneInlineVolume(zoneId, v);
     });
   }
 

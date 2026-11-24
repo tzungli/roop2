@@ -14078,71 +14078,6 @@ body.table-col-resizing * {
   border-color: var(--accent-purple);
 }
 
-.roon-zone-vol-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.roon-zone-vol-icon {
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-}
-
-.roon-zone-vol-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  flex: 1;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    var(--accent-purple) 0%,
-    var(--accent-purple) var(--zone-vol, 100%),
-    rgba(255, 255, 255, 0.16) var(--zone-vol, 100%),
-    rgba(255, 255, 255, 0.16) 100%
-  );
-  outline: none;
-  cursor: pointer;
-}
-
-.roon-zone-vol-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent-purple);
-  border: none;
-  box-shadow: 0 1px 4px rgba(124, 92, 255, 0.35);
-  transition: transform 0.14s ease;
-}
-
-.roon-zone-vol-slider:hover::-webkit-slider-thumb {
-  transform: scale(1.18);
-}
-
-[data-theme="light"] .roon-zone-vol-slider {
-  background: linear-gradient(
-    to right,
-    var(--accent-purple) 0%,
-    var(--accent-purple) var(--zone-vol, 100%),
-    rgba(15, 23, 42, 0.14) var(--zone-vol, 100%),
-    rgba(15, 23, 42, 0.14) 100%
-  );
-}
-
-.roon-zone-vol-val {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  width: 32px;
-  text-align: right;
-}
-
 [data-theme="light"] .roon-zone-card {
   background: #ffffff;
   border-color: rgba(15, 23, 42, 0.09);
@@ -14151,8 +14086,4 @@ body.table-col-resizing * {
 [data-theme="light"] .roon-zone-card.active {
   background: #f5f3ff;
   border-color: rgba(124, 92, 255, 0.45);
-}
-
-[data-theme="light"] .roon-zone-vol-row {
-  border-top-color: rgba(15, 23, 42, 0.07);
 }
