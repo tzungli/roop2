@@ -229,16 +229,18 @@ async fn fetch_device_desc(client: &reqwest::Client, location: &str) -> Result<D
         loc_url.clone()
     };
 
-    let name = extract_xml_value(&xml, "friendlyName").unwrap_or_else(|| "Unknown Renderer".to_string());
+    let raw_name = extract_xml_value(&xml, "friendlyName").unwrap_or_else(|| "Unknown Renderer".to_string());
     let model = extract_xml_value(&xml, "modelName").unwrap_or_default();
     let manufacturer = extract_xml_value(&xml, "manufacturer").unwrap_or_default();
     let udn = extract_xml_value(&xml, "UDN").unwrap_or_else(|| location.to_string());
     let ip = loc_url.host_str().unwrap_or("").to_string();
 
     // Proactively exclude network equipment (routers, APs, WiFi nodes, gateways, printers)
-    if is_network_or_non_audio_device(&xml, &name, &model, &manufacturer) {
-        bail!("Device '{}' ({}) at {} is network equipment and was excluded", name, model, location);
+    if is_network_or_non_audio_device(&xml, &raw_name, &model, &manufacturer) {
+        bail!("Device '{}' ({}) at {} is network equipment and was excluded", raw_name, model, location);
     }
+
+    let name = format_dlna_display_name(&raw_name, &model, &manufacturer);
 
     // Must have a valid AVTransport service to receive and play audio streams
     let (av_transport_url, av_transport_service_type) = extract_service(&xml, "AVTransport", &base_url)
@@ -262,6 +264,48 @@ async fn fetch_device_desc(client: &reqwest::Client, location: &str) -> Result<D
         av_transport_service_type,
         rendering_control_service_type,
     })
+}
+
+/// Build a clean human-friendly display name combining brand/manufacturer when `friendlyName`
+/// only contains a short model code (e.g. `friendlyName="T8"`, `manufacturer="EVERSOLO"` -> `"EVERSOLO T8"`),
+/// while avoiding duplicates when `friendlyName` already includes the brand (e.g. `"[LG] webOS G810SA"`).
+pub fn format_dlna_display_name(friendly: &str, model: &str, manufacturer: &str) -> String {
+    let f = friendly.trim();
+    let m = model.trim();
+    let mfr = manufacturer.trim();
+
+    if f.is_empty() {
+        return if !m.is_empty() { m.to_string() } else { "Unknown Renderer".to_string() };
+    }
+
+    let f_lower = f.to_lowercase();
+    let m_lower = m.to_lowercase();
+
+    // 1. If modelName already contains friendlyName and adds brand context (e.g. "EVERSOLO T8" vs "T8")
+    if !m.is_empty() && m.len() > f.len() && m.len() <= 40 && m_lower.contains(&f_lower) {
+        return m.to_string();
+    }
+
+    // 2. Otherwise check manufacturer for a clean brand prefix
+    if !mfr.is_empty() {
+        let mfr_lower = mfr.to_lowercase();
+        let skip_mfr = [
+            "http", ".com", ".net", ".org", "unknown", "default",
+            "upnp", "dlna", "linux", "microsoft", "generic",
+        ];
+        if !skip_mfr.iter().any(|k| mfr_lower.contains(k)) {
+            let brand_word = mfr
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_matches(|c: char| !c.is_alphanumeric() && c != '-');
+            if brand_word.len() >= 2 && brand_word.len() <= 20 && !f_lower.contains(&brand_word.to_lowercase()) {
+                return format!("{} {}", brand_word, f);
+            }
+        }
+    }
+
+    f.to_string()
 }
 
 pub fn is_network_or_non_audio_device(xml: &str, name: &str, model: &str, manufacturer: &str) -> bool {
@@ -421,6 +465,23 @@ mod tests {
             <friendlyName>Eversolo DMP-A6</friendlyName>
         </device>"#;
         assert!(!is_network_or_non_audio_device(renderer_xml, "Eversolo DMP-A6", "DMP-A6", "Eversolo"));
+    }
+
+    #[test]
+    fn test_format_dlna_display_name() {
+        assert_eq!(format_dlna_display_name("T8", "T8", "EVERSOLO"), "EVERSOLO T8");
+        assert_eq!(
+            format_dlna_display_name("T8", "EVERSOLO T8", "EVERSOLO Audio Technology Co., Ltd."),
+            "EVERSOLO T8"
+        );
+        assert_eq!(
+            format_dlna_display_name("[LG] webOS G810SA", "LG TV", "LG Electronics"),
+            "[LG] webOS G810SA"
+        );
+        assert_eq!(
+            format_dlna_display_name("Eversolo DMP-A6", "DMP-A6", "EVERSOLO"),
+            "Eversolo DMP-A6"
+        );
     }
 
     #[tokio::test]
