@@ -2171,6 +2171,9 @@ function rebuildLibraryCollections() {
     try { refreshKkboxMatches(); } catch (e) {}
   }
 
+  // Trigger monthly roopmix_01..05 creation/refresh on the first run of each month
+  try { ensureMonthlyRoopMixPlaylists(); } catch (e) { console.warn('ensureMonthlyRoopMixPlaylists failed:', e); }
+
   // Trigger background online resolution for any remaining unknown album artists
   setTimeout(() => autoResolveUnknownAlbumArtists(), 1000);
 }
@@ -3386,36 +3389,277 @@ function renderRooDailyMixes() {
   });
 }
 
+const ROOPMIX_MONTH_KEY = 'roo_roopmix_last_month';
+const ROOPMIX_IDS = ['roopmix_01', 'roopmix_02', 'roopmix_03', 'roopmix_04', 'roopmix_05'];
+
+function getCurrentYearMonthKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function resolvePlaylistFirstAlbumCover(pl) {
+  if (!pl) return '';
+  const items = Array.isArray(pl.items) ? pl.items : [];
+  if (items.length > 0) {
+    const first = items[0];
+    if (first && first.cover) return formatCoverSrc(first.cover);
+    // Match album in state.albums for cover fallback
+    if (first && Array.isArray(state.albums)) {
+      const fAlb = String(first.album || '').trim().toLowerCase();
+      const fArt = String(first.artist || '').trim().toLowerCase();
+      const matched = state.albums.find(a =>
+        String(a.title || '').trim().toLowerCase() === fAlb &&
+        (!fArt || String(a.artist || '').trim().toLowerCase() === fArt)
+      ) || state.albums.find(a => String(a.title || '').trim().toLowerCase() === fAlb);
+      if (matched && matched.cover) return formatCoverSrc(matched.cover);
+    }
+  }
+  if (pl.cover) return formatCoverSrc(pl.cover);
+  return '';
+}
+
+function ensureMonthlyRoopMixPlaylists(force = false) {
+  const allTracks = Array.isArray(state.tracks) ? state.tracks : [];
+  if (allTracks.length === 0) return;
+
+  const monthKey = getCurrentYearMonthKey();
+  const existingPlaylists = getPlaylists();
+  const hasAllFive = ROOPMIX_IDS.every(id => existingPlaylists.some(p => p && p.id === id));
+  let lastMonth = '';
+  try { lastMonth = localStorage.getItem(ROOPMIX_MONTH_KEY) || ''; } catch (_) {}
+
+  if (!force && lastMonth === monthKey && hasAllFive) {
+    return;
+  }
+
+  // Score listening affinity across local & TIDAL from play stats, playback history, and favorites
+  const stats = getPlayStatsRef();
+  const history = getPlaybackHistory();
+  const norm = (s) => String(s || '').trim().toLowerCase();
+
+  const artistScores = new Map(); // normArtist -> { name, score }
+  const albumScores = new Map();  // normKey -> { album, artist, score }
+  const genreScores = new Map();  // genre -> score
+
+  const addArtistScore = (name, pts) => {
+    const k = norm(name);
+    if (!k || isUnknownArtist(name)) return;
+    const prev = artistScores.get(k);
+    if (prev) prev.score += pts;
+    else artistScores.set(k, { name: String(name).trim(), score: pts });
+  };
+  const addAlbumScore = (albTitle, artist, pts) => {
+    const ka = norm(albTitle);
+    const kr = norm(artist);
+    if (!ka) return;
+    const key = `${ka}___${kr}`;
+    const prev = albumScores.get(key);
+    if (prev) prev.score += pts;
+    else albumScores.set(key, { album: String(albTitle).trim(), artist: String(artist || '').trim(), score: pts });
+  };
+  const addGenreScore = (genre, pts) => {
+    if (!genre) return;
+    genreScores.set(genre, (genreScores.get(genre) || 0) + pts);
+  };
+
+  // 1. Score from all tracks (play counts + favorites + library baseline)
+  for (let i = 0; i < allTracks.length; i++) {
+    const t = allTracks[i];
+    const tKey = t.id || `${t.title}___${t.artist}`;
+    const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+    const favBoost = isTrackFavorite(t) ? 4 : 0;
+    const g = t.genre || canonicalizeGenre(t.genre, t);
+    const weight = plays * 3 + favBoost + 0.15;
+    addArtistScore(t.artist, weight);
+    addAlbumScore(t.album, t.artist, weight);
+    addGenreScore(g, plays * 2 + favBoost + 0.1);
+  }
+
+  // 2. Score from albums (album play counts + favorite albums)
+  (state.albums || []).forEach(alb => {
+    const albKey = alb.id || `${alb.title}___${alb.artist}`;
+    const plays = (stats.albums && stats.albums[albKey]) || 0;
+    const favBoost = isAlbumFavorite(alb) ? 6 : 0;
+    if (plays > 0 || favBoost > 0) {
+      addArtistScore(alb.artist, plays * 2 + favBoost);
+      addAlbumScore(alb.title, alb.artist, plays * 3 + favBoost);
+    }
+  });
+
+  // 3. Score from playback history (includes both local & TIDAL listens)
+  (history || []).slice(0, 120).forEach((h, idx) => {
+    if (!h) return;
+    const recency = idx < 20 ? 3 : (idx < 60 ? 2 : 1);
+    addArtistScore(h.artist, recency * 2);
+    addAlbumScore(h.album, h.artist, recency * 2);
+    if (h.genre) addGenreScore(canonicalizeGenre(h.genre, h), recency * 1.5);
+  });
+
+  // 4. Score from favorite artists
+  ((state.favorites && state.favorites.artists) || []).forEach(art => {
+    addArtistScore(art, 8);
+  });
+
+  const topArtists = Array.from(artistScores.values()).sort((a, b) => b.score - a.score);
+  const topAlbums = Array.from(albumScores.values()).sort((a, b) => b.score - a.score);
+  const topGenres = Array.from(genreScores.entries()).sort((a, b) => b[1] - a[1]).map(([g]) => g);
+
+  const MIX_SIZE = 18;
+  const globalUsedKeys = new Set();
+  const trackKeyOf = (t) => t.id || t.filePath || `${norm(t.title)}___${norm(t.artist)}`;
+
+  const shuffleInPlace = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
+  const pickTracks = (primaryPool, secondaryPool, targetCount) => {
+    const picked = [];
+    const localSeen = new Set();
+    const tryAdd = (pool, allowGlobalDup) => {
+      for (let i = 0; i < pool.length && picked.length < targetCount; i++) {
+        const t = pool[i];
+        const k = trackKeyOf(t);
+        if (localSeen.has(k)) continue;
+        if (!allowGlobalDup && globalUsedKeys.has(k)) continue;
+        localSeen.add(k);
+        globalUsedKeys.add(k);
+        picked.push(t);
+      }
+    };
+    tryAdd(primaryPool, false);
+    tryAdd(secondaryPool, false);
+    if (picked.length < Math.min(8, allTracks.length)) {
+      tryAdd(primaryPool, true);
+      tryAdd(secondaryPool, true);
+    }
+    return picked;
+  };
+
+  const rankByAffinity = (tracks) => {
+    return [...tracks].sort((a, b) => {
+      const sa = getTrackPlayCount(a) * 3 + (isTrackFavorite(a) ? 5 : 0) + Math.random() * 1.5;
+      const sb = getTrackPlayCount(b) * 3 + (isTrackFavorite(b) ? 5 : 0) + Math.random() * 1.5;
+      return sb - sa;
+    });
+  };
+
+  const mixDefs = [
+    // roopmix_01: Top #1 Artist + same-genre companions
+    () => {
+      const art = topArtists[0];
+      if (!art) return { subtitle: '精選綜合推薦', tracks: pickTracks(rankByAffinity(allTracks), [], MIX_SIZE) };
+      const byArt = rankByAffinity(allTracks.filter(t => norm(t.artist) === norm(art.name)));
+      const artGenre = byArt[0] ? (byArt[0].genre || canonicalizeGenre(byArt[0].genre, byArt[0])) : topGenres[0];
+      const byGenre = shuffleInPlace(allTracks.filter(t => (t.genre || canonicalizeGenre(t.genre, t)) === artGenre));
+      return { subtitle: `${art.name} 與同風格精選`, tracks: pickTracks(byArt, byGenre, MIX_SIZE) };
+    },
+    // roopmix_02: Top #1 Album / #2 Artist mix
+    () => {
+      const alb = topAlbums[0];
+      const art2 = topArtists[1];
+      const primary = [];
+      if (alb) {
+        primary.push(...allTracks.filter(t => norm(t.album) === norm(alb.album) && (!alb.artist || norm(t.artist) === norm(alb.artist))));
+      }
+      if (art2) {
+        primary.push(...rankByAffinity(allTracks.filter(t => norm(t.artist) === norm(art2.name))));
+      }
+      const secondary = rankByAffinity(allTracks);
+      const label = art2 ? `${art2.name} 焦點合輯` : (alb ? `${alb.album} 延伸精選` : '焦點專輯精選');
+      return { subtitle: label, tracks: pickTracks(primary, secondary, MIX_SIZE) };
+    },
+    // roopmix_03: Top #1 Genre mix
+    () => {
+      const g1 = topGenres[0] || 'Pop';
+      const byG1 = rankByAffinity(allTracks.filter(t => (t.genre || canonicalizeGenre(t.genre, t)) === g1));
+      const fallback = shuffleInPlace([...allTracks]);
+      return { subtitle: `${g1} 精選曲風`, tracks: pickTracks(byG1, fallback, MIX_SIZE) };
+    },
+    // roopmix_04: Top #2 Genre / #3 Artist mix
+    () => {
+      const g2 = topGenres[1] || topGenres[0] || 'Jazz';
+      const art3 = topArtists[2];
+      const primary = [
+        ...(art3 ? rankByAffinity(allTracks.filter(t => norm(t.artist) === norm(art3.name))) : []),
+        ...rankByAffinity(allTracks.filter(t => (t.genre || canonicalizeGenre(t.genre, t)) === g2))
+      ];
+      const fallback = shuffleInPlace([...allTracks]);
+      return { subtitle: art3 ? `${art3.name} • ${g2}` : `${g2} 精選曲風`, tracks: pickTracks(primary, fallback, MIX_SIZE) };
+    },
+    // roopmix_05: Favorites + Hi-Res / TIDAL discovery blend
+    () => {
+      const favAndTidal = rankByAffinity(allTracks.filter(t => isTrackFavorite(t) || t.isTidal || t.bitsPerSample >= 24 || t.sampleRate > 48000));
+      const fallback = shuffleInPlace([...allTracks]);
+      return { subtitle: '發燒與收藏精選', tracks: pickTracks(favAndTidal, fallback, MIX_SIZE) };
+    }
+  ];
+
+  const nowTs = Date.now();
+  const generatedMixes = ROOPMIX_IDS.map((mixId, idx) => {
+    const built = mixDefs[idx]();
+    const items = (built.tracks || []).map(playlistTrackEntry).filter(Boolean);
+    const firstCover = items.length > 0 ? (items[0].cover || resolvePlaylistFirstAlbumCover({ items })) : '';
+    return {
+      id: mixId,
+      name: mixId,
+      isRoopMix: true,
+      subtitle: built.subtitle || '由 rooPlayer 自動建立',
+      monthKey,
+      cover: firstCover,
+      createdAt: nowTs,
+      updatedAt: nowTs,
+      items
+    };
+  });
+
+  // Replace existing roopmix_01..05 in place (or prepend them) while preserving all user-created playlists
+  const userPlaylists = existingPlaylists.filter(p => p && !ROOPMIX_IDS.includes(p.id) && !ROOPMIX_IDS.includes(p.name));
+  const mergedPlaylists = [...generatedMixes, ...userPlaylists];
+  persistPlaylists(mergedPlaylists);
+
+  try { localStorage.setItem(ROOPMIX_MONTH_KEY, monthKey); } catch (_) {}
+}
+
 function renderRooCuratedPlaylists() {
   const grid = document.getElementById('curatedPlaylistsGrid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  const playlists = [
-    { title: 'Jazz Standards', author: '由 rooPlayer 建立' },
-    { title: 'Blues Origins', author: '由 rooPlayer 建立' },
-    { title: 'Black Trailblazers', author: '由 rooPlayer 建立' },
-    { title: 'Funk & Soul', author: '由 rooPlayer 建立' },
-    { title: 'NOLA', author: '由 rooPlayer 建立' }
-  ];
+  const allPlaylists = getPlaylists();
+  const mixPlaylists = ROOPMIX_IDS
+    .map(id => allPlaylists.find(p => p && (p.id === id || p.name === id)))
+    .filter(Boolean);
 
-  playlists.forEach((pl, idx) => {
+  if (mixPlaylists.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 18px; color: var(--text-muted); font-size: 13px;">匯入音樂或聆聽曲目後，系統將於每月自動建立 roopmix_01 至 roopmix_05 專屬播放清單</div>';
+    return;
+  }
+
+  mixPlaylists.forEach((pl) => {
     const card = document.createElement('div');
     card.className = 'curated-playlist-card';
-    const alb = (state.albums && state.albums[idx % state.albums.length]);
-    const cSrc = alb && alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(pl.title, 'rooPlayer', '#1a1b24', '#0d0e15');
+    const cSrc = resolvePlaylistFirstAlbumCover(pl) || createSvgCover(pl.name, 'rooPlayer', '#1a1b24', '#0d0e15');
+    const trackCount = Array.isArray(pl.items) ? pl.items.length : 0;
+    const metaText = pl.subtitle ? `${pl.subtitle} • ${trackCount} 首` : `由 rooPlayer 建立 • ${trackCount} 首`;
 
     card.innerHTML = `
       <div class="curated-art-box">
-        <img src="${cSrc}" class="curated-art-img" alt="${escapeXml(pl.title)}" loading="lazy">
+        <img src="${cSrc}" class="curated-art-img" alt="${escapeXml(pl.name)}" loading="lazy">
         <div class="curated-logo-badge">rooP</div>
-        <div class="curated-title-stripe">${escapeXml(pl.title)}</div>
+        <div class="curated-title-stripe">${escapeXml(pl.name)}</div>
       </div>
-      <div class="curated-meta-author">${escapeXml(pl.author)}</div>
+      <div class="curated-meta-author" title="${escapeXml(metaText)}">${escapeXml(metaText)}</div>
     `;
 
     card.onclick = () => {
       navigateTo('playlists');
+      openPlaylistDetail(pl.id);
     };
 
     grid.appendChild(card);
@@ -15578,22 +15822,25 @@ function renderPlaylistsList() {
 
   playlists.forEach((pl, idx) => {
     const items = Array.isArray(pl.items) ? pl.items : [];
+    const coverSrc = resolvePlaylistFirstAlbumCover(pl) || createSvgCover(pl.name, 'rooPlayer');
+    const subText = pl.subtitle ? `<span style="font-size:11.5px; color: var(--text-muted); font-weight:400; margin-left:8px;">${escapeXml(pl.subtitle)}</span>` : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${idx + 1}</td>
       <td style="text-align: center;"><button class="btn-history-play" title="依序播放這個清單">▶</button></td>
       <td class="track-title-cell">
-        <div class="track-title-text">
-          <span class="playlist-name-text">${escapeXml(pl.name)}</span>
+        <div class="track-title-text" style="display:flex; align-items:center; gap:10px;">
+          <img src="${coverSrc}" alt="${escapeXml(pl.name)}" style="width:34px; height:34px; border-radius:4px; object-fit:cover; flex-shrink:0; border:1px solid var(--border-color);" loading="lazy">
+          <span class="playlist-name-text">${escapeXml(pl.name)}</span>${subText}
         </div>
       </td>
       <td style="text-align: center; color: var(--text-sub);">${items.length} 首</td>
       <td style="text-align: right;">${formatDuration(playlistTotalDuration(pl))}</td>
       <td style="color: var(--text-muted); font-size: 12px;">${formatTimeAgo(pl.updatedAt || pl.createdAt || Date.now())}</td>
       <td style="text-align: right;">
-        <button class="btn-playlist-row-edit" data-action="open" title="開啟並編輯這個清單">📂 編輯</button>
-        <button class="btn-playlist-row-edit" data-action="rename" title="重新命名">✏️</button>
-        <button class="btn-playlist-row-edit" data-action="delete" title="刪除這個清單">🗑️</button>
+        <button class="btn-playlist-row-edit" data-action="open" title="開啟並編輯這個清單">編輯</button>
+        <button class="btn-playlist-row-edit" data-action="rename" title="重新命名">改名</button>
+        <button class="btn-playlist-row-edit" data-action="delete" title="刪除這個清單">刪除</button>
       </td>
     `;
     tr.addEventListener('click', (e) => {
