@@ -10715,8 +10715,8 @@ body.table-col-resizing * {
 
 .roo-listen-later-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 22px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 18px;
 }
 
 .roo-ll-card {
@@ -10819,6 +10819,12 @@ body.table-col-resizing * {
   background: rgba(124, 92, 255, 0.16) !important;
   color: var(--accent-purple, #7c5cff) !important;
   border-color: rgba(124, 92, 255, 0.48) !important;
+}
+
+@media (max-width: 900px) {
+  .roo-listen-later-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
