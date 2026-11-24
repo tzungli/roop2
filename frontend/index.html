@@ -2211,16 +2211,16 @@
               <!-- 區塊二：DSD 5階、7階與 ASDM5EC / ASDM7EC 調變器客觀量測驗證 -->
               <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">二、DSD 5 階 / 7 階與 ASDM5EC / ASDM7EC 調變器量測驗證</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                rooPlayer 內建純 64 位元浮點 Sigma-Delta 調變器。透過實機生成 -6dBFS 同調 1kHz 正弦波進行 262,144 點 Blackman-Harris FFT 頻譜分析與位元級 Hamming 距離驗證：
-                <br>• <strong>5 階 (CRFB)</strong>：級聯共振回授架構（Cascade of Resonators, Feedback Form），高頻噪聲抬升適度，類比氛圍感強烈，CPU 佔用極低。
-                <br>• <strong>7 階 (CLANS)</strong>：閉迴路局部反饋噪聲整形（Closed-Loop Asymptotic Noise Shaping），NTF 噪聲整形斜率高達 <strong>52.6 dB/oct</strong>，可聽頻帶內背景極致純黑寧靜。
-                <br>• <strong>ASDM5EC（5 階強化前瞻修正）</strong>：仿 HQPlayer <code>ASDM5EC</code> 原理，於 5 階架構導入 <strong>2 步前瞻 Trellis 誤差最小化搜尋</strong>（每步同時評估 4 條深度路徑，挑出累積量化誤差最低之最佳位元），DSD128 可聽帶 SNR 一舉暴增 <strong>+17.44 dB（達 150.55 dB）</strong>、DSD256 超聲噪聲再降 <strong>-2.43 dB</strong>，兼具高線性度與極佳流暢度（DSD256 仍達 2.6x 即時速度）。
-                <br>• <strong>ASDM7EC（7 階強化前瞻修正）</strong>：仿 HQPlayer <code>ASDM7EC</code> 原理，結合 7 階極陡峭推噪斜率與 2 步前瞻 Trellis 路徑最佳化，DSD64 帶內 SNR 達 <strong>136.41 dB</strong>、DSD128 達 <strong>162.64 dB</strong> 且超聲噪聲壓低至 <strong>-107.72 dB</strong>，同時將高階積分器峰值偏移大幅壓低 <strong>40%～45%</strong>，帶來極致純淨的立體堂音與黑背景（建議搭配 DSD64 / DSD128 / DSD256 使用）。
+                rooPlayer 內建純 64 位元浮點 Sigma-Delta 調變器。透過實機生成 -6dBFS 同調 1kHz 正弦波進行 262,144 點 7-term 週期型 Blackman-Harris FFT（旁瓣 &lt; -180 dB）頻譜分析與位元級 Hamming 距離驗證：
+                <br>• <strong>5 階 (CRFB)</strong>：級聯共振回授架構（H<sub>&infin;</sub> = 1.55），高頻噪聲抬升適度，類比氛圍感強烈，CPU 佔用極低。
+                <br>• <strong>7 階 (CLANS)</strong>：閉迴路局部反饋噪聲整形（H<sub>&infin;</sub> = 1.50），NTF 噪聲整形斜率高達 <strong>52.6 dB/oct</strong>，可聽頻帶內背景極致純黑寧靜。
+                <br>• <strong>ASDM5EC（5 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM5EC</code> 原理，採用專屬高增益 5 階 NTF（<strong>H<sub>&infin;</sub> = 1.85</strong>）搭配 <strong>M=4 路徑、32 步回溯深度的狀態機 M-Algorithm Trellis（含祖先一致性剪枝）</strong>，在 DSD64/128/256 全規格將可聽帶 SNR 穩定拉高 <strong>+13.3 ～ +14.1 dB</strong>、THD 壓低 <strong>-14.4 ～ -17.5 dB</strong>、超聲噪聲再降 <strong>-11.8 ～ -14.0 dB</strong>，且 0 dBFS 滿度輸入仍完全穩定。
+                <br>• <strong>ASDM7EC（7 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM7EC</code> 原理，採用專屬高增益 7 階 NTF（<strong>H<sub>&infin;</sub> = 1.75</strong>）搭配 <strong>M=4、L=32 狀態機 M-Algorithm Trellis</strong>，DSD64 帶內 SNR 暴增 <strong>+19.55 dB（達 154.99 dB）</strong>、DSD128 暴增 <strong>+20.86 dB（達 201.16 dB）</strong>、超聲噪聲（20k–50kHz）全面再降 <strong>-17.6 ～ -19.6 dB</strong>，同時將高階積分器峰值偏移壓低 <strong>50% ～ 85%</strong>（建議搭配 DSD64 / DSD128 使用，高階 CPU 可開啟 DSD256）。
               </p>
 
               <!-- 表 2-2: ASDM5EC / ASDM7EC 同調 FFT 實測對比表 -->
               <div style="overflow-x: auto; margin-bottom: 16px;">
-                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">表 2-2：四組 DSD 調變器同調 FFT 實機量測對比（1kHz @ -6dBFS，262,144-pt Blackman-Harris FFT）</div>
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">表 2-2：四組 DSD 調變器同調 FFT 實機量測對比（1kHz @ -6dBFS，262,144-pt 7-term Blackman-Harris FFT）</div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
                   <thead>
                     <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-main);">
@@ -2237,101 +2237,101 @@
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td rowspan="4" style="padding: 8px 10px; font-weight: 600; color: #fbbf24; vertical-align: top;">DSD64<br>(2.82MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
-                      <td style="padding: 8px 10px;">116.17 dB</td>
-                      <td style="padding: 8px 10px;">-133.45 dB</td>
-                      <td style="padding: 8px 10px;">-66.81 dB</td>
+                      <td style="padding: 8px 10px;">116.19 dB</td>
+                      <td style="padding: 8px 10px;">-132.55 dB</td>
+                      <td style="padding: 8px 10px;">-65.53 dB</td>
                       <td style="padding: 8px 10px;">0.382</td>
-                      <td style="padding: 8px 10px;">32.1 ms (31x)</td>
+                      <td style="padding: 8px 10px;">30.5 ms (33x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">ASDM5EC</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">117.34 dB (+1.17)</td>
-                      <td style="padding: 8px 10px;">-130.92 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-68.42 dB (-1.61)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">0.322</td>
-                      <td style="padding: 8px 10px;">98.2 ms (10.2x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">129.48 dB (+13.29)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-149.47 dB (-16.92)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-78.66 dB (-13.13)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.161 (-58%)</td>
+                      <td style="padding: 8px 10px;">212.7 ms (4.7x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px;">7 階 (CLANS)</td>
-                      <td style="padding: 8px 10px;">135.38 dB</td>
-                      <td style="padding: 8px 10px;">-151.01 dB</td>
-                      <td style="padding: 8px 10px;">-61.03 dB</td>
+                      <td style="padding: 8px 10px;">135.44 dB</td>
+                      <td style="padding: 8px 10px;">-152.19 dB</td>
+                      <td style="padding: 8px 10px;">-59.30 dB</td>
                       <td style="padding: 8px 10px;">1.135</td>
-                      <td style="padding: 8px 10px;">40.5 ms (25x)</td>
+                      <td style="padding: 8px 10px;">39.5 ms (25x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">ASDM7EC</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">136.41 dB (+1.03)</td>
-                      <td style="padding: 8px 10px;">-148.13 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-62.20 dB (-1.17)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">1.018</td>
-                      <td style="padding: 8px 10px;">242.7 ms (4.1x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">154.99 dB (+19.55)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-169.62 dB (-17.43)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-77.71 dB (-18.41)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.437 (-61%)</td>
+                      <td style="padding: 8px 10px;">314.8 ms (3.2x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td rowspan="4" style="padding: 8px 10px; font-weight: 600; color: #38bdf8; vertical-align: top;">DSD128<br>(5.64MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
-                      <td style="padding: 8px 10px;">133.11 dB</td>
-                      <td style="padding: 8px 10px;">-148.24 dB</td>
-                      <td style="padding: 8px 10px;">-100.99 dB</td>
+                      <td style="padding: 8px 10px;">149.26 dB</td>
+                      <td style="padding: 8px 10px;">-164.56 dB</td>
+                      <td style="padding: 8px 10px;">-98.93 dB</td>
                       <td style="padding: 8px 10px;">0.305</td>
-                      <td style="padding: 8px 10px;">60.6 ms (16.5x)</td>
+                      <td style="padding: 8px 10px;">59.0 ms (17x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">ASDM5EC</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">150.55 dB (+17.44)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-161.24 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-101.60 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">0.285</td>
-                      <td style="padding: 8px 10px;">185.0 ms (5.4x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">163.38 dB (+14.12)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-178.98 dB (-14.42)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-110.71 dB (-11.78)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.272 (-11%)</td>
+                      <td style="padding: 8px 10px;">419.5 ms (2.4x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px;">7 階 (CLANS)</td>
-                      <td style="padding: 8px 10px;">163.86 dB</td>
-                      <td style="padding: 8px 10px;">-189.45 dB</td>
-                      <td style="padding: 8px 10px;">-105.81 dB</td>
+                      <td style="padding: 8px 10px;">180.30 dB</td>
+                      <td style="padding: 8px 10px;">-193.33 dB</td>
+                      <td style="padding: 8px 10px;">-103.72 dB</td>
                       <td style="padding: 8px 10px;">1.122</td>
-                      <td style="padding: 8px 10px;">78.5 ms (12.7x)</td>
+                      <td style="padding: 8px 10px;">76.7 ms (13x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">ASDM7EC</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">162.64 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-186.70 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-107.72 dB (-1.91)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.678 (-40%)</td>
-                      <td style="padding: 8px 10px;">470.1 ms (2.1x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">201.16 dB (+20.86)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-213.94 dB (-20.61)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-123.33 dB (-19.61)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.589 (-48%)</td>
+                      <td style="padding: 8px 10px;">633.9 ms (1.6x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td rowspan="4" style="padding: 8px 10px; font-weight: 600; color: #a78bfa; vertical-align: top;">DSD256<br>(11.29MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
-                      <td style="padding: 8px 10px;">163.03 dB</td>
-                      <td style="padding: 8px 10px;">-178.17 dB</td>
-                      <td style="padding: 8px 10px;">-132.70 dB</td>
+                      <td style="padding: 8px 10px;">182.60 dB</td>
+                      <td style="padding: 8px 10px;">-193.15 dB</td>
+                      <td style="padding: 8px 10px;">-131.26 dB</td>
                       <td style="padding: 8px 10px;">0.415</td>
-                      <td style="padding: 8px 10px;">122.4 ms (8.2x)</td>
+                      <td style="padding: 8px 10px;">119.7 ms (8.4x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">ASDM5EC</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">163.09 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-178.07 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-135.13 dB (-2.43)</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.194 (-53%)</td>
-                      <td style="padding: 8px 10px;">386.9 ms (2.6x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">196.08 dB (+13.48)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-210.68 dB (-17.53)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-145.24 dB (-13.98)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.238 (-43%)</td>
+                      <td style="padding: 8px 10px;">813.8 ms (1.2x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px;">7 階 (CLANS)</td>
-                      <td style="padding: 8px 10px;">136.08 dB</td>
-                      <td style="padding: 8px 10px;">-148.20 dB</td>
-                      <td style="padding: 8px 10px;">-142.61 dB</td>
+                      <td style="padding: 8px 10px;">225.37 dB</td>
+                      <td style="padding: 8px 10px;">-236.89 dB</td>
+                      <td style="padding: 8px 10px;">-150.78 dB</td>
                       <td style="padding: 8px 10px;">1.456</td>
-                      <td style="padding: 8px 10px;">158.8 ms (6.3x)</td>
+                      <td style="padding: 8px 10px;">151.5 ms (6.6x)</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">ASDM7EC</td>
-                      <td style="padding: 8px 10px; color: #34d399;">136.08 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-148.20 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-142.87 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.796 (-45%)</td>
-                      <td style="padding: 8px 10px;">910.3 ms (1.1x)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">231.14 dB (+5.77)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-250.81 dB (-13.92)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-168.36 dB (-17.58)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.215 (-85%)</td>
+                      <td style="padding: 8px 10px;">1347.6 ms (高階 CPU)</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2563,7 +2563,7 @@
                 <li><strong>溫潤發燒人聲與弦樂重奏組合</strong>：<code>平滑，線性相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k</code>。高斯抖動徹底消除 Delta-Sigma 極限環，時域鈴振時長大幅縮短 75%，泛音溫暖厚實自然，消除高頻冷硬毛刺，人聲甜美滑順、久聽不累。</li>
                 <li><strong>發燒黑膠老類比韻味組合</strong>：<code>平滑，最小相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD64 / DSD128</code> ➔ <code>20k / 30k</code>。零預響鈴加上超短後響鈴，完全消除數位硬邊，重現經典黑膠唱片與早期 SACD 迷人的溫潤厚重感。</li>
                 <li><strong>純 PCM 超取樣直通組合</strong>：<code>精準，線性相位</code> ➔ <code>4x 整數倍頻 (176.4k / 192k)</code> ➔ <code>TPDF 抖動</code> ➔ <code>關閉 (None) / 30k</code>。純 PCM 多相 FIR 超取樣直出，線性無失真量化抖動，由 DAC 本地解碼，細節通透開闊。</li>
-                <li><strong>HQPlayer 風格全能發燒組合 (Gauss Long + ASDM7EC)</strong>：<code>高斯長階，線性相位</code> ➔ <code>ASDM7EC</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。純高斯包絡搭配 7 階 2 步前瞻強化修正，兼具 20kHz 內零衰減、超低噪聲與寬鬆立體音場。</li>
+                <li><strong>HQPlayer 風格全能發燒組合 (Gauss Long + ASDM7EC)</strong>：<code>高斯長階，線性相位</code> ➔ <code>ASDM7EC</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。純高斯包絡搭配高 H<sub>&infin;</sub> 7 階 M=4 / L=32 Trellis 強化修正，兼具 20kHz 內零衰減、超低底噪（+20 dB SNR 提升）與寬鬆立體音場。</li>
                 <li><strong>高線性溫潤平衡組合 (Ext2 + ASDM5EC)</strong>：<code>poly-sinc-ext2，線性相位</code> ➔ <code>ASDM5EC</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>40k / 關閉</code>。DSD128 帶內 SNR 達 150.5 dB、超聲噪聲更低且 CPU 負載輕盈，人聲與微細節透明自然。</li>
                 <li><strong>百萬階 M-Scaler 終極空間解析組合 (Sinc-M)</strong>：<code>sinc-M，線性相位</code> ➔ <code>8x / 16x 整數倍 PCM 或 DSD256</code> ➔ <code>Noise-Shaped / Gauss</code> ➔ <code>關閉 / 40k</code>。Partitioned FFT 百萬階多相卷積提供 242dB 重建精度與 22kHz 垂直刀切抑鏡，重現現場廳堂深度與針點結像。</li>
               </ul>
@@ -2587,7 +2587,7 @@
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s3">
                 <span class="spec-label">DSD 調變器</span>
-                <span class="spec-value">5 / 7 階諧振噪聲整形 &amp; ASDM5EC / ASDM7EC 2 步前瞻修正 1-bit Delta-Sigma 調變器 (DSD64 ~ DSD512)；多核心平行調變與無縫銜接</span>
+                <span class="spec-value">5 / 7 階諧振噪聲整形 &amp; ASDM5EC / ASDM7EC 高 H<sub>&infin;</sub> M=4 / L=32 Trellis 強化修正 1-bit Delta-Sigma 調變器 (DSD64 ~ DSD512)；多核心平行調變與無縫銜接</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s4">
                 <span class="spec-label">專屬 rooDSP</span>
@@ -3015,8 +3015,8 @@
                     <div class="dsp-pill-selector" id="dspOrderSelector">
                       <button class="dsp-pill pill-dsd active" data-order="5" title="5 階 CRFB 雙重諧振零點調變 (發燒高動態，噪聲外推至 100kHz)">5 階 (CRFB)</button>
                       <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CLANS 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (CLANS)</button>
-                      <button class="dsp-pill pill-dsd" data-order="50" title="仿 HQPlayer ASDM5EC：5 階 2 步前瞻強化誤差修正，消除噪聲底調變與諧波毛刺，溫潤高線性度">ASDM5EC</button>
-                      <button class="dsp-pill pill-dsd" data-order="70" title="仿 HQPlayer ASDM7EC：7 階 2 步前瞻強化誤差修正，極深帶內抑噪、極致純淨與立體堂音">ASDM7EC</button>
+                      <button class="dsp-pill pill-dsd" data-order="50" title="仿 HQPlayer ASDM5EC：5 階高 H∞=1.85 + M=4 / L=32 Trellis 強化誤差修正，SNR +13~14 dB">ASDM5EC</button>
+                      <button class="dsp-pill pill-dsd" data-order="70" title="仿 HQPlayer ASDM7EC：7 階高 H∞=1.75 + M=4 / L=32 Trellis 強化誤差修正，SNR +19~21 dB，極致純淨與立體堂音">ASDM7EC</button>
                     </div>
                   </div>
                   <div id="dspLocalDsdNotice" class="dsp-local-dsd-notice" style="display: none;">

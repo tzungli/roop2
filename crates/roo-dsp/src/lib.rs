@@ -546,19 +546,25 @@ mod tests {
         let mut planner = FftPlanner::<f64>::new();
         let fft = planner.plan_fft_forward(fft_n);
 
-        // Precompute Blackman-Harris window for > -92 dB sidelobes (clean 150+ dB dynamic range)
+        // Periodic 7-term Blackman-Harris window (< -180 dB sidelobes for true 180+ dB SNR measurement)
         let mut win = vec![0.0f64; fft_n];
         let mut win_sum = 0.0;
         for i in 0..fft_n {
-            let p = 2.0 * std::f64::consts::PI * i as f64 / (fft_n - 1) as f64;
-            let w = 0.35875 - 0.48829 * p.cos() + 0.14128 * (2.0 * p).cos() - 0.01168 * (3.0 * p).cos();
+            let p = 2.0 * std::f64::consts::PI * i as f64 / fft_n as f64;
+            let w = 0.27105140069342
+                - 0.43329793923448 * p.cos()
+                + 0.21812299954311 * (2.0 * p).cos()
+                - 0.06592544638803 * (3.0 * p).cos()
+                + 0.01081174209837 * (4.0 * p).cos()
+                - 0.00077658482522 * (5.0 * p).cos()
+                + 0.00001388721735 * (6.0 * p).cos();
             win[i] = w;
             win_sum += w;
         }
 
         let analyze_bits = |bits_l: &[u8], dsd_rate: f64, tone_hz: f64| -> (f64, f64, f64) {
-            // Skip first 65536 bits (startup transient), take fft_n bits
-            let skip_bytes = 8192usize;
+            // Skip ~50 ms of startup transient so 7th-order resonators fully settle at DSD64/128/256
+            let skip_bytes = ((dsd_rate * 0.05 / 8.0) as usize).min(bits_l.len().saturating_sub(fft_n / 8 + 1));
             let mut buf = vec![Complex::new(0.0, 0.0); fft_n];
             for k in 0..fft_n {
                 let b_idx = skip_bytes + (k >> 3);
@@ -579,16 +585,16 @@ mod tests {
             let mut harm_pow = 0.0;
             let scale2 = 4.0 / (win_sum * win_sum);
 
-            for k in 4..=bin_50k.min(fft_n / 2 - 1) {
+            for k in 8..=bin_50k.min(fft_n / 2 - 1) {
                 let p = (buf[k].re * buf[k].re + buf[k].im * buf[k].im) * scale2;
-                if k >= f1_bin.saturating_sub(6) && k <= f1_bin + 6 {
+                if k >= f1_bin.saturating_sub(8) && k <= f1_bin + 8 {
                     sig_pow += p;
                 } else if k <= bin_20k {
                     noise_pow += p;
                     // Check 2nd..5th harmonics
                     for h in 2..=5 {
                         let hb = f1_bin * h;
-                        if k >= hb.saturating_sub(3) && k <= hb + 3 {
+                        if k >= hb.saturating_sub(4) && k <= hb + 4 {
                             harm_pow += p;
                         }
                     }
