@@ -4456,29 +4456,83 @@ function renderRooRecommendedGenres() {
   if (!grid) return;
   grid.innerHTML = '';
 
-  const genres = [
-    { name: '曼菲斯靈魂樂', en: 'Memphis Soul' },
-    { name: '早期節奏藍調', en: 'Early R&B' },
-    { name: '迷幻靈魂樂', en: 'Psychedelic Soul' },
-    { name: '粵語流行樂', en: 'Cantopop' },
-    { name: '都會音樂', en: 'Urban Music' },
-    { name: '北方靈魂樂', en: 'Northern Soul' }
-  ];
+  const history = getPlaybackHistory() || [];
+  const stats = getPlayStatsRef();
+  const { genreList, albumsByGenre } = buildGenreBuckets();
 
-  genres.forEach((g, idx) => {
+  // Compute real listening count per canonical genre (local + TIDAL)
+  const genrePlays = new Map();
+  history.forEach(h => {
+    if (!h) return;
+    const cg = canonicalizeGenre(h.genre || '', h);
+    genrePlays.set(cg, (genrePlays.get(cg) || 0) + 1);
+  });
+  (state.tracks || []).forEach(t => {
+    const tKey = t.id || `${t.title}___${t.artist}`;
+    const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+    if (plays > 0) {
+      const cg = t.genre || canonicalizeGenre(t.genre, t);
+      genrePlays.set(cg, (genrePlays.get(cg) || 0) + plays);
+    }
+  });
+
+  // Rank canonical genres that have albums in the library (local or TIDAL) by fewest plays first
+  const candidates = genreList
+    .map(g => ({
+      genre: g,
+      albums: albumsByGenre.get(g) || [],
+      plays: genrePlays.get(g) || 0,
+      jitter: Math.random()
+    }))
+    .filter(x => x.albums.length > 0)
+    .sort((a, b) => {
+      if (a.plays !== b.plays) return a.plays - b.plays;
+      return a.jitter - b.jitter;
+    });
+
+  // If fewer than 6 genres have albums, top up from remaining canonical genres
+  let selected = candidates.slice(0, 6);
+  if (selected.length < 6) {
+    const used = new Set(selected.map(x => x.genre));
+    for (const g of genreList) {
+      if (selected.length >= 6) break;
+      if (used.has(g)) continue;
+      used.add(g);
+      selected.push({ genre: g, albums: state.albums || [], plays: 0 });
+    }
+  }
+
+  const allWithCover = (state.albums || []).filter(a => a && a.cover);
+
+  selected.forEach((entry) => {
+    const gInfo = getGenreIllustrationInfo(entry.genre);
+    const zhLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : entry.genre) || entry.genre;
+
+    // Randomly pick an album (local or TIDAL) from this genre, preferring albums with real cover art
+    const genreWithCover = entry.albums.filter(a => a && a.cover);
+    const pool = genreWithCover.length > 0
+      ? genreWithCover
+      : (entry.albums.length > 0 ? entry.albums : allWithCover);
+    const chosenAlb = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
+    const bgUrl = chosenAlb && chosenAlb.cover ? formatCoverSrc(chosenAlb.cover) : '';
+
     const card = document.createElement('div');
     card.className = 'genre-poster-card';
-    const alb = (state.albums && state.albums[idx % state.albums.length]);
-    const bgUrl = alb && alb.cover ? formatCoverSrc(alb.cover) : '';
+    card.title = chosenAlb ? `${zhLabel} • ${chosenAlb.title} (${chosenAlb.artist})` : zhLabel;
 
     card.innerHTML = `
       <div class="genre-poster-bg" style="background-image: url('${bgUrl}');"></div>
       <div class="genre-poster-overlay"></div>
-      <div class="genre-poster-title">${escapeXml(g.name)}</div>
+      <div class="genre-poster-title">${escapeXml(zhLabel)}</div>
     `;
 
     card.onclick = () => {
-      navigateTo('albums');
+      state.activeGenreFilter = entry.genre;
+      const navAlbums = document.querySelector('[data-view="albums"]');
+      if (navAlbums) navAlbums.click();
+      else navigateTo('albums');
+      renderAlbums();
+      showToast(`已篩選「${zhLabel}」風格專輯`);
     };
     grid.appendChild(card);
   });
