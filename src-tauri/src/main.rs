@@ -190,11 +190,12 @@ async fn main() {
                     static SHUTDOWN_STOPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                     if !SHUTDOWN_STOPPED.swap(true, std::sync::atomic::Ordering::SeqCst) {
                         api.prevent_close();
-                        roo_streamer::cancel_all_progressive_streams();
                         let win = window.clone();
                         tauri::async_runtime::spawn(async move {
                             let dlna = win.state::<DlnaManager>();
+                            // Stop DLNA renderer BEFORE tearing down HTTP streams so Pause/Stop/ClearURI succeed cleanly
                             dlna.stop_active().await;
+                            roo_streamer::cancel_all_progressive_streams();
                             let _ = win.close();
                         });
                     }

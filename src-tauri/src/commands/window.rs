@@ -53,7 +53,8 @@ pub async fn window_show(window: Window) -> Result<(), String> {
 #[tauri::command]
 pub async fn window_close(window: Window, dlna: State<'_, DlnaManager>) -> Result<(), String> {
     tracing::info!("Closing window — stopping active DLNA renderer & streams");
-    roo_streamer::cancel_all_progressive_streams();
+    // Stop DLNA renderer BEFORE cancelling HTTP streams so it receives Pause/Stop/ClearURI cleanly
     dlna.stop_active().await;
+    roo_streamer::cancel_all_progressive_streams();
     window.close().map_err(|e| e.to_string())
 }

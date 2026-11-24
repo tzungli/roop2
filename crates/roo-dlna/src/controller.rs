@@ -244,6 +244,17 @@ impl UpnpController {
         self.soap_action(control_url, &format!("{}#Stop", st), &body).await
     }
 
+    /// Clear the active AVTransport URI (`CurrentURI=""`) to force hardware renderers
+    /// to tear down their media pipeline and immediately flush buffered audio.
+    pub async fn clear_uri(&self, control_url: &str, service_type: &str) -> Result<()> {
+        let st = if service_type.trim().is_empty() {
+            "urn:schemas-upnp-org:service:AVTransport:1"
+        } else {
+            service_type.trim()
+        };
+        self.send_set_av_transport_uri(control_url, st, "", "").await
+    }
+
     pub async fn seek(&self, control_url: &str, service_type: &str, seconds: f64) -> Result<()> {
         let st = if service_type.trim().is_empty() {
             "urn:schemas-upnp-org:service:AVTransport:1"

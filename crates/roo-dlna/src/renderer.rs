@@ -9,6 +9,7 @@ pub struct DlnaManager {
     controller: Arc<UpnpController>,
     devices: Arc<RwLock<Vec<DlnaDevice>>>,
     selected_device_id: Arc<RwLock<Option<String>>>,
+    active_device: Arc<RwLock<Option<DlnaDevice>>>,
     stop_tx: Arc<RwLock<Option<watch::Sender<bool>>>>,
 }
 
@@ -24,6 +25,7 @@ impl DlnaManager {
             controller: Arc::new(UpnpController::new()),
             devices: Arc::new(RwLock::new(Vec::new())),
             selected_device_id: Arc::new(RwLock::new(None)),
+            active_device: Arc::new(RwLock::new(None)),
             stop_tx: Arc::new(RwLock::new(None)),
         }
     }
@@ -50,19 +52,40 @@ impl DlnaManager {
         }
     }
 
-    /// Stop whatever DLNA device is currently selected/active (used during app shutdown
-    /// so hardware renderers immediately flush their buffer instead of playing it out).
+    /// Stop whatever DLNA device is currently playing/selected (used during app shutdown
+    /// so hardware renderers immediately mute & flush their audio buffer instead of playing it out).
     pub async fn stop_active(&self) {
         if let Some(tx) = self.stop_tx.write().unwrap().take() {
             let _ = tx.send(true);
         }
-        if let Some(dev) = self.get_selected_device() {
-            tracing::info!("Stopping active DLNA renderer on shutdown: {} ({})", dev.name, dev.ip);
+        let target_dev = self
+            .active_device
+            .write()
+            .unwrap()
+            .take()
+            .or_else(|| self.get_selected_device());
+
+        if let Some(dev) = target_dev {
+            tracing::info!("Force-stopping active DLNA renderer on shutdown: {} ({})", dev.name, dev.ip);
+            // 1. Pause first: instantly mutes DAC output on renderers that fade/drain on Stop
             let _ = tokio::time::timeout(
-                Duration::from_millis(1500),
+                Duration::from_millis(500),
+                self.controller.pause(&dev.av_transport_url, &dev.av_transport_service_type),
+            )
+            .await;
+            // 2. Stop transport
+            let _ = tokio::time::timeout(
+                Duration::from_millis(800),
                 self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type),
             )
             .await;
+            // 3. Clear AVTransport URI to force hardware pipeline teardown & ring-buffer flush
+            let _ = tokio::time::timeout(
+                Duration::from_millis(500),
+                self.controller.clear_uri(&dev.av_transport_url, &dev.av_transport_service_type),
+            )
+            .await;
+            tokio::time::sleep(Duration::from_millis(80)).await;
         }
     }
 
@@ -96,6 +119,7 @@ impl DlnaManager {
             Some(d) => d,
             None => bail!("Device not found: {}", device_id),
         };
+        *self.active_device.write().unwrap() = Some(dev.clone());
 
         // Stop any previous progress loop
         if let Some(tx) = self.stop_tx.write().unwrap().take() {
@@ -237,8 +261,11 @@ impl DlnaManager {
         if let Some(tx) = self.stop_tx.write().unwrap().take() {
             let _ = tx.send(true);
         }
+        *self.active_device.write().unwrap() = None;
         let dev = self.get_device_by_id(device_id)?;
-        self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await
+        let res = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
+        let _ = self.controller.clear_uri(&dev.av_transport_url, &dev.av_transport_service_type).await;
+        res
     }
 
     pub async fn seek(&self, device_id: &str, seconds: f64) -> Result<()> {
