@@ -453,9 +453,13 @@ mod tests {
         let db_21_95k = measure_tone_db(&out_r, 21950.0);
         let db_image_22_15k = measure_tone_db(&out_r, 22150.0);
 
+        let t_run16 = std::time::Instant::now();
+        let (_out16_l, _out16_r) = r16.upsample_range_stereo(&left, &right, 40_000 * 16, 40_000 * 16 + 705_600);
+        let run16_ms = t_run16.elapsed().as_secs_f64() * 1000.0;
+
         println!(
-            "sinc-M: build4x={:.1}ms, build16x(1.05M taps)={:.1}ms, run4x(1s stereo)={:.1}ms, 1kHz SNR={:.2}dB, 21.95kHz={:.4}dB, 22.15kHz image={:.2}dB",
-            build_ms, build16_ms, run_ms, snr_1k_db, db_21_95k, db_image_22_15k
+            "sinc-M (multi-core): build4x={:.1}ms, build16x(1.05M taps)={:.1}ms, run4x(1s stereo)={:.1}ms, run16x(1s stereo)={:.1}ms, 1kHz SNR={:.2}dB, 21.95kHz={:.4}dB, 22.15kHz image={:.2}dB",
+            build_ms, build16_ms, run_ms, run16_ms, snr_1k_db, db_21_95k, db_image_22_15k
         );
 
         assert!(snr_1k_db > 150.0, "1kHz SNR should exceed 150 dB, got {:.2}", snr_1k_db);

@@ -45,33 +45,63 @@ impl SincMIntegerStage {
         let l = SINC_M_HALF_IN as f64 * p as f64;
         let inv_fft_n = 1.0 / SINC_M_FFT_SIZE as f64;
 
-        let mut phase_spectra = Vec::with_capacity(p);
-        for phi in 0..p {
-            let mut taps = vec![0.0f64; SINC_M_TAPS_PER_PHASE];
-            let mut sum = 0.0f64;
-            for r in 0..SINC_M_TAPS_PER_PHASE {
-                let k = r as i32 - SINC_M_HALF_IN;
-                let t = (k * p as i32 + phi as i32) as f64;
-                let u = t / l;
-                if u.abs() < 1.0 {
-                    let x = 2.0 * SINC_M_FC_RATIO * t / p as f64;
-                    let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
-                    let w = bessel_i0(beta * (1.0 - u * u).max(0.0).sqrt()) / i0_beta;
-                    let v = (2.0 * SINC_M_FC_RATIO) * sinc * w;
-                    taps[r] = v;
-                    sum += v;
+        let num_workers = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            .clamp(1, p);
+        let chunk_size = (p + num_workers - 1) / num_workers;
+        let scratch_len = fft_fwd.get_inplace_scratch_len();
+
+        let mut phase_spectra: Vec<Vec<Complex<f64>>> = vec![Vec::new(); p];
+        std::thread::scope(|s| {
+            let mut handles = Vec::with_capacity(num_workers);
+            for w_idx in 0..num_workers {
+                let phi_start = w_idx * chunk_size;
+                if phi_start >= p {
+                    break;
+                }
+                let phi_end = (phi_start + chunk_size).min(p);
+                let fft_fwd_ref = &fft_fwd;
+                handles.push(s.spawn(move || {
+                    let mut taps = vec![0.0f64; SINC_M_TAPS_PER_PHASE];
+                    let mut scratch = vec![Complex::new(0.0, 0.0); scratch_len];
+                    let mut local = Vec::with_capacity(phi_end - phi_start);
+                    for phi in phi_start..phi_end {
+                        let mut sum = 0.0f64;
+                        for r in 0..SINC_M_TAPS_PER_PHASE {
+                            let k = r as i32 - SINC_M_HALF_IN;
+                            let t = (k * p as i32 + phi as i32) as f64;
+                            let u = t / l;
+                            if u.abs() < 1.0 {
+                                let x = 2.0 * SINC_M_FC_RATIO * t / p as f64;
+                                let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
+                                let w = bessel_i0(beta * (1.0 - u * u).max(0.0).sqrt()) / i0_beta;
+                                let v = (2.0 * SINC_M_FC_RATIO) * sinc * w;
+                                taps[r] = v;
+                                sum += v;
+                            } else {
+                                taps[r] = 0.0;
+                            }
+                        }
+
+                        // Normalize each phase to exact unity DC gain and fold 1/N IFFT scaling into H_phi
+                        let scale = if sum.abs() > 1e-12 { inv_fft_n / sum } else { inv_fft_n };
+                        let mut spec = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
+                        for r in 0..SINC_M_TAPS_PER_PHASE {
+                            spec[r].re = taps[r] * scale;
+                        }
+                        fft_fwd_ref.process_with_scratch(&mut spec, &mut scratch);
+                        local.push((phi, spec));
+                    }
+                    local
+                }));
+            }
+            for h in handles {
+                for (phi, spec) in h.join().unwrap() {
+                    phase_spectra[phi] = spec;
                 }
             }
-
-            // Normalize each phase to exact unity DC gain and fold 1/N IFFT scaling into H_phi
-            let scale = if sum.abs() > 1e-12 { inv_fft_n / sum } else { inv_fft_n };
-            let mut spec = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
-            for r in 0..SINC_M_TAPS_PER_PHASE {
-                spec[r].re = taps[r] * scale;
-            }
-            fft_fwd.process(&mut spec);
-            phase_spectra.push(spec);
-        }
+        });
 
         Self {
             p,
@@ -107,23 +137,60 @@ impl SincMIntegerStage {
 
         let p = self.p;
         let valid_offset = 2 * SINC_M_HALF_IN as usize;
+        let num_workers = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            .clamp(1, p);
+        let chunk_size = (p + num_workers - 1) / num_workers;
+        let inv_scratch_len = self.fft_inv.get_inplace_scratch_len();
+
+        // Compute all polyphase IFFTs in parallel across CPU cores (zero false sharing)
+        let mut phase_outputs: Vec<Vec<Complex<f64>>> = vec![Vec::new(); p];
+        std::thread::scope(|s| {
+            let x_ref = &x_buf;
+            let spectra_ref = &self.phase_spectra;
+            let fft_inv_ref = &self.fft_inv;
+            let mut handles = Vec::with_capacity(num_workers);
+
+            for w_idx in 0..num_workers {
+                let phi_start = w_idx * chunk_size;
+                if phi_start >= p {
+                    break;
+                }
+                let phi_end = (phi_start + chunk_size).min(p);
+                handles.push(s.spawn(move || {
+                    let mut work = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
+                    let mut scratch = vec![Complex::new(0.0, 0.0); inv_scratch_len];
+                    let mut local = Vec::with_capacity(phi_end - phi_start);
+                    for phi in phi_start..phi_end {
+                        let h_spec = &spectra_ref[phi];
+                        for i in 0..SINC_M_FFT_SIZE {
+                            work[i] = x_ref[i] * h_spec[i];
+                        }
+                        fft_inv_ref.process_with_scratch(&mut work, &mut scratch);
+                        local.push((phi, work[valid_offset..valid_offset + SINC_M_BLOCK_IN].to_vec()));
+                    }
+                    local
+                }));
+            }
+
+            for h in handles {
+                for (phi, buf) in h.join().unwrap() {
+                    phase_outputs[phi] = buf;
+                }
+            }
+        });
+
+        // Cache-friendly sequential interleave into stereo output arrays
         let out_block_len = SINC_M_BLOCK_IN * p;
         let mut out_l = vec![0.0f64; out_block_len];
         let mut out_r = vec![0.0f64; out_block_len];
-        let mut work = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
-
-        for phi in 0..p {
-            let h_spec = &self.phase_spectra[phi];
-            for i in 0..SINC_M_FFT_SIZE {
-                work[i] = x_buf[i] * h_spec[i];
-            }
-            self.fft_inv.process(&mut work);
-
-            for d in 0..SINC_M_BLOCK_IN {
-                let c = work[valid_offset + d];
-                let dst = d * p + phi;
-                out_l[dst] = c.re;
-                out_r[dst] = c.im;
+        for d in 0..SINC_M_BLOCK_IN {
+            let base = d * p;
+            for phi in 0..p {
+                let c = phase_outputs[phi][d];
+                out_l[base + phi] = c.re;
+                out_r[base + phi] = c.im;
             }
         }
 
