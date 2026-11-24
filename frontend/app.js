@@ -3072,6 +3072,7 @@ function formatRelativeActivityTime(ts, verb) {
 // ----------------- 稍後聆聽 (Listen Later) -----------------
 const LISTEN_LATER_STORAGE_KEY = 'rooplayer_listen_later_albums';
 let listenLaterExpanded = false;
+let listenLaterCache = null;
 
 function getListenLaterKey(album) {
   if (!album) return '';
@@ -3083,20 +3084,37 @@ function getListenLaterKey(album) {
   return `local:${t}||${a}`;
 }
 
+function sanitizeListenLaterCover(url) {
+  const s = String(url || '').trim();
+  // Never persist huge base64 data: URIs into localStorage (causes QuotaExceededError);
+  // local albums resolve fresh artwork from state.albums via resolveListenLaterAlbum().
+  if (!s || s.startsWith('data:')) return '';
+  return s.slice(0, 512);
+}
+
 function getListenLaterAlbums() {
+  if (Array.isArray(listenLaterCache)) return listenLaterCache;
   try {
     const raw = localStorage.getItem(LISTEN_LATER_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    listenLaterCache = Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return [];
+    listenLaterCache = [];
   }
+  return listenLaterCache;
 }
 
 function saveListenLaterAlbums(list) {
+  const clean = (Array.isArray(list) ? list : []).slice(0, 100).map(item => ({
+    ...item,
+    coverUrl: sanitizeListenLaterCover(item && item.coverUrl)
+  }));
+  listenLaterCache = clean;
   try {
-    localStorage.setItem(LISTEN_LATER_STORAGE_KEY, JSON.stringify((list || []).slice(0, 100)));
-  } catch (e) {}
+    localStorage.setItem(LISTEN_LATER_STORAGE_KEY, JSON.stringify(clean));
+  } catch (e) {
+    console.warn('[ListenLater] localStorage persist failed:', e);
+  }
 }
 
 function isAlbumInListenLater(album) {
@@ -3153,7 +3171,7 @@ function toggleAlbumListenLater(album, btnEl) {
       isTidal: !!album.isTidal,
       title: album.title || '未知專輯',
       artist: album.artist || '未知演出者',
-      coverUrl: album.coverUrl || album.artwork || album.cover || '',
+      coverUrl: sanitizeListenLaterCover(album.coverUrl || album.artwork || album.cover || ''),
       audioQuality: album.audioQuality || '',
       formatText: formatAlbumSpecShort(album),
       addedAt: Date.now()
@@ -3163,7 +3181,8 @@ function toggleAlbumListenLater(album, btnEl) {
     updateListenLaterDetailButton(album, btnEl);
     showToast(`已加入「稍後聆聽」：《${entry.title}》`);
   }
-  if (state.currentView === 'overview') renderRooListenLater();
+  // Always keep Overview Listen Later DOM in sync immediately
+  renderRooListenLater();
 }
 
 function removeAlbumFromListenLater(key) {
@@ -3230,9 +3249,10 @@ function renderRooListenLater() {
     const title = (liveAlbum && liveAlbum.title) || entry.title || '未知專輯';
     const artist = (liveAlbum && liveAlbum.artist) || entry.artist || '未知演出者';
     const fmtText = liveAlbum ? formatAlbumSpecShort(liveAlbum) : (entry.formatText || '');
-    const coverSrc = (liveAlbum && (liveAlbum.coverUrl || liveAlbum.artwork || liveAlbum.cover))
+    const rawCover = (liveAlbum && (liveAlbum.cover || liveAlbum.coverUrl || liveAlbum.artwork))
       || entry.coverUrl
-      || createSvgCover(title, artist, '#27272a', '#18181b');
+      || '';
+    const coverSrc = formatCoverSrc(rawCover) || createSvgCover(title, artist, '#27272a', '#18181b');
 
     const card = document.createElement('div');
     card.className = 'roo-ll-card';
