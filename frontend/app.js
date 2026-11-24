@@ -20132,7 +20132,7 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
     </div>
     <div class="roon-zone-vol-row">
       <span class="roon-zone-vol-icon">${volSvg}</span>
-      <input type="range" class="roon-zone-vol-slider" min="0" max="100" value="${volPct}" aria-label="音量">
+      <input type="range" class="roon-zone-vol-slider" min="0" max="100" value="${volPct}" style="--zone-vol: ${volPct}%" aria-label="音量">
       <span class="roon-zone-vol-val">${volPct}%</span>
     </div>
   `;
@@ -20167,6 +20167,7 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
     volSlider.addEventListener('input', (e) => {
       e.stopPropagation();
       const v = e.target.value;
+      volSlider.style.setProperty('--zone-vol', `${v}%`);
       if (volVal) volVal.textContent = `${v}%`;
       setZoneInlineVolume(zoneId, v);
     });
