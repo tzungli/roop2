@@ -93,6 +93,7 @@
     '依發行年份 (新到舊)': 'Sort: Release year (newest first)',
     '依曲目數量': 'Sort: Track count',
     '依最常播放 (播放次數)': 'Sort: Most played (play count)',
+    '隨機排序': 'Sort: Random',
     '預設排序': 'Default order',
     '依曲目長度': 'Sort: Track length',
     '依曲目名稱 A-Z': 'Sort: Track name A-Z',

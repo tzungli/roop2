@@ -5451,6 +5451,16 @@ function renderAlbums() {
       if (countB !== countA) return countB - countA;
       return a.title.localeCompare(b.title);
     });
+  } else if (state.sortBy === 'random') {
+    if (!state.albumRandomWeights) state.albumRandomWeights = new Map();
+    const getWeight = (alb) => {
+      const key = alb.id || `${alb.artist || ''}::${alb.title || ''}`;
+      if (!state.albumRandomWeights.has(key)) {
+        state.albumRandomWeights.set(key, Math.random());
+      }
+      return state.albumRandomWeights.get(key);
+    };
+    filtered.sort((a, b) => getWeight(a) - getWeight(b));
   }
 
   if (filtered.length === 0) {
@@ -16786,6 +16796,9 @@ function setupNavigation() {
 
   document.getElementById('albumSortSelect').addEventListener('change', (e) => {
     state.sortBy = e.target.value;
+    if (state.sortBy === 'random') {
+      state.albumRandomWeights = new Map();
+    }
     renderAlbums();
   });
 
