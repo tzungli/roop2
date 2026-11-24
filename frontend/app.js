@@ -3153,38 +3153,115 @@ function renderRooRecentActivity(activeTab = 'added', page = 0) {
   });
 }
 
+let dailyPickCandidates = [];
+let dailyPickIndex = 0;
+
+function renderDailyPickCard(entry) {
+  const seedArtistEl = document.getElementById('dailyPickArtistSeed');
+  const albumArtistEl = document.getElementById('dailyPickAlbumArtist');
+  const daysAgoEl = document.getElementById('dailyPickDaysAgo');
+  const badgeEl = document.getElementById('dailyPickBadge');
+  const coverImg = document.getElementById('dailyPickCoverImg');
+  const heroBox = document.getElementById('dailyPickHeroBox');
+
+  const pick = entry.pickAlbum;
+  const seedArtist = entry.seedArtist || pick.artist || '精選演出者';
+
+  if (seedArtistEl) seedArtistEl.textContent = seedArtist;
+  if (albumArtistEl) albumArtistEl.textContent = `${pick.title || '精選專輯'} - ${pick.artist || seedArtist}`;
+  if (daysAgoEl) {
+    const yr = pick.year && String(pick.year).trim();
+    daysAgoEl.textContent = yr ? `${yr} 年發行` : '精選推薦作品';
+  }
+  if (badgeEl) badgeEl.textContent = pick.artist || seedArtist;
+  if (coverImg) {
+    coverImg.src = formatCoverSrc(pick.cover) || createSvgCover(pick.title, pick.artist);
+  }
+  if (heroBox) {
+    heroBox.onclick = () => openAlbumDetail(pick);
+  }
+
+  const btnPrev = document.getElementById('btnDailyPickPrev');
+  const btnNext = document.getElementById('btnDailyPickNext');
+  const hasMultiple = dailyPickCandidates.length > 1;
+  if (btnPrev) {
+    btnPrev.disabled = !hasMultiple;
+    btnPrev.style.opacity = hasMultiple ? '1' : '0.4';
+    btnPrev.onclick = () => {
+      if (dailyPickCandidates.length <= 1) return;
+      dailyPickIndex = (dailyPickIndex - 1 + dailyPickCandidates.length) % dailyPickCandidates.length;
+      renderDailyPickCard(dailyPickCandidates[dailyPickIndex]);
+    };
+  }
+  if (btnNext) {
+    btnNext.disabled = !hasMultiple;
+    btnNext.style.opacity = hasMultiple ? '1' : '0.4';
+    btnNext.onclick = () => {
+      if (dailyPickCandidates.length <= 1) return;
+      dailyPickIndex = (dailyPickIndex + 1) % dailyPickCandidates.length;
+      renderDailyPickCard(dailyPickCandidates[dailyPickIndex]);
+    };
+  }
+}
+
 function renderRooDailyPick() {
   const dateEl = document.getElementById('dailyPickDateLabel');
   if (dateEl) {
     const now = new Date();
-    const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
-    dateEl.textContent = `${months[now.getMonth()]} ${now.getDate()}ND 日`;
+    dateEl.textContent = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`;
   }
 
-  const recent = getRecentlyPlayedAlbums(3);
-  const seedAlbum = recent[0] || (state.albums && state.albums[0]) || { title: 'Reborn', artist: '陳鈺華' };
+  const recent5 = getRecentlyPlayedAlbums(5);
+  const allAlbums = state.albums || [];
+  const norm = (s) => String(s || '').trim().toLowerCase();
 
-  const seedArtistEl = document.getElementById('dailyPickArtistSeed');
-  if (seedArtistEl) seedArtistEl.textContent = seedAlbum.artist || '陳鈺華';
+  // Build candidates: for each of the 5 most recently played albums, find OTHER albums by the same artist
+  const otherWorks = [];
+  const seenKeys = new Set();
+  recent5.forEach((seed) => {
+    const seedArtistNorm = norm(seed.artist);
+    const seedTitleNorm = norm(seed.title);
+    if (!seedArtistNorm || isUnknownArtist(seed.artist)) return;
 
-  const albumArtistEl = document.getElementById('dailyPickAlbumArtist');
-  if (albumArtistEl) albumArtistEl.textContent = `${seedAlbum.title || 'Reborn'} - ${seedAlbum.artist || '陳鈺華'}`;
+    allAlbums.forEach((alb) => {
+      if (norm(alb.artist) === seedArtistNorm && norm(alb.title) !== seedTitleNorm) {
+        const key = `${norm(alb.artist)}___${norm(alb.title)}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          otherWorks.push({ seedArtist: seed.artist, pickAlbum: alb });
+        }
+      }
+    });
+  });
 
-  const daysAgoEl = document.getElementById('dailyPickDaysAgo');
-  if (daysAgoEl) daysAgoEl.textContent = '在 19 天前發行';
-
-  const badgeEl = document.getElementById('dailyPickBadge');
-  if (badgeEl) badgeEl.textContent = seedAlbum.artist || '陳鈺華';
-
-  const coverImg = document.getElementById('dailyPickCoverImg');
-  if (coverImg) {
-    coverImg.src = formatCoverSrc(seedAlbum.cover) || createSvgCover(seedAlbum.title, seedAlbum.artist);
+  // Fisher-Yates shuffle for genuine random selection
+  for (let i = otherWorks.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [otherWorks[i], otherWorks[j]] = [otherWorks[j], otherWorks[i]];
   }
 
-  const heroBox = document.getElementById('dailyPickHeroBox');
-  if (heroBox) {
-    heroBox.onclick = () => openAlbumDetail(seedAlbum);
+  if (otherWorks.length > 0) {
+    dailyPickCandidates = otherWorks;
+  } else {
+    // Fallback if none of the 5 recently played artists have other albums in the library:
+    // pick random albums from the library (excluding the exact seed if possible)
+    const playedTitles = new Set(recent5.map(a => `${norm(a.artist)}___${norm(a.title)}`));
+    const fallbackPool = allAlbums.filter(a => !playedTitles.has(`${norm(a.artist)}___${norm(a.title)}`));
+    const pool = fallbackPool.length > 0 ? [...fallbackPool] : [...recent5, ...allAlbums];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const seedArtist = (recent5[0] && recent5[0].artist) || (pool[0] && pool[0].artist) || '精選演出者';
+    dailyPickCandidates = pool.slice(0, 10).map(alb => ({ seedArtist, pickAlbum: alb }));
   }
+
+  if (dailyPickCandidates.length === 0) {
+    dailyPickCandidates = [{ seedArtist: '精選演出者', pickAlbum: { title: '尚無專輯', artist: '請匯入音樂庫' } }];
+  }
+
+  dailyPickIndex = 0;
+  renderDailyPickCard(dailyPickCandidates[0]);
 }
 
 function renderNewReleases(tab = 'albums') {
