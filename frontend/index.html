@@ -2005,14 +2005,17 @@
                 <br>• <strong>第三道防線（超音波防護濾波器）</strong>：在類比前級以 2 階巴特沃斯低通濾除超聲高頻能量，保護後級擴大機與高音單元免於射頻互調失真（RF IMD）與過熱。
               </p>
 
-              <!-- 區塊一：4 種核心 SRC 濾波器原理與量測 -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">一、4 種核心取樣率轉換 (SRC) 濾波器原理與實測數據</h4>
+              <!-- 區塊一：7 種核心 SRC 濾波器原理與量測 -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">一、7 種核心取樣率轉換 (SRC) 濾波器原理與實測數據</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                依照旗艦高階 DSP 架構，由兩大正交維度（<strong>頻域滾降特性</strong> $\times$ <strong>時域相位特性</strong>）組合而成：
-                <br>• <strong>精準 (Precise)</strong>：採用 Kaiser 窗多相 FIR（$\beta \approx 14.47, A_s \ge 140\text{ dB}$），通帶 0~20kHz 零衰減，奈奎斯特截止極度陡峭。
-                <br>• <strong>平滑 (Smooth)</strong>：採用高斯窗 sinc 緩降 FIR，自 18kHz 平緩慢滾降，消除高頻生硬數位感，時域鈴振時長縮短 &gt;75%。
+                依照旗艦高階 DSP 架構，由基礎四大正交維度（<strong>頻域滾降特性</strong> × <strong>時域相位特性</strong>）加上三款發燒級長階線性相位演算法構成：
+                <br>• <strong>精準 (Precise)</strong>：採用 Kaiser 窗多相 FIR（β ≈ 14.47, As ≥ 140 dB），通帶 0~20kHz 零衰減，奈奎斯特截止極度陡峭。
+                <br>• <strong>平滑 (Smooth)</strong>：採用高斯窗 sinc 緩降 FIR，自 18kHz 平緩慢滾降，消除高頻生硬數位感，時域鈴振時長縮短 &gt;55%。
                 <br>• <strong>線性相位 (Linear Phase)</strong>：對稱衝激響應，全頻段群延遲恆定，<strong>絕對零相位失真</strong>。
                 <br>• <strong>最小相位 (Minimum Phase)</strong>：透過複倒頻譜希爾伯特變換（Spectral Factorization）將零點完全反射至單位圓內，<strong>預響鈴嚴格為零 (0.00% Pre-ringing)</strong>，符合人耳聽覺心理前向遮蔽效應。
+                <br>• <strong>高斯長階 (Gauss Long)</strong>：仿 HQPlayer <code>poly-sinc-gauss-long</code>，採純高斯窗（σ = 0.17L，邊緣自然衰減 &lt; -150 dB）搭配 449 輸入階多相 Sinc，20 kHz 內零衰減、奈奎斯特 -166.6 dB 深度抑鏡，時域呈平滑高斯包絡無硬切邊。
+                <br>• <strong>延伸磚牆 (Ext2)</strong>：仿 HQPlayer <code>poly-sinc-ext2</code>，1,281 輸入階超高陡峭 Kaiser 窗（As = 175 dB），通帶延伸至 20.8 kHz 依然 0.000 dB 完全平坦，於 22.05 kHz 瞬間達成 -183.0 dB 磚牆抑鏡。
+                <br>• <strong>百萬階磚牆 (Sinc-M)</strong>：仿 HQPlayer <code>sinc-M</code> / Chord M-Scaler，採 <strong>Partitioned FFT 分段多相卷積</strong>（立體聲複數打包 L+iR 2 倍加速），每相 65,535 階（16x 升頻總原型達 <strong>1,048,545 taps</strong>），44.1 kHz 下平坦延伸至 21.95 kHz、22.15 kHz 第一鏡像直壓 -205.3 dB，1 kHz 重建 SNR 達 242.5 dB，且 4x 1 秒立體聲僅耗時 17.0 ms（~59x 即時速度）。
               </p>
 
               <!-- 表 1-1: 頻率響應衰減實測表 -->
@@ -2058,7 +2061,7 @@
                       <td style="padding: 8px 10px;">-73.48 dB</td>
                       <td style="padding: 8px 10px;">-83.73 dB</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">平滑，最小相位 (Smooth, Minimum)</td>
                       <td style="padding: 8px 10px; color: #34d399;">-0.002 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">-0.016 dB</td>
@@ -2066,6 +2069,33 @@
                       <td style="padding: 8px 10px;">-76.94 dB</td>
                       <td style="padding: 8px 10px;">-73.86 dB</td>
                       <td style="padding: 8px 10px;">-85.96 dB</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">高斯長階，線性相位 (Gauss Long)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-166.61 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-200.09 dB (@23k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-237.20 dB</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">延伸磚牆，線性相位 (Ext2)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB (20.8k 亦 0dB)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-183.01 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-192.71 dB (@23k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-213.26 dB</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">百萬階磚牆，線性相位 (Sinc-M)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (21.95k 亦 0dB)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">&lt; -175 dB (-205.29 dB @22.15k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">&lt; -205 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">&lt; -210 dB</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2114,7 +2144,7 @@
                       <td style="padding: 8px 10px; color: #34d399;"><strong>絕對 0 相位失真</strong></td>
                       <td style="padding: 8px 10px;"><strong>寬鬆自然大氣</strong>：時域鈴振極短，高頻溫潤柔和、泛音自然。</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">平滑，最小相位 (Smooth, Minimum)</td>
                       <td style="padding: 8px 10px;">257</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.00% (嚴格零預響)</td>
@@ -2122,6 +2152,33 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">1.009 ms (縮短 60%)</td>
                       <td style="padding: 8px 10px;">因果最小延遲</td>
                       <td style="padding: 8px 10px;"><strong>發燒黑膠韻味</strong>：零預響加超短後響，毫無數位硬邊，久聽不累。</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">高斯長階，線性相位 (Gauss Long)</td>
+                      <td style="padding: 8px 10px;">1,793 (4x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px; color: #34d399;">純高斯平滑包絡</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>絕對 0 相位失真</strong></td>
+                      <td style="padding: 8px 10px;"><strong>寬鬆立體全能王</strong>：無截斷硬邊震盪，兼顧高解析、自然泛音與立體音場。</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">延伸磚牆，線性相位 (Ext2)</td>
+                      <td style="padding: 8px 10px;">5,121 (4x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">高階磚牆對稱</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>絕對 0 相位失真</strong></td>
+                      <td style="padding: 8px 10px;"><strong>極致通透高解析</strong>：通帶延伸至 20.8kHz、-183dB 抑鏡，空氣感與微細節密度極高。</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">百萬階磚牆，線性相位 (Sinc-M)</td>
+                      <td style="padding: 8px 10px; font-weight: 600;">262,137 (4x)<br>1,048,545 (16x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px; color: #34d399;">FFT 分段零延遲偏移<br>(1s 立體聲 17.0 ms)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>絕對 0 相位失真</strong><br>(SNR 242.48 dB)</td>
+                      <td style="padding: 8px 10px;"><strong>百萬階旗艦空間感</strong>：21.95kHz 零衰減、22.15kHz -205dB 垂直截止，深邃堂音與極致定位。</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2361,6 +2418,9 @@
                 <li><strong>溫潤發燒人聲與弦樂重奏組合</strong>：<code>平滑，線性相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k</code>。高斯抖動徹底消除 Delta-Sigma 極限環，時域鈴振時長大幅縮短 75%，泛音溫暖厚實自然，消除高頻冷硬毛刺，人聲甜美滑順、久聽不累。</li>
                 <li><strong>發燒黑膠老類比韻味組合</strong>：<code>平滑，最小相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD64 / DSD128</code> ➔ <code>20k / 30k</code>。零預響鈴加上超短後響鈴，完全消除數位硬邊，重現經典黑膠唱片與早期 SACD 迷人的溫潤厚重感。</li>
                 <li><strong>純 PCM 超取樣直通組合</strong>：<code>精準，線性相位</code> ➔ <code>4x 整數倍頻 (176.4k / 192k)</code> ➔ <code>TPDF 抖動</code> ➔ <code>關閉 (None) / 30k</code>。純 PCM 多相 FIR 超取樣直出，線性無失真量化抖動，由 DAC 本地解碼，細節通透開闊。</li>
+                <li><strong>HQPlayer 風格全能發燒組合 (Gauss Long)</strong>：<code>高斯長階，線性相位</code> ➔ <code>7 階 (CLANS)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。純高斯包絡兼顧 20kHz 內零衰減與極低自然響鈴，音場寬鬆立體、久聽不累，適合各類人聲、爵士與古典。</li>
+                <li><strong>極致透明與高頻空氣感組合 (Ext2)</strong>：<code>延伸磚牆，線性相位 (Ext2)</code> ➔ <code>7 階 (CLANS) 或 8x PCM</code> ➔ <code>TPDF / Noise-Shaped</code> ➔ <code>40k / 關閉</code>。通帶延伸至 20.8kHz 且奈奎斯特直壓 -183dB，樂器輪廓、空間殘響與微細節分離度極致鮮明。</li>
+                <li><strong>百萬階 M-Scaler 終極空間解析組合 (Sinc-M)</strong>：<code>百萬階磚牆，線性相位 (Sinc-M)</code> ➔ <code>8x / 16x 整數倍 PCM 或 DSD256</code> ➔ <code>Noise-Shaped / Gauss</code> ➔ <code>關閉 / 40k</code>。Partitioned FFT 百萬階多相卷積提供 242dB 重建精度與 22kHz 垂直刀切抑鏡，重現現場廳堂深度與針點結像。</li>
               </ul>
             </div>
           </div>

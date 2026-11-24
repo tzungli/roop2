@@ -382,7 +382,7 @@ mod tests {
         let ids: Vec<&str> = list.iter().map(|d| d.id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["precise-linear", "precise-min", "gauss-long", "poly-ext2", "sinc-m", "smooth-linear", "smooth-min"]
+            vec!["precise-linear", "precise-min", "smooth-linear", "smooth-min", "gauss-long", "poly-ext2", "sinc-m"]
         );
     }
 

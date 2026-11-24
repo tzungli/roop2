@@ -249,14 +249,17 @@
                 <br>• <strong>Third Line of Defense (Ultrasonic Protection Filter)</strong>: Applies a 2nd-order Butterworth low-pass filter to attenuate ultrasonic energy before analog amplification, protecting amplifiers and tweeters from RF intermodulation distortion (IMD) and overheating.
               </p>
 
-              <!-- Section 1: 4 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 4 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
+              <!-- Section 1: 7 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 7 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                Modeled after the flagship high-end DSP architecture, structured along two orthogonal dimensions (<strong>Frequency Domain Roll-off</strong> &times; <strong>Time Domain Phase Profile</strong>):
+                Modeled after flagship high-end DSP architectures, combining four foundational orthogonal profiles (<strong>Frequency Roll-off</strong> &times; <strong>Phase Profile</strong>) with three reference long-tap linear-phase filters:
                 <br>• <strong>Precise</strong>: Employs Kaiser window polyphase FIR (&beta; &approx; 14.47, A<sub>s</sub> &ge; 140 dB), flat passband (0~20kHz with 0.000 dB loss), and brickwall Nyquist attenuation.
-                <br>• <strong>Smooth</strong>: Employs Gaussian-window sinc slow roll-off FIR, beginning a gentle slope at 18kHz to eliminate digital glare, reducing time-domain ringing duration by &gt;75%.
+                <br>• <strong>Smooth</strong>: Employs Gaussian-window sinc slow roll-off FIR, beginning a gentle slope at 18kHz to eliminate digital glare, reducing time-domain ringing duration by &gt;55%.
                 <br>• <strong>Linear Phase</strong>: Symmetric impulse response with strictly constant group delay and <strong>absolute zero phase distortion</strong>.
                 <br>• <strong>Minimum Phase</strong>: Employs complex cepstrum Hilbert spectral factorization to reflect zeros inside the unit circle, achieving <strong>strictly zero pre-ringing (0.00% Pre-ringing)</strong>, aligning perfectly with psychoacoustic pre-masking.
+                <br>• <strong>Gauss Long</strong>: Inspired by HQPlayer <code>poly-sinc-gauss-long</code>; pure Gaussian window (&sigma; = 0.17L, edge attenuation &lt; -150 dB) with 449 input taps, dead-flat through 20 kHz, -166.6 dB at Nyquist, and ultra-smooth natural Gaussian ringing envelope.
+                <br>• <strong>Ext2 (Extended Brickwall)</strong>: Inspired by HQPlayer <code>poly-sinc-ext2</code>; 1,281 input-tap Kaiser brickwall (A<sub>s</sub> = 175 dB), flat passband extended to 20.8 kHz (0.000 dB) and -183.0 dB suppression right at Nyquist.
+                <br>• <strong>Sinc-M (Million-Tap FFT)</strong>: Inspired by HQPlayer <code>sinc-M</code> / Chord M-Scaler; <strong>Partitioned FFT Polyphase Convolution</strong> with stereo complex packing (L+iR, 2x throughput), 65,535 taps per phase (<strong>1,048,545 prototype taps</strong> at 16x), flat to 21.95 kHz, -205.3 dB first-image suppression at 22.15 kHz, 242.5 dB 1 kHz SNR, and 17.0 ms per stereo second at 4x (~59x real-time).
               </p>
 
               <!-- Table 1-1: Frequency Response Attenuation Benchmark -->
@@ -302,7 +305,7 @@
                       <td style="padding: 8px 10px;">-73.48 dB</td>
                       <td style="padding: 8px 10px;">-83.73 dB</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">Smooth, Minimum Phase</td>
                       <td style="padding: 8px 10px; color: #34d399;">-0.002 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">-0.016 dB</td>
@@ -310,6 +313,33 @@
                       <td style="padding: 8px 10px;">-76.94 dB</td>
                       <td style="padding: 8px 10px;">-73.86 dB</td>
                       <td style="padding: 8px 10px;">-85.96 dB</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">Gauss Long, Linear Phase</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-166.61 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-200.09 dB (@23k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-237.20 dB</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">Ext2 Brickwall, Linear Phase</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB (0dB @20.8k)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-183.01 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-192.71 dB (@23k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-213.26 dB</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (0dB @21.95k)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">&lt; -175 dB (-205.29 dB @22.15k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">&lt; -205 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">&lt; -210 dB</td>
                     </tr>
                   </tbody>
                 </table>
@@ -358,7 +388,7 @@
                       <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong></td>
                       <td style="padding: 8px 10px;"><strong>Lush &amp; Organic Staging</strong>: Ultra-short ringing, velvety smooth treble, lush natural harmonics.</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fbbf24;">Smooth, Minimum Phase</td>
                       <td style="padding: 8px 10px;">257</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.00% (Strictly Zero Pre-Ringing)</td>
@@ -366,6 +396,33 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">1.009 ms (-60% duration)</td>
                       <td style="padding: 8px 10px;">Causal Minimum Delay</td>
                       <td style="padding: 8px 10px;"><strong>Audiophile Vinyl Warmth</strong>: Zero pre-ringing plus short decay, zero digital edge, fatigue-free musicality.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">Gauss Long, Linear Phase</td>
+                      <td style="padding: 8px 10px;">1,793 (4x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px; color: #34d399;">Smooth Gaussian Envelope</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong></td>
+                      <td style="padding: 8px 10px;"><strong>All-Round Natural Staging</strong>: Zero truncation glare, spacious 3D soundstage with natural harmonics.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">Ext2 Brickwall, Linear Phase</td>
+                      <td style="padding: 8px 10px;">5,121 (4x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">High-Order Symmetric Brickwall</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong></td>
+                      <td style="padding: 8px 10px;"><strong>Ultra-Transparent Detail</strong>: Extended 20.8kHz flat passband, -183dB Nyquist rejection, crisp micro-detail.</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600;">262,137 (4x)<br>1,048,545 (16x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px; color: #34d399;">Partitioned FFT Zero-Shift<br>(17.0 ms / 1s stereo)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong><br>(242.48 dB SNR)</td>
+                      <td style="padding: 8px 10px;"><strong>Million-Tap Spatial Precision</strong>: Flat to 21.95kHz, -205dB image cut at 22.15kHz, deep hall ambiance.</td>
                     </tr>
                   </tbody>
                 </table>

@@ -145,11 +145,11 @@ impl FilterRegistry {
         const CORE_ORDER: [&str; 7] = [
             "precise-linear",
             "precise-min",
+            "smooth-linear",
+            "smooth-min",
             "gauss-long",
             "poly-ext2",
             "sinc-m",
-            "smooth-linear",
-            "smooth-min",
         ];
         let map = self.plugins.read().unwrap();
         let mut items: Vec<FilterDescriptor> = map.values().cloned().collect();
