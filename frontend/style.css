@@ -13691,3 +13691,264 @@ body.table-col-resizing * {
   content-visibility: auto;
   contain-intrinsic-size: auto 42px;
 }
+
+/* =========================================================================
+   Network Folder / SAMBA Discovery Panel (Unified Minimalist Lavender Theme)
+   ========================================================================= */
+.samba-action-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.samba-discovered-panel {
+  background: rgba(124, 92, 255, 0.05);
+  border: 1px solid rgba(124, 92, 255, 0.2);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+.samba-discovered-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.samba-discovered-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.samba-header-icon {
+  color: var(--accent-purple);
+  display: inline-flex;
+  align-items: center;
+}
+
+.samba-discovered-title-row h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.samba-count-badge {
+  background: rgba(124, 92, 255, 0.14);
+  color: var(--accent-purple);
+  border: 1px solid rgba(124, 92, 255, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.samba-discovered-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.samba-server-card {
+  background: var(--bg-panel, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.samba-server-card:hover {
+  border-color: rgba(124, 92, 255, 0.35);
+}
+
+.samba-server-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.samba-server-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.samba-server-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.samba-server-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-main);
+  letter-spacing: 0.2px;
+}
+
+.samba-server-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.samba-server-ip {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--accent-purple);
+  font-weight: 600;
+}
+
+.samba-shares-box {
+  padding: 11px 13px;
+  background: rgba(124, 92, 255, 0.04);
+  border: 1px solid rgba(124, 92, 255, 0.16);
+  border-radius: 6px;
+}
+
+.samba-shares-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.samba-shares-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.samba-share-pill {
+  background: rgba(124, 92, 255, 0.1);
+  color: var(--accent-purple);
+  border: 1px solid rgba(124, 92, 255, 0.32);
+  padding: 6px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.18s ease;
+}
+
+.samba-share-pill:hover {
+  background: var(--accent-purple);
+  color: #ffffff;
+  border-color: var(--accent-purple);
+  box-shadow: 0 3px 10px var(--accent-purple-glow);
+}
+
+.samba-share-comment {
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.samba-share-cta {
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.samba-shares-locked {
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.samba-manual-form {
+  background: rgba(124, 92, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.samba-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.samba-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sub);
+  margin-bottom: 5px;
+}
+
+.samba-form-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 11px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.samba-form-input:focus {
+  outline: none;
+  border-color: var(--accent-purple);
+}
+
+[data-theme="light"] .samba-discovered-panel {
+  background: #f8f7fc;
+  border-color: rgba(124, 92, 255, 0.18);
+}
+
+[data-theme="light"] .samba-server-card {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.09);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .samba-shares-box {
+  background: #faf9fe;
+  border-color: rgba(124, 92, 255, 0.15);
+}
+
+[data-theme="light"] .samba-shares-locked {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #64748b;
+}
+
+[data-theme="light"] .samba-manual-form {
+  background: #f8f7fc;
+  border-color: rgba(124, 92, 255, 0.18);
+}
+
+[data-theme="light"] .samba-form-input {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.15);
+  color: #0f172a;
+}

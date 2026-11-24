@@ -18702,16 +18702,17 @@ function setupScannerEvents() {
         return;
       }
 
+      const discoverBtnDefaultHtml = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><circle cx="11" cy="11" r="7.5"></circle><line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line></svg><span>自動搜尋區域網路 SAMBA / NAS 伺服器</span>`;
       btnAutoDiscoverSamba.disabled = true;
-      btnAutoDiscoverSamba.innerHTML = '<span>🔄 正在搜尋區域網路中...</span>';
+      btnAutoDiscoverSamba.innerHTML = '<span>正在搜尋區域網路中...</span>';
 
       try {
         const res = await window.electronAPI.discoverSambaServers();
         btnAutoDiscoverSamba.disabled = false;
-        btnAutoDiscoverSamba.innerHTML = '<span>🔍 自動搜尋區域網路 SAMBA / NAS 伺服器</span>';
+        btnAutoDiscoverSamba.innerHTML = discoverBtnDefaultHtml;
 
         if (!res || !res.success || !res.servers || res.servers.length === 0) {
-          showToast('ℹ️ 區域網路內未探測到開啟 SMB (連接埠 445) 的伺服器，請確認 NAS / SAMBA 伺服器已開機並連線至相同網路。');
+          showToast('區域網路內未探測到開啟 SMB (連接埠 445) 的伺服器，請確認 NAS / SAMBA 伺服器已開機並連線至相同網路。');
           return;
         }
 
@@ -18720,30 +18721,29 @@ function setupScannerEvents() {
           if (discoveredServersCountBadge) discoveredServersCountBadge.textContent = `${res.servers.length} 台伺服器`;
           discoveredServersList.innerHTML = '';
 
+          const serverSvg = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="1.5"></rect><rect x="2" y="14" width="20" height="7" rx="1.5"></rect><line x1="6" y1="6.5" x2="6.01" y2="6.5"></line><line x1="6" y1="17.5" x2="6.01" y2="17.5"></line></svg>`;
+          const folderSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+          const lockSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
+
           res.servers.forEach(srv => {
             const card = document.createElement('div');
-            card.className = 'folder-list-item';
-            card.style.background = 'rgba(15, 23, 42, 0.85)';
-            card.style.borderColor = 'rgba(59, 130, 246, 0.4)';
-            card.style.borderRadius = '8px';
-            card.style.padding = '14px 16px';
-            card.style.flexDirection = 'column';
-            card.style.alignItems = 'stretch';
-            card.style.gap = '12px';
+            card.className = 'samba-server-card';
 
             let sharesHtml = '';
             if (srv.shares && srv.shares.length > 0) {
               sharesHtml = `
-                <div style="margin-top: 4px; padding: 12px 14px; background: rgba(30, 41, 59, 0.9); border-radius: 8px; border: 1px solid rgba(96, 165, 250, 0.35);">
-                  <div style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                    <span style="font-size: 14px;">📁</span> 發現的共用資料夾（點擊直接連線並匯入專輯）：
+                <div class="samba-shares-box">
+                  <div class="samba-shares-label">
+                    ${folderSvg}
+                    <span>發現的共用資料夾（點擊直接連線並匯入專輯）</span>
                   </div>
-                  <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <div class="samba-shares-pills">
                     ${srv.shares.map(sh => `
-                      <button class="btn btn-sm btn-quick-connect-share" data-unc="\\\\${srv.ip}\\${sh.name}" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; border: 1px solid #93c5fd; padding: 7px 16px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.35); text-shadow: 0 1px 2px rgba(0,0,0,0.4);" title="點擊直接連線 \\\\${srv.ip}\\${sh.name} 並匯入音樂庫">
-                        <span>📂 ${escapeXml(sh.name)}</span>
-                        ${sh.comment ? `<span style="color: #e0f2fe; font-size: 12px; font-weight: 500;">(${escapeXml(sh.comment)})</span>` : ''}
-                        <span style="color: #fef08a; font-weight: 700; font-size: 12px;">➔ 立即匯入</span>
+                      <button class="samba-share-pill btn-quick-connect-share" data-unc="\\\\${srv.ip}\\${sh.name}" title="點擊直接連線 \\\\${srv.ip}\\${sh.name} 並匯入音樂庫">
+                        ${folderSvg}
+                        <span class="samba-share-name">${escapeXml(sh.name)}</span>
+                        ${sh.comment ? `<span class="samba-share-comment">(${escapeXml(sh.comment)})</span>` : ''}
+                        <span class="samba-share-cta">→ 立即匯入</span>
                       </button>
                     `).join('')}
                   </div>
@@ -18751,25 +18751,24 @@ function setupScannerEvents() {
               `;
             } else {
               sharesHtml = `
-                <div style="margin-top: 4px; padding: 8px 12px; background: rgba(30, 41, 59, 0.6); border-radius: 6px; font-size: 12px; color: #cbd5e1; border: 1px dashed rgba(255,255,255,0.15);">
-                  🔒 需帳號密碼存取或未開放公開列舉，請點擊右上方「填入連線表單」輸入共用名稱與密碼。
+                <div class="samba-shares-locked">
+                  ${lockSvg}
+                  <span>需帳號密碼存取或未開放公開列舉，請點擊右上方「填入連線表單」輸入共用名稱與密碼。</span>
                 </div>
               `;
             }
 
             const displayName = (srv.hostName && srv.hostName !== srv.ip) ? `${srv.hostName} (${srv.ip})` : (srv.hostName || srv.ip);
             card.innerHTML = `
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="font-size: 24px;">🖥️</span>
+              <div class="samba-server-top">
+                <div class="samba-server-info">
+                  <div class="samba-server-icon">${serverSvg}</div>
                   <div>
-                    <div style="font-weight: 700; font-size: 15px; color: #60a5fa; letter-spacing: 0.3px;">${escapeXml(displayName)}</div>
-                    <div style="font-size: 12px; color: #cbd5e1; margin-top: 3px;">IP 位址: <span style="font-family: monospace; color: #93c5fd; font-weight: 600;">${escapeXml(srv.ip)}</span> • <span style="color: #e2e8f0;">${escapeXml(srv.serverDesc || 'SAMBA 伺服器')}</span></div>
+                    <div class="samba-server-name">${escapeXml(displayName)}</div>
+                    <div class="samba-server-meta">IP 位址：<span class="samba-server-ip">${escapeXml(srv.ip)}</span> • <span>${escapeXml(srv.serverDesc || 'SAMBA 伺服器')}</span></div>
                   </div>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                  <button class="btn btn-secondary btn-sm btn-fill-samba" data-ip="${escapeXml(srv.ip)}" data-host="${escapeXml(srv.hostName || srv.ip)}" style="font-size: 12px; background: rgba(255,255,255,0.08); color: #f8fafc; border: 1px solid rgba(255,255,255,0.2);">填入連線表單</button>
-                </div>
+                <button class="btn btn-secondary btn-sm btn-fill-samba" data-ip="${escapeXml(srv.ip)}" data-host="${escapeXml(srv.hostName || srv.ip)}">填入連線表單</button>
               </div>
               ${sharesHtml}
             `;
@@ -18806,7 +18805,7 @@ function setupScannerEvents() {
         }
       } catch (err) {
         btnAutoDiscoverSamba.disabled = false;
-        btnAutoDiscoverSamba.innerHTML = '<span>🔍 自動搜尋區域網路 SAMBA / NAS 伺服器</span>';
+        btnAutoDiscoverSamba.innerHTML = discoverBtnDefaultHtml;
         alert(`搜尋失敗：${err.message || err}`);
       }
     });

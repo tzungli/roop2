@@ -1366,8 +1366,9 @@
             <p>支援標準 SMB / CIFS 協定，相容 Synology 群暉、QNAP 威聯通、Asustor 華芸、TrueNAS、Windows 共用資料夾與 Linux Samba。</p>
           </div>
           
-          <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-            <button class="btn btn-primary" id="btnAutoDiscoverSamba" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; display: inline-flex; align-items: center; gap: 6px;">
+          <div class="samba-action-row">
+            <button class="btn btn-primary" id="btnAutoDiscoverSamba" style="display: inline-flex; align-items: center; gap: 7px;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><circle cx="11" cy="11" r="7.5"></circle><line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line></svg>
               <span>自動搜尋區域網路 SAMBA / NAS 伺服器</span>
             </button>
             <button class="btn btn-secondary" id="btnBrowseNetworkFolder">
@@ -1379,45 +1380,45 @@
           </div>
 
           <!-- Discovered Servers Panel (動態呈現自動搜尋結果) -->
-          <div id="discoveredServersBox" style="display: none; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 3px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="ui-svg-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"></circle><line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line></svg></span>
-                <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: #f8fafc;">發現的區域網路 SAMBA / NAS 伺服器</h4>
-                <span class="badge" id="discoveredServersCountBadge" style="background: rgba(37, 99, 235, 0.25); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 11px;">0 台伺服器</span>
+          <div id="discoveredServersBox" class="samba-discovered-panel" style="display: none;">
+            <div class="samba-discovered-header">
+              <div class="samba-discovered-title-row">
+                <span class="ui-svg-icon samba-header-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"></circle><line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line></svg></span>
+                <h4>發現的區域網路 SAMBA / NAS 伺服器</h4>
+                <span class="badge samba-count-badge" id="discoveredServersCountBadge">0 台伺服器</span>
               </div>
               <button class="btn btn-secondary btn-sm" id="btnCloseDiscoveredServers">關閉 ✕</button>
             </div>
-            <div id="discoveredServersList" style="display: flex; flex-direction: column; gap: 12px;">
+            <div id="discoveredServersList" class="samba-discovered-list">
               <!-- Injected via JS -->
             </div>
           </div>
 
           <!-- Manual Samba Input Form -->
-          <div id="manualSambaForm" style="display: none; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 3px; padding: 20px; margin-bottom: 20px;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+          <div id="manualSambaForm" class="samba-manual-form" style="display: none;">
+            <div class="samba-form-grid">
               <div>
-                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputHost">伺服器 IP 或主機名稱 (必填)</label>
-                <input type="text" id="sambaInputHost" placeholder="例如: 192.168.1.100 或 NAS-SERVER" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 2px; color: var(--text-main); font-size: 13px;">
+                <label class="samba-form-label" for="sambaInputHost">伺服器 IP 或主機名稱 (必填)</label>
+                <input type="text" id="sambaInputHost" placeholder="例如: 192.168.1.100 或 NAS-SERVER" class="form-control samba-form-input">
               </div>
               <div>
-                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputShare">共用名稱 Share Name (必填)</label>
-                <input type="text" id="sambaInputShare" placeholder="例如: music 或 Audio" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 2px; color: var(--text-main); font-size: 13px;">
+                <label class="samba-form-label" for="sambaInputShare">共用名稱 Share Name (必填)</label>
+                <input type="text" id="sambaInputShare" placeholder="例如: music 或 Audio" class="form-control samba-form-input">
               </div>
               <div>
-                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputSubPath">子目錄路徑 (選填)</label>
-                <input type="text" id="sambaInputSubPath" placeholder="例如: FLAC 或 Hi-Res (選填)" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 2px; color: var(--text-main); font-size: 13px;">
+                <label class="samba-form-label" for="sambaInputSubPath">子目錄路徑 (選填)</label>
+                <input type="text" id="sambaInputSubPath" placeholder="例如: FLAC 或 Hi-Res (選填)" class="form-control samba-form-input">
               </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div class="samba-form-grid">
               <div>
-                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputUsername">帳號 (選填，訪客留空)</label>
-                <input type="text" id="sambaInputUsername" placeholder="使用者名稱 (選填)" autocomplete="username" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 2px; color: var(--text-main); font-size: 13px;">
+                <label class="samba-form-label" for="sambaInputUsername">帳號 (選填，訪客留空)</label>
+                <input type="text" id="sambaInputUsername" placeholder="使用者名稱 (選填)" autocomplete="username" class="form-control samba-form-input">
               </div>
               <div>
-                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;" for="sambaInputPassword">密碼 (選填)</label>
-                <input type="password" id="sambaInputPassword" placeholder="密碼 (選填)" autocomplete="current-password" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 2px; color: var(--text-main); font-size: 13px;">
+                <label class="samba-form-label" for="sambaInputPassword">密碼 (選填)</label>
+                <input type="password" id="sambaInputPassword" placeholder="密碼 (選填)" autocomplete="current-password" class="form-control samba-form-input">
               </div>
             </div>
 
