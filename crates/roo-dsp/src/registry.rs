@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use crate::fir::{
-    build_hq_poly_sinc_gauss_long_filter, build_precise_linear_filter, build_precise_min_filter,
-    build_smooth_linear_filter, build_smooth_min_filter, kaiser_sinc_fir, windowed_sinc_fir_ext,
-    FirFilter,
+    build_hq_poly_sinc_gauss_long_filter, build_poly_ext2_filter, build_precise_linear_filter,
+    build_precise_min_filter, build_smooth_linear_filter, build_smooth_min_filter,
+    kaiser_sinc_fir, windowed_sinc_fir_ext, FirFilter,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +108,13 @@ impl FilterRegistry {
                 dsd_safe: true,
             },
             FilterDescriptor {
+                id: "poly-ext2".to_string(),
+                label: "延伸磚牆，線性相位 (Ext2)".to_string(),
+                sound: "仿 HQPlayer poly-sinc-ext2：1281 階超陡峭磚牆，通帶延伸至 21kHz 零衰減、奈奎斯特 -170dB 徹底抑鏡，通透高密度微細節".to_string(),
+                kind: "fir".to_string(),
+                dsd_safe: true,
+            },
+            FilterDescriptor {
                 id: "smooth-linear".to_string(),
                 label: "平滑，線性相位".to_string(),
                 sound: "高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢".to_string(),
@@ -128,10 +135,11 @@ impl FilterRegistry {
     }
 
     pub fn list(&self) -> Vec<FilterDescriptor> {
-        const CORE_ORDER: [&str; 5] = [
+        const CORE_ORDER: [&str; 6] = [
             "precise-linear",
             "precise-min",
             "gauss-long",
+            "poly-ext2",
             "smooth-linear",
             "smooth-min",
         ];
@@ -155,10 +163,11 @@ impl FilterRegistry {
             "precise-linear" => Some(build_precise_linear_filter(fs_out, src_rate)),
             "precise-min" => Some(build_precise_min_filter(fs_out, src_rate)),
             "gauss-long" | "poly-sinc-gauss-long" => Some(build_hq_poly_sinc_gauss_long_filter(fs_out, src_rate)),
+            "poly-ext2" | "hqp-ps-ext2" => Some(build_poly_ext2_filter(fs_out, src_rate)),
             "smooth-linear" => Some(build_smooth_linear_filter(fs_out, src_rate)),
             "smooth-min" => Some(build_smooth_min_filter(fs_out, src_rate)),
             // 舊版過渡別名相容
-            "linear" | "pure-flat" | "poly-ext2" | "hqp-ps-ext2" => Some(build_precise_linear_filter(fs_out, src_rate)),
+            "linear" | "pure-flat" => Some(build_precise_linear_filter(fs_out, src_rate)),
             "minimum" => Some(build_precise_min_filter(fs_out, src_rate)),
             "intermediate" => Some(build_smooth_linear_filter(fs_out, src_rate)),
             "gauss-min" => Some(build_smooth_min_filter(fs_out, src_rate)),

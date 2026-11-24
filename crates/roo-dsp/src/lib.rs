@@ -376,12 +376,67 @@ mod tests {
 
         // 5. Registry checks
         let list = REGISTRY.list();
-        assert_eq!(list.len(), 5);
+        assert_eq!(list.len(), 6);
         let ids: Vec<&str> = list.iter().map(|d| d.id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["precise-linear", "precise-min", "gauss-long", "smooth-linear", "smooth-min"]
+            vec!["precise-linear", "precise-min", "gauss-long", "poly-ext2", "smooth-linear", "smooth-min"]
         );
+    }
+
+    #[test]
+    fn test_poly_ext2_frequency_response() {
+        let src_rate = 44100.0;
+        let fs_out = 176400.0;
+        let f = REGISTRY.build_filter(fs_out, src_rate, "poly-ext2").expect("poly-ext2 filter");
+        assert!(!f.minimum_phase);
+        assert_eq!(f.lo, -f.hi);
+        assert!(f.poly_phases.is_some());
+
+        let n = f.taps;
+        for i in 0..(n / 2) {
+            assert!(
+                (f.h[i] - f.h[n - 1 - i]).abs() < 1e-12,
+                "Non-symmetric tap at {}: {} vs {}",
+                i,
+                f.h[i],
+                f.h[n - 1 - i]
+            );
+        }
+
+        let eval_db = |freq_hz: f64| -> f64 {
+            let s_g = f.s as f64;
+            let norm = f.ratio * s_g;
+            let w = 2.0 * std::f64::consts::PI * freq_hz / (fs_out * s_g);
+            let mut re = 0.0;
+            let mut im = 0.0;
+            for (j, &a) in f.h[..n].iter().enumerate() {
+                let ang = w * j as f64;
+                re += a * ang.cos();
+                im -= a * ang.sin();
+            }
+            let mag = (re * re + im * im).sqrt() / norm;
+            20.0 * mag.max(1e-12).log10()
+        };
+
+        let db_1k = eval_db(1000.0);
+        let db_20k = eval_db(20000.0);
+        let db_20_8k = eval_db(20800.0);
+        let db_21_5k = eval_db(21500.0);
+        let db_nyq = eval_db(22050.0);
+        let db_23k = eval_db(23000.0);
+        let db_30k = eval_db(30000.0);
+        println!(
+            "poly-ext2 (44.1k->176.4k, taps={}): 1kHz={:.4}dB, 20kHz={:.4}dB, 20.8kHz={:.4}dB, 21.5kHz={:.2}dB, 22.05kHz={:.2}dB, 23kHz={:.2}dB, 30kHz={:.2}dB",
+            n, db_1k, db_20k, db_20_8k, db_21_5k, db_nyq, db_23k, db_30k
+        );
+
+        assert!(db_1k.abs() < 0.005, "1kHz gain should be ~0dB, got {}", db_1k);
+        assert!(db_20k.abs() < 0.005, "20kHz passband should be dead flat, got {}", db_20k);
+        assert!(db_20_8k.abs() < 0.01, "20.8kHz extended passband should be flat, got {}", db_20_8k);
+        assert!(db_nyq < -160.0, "Nyquist (22.05kHz) attenuation should be < -160dB, got {}", db_nyq);
+        assert!(db_23k < -165.0, "23kHz stopband should be < -165dB, got {}", db_23k);
+        assert!(db_30k < -165.0, "30kHz stopband should be < -165dB, got {}", db_30k);
     }
 
     #[test]
