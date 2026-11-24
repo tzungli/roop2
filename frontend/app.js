@@ -4194,32 +4194,199 @@ function renderRooRecommendedGenres() {
   });
 }
 
-function renderRooRecommendedArtistsWithCues() {
+let currentRecArtistsPage = 0;
+
+function renderRooRecommendedArtistsWithCues(page = 0) {
   const grid = document.getElementById('recommendedArtistsWithCuesGrid');
   if (!grid) return;
+
+  const MAX_RECS = 10;
+  const PAGE_SIZE = 5;
+  const norm = (s) => String(s || '').trim().toLowerCase();
+
+  const history = getPlaybackHistory() || [];
+  const stats = getPlayStatsRef();
+  const allAlbums = state.albums || [];
+  const allArtists = state.artists || [];
+
+  // 1. Gather user's listened artists, albums, and preferred genres (local + TIDAL)
+  const listenedArtistScores = new Map(); // norm -> { name, score }
+  const playedAlbumKeys = new Set();
+  const genreScores = new Map(); // canonical genre -> score
+
+  const addArt = (name, pts) => {
+    const clean = String(name || '').trim();
+    const k = norm(clean);
+    if (!k || isUnknownArtist(clean)) return;
+    const prev = listenedArtistScores.get(k);
+    if (prev) prev.score += pts;
+    else listenedArtistScores.set(k, { name: clean, score: pts });
+  };
+  const addGen = (g, pts) => {
+    if (!g) return;
+    genreScores.set(g, (genreScores.get(g) || 0) + pts);
+  };
+
+  history.slice(0, 120).forEach((h, idx) => {
+    if (!h) return;
+    const w = idx < 15 ? 3 : 1.5;
+    addArt(h.artist, w);
+    if (h.album) playedAlbumKeys.add(`${norm(h.album)}___${norm(h.artist)}`);
+    addGen(canonicalizeGenre(h.genre || '', h), w);
+  });
+
+  (state.tracks || []).forEach(t => {
+    const tKey = t.id || `${t.title}___${t.artist}`;
+    const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+    const fav = isTrackFavorite(t) ? 3 : 0;
+    if (plays > 0 || fav > 0) {
+      addArt(t.artist, plays * 2 + fav);
+      if (plays > 0 && t.album) playedAlbumKeys.add(`${norm(t.album)}___${norm(t.artist)}`);
+      addGen(t.genre || canonicalizeGenre(t.genre, t), plays * 1.5 + fav);
+    }
+  });
+
+  const topListenedArtists = Array.from(listenedArtistScores.values()).sort((a, b) => b.score - a.score);
+  const topGenres = Array.from(genreScores.entries()).sort((a, b) => b[1] - a[1]).map(([g]) => g);
+  const topListenedSet = new Set(topListenedArtists.slice(0, 5).map(a => norm(a.name)));
+
+  const recommendations = [];
+  const usedKeys = new Set();
+
+  // Type A: Recommend OTHER albums from the user's frequently listened artists
+  for (const seed of topListenedArtists.slice(0, 6)) {
+    if (recommendations.length >= 4) break;
+    const seedNorm = norm(seed.name);
+    const otherAlbs = allAlbums.filter(a =>
+      norm(a.artist) === seedNorm && !playedAlbumKeys.has(`${norm(a.title)}___${seedNorm}`)
+    );
+    if (otherAlbs.length > 0) {
+      const targetAlb = otherAlbs[0];
+      const liveArt = allArtists.find(art => norm(art.name) === seedNorm);
+      const recKey = `alb_${seedNorm}_${norm(targetAlb.title)}`;
+      if (!usedKeys.has(recKey)) {
+        usedKeys.add(recKey);
+        recommendations.push({
+          name: seed.name,
+          cue: `探索其他作品《${targetAlb.title}》`,
+          liveArt,
+          targetAlbum: targetAlb
+        });
+      }
+    }
+  }
+
+  // Type B: Recommend OTHER artists sharing the user's top listened genres
+  const primarySeedName = topListenedArtists[0] ? topListenedArtists[0].name : '';
+  const candidateGenres = topGenres.length > 0 ? topGenres : ['Pop', 'Vocal', 'Jazz', 'Classical'];
+
+  for (const g of candidateGenres) {
+    if (recommendations.length >= MAX_RECS) break;
+    const gInfo = getGenreIllustrationInfo(g);
+    const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : g) || g;
+
+    // Find artists in library with albums in this genre, excluding already top-listened artists
+    const matchingArtists = [];
+    const seenInG = new Set();
+    for (const alb of allAlbums) {
+      if (!alb.artist || isUnknownArtist(alb.artist)) continue;
+      const ak = norm(alb.artist);
+      if (topListenedSet.has(ak) || seenInG.has(ak) || usedKeys.has(`art_${ak}`)) continue;
+      if (matchItemGenre(alb, g)) {
+        seenInG.add(ak);
+        matchingArtists.push({ name: alb.artist, album: alb });
+      }
+    }
+
+    // Light deterministic-per-session variety shuffle
+    for (let i = matchingArtists.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [matchingArtists[i], matchingArtists[j]] = [matchingArtists[j], matchingArtists[i]];
+    }
+
+    for (const ma of matchingArtists) {
+      if (recommendations.length >= MAX_RECS) break;
+      const ak = norm(ma.name);
+      usedKeys.add(`art_${ak}`);
+      const liveArt = allArtists.find(art => norm(art.name) === ak);
+      const cue = primarySeedName
+        ? `與 ${primarySeedName} 同屬「${gLabel}」風格`
+        : `依您偏好的「${gLabel}」曲風推薦`;
+      recommendations.push({
+        name: ma.name,
+        cue,
+        liveArt,
+        targetAlbum: null
+      });
+    }
+  }
+
+  // Fallback: fill remaining slots from library artists if library is very small
+  if (recommendations.length < 5) {
+    for (const art of allArtists) {
+      if (recommendations.length >= MAX_RECS) break;
+      const ak = norm(art.name);
+      if (!ak || isUnknownArtist(art.name) || usedKeys.has(`art_${ak}`)) continue;
+      usedKeys.add(`art_${ak}`);
+      recommendations.push({
+        name: art.name,
+        cue: '探索您音樂庫中的更多作品',
+        liveArt: art,
+        targetAlbum: null
+      });
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(recommendations.length / PAGE_SIZE));
+  currentRecArtistsPage = Math.max(0, Math.min(page, totalPages - 1));
+
+  const btnPrev = document.getElementById('btnRecArtistsPrev');
+  const btnNext = document.getElementById('btnRecArtistsNext');
+  if (btnPrev) {
+    const canPrev = currentRecArtistsPage > 0;
+    btnPrev.disabled = !canPrev;
+    btnPrev.style.opacity = canPrev ? '1' : '0.4';
+    btnPrev.onclick = () => {
+      if (currentRecArtistsPage > 0) renderRooRecommendedArtistsWithCues(currentRecArtistsPage - 1);
+    };
+  }
+  if (btnNext) {
+    const canNext = currentRecArtistsPage < totalPages - 1;
+    btnNext.disabled = !canNext;
+    btnNext.style.opacity = canNext ? '1' : '0.4';
+    btnNext.onclick = () => {
+      if (currentRecArtistsPage < totalPages - 1) renderRooRecommendedArtistsWithCues(currentRecArtistsPage + 1);
+    };
+  }
+
   grid.innerHTML = '';
+  if (recommendations.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">匯入並聆聽音樂後，系統將依您的偏好推薦相關演出者與作品</div>';
+    return;
+  }
 
-  const recArtists = [
-    { name: '吳霏', cue: '如果你喜歡 郁家瑋、鄭駿儀 及 宏兒Kuan Hong' },
-    { name: '李翊君', cue: '如果你喜歡 任素汐、Chang Yu-Shen 及 Han Hong' },
-    { name: '施語庭', cue: '如果你喜歡 O\'zone、PPlin 林芃逸 及 童雲晞' },
-    { name: '邱鋒澤 Feng Ze', cue: '如果你喜歡 ANGIE安吉' },
-    { name: '陈立农', cue: '如果你喜歡 Ray Zhao、顏人中 及 趙乃吉' }
-  ];
+  const startIdx = currentRecArtistsPage * PAGE_SIZE;
+  const pageRecs = recommendations.slice(startIdx, startIdx + PAGE_SIZE);
 
-  recArtists.forEach((a, i) => {
-    const liveArt = (state.artists || []).find(art => art.name && art.name.includes(a.name)) || (state.artists && state.artists[i]);
-    const aSrc = (liveArt && liveArt.avatar) || createSvgCover(a.name, '', '#3f3f46', '#18181b');
+  pageRecs.forEach((rec) => {
+    const aSrc = rec.targetAlbum && rec.targetAlbum.cover
+      ? formatCoverSrc(rec.targetAlbum.cover)
+      : getImmediateArtistAvatarSrc(rec.name, rec.liveArt);
     const card = document.createElement('div');
     card.className = 'circle-artist-card';
     card.innerHTML = `
-      <img src="${aSrc}" class="circle-artist-avatar" alt="${escapeXml(a.name)}" loading="lazy">
-      <div class="circle-artist-name">${escapeXml(a.name)}</div>
-      <div class="circle-artist-cue">${escapeXml(a.cue)}</div>
+      <img src="${aSrc}" class="circle-artist-avatar" alt="${escapeXml(rec.name)}" loading="lazy" style="object-fit: cover;">
+      <div class="circle-artist-name" title="${escapeXml(rec.name)}">${escapeXml(rec.name)}</div>
+      <div class="circle-artist-cue" title="${escapeXml(rec.cue)}">${escapeXml(rec.cue)}</div>
     `;
+    if (!rec.targetAlbum) {
+      const imgEl = card.querySelector('img.circle-artist-avatar');
+      hydrateSingleArtistImg(rec.name, imgEl);
+    }
     card.onclick = () => {
-      if (liveArt) openArtistDetail(liveArt);
-      else showToast(`正在載入 ${a.name}...`);
+      if (rec.targetAlbum) openAlbumDetail(rec.targetAlbum);
+      else if (rec.liveArt) openArtistDetail(rec.liveArt);
+      else openArtistDetail({ name: rec.name, albums: [], tracks: [] });
     };
     grid.appendChild(card);
   });
