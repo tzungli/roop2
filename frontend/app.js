@@ -2961,6 +2961,7 @@ function renderTopPlayedArtists() {
 function renderOverview() {
   renderRooOverviewHeader();
   renderRooRecentActivity('added');
+  renderRooListenLater();
   renderRooDailyPick();
   renderNewReleases('albums');
   renderRooDailyMixes();
@@ -3066,6 +3067,207 @@ function formatRelativeActivityTime(ts, verb) {
   if (diffHr < 24) return `在 ${diffHr} 小時前${verb}`;
   const diffDay = Math.floor(diffHr / 24);
   return `在 ${diffDay} 天前${verb}`;
+}
+
+// ----------------- 稍後聆聽 (Listen Later) -----------------
+const LISTEN_LATER_STORAGE_KEY = 'rooplayer_listen_later_albums';
+let listenLaterExpanded = false;
+
+function getListenLaterKey(album) {
+  if (!album) return '';
+  if (album.isTidal && (album.tidalId || album.id)) {
+    return `tidal:${String(album.tidalId || album.id).replace(/^tidal_/, '')}`;
+  }
+  const t = String(album.title || '').trim().toLowerCase();
+  const a = String(album.artist || '').trim().toLowerCase();
+  return `local:${t}||${a}`;
+}
+
+function getListenLaterAlbums() {
+  try {
+    const raw = localStorage.getItem(LISTEN_LATER_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveListenLaterAlbums(list) {
+  try {
+    localStorage.setItem(LISTEN_LATER_STORAGE_KEY, JSON.stringify((list || []).slice(0, 100)));
+  } catch (e) {}
+}
+
+function isAlbumInListenLater(album) {
+  const key = getListenLaterKey(album);
+  if (!key) return false;
+  return getListenLaterAlbums().some(item => item && item.key === key);
+}
+
+function formatAlbumSpecShort(album) {
+  if (!album) return '';
+  const firstTrack = (album.tracks && album.tracks[0]) || {};
+  const rawPath = firstTrack.filePath || firstTrack.fileName || album.filePath || '';
+  const fmt = getAudioFormatFromPath(rawPath, album.formatName || 'PCM').toUpperCase();
+  const isDsd = fmt === 'DSF' || fmt === 'DFF' || fmt === 'DSD';
+  const rate = album.sampleRate || firstTrack.sampleRate || 44100;
+  const bits = album.bitsPerSample || firstTrack.bitsPerSample || (isDsd ? 1 : 16);
+  const khz = Math.round((rate / 1000) * 10) / 10;
+  if (album.isTidal) {
+    const isHiRes = album.audioQuality === 'HI_RES_LOSSLESS' || album.audioQuality === 'HIRES' || bits >= 24;
+    return isHiRes ? `TIDAL MAX ${bits}/${khz}` : `TIDAL FLAC 16/${khz}`;
+  }
+  if (isDsd) {
+    return `${fmt} 1b/${(rate / 1e6).toFixed(1)}M`;
+  }
+  return `${fmt} ${khz}/${bits}`;
+}
+
+function updateListenLaterDetailButton(album, btnEl) {
+  const btn = btnEl || document.getElementById('btnListenLaterAlbumDetail');
+  if (!btn) return;
+  const inList = isAlbumInListenLater(album);
+  btn.classList.toggle('active', inList);
+  btn.title = inList ? '從稍後聆聽移除' : '加入稍後聆聽';
+  const textEl = btn.querySelector('#btnListenLaterAlbumText');
+  if (textEl) textEl.textContent = inList ? '已在稍後聆聽' : '稍後聆聽';
+}
+
+function toggleAlbumListenLater(album, btnEl) {
+  if (!album) return;
+  const key = getListenLaterKey(album);
+  if (!key) return;
+  let list = getListenLaterAlbums();
+  const existsIdx = list.findIndex(item => item && item.key === key);
+  if (existsIdx >= 0) {
+    list.splice(existsIdx, 1);
+    saveListenLaterAlbums(list);
+    updateListenLaterDetailButton(album, btnEl);
+    showToast(`已從「稍後聆聽」移除《${album.title || '專輯'}》`);
+  } else {
+    const entry = {
+      key,
+      id: album.id || null,
+      tidalId: album.isTidal ? String(album.tidalId || album.id || '').replace(/^tidal_/, '') : null,
+      isTidal: !!album.isTidal,
+      title: album.title || '未知專輯',
+      artist: album.artist || '未知演出者',
+      coverUrl: album.coverUrl || album.artwork || album.cover || '',
+      audioQuality: album.audioQuality || '',
+      formatText: formatAlbumSpecShort(album),
+      addedAt: Date.now()
+    };
+    list.unshift(entry);
+    saveListenLaterAlbums(list);
+    updateListenLaterDetailButton(album, btnEl);
+    showToast(`已加入「稍後聆聽」：《${entry.title}》`);
+  }
+  if (state.currentView === 'overview') renderRooListenLater();
+}
+
+function removeAlbumFromListenLater(key) {
+  if (!key) return;
+  const list = getListenLaterAlbums().filter(item => item && item.key !== key);
+  saveListenLaterAlbums(list);
+  if (state.activeAlbumDetail && getListenLaterKey(state.activeAlbumDetail) === key) {
+    updateListenLaterDetailButton(state.activeAlbumDetail);
+  }
+  renderRooListenLater();
+}
+
+function resolveListenLaterAlbum(entry) {
+  if (!entry) return null;
+  const albums = state.albums || [];
+  const live = albums.find(a => getListenLaterKey(a) === entry.key);
+  if (live) return live;
+  if (entry.isTidal && entry.tidalId) {
+    return {
+      id: `tidal_${entry.tidalId}`,
+      tidalId: entry.tidalId,
+      isTidal: true,
+      title: entry.title,
+      artist: entry.artist,
+      coverUrl: entry.coverUrl || '',
+      audioQuality: entry.audioQuality || 'LOSSLESS',
+      tracks: []
+    };
+  }
+  return null;
+}
+
+function renderRooListenLater() {
+  const grid = document.getElementById('overviewListenLaterGrid');
+  const btnMore = document.getElementById('btnListenLaterMore');
+  if (!grid) return;
+
+  const list = getListenLaterAlbums();
+  if (btnMore) {
+    if (list.length > 8) {
+      btnMore.style.display = '';
+      btnMore.textContent = listenLaterExpanded ? '收合' : `更多 (${list.length})`;
+      btnMore.onclick = () => {
+        listenLaterExpanded = !listenLaterExpanded;
+        renderRooListenLater();
+      };
+    } else {
+      btnMore.style.display = 'none';
+      listenLaterExpanded = false;
+    }
+  }
+
+  if (!list.length) {
+    grid.innerHTML = `<div class="roo-ll-empty">尚未加入任何專輯，可在專輯頁面點選「稍後聆聽」加入</div>`;
+    return;
+  }
+
+  const visible = listenLaterExpanded ? list : list.slice(0, 8);
+  grid.innerHTML = '';
+  const frag = document.createDocumentFragment();
+
+  visible.forEach(entry => {
+    const liveAlbum = resolveListenLaterAlbum(entry);
+    const title = (liveAlbum && liveAlbum.title) || entry.title || '未知專輯';
+    const artist = (liveAlbum && liveAlbum.artist) || entry.artist || '未知演出者';
+    const fmtText = liveAlbum ? formatAlbumSpecShort(liveAlbum) : (entry.formatText || '');
+    const coverSrc = (liveAlbum && (liveAlbum.coverUrl || liveAlbum.artwork || liveAlbum.cover))
+      || entry.coverUrl
+      || createSvgCover(title, artist, '#27272a', '#18181b');
+
+    const card = document.createElement('div');
+    card.className = 'roo-ll-card';
+    card.innerHTML = `
+      <img class="roo-ll-cover" src="${escapeXml(coverSrc)}" alt="${escapeXml(title)}" loading="lazy">
+      <div class="roo-ll-meta">
+        <div class="roo-ll-title">${escapeXml(title)}</div>
+        <div class="roo-ll-artist">${escapeXml(artist)}</div>
+        <div class="roo-ll-fmt">${escapeXml(fmtText)}</div>
+      </div>
+      <button class="roo-ll-remove" type="button" title="從稍後聆聽移除">✕</button>
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.roo-ll-remove')) return;
+      const target = resolveListenLaterAlbum(entry);
+      if (target) {
+        openAlbumDetail(target);
+      } else {
+        showToast('找不到此專輯，可能已從音樂庫移除');
+      }
+    });
+
+    const rmBtn = card.querySelector('.roo-ll-remove');
+    if (rmBtn) {
+      rmBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeAlbumFromListenLater(entry.key);
+      });
+    }
+
+    frag.appendChild(card);
+  });
+
+  grid.appendChild(frag);
 }
 
 function renderRooRecentActivity(activeTab = 'added', page = 0) {
@@ -9182,6 +9384,16 @@ function openAlbumDetail(album) {
     btnFavAlbum.onclick = (e) => {
       e.stopPropagation();
       toggleAlbumFavorite(album, btnFavAlbum);
+    };
+  }
+
+  // Listen Later button in Album Detail
+  const btnListenLater = document.getElementById('btnListenLaterAlbumDetail');
+  if (btnListenLater) {
+    updateListenLaterDetailButton(album, btnListenLater);
+    btnListenLater.onclick = (e) => {
+      e.stopPropagation();
+      toggleAlbumListenLater(album, btnListenLater);
     };
   }
 

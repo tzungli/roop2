@@ -366,6 +366,19 @@
           </div>
         </div>
 
+        <!-- 1.25 稍後聆聽 Listen Later (最近加入的 8 張專輯) -->
+        <div class="roo-section-block roo-listen-later-section" id="overviewListenLaterSection">
+          <div class="roo-section-head-bar">
+            <h2 class="roo-block-title">稍後聆聽</h2>
+            <div class="roo-banner-actions">
+              <button class="roo-btn-more" id="btnListenLaterMore" style="display: none;">更多</button>
+            </div>
+          </div>
+          <div class="roo-listen-later-grid" id="overviewListenLaterGrid">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
         <!-- 1.3 每日精選 Daily Pick (因為你曾播放 + 3D疊層傾斜封面) -->
         <div class="roo-daily-pick-section">
           <div class="roo-section-subhead">
@@ -908,6 +921,13 @@
                   <svg class="fav-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                   </svg>
+                </button>
+                <button class="btn btn-secondary btn-listen-later-detail" id="btnListenLaterAlbumDetail" title="加入稍後聆聽">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <polyline points="12 7 12 12 15 14"></polyline>
+                  </svg>
+                  <span id="btnListenLaterAlbumText">稍後聆聽</span>
                 </button>
                 <button class="btn btn-secondary" id="btnTidalLibraryToggle" style="display: none;">
                   <span id="btnTidalLibraryToggleIcon">+</span> <span id="btnTidalLibraryToggleText">加入曲庫</span>

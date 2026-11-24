@@ -10685,6 +10685,134 @@ body.table-col-resizing * {
   border-color: var(--border-color);
 }
 
+/* Overview: Listen Later (稍後聆聽) */
+.roo-listen-later-section {
+  margin-top: 28px;
+}
+
+.roo-listen-later-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 22px;
+}
+
+.roo-ll-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.roo-ll-card:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.roo-ll-cover {
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.roo-ll-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.roo-ll-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roo-ll-artist {
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roo-ll-fmt {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.roo-ll-remove {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.roo-ll-card:hover .roo-ll-remove {
+  opacity: 0.75;
+}
+
+.roo-ll-remove:hover {
+  opacity: 1 !important;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.roo-ll-empty {
+  grid-column: 1 / -1;
+  padding: 16px 14px;
+  border-radius: 4px;
+  border: 1px dashed var(--border-color);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.btn-listen-later-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px !important;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btn-listen-later-detail.active {
+  background: rgba(99, 102, 241, 0.14) !important;
+  color: var(--accent-purple, #6366f1) !important;
+  border-color: rgba(99, 102, 241, 0.38) !important;
+}
+
+@media (max-width: 640px) {
+  .roo-listen-later-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .nav-item[data-view="tidal"]:hover .nav-icon {
   filter: none;
 }
