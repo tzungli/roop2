@@ -3069,6 +3069,94 @@ function formatRelativeActivityTime(ts, verb) {
   return `在 ${diffDay} 天前${verb}`;
 }
 
+// ----------------- 專輯評分系統 (5-Star Album Rating) -----------------
+const ALBUM_RATINGS_STORAGE_KEY = 'rooplayer_album_ratings';
+let albumRatingsCache = null;
+
+function getAlbumRatingsMap() {
+  if (albumRatingsCache && typeof albumRatingsCache === 'object') return albumRatingsCache;
+  try {
+    const raw = localStorage.getItem(ALBUM_RATINGS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    albumRatingsCache = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (e) {
+    albumRatingsCache = {};
+  }
+  return albumRatingsCache;
+}
+
+function getAlbumRating(album) {
+  const key = getListenLaterKey(album);
+  if (!key) return 0;
+  const map = getAlbumRatingsMap();
+  const val = parseInt(map[key], 10);
+  return (val >= 1 && val <= 5) ? val : 0;
+}
+
+function setAlbumRating(album, stars) {
+  const key = getListenLaterKey(album);
+  if (!key) return 0;
+  const map = getAlbumRatingsMap();
+  const clamped = (stars >= 1 && stars <= 5) ? stars : 0;
+  if (clamped === 0) {
+    delete map[key];
+  } else {
+    map[key] = clamped;
+  }
+  albumRatingsCache = map;
+  try {
+    localStorage.setItem(ALBUM_RATINGS_STORAGE_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn('[Rating] localStorage save failed:', e);
+  }
+  return clamped;
+}
+
+function renderDetailAlbumRating(album) {
+  const container = document.getElementById('detailAlbumRatingStars');
+  const textEl = document.getElementById('detailAlbumRatingText');
+  if (!container) return;
+
+  const current = getAlbumRating(album);
+  if (textEl) textEl.textContent = current > 0 ? `${current} / 5` : '未評分';
+
+  const starSvgFilled = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  const starSvgEmpty = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
+  container.innerHTML = '';
+  const buttons = [];
+
+  const paintStars = (level, isPreview) => {
+    buttons.forEach((b, idx) => {
+      const lit = idx < level;
+      b.classList.toggle('filled', !isPreview && lit);
+      b.classList.toggle('preview', isPreview && lit);
+      b.innerHTML = lit ? starSvgFilled : starSvgEmpty;
+    });
+  };
+
+  for (let i = 1; i <= 5; i++) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'detail-star-btn';
+    btn.setAttribute('aria-label', `${i} 顆星`);
+    btn.title = (i === current) ? '再點一次清除評分' : `評為 ${i} 顆星`;
+    btn.addEventListener('mouseenter', () => paintStars(i, true));
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const next = (getAlbumRating(album) === i) ? 0 : i;
+      setAlbumRating(album, next);
+      renderDetailAlbumRating(album);
+      showToast(next > 0 ? `已評分《${album.title || '專輯'}》：${'★'.repeat(next)}${'☆'.repeat(5 - next)}` : `已清除《${album.title || '專輯'}》評分`);
+    });
+    buttons.push(btn);
+    container.appendChild(btn);
+  }
+
+  container.onmouseleave = () => paintStars(getAlbumRating(album), false);
+  paintStars(current, false);
+}
+
 // ----------------- 稍後聆聽 (Listen Later) -----------------
 const LISTEN_LATER_STORAGE_KEY = 'rooplayer_listen_later_albums';
 let listenLaterExpanded = false;
@@ -9416,6 +9504,9 @@ function openAlbumDetail(album) {
       toggleAlbumListenLater(album, btnListenLater);
     };
   }
+
+  // 5-Star Album Rating in Album Detail
+  renderDetailAlbumRating(album);
 
   // Clicking artist in detail view opens artist page
   if (detailArtist) {

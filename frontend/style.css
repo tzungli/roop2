@@ -10813,6 +10813,57 @@ body.table-col-resizing * {
   }
 }
 
+/* Album Detail: 5-Star Rating System */
+.detail-rating-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.detail-rating-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.detail-rating-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.detail-star-btn {
+  background: transparent;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0.45;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
+.detail-star-btn:hover {
+  transform: scale(1.14);
+}
+
+.detail-star-btn.filled,
+.detail-star-btn.preview {
+  color: var(--text-main);
+  opacity: 1;
+}
+
+.detail-rating-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 48px;
+}
+
 .nav-item[data-view="tidal"]:hover .nav-icon {
   filter: none;
 }
