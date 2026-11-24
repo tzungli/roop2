@@ -3164,51 +3164,37 @@
   <!-- TIDAL Account Login & Settings Modal -->
   <div id="tidalLoginModal" class="modal-overlay" style="display: none;">
     <div class="modal-card tidal-login-modal-card">
-      <div class="modal-header">
-        <div class="modal-title-wrap" style="display: flex; align-items: center;">
-          <span class="tidal-logo-badge">TIDAL</span>
-          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">TIDAL 發燒串流帳號連線</h3>
+      <div class="tidal-modal-head">
+        <div class="tidal-modal-title-wrap">
+          <span class="ui-svg-icon tidal-modal-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/></svg></span>
+          <h3>TIDAL 帳號</h3>
         </div>
-        <button class="icon-btn" id="btnCloseTidalLogin">✕</button>
+        <button class="icon-btn tidal-modal-close" id="btnCloseTidalLogin" title="關閉">✕</button>
       </div>
-      <div class="modal-body" style="padding: 24px;">
+      <div class="tidal-modal-body">
         <!-- Status Panel: Logged Out -->
         <div id="tidalLoggedOutView">
-          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.6; margin-top: 0; margin-bottom: 20px;">
-            在 rooPlayer 登入您的 TIDAL 帳號，享受無縫融合本機與雲端的 Hi-Res Lossless FLAC 發燒串流體驗。
-          </p>
-
-          <div class="tidal-auth-action-box" style="text-align: center; padding: 24px 16px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 3px; margin-bottom: 20px;">
-            <div class="ui-svg-icon" style="margin-bottom: 12px; color: var(--accent-purple);"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.182L7.273 7 10.545 10.182 7.273 13.364 4 10.182zm6.545 6.545L13.818 13.545 17.091 16.727 13.818 19.909 10.545 16.727zm0-13.09L13.818 0.455 17.091 3.636 13.818 6.818 10.545 3.636zm6.545 6.545L20.364 7 23.636 10.182 20.364 13.364 17.091 10.182z"/></svg></div>
-            <h4 style="margin: 0 0 8px 0; font-size: 16px; color: var(--text-main);">一鍵開啟 TIDAL 官方登入</h4>
-            <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted);">
-              點擊下方按鈕將開啟 TIDAL 官方登入視窗，支援 Email、Google、Apple 或 Facebook 登入，完成後自動授權綁定。
-            </p>
-            <button class="btn btn-primary" id="btnTidalStartLogin" style="background: #00e5ff; color: #000; font-weight: 700; border: none; padding: 10px 28px; border-radius: 4px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0, 229, 255, 0.3);">
-              <span>開啟官方登入視窗</span>
+          <div class="tidal-auth-action-box">
+            <button class="btn btn-primary tidal-primary-btn" id="btnTidalStartLogin">
+              <span>開啟 TIDAL 官方登入</span>
             </button>
-            <div id="tidalLoginLoading" style="display: none; margin-top: 14px; font-size: 13px; color: #00e5ff; font-weight: 600;">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+            <div id="tidalLoginLoading" class="tidal-login-loading" style="display: none;">
+              <div class="tidal-loading-row">
                 <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
-                <span>正在等待登入完成並自動擷取授權...</span>
+                <span>等待授權完成...</span>
               </div>
-              <button id="btnTidalProbeNow" type="button" style="display: block; margin: 8px auto 0; padding: 6px 16px; background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer;">
-                若視窗已進入 TIDAL 首頁，點此立即完成同步
-              </button>
+              <button id="btnTidalProbeNow" type="button" class="btn btn-secondary btn-sm">立即同步授權</button>
             </div>
           </div>
 
           <!-- Advanced collapsible manual token -->
-          <details style="font-size: 12px; color: var(--text-muted); cursor: pointer;">
-            <summary style="margin-bottom: 8px; color: var(--text-sub); outline: none;">進階：手動貼上 Access Token 或自訂連線</summary>
-            <div class="tidal-manual-box" style="padding: 12px; border: 1px solid var(--border-color); border-radius: 3px; margin-top: 6px;">
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label style="display: block; font-size: 11px; margin-bottom: 4px; color: var(--text-sub);">OAuth Access Token</label>
-                <input type="text" id="tidalInputManualToken" class="form-control" placeholder="Bearer Token..." style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 2px; font-size: 12px;">
-              </div>
-              <div style="display: flex; gap: 8px;">
-                <input type="text" id="tidalInputUserId" placeholder="User ID (選填)" style="flex: 1; padding: 6px 10px; border-radius: 2px; font-size: 12px;">
-                <button class="btn btn-sm btn-secondary" id="btnTidalSaveManualToken" style="padding: 6px 14px; border-radius: 2px; cursor: pointer;">儲存 Token</button>
+          <details class="tidal-manual-details">
+            <summary>手動輸入 Token</summary>
+            <div class="tidal-manual-box">
+              <input type="text" id="tidalInputManualToken" class="form-control" placeholder="OAuth Access Token...">
+              <div class="tidal-manual-row">
+                <input type="text" id="tidalInputUserId" placeholder="User ID（選填）">
+                <button class="btn btn-sm btn-secondary" id="btnTidalSaveManualToken">儲存</button>
               </div>
             </div>
           </details>
@@ -3216,35 +3202,24 @@
 
         <!-- Logged In View -->
         <div id="tidalLoggedInView" style="display: none;">
-          <div style="display: flex; align-items: center; gap: 16px; padding: 16px; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 3px; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; border-radius: 50%; background: #00e5ff; color: #000; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900;">
-              T
-            </div>
-            <div style="flex: 1;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <h4 style="margin: 0; font-size: 15px; color: var(--text-main);" id="tidalProfileName">TIDAL 官方已連線</h4>
+          <div class="tidal-account-card">
+            <div class="tidal-account-avatar">T</div>
+            <div class="tidal-account-meta">
+              <div class="tidal-account-title-row">
+                <h4 id="tidalProfileName">TIDAL 已連線</h4>
                 <span class="tidal-tier-badge" id="tidalProfileTier">Hi-Res MAX</span>
               </div>
-              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="tidalProfileInfo">
-                國家/地區: TW | 連線就緒
-              </div>
+              <div class="tidal-account-sub" id="tidalProfileInfo">地區: TW</div>
             </div>
           </div>
 
-          <div class="tidal-feature-box" style="border: 1px solid var(--border-color); border-radius: 3px; padding: 12px 14px; font-size: 12px; line-height: 1.6; margin-bottom: 20px;">
-            <strong>發燒串流核心功能已就緒</strong>：<br>
-            • <strong>聲音引擎直通</strong>：TIDAL 無損串流支援 1-bit DSD 調變器（5階/7階）升頻與多相濾波器。<br>
-            • <strong>混合曲庫整合</strong>：可隨時將 TIDAL 專輯「加入我的曲庫」，與本機硬碟檔案融為一體。<br>
-            • <strong>DLNA 投播</strong>：支援一鍵將 TIDAL 高解析串流推送至您的數位串流機與擴大機。
-          </div>
-
-          <div style="display: flex; justify-content: flex-end; gap: 10px;">
-            <button class="btn btn-secondary" id="btnTidalRelogin" style="padding: 8px 18px; border-radius: 2px; cursor: pointer;">重新連線</button>
-            <button class="btn btn-danger" id="btnTidalLogout" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); padding: 8px 18px; border-radius: 2px; cursor: pointer;">中斷連線 (登出)</button>
+          <div class="tidal-account-actions">
+            <button class="btn btn-secondary" id="btnTidalRelogin">重新連線</button>
+            <button class="btn tidal-logout-btn" id="btnTidalLogout">登出</button>
           </div>
         </div>
       </div>
-      <div class="modal-footer" style="padding: 16px 24px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color);">
+      <div class="tidal-modal-footer">
         <button class="btn btn-secondary" id="btnCancelTidalLogin">關閉</button>
       </div>
     </div>
