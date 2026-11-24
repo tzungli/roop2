@@ -911,12 +911,12 @@
 
               <div class="detail-actions" style="margin-bottom: 14px;">
                 <button class="btn btn-primary" id="btnPlayAlbumNow" title="播放專輯">
-                  <svg class="ctrl-svg-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none; margin-left:2px;">
+                  <svg class="ctrl-svg-play" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none; margin-left:1.5px;">
                     <polygon points="6 4 20 12 6 20 6 4"/>
                   </svg>
                 </button>
                 <button class="btn btn-secondary" id="btnShuffleAlbum" title="隨機播放">
-                  <svg class="ctrl-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+                  <svg class="ctrl-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
                     <polyline points="16 3 21 3 21 8"/>
                     <line x1="4" y1="20" x2="21" y2="3"/>
                     <polyline points="21 16 21 21 16 21"/>
@@ -925,19 +925,23 @@
                   </svg>
                 </button>
                 <button class="btn btn-secondary" id="btnFavAlbumDetail" title="加入最愛專輯">
-                  <svg class="fav-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+                  <svg class="fav-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                   </svg>
                 </button>
-                <button class="btn btn-secondary btn-listen-later-detail" id="btnListenLaterAlbumDetail" title="加入稍後聆聽">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
-                    <circle cx="12" cy="12" r="9"></circle>
-                    <polyline points="12 7 12 12 15 14"></polyline>
+                <button class="btn btn-secondary btn-listen-later-detail" id="btnListenLaterAlbumDetail" title="加入稍後聆聽" aria-label="稍後聆聽">
+                  <svg class="listen-later-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+                    <path d="M20.4 13.5A8.5 8.5 0 1 0 13.5 20.4"/>
+                    <polyline points="12 7.5 12 12 15 13.5"/>
+                    <line x1="18.5" y1="15.5" x2="18.5" y2="21.5"/>
+                    <line x1="15.5" y1="18.5" x2="21.5" y2="18.5"/>
                   </svg>
-                  <span id="btnListenLaterAlbumText">稍後聆聽</span>
                 </button>
-                <button class="btn btn-secondary" id="btnTidalLibraryToggle" style="display: none;">
-                  <span id="btnTidalLibraryToggleIcon">+</span> <span id="btnTidalLibraryToggleText">加入曲庫</span>
+                <button class="btn btn-secondary" id="btnTidalLibraryToggle" style="display: none;" title="加入曲庫" aria-label="加入曲庫">
+                  <svg class="lib-toggle-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
                 </button>
               </div>
             </div>

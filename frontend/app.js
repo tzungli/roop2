@@ -1671,7 +1671,7 @@ function toggleAlbumFavorite(album, triggerBtn = null) {
   if (triggerBtn) {
     triggerBtn.classList.toggle('active', nowFav);
     if (triggerBtn.id === 'btnFavAlbumDetail') {
-      triggerBtn.innerHTML = getHeartSvg(nowFav, 18);
+      triggerBtn.innerHTML = getHeartSvg(nowFav, 14);
       triggerBtn.title = nowFav ? '取消最愛專輯' : '加入最愛專輯';
     } else {
       const labelSpan = triggerBtn.querySelector('span');
@@ -1932,7 +1932,7 @@ function syncAllFavoriteUIs() {
     if (btnFavAlbum) {
       const isFav = isAlbumFavorite(state.activeAlbumDetail);
       btnFavAlbum.classList.toggle('active', isFav);
-      btnFavAlbum.innerHTML = getHeartSvg(isFav, 18);
+      btnFavAlbum.innerHTML = getHeartSvg(isFav, 14);
       btnFavAlbum.title = isFav ? '取消最愛專輯' : '加入最愛專輯';
     }
   }
@@ -3236,9 +3236,19 @@ function updateListenLaterDetailButton(album, btnEl) {
   if (!btn) return;
   const inList = isAlbumInListenLater(album);
   btn.classList.toggle('active', inList);
-  btn.title = inList ? '從稍後聆聽移除' : '加入稍後聆聽';
-  const textEl = btn.querySelector('#btnListenLaterAlbumText');
-  if (textEl) textEl.textContent = inList ? '已在稍後聆聽' : '稍後聆聽';
+  btn.title = inList ? '已在稍後聆聽（點擊移除）' : '加入稍後聆聽';
+  btn.innerHTML = inList
+    ? `<svg class="listen-later-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+        <path d="M20.4 13.5A8.5 8.5 0 1 0 13.5 20.4"/>
+        <polyline points="12 7.5 12 12 15 13.5"/>
+        <polyline points="15.5 18.8 17.8 21 22 16.5"/>
+      </svg>`
+    : `<svg class="listen-later-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+        <path d="M20.4 13.5A8.5 8.5 0 1 0 13.5 20.4"/>
+        <polyline points="12 7.5 12 12 15 13.5"/>
+        <line x1="18.5" y1="15.5" x2="18.5" y2="21.5"/>
+        <line x1="15.5" y1="18.5" x2="21.5" y2="18.5"/>
+      </svg>`;
 }
 
 function toggleAlbumListenLater(album, btnEl) {
@@ -9172,8 +9182,6 @@ async function playTidalAlbum(tidalAlbumId) {
 
 function updateAlbumDetailLibraryButton(album) {
   const btn = document.getElementById('btnTidalLibraryToggle');
-  const icon = document.getElementById('btnTidalLibraryToggleIcon');
-  const text = document.getElementById('btnTidalLibraryToggleText');
   if (!btn) return;
 
   if (album && album.isTidal) {
@@ -9181,9 +9189,8 @@ function updateAlbumDetailLibraryButton(album) {
     const inLib = isTidalAlbumInLibrary(album.tidalId);
     if (inLib) {
       btn.className = 'btn btn-secondary in-library';
-      if (icon) icon.textContent = '✓';
-      if (text) text.textContent = '已在曲庫 (從曲庫移除)';
-      btn.title = '點擊從音樂庫中移除此專輯';
+      btn.innerHTML = `<svg class="lib-toggle-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><polyline points="20 6 9 17 4 12"/></svg>`;
+      btn.title = '已在曲庫（點擊從曲庫移除）';
       btn.onclick = async () => {
         if (confirm(`確定要將《${album.title}》從您的音樂庫中移除嗎？`)) {
           await removeTidalAlbumFromLibrary(album.tidalId);
@@ -9192,9 +9199,8 @@ function updateAlbumDetailLibraryButton(album) {
       };
     } else {
       btn.className = 'btn btn-secondary not-in-library';
-      if (icon) icon.textContent = '➕';
-      if (text) text.textContent = '加入曲庫';
-      btn.title = '點擊將此 TIDAL 專輯加入您的本機音樂庫中';
+      btn.innerHTML = `<svg class="lib-toggle-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+      btn.title = '加入曲庫';
       btn.onclick = async () => {
         await addTidalAlbumToLibrary(album.tidalId, album);
         updateAlbumDetailLibraryButton(album);
@@ -9498,7 +9504,7 @@ function openAlbumDetail(album) {
   if (btnFavAlbum) {
     const isFav = isAlbumFavorite(album);
     btnFavAlbum.classList.toggle('active', isFav);
-    btnFavAlbum.innerHTML = getHeartSvg(isFav, 18);
+    btnFavAlbum.innerHTML = getHeartSvg(isFav, 14);
     btnFavAlbum.title = isFav ? '取消最愛專輯' : '加入最愛專輯';
     btnFavAlbum.onclick = (e) => {
       e.stopPropagation();

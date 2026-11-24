@@ -2997,19 +2997,21 @@ body.table-col-resizing * {
 .detail-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .detail-actions #btnPlayAlbumNow,
 .detail-actions #btnShuffleAlbum,
-.detail-actions #btnFavAlbumDetail {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  min-height: 38px;
-  max-width: 38px;
-  max-height: 38px;
-  padding: 0;
+.detail-actions #btnFavAlbumDetail,
+.detail-actions #btnListenLaterAlbumDetail,
+.detail-actions #btnTidalLibraryToggle {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  max-width: 30px;
+  max-height: 30px;
+  padding: 0 !important;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -3022,7 +3024,9 @@ body.table-col-resizing * {
 
 .detail-actions #btnPlayAlbumNow svg,
 .detail-actions #btnShuffleAlbum svg,
-.detail-actions #btnFavAlbumDetail svg {
+.detail-actions #btnFavAlbumDetail svg,
+.detail-actions #btnListenLaterAlbumDetail svg,
+.detail-actions #btnTidalLibraryToggle svg {
   display: block;
   pointer-events: none;
   flex-shrink: 0;
@@ -3032,7 +3036,7 @@ body.table-col-resizing * {
   background-color: var(--accent-purple);
   color: #ffffff;
   border: none;
-  box-shadow: 0 4px 14px var(--accent-purple-glow);
+  box-shadow: 0 3px 10px var(--accent-purple-glow);
 }
 
 .detail-actions #btnPlayAlbumNow:hover {
@@ -3041,13 +3045,17 @@ body.table-col-resizing * {
 }
 
 .detail-actions #btnShuffleAlbum,
-.detail-actions #btnFavAlbumDetail {
+.detail-actions #btnFavAlbumDetail,
+.detail-actions #btnListenLaterAlbumDetail,
+.detail-actions #btnTidalLibraryToggle {
   background-color: rgba(255, 255, 255, 0.08);
   color: var(--text-sub);
   border: 1px solid var(--border-color);
 }
 
-.detail-actions #btnShuffleAlbum:hover {
+.detail-actions #btnShuffleAlbum:hover,
+.detail-actions #btnListenLaterAlbumDetail:hover,
+.detail-actions #btnTidalLibraryToggle:hover {
   color: #ffffff;
   background-color: rgba(255, 255, 255, 0.14);
   transform: scale(1.08);
@@ -3069,16 +3077,20 @@ body.table-col-resizing * {
 
 /* Light Theme Overrides */
 [data-theme="light"] .detail-actions #btnShuffleAlbum,
-[data-theme="light"] .detail-actions #btnFavAlbumDetail {
-  background-color: rgba(0, 0, 0, 0.04);
-  color: #64748b;
-  border-color: rgba(0, 0, 0, 0.12);
+[data-theme="light"] .detail-actions #btnFavAlbumDetail,
+[data-theme="light"] .detail-actions #btnListenLaterAlbumDetail,
+[data-theme="light"] .detail-actions #btnTidalLibraryToggle {
+  background-color: rgba(0, 0, 0, 0.03);
+  color: #475569;
+  border-color: rgba(15, 23, 42, 0.18);
 }
 
-[data-theme="light"] .detail-actions #btnShuffleAlbum:hover {
+[data-theme="light"] .detail-actions #btnShuffleAlbum:hover,
+[data-theme="light"] .detail-actions #btnListenLaterAlbumDetail:hover,
+[data-theme="light"] .detail-actions #btnTidalLibraryToggle:hover {
   color: #0f172a;
-  background-color: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.07);
+  border-color: rgba(15, 23, 42, 0.32);
 }
 
 [data-theme="light"] .detail-actions #btnFavAlbumDetail:hover {
@@ -10792,19 +10804,10 @@ body.table-col-resizing * {
   color: var(--text-muted);
 }
 
-.btn-listen-later-detail {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px !important;
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .btn-listen-later-detail.active {
-  background: rgba(99, 102, 241, 0.14) !important;
-  color: var(--accent-purple, #6366f1) !important;
-  border-color: rgba(99, 102, 241, 0.38) !important;
+  background: rgba(124, 92, 255, 0.16) !important;
+  color: var(--accent-purple, #7c5cff) !important;
+  border-color: rgba(124, 92, 255, 0.48) !important;
 }
 
 @media (max-width: 640px) {
