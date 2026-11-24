@@ -3,7 +3,7 @@
  * 格式：[中文模板, 英文模板]，其中的 ‖ 代表程式插值處（例如 `已建立「${name}」` → 「已建立「‖」」）。
  * i18n.js 會把中文模板編譯成 ^…$ 的 regex（‖ → (.+?)），英文模板的 ‖ 依序對應 $1、$2…。
  * 只收錄「使用者會看到的訊息」：Toast 提示、confirm 對話框、狀態文字、載入中與錯誤訊息。
- * 曲目／演出者／專輯名稱、檔案路徑都是 ‖ 內容，本身不被翻譯。
+ * 曲目／藝術家／專輯名稱、檔案路徑都是 ‖ 內容，本身不被翻譯。
  */
 window.I18N_MESSAGE_TEMPLATES = [
   // ---------------- 播放與佇列 ----------------
@@ -17,7 +17,7 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['▶ 播放 ‖ 發行的全部專輯（‖ 首）', '▶ Playing all albums released by ‖ (‖ tracks)'],
   ['▶ 播放全部最愛專輯', '▶ Play all favorite albums'],
   ['▶ 播放全部最愛歌曲', '▶ Play all favorite tracks'],
-  ['▶ 播放最愛演出者所有歌曲', '▶ Play all tracks by favorite artists'],
+  ['▶ 播放最愛藝術家所有歌曲', '▶ Play all tracks by favorite artists'],
   ['▶ 播放歌單《‖》', '▶ Playing playlist ‖'],
   ['正在載入歌單《‖》...', 'Loading playlist ‖...'],
   ['正在播放 KKBOX 歌曲: 《‖》', 'Playing KKBOX track: ‖'],
@@ -28,8 +28,8 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['找不到要加入的清單', 'The playlist to add to was not found'],
   ['找不到這個播放清單', 'This playlist was not found'],
   ['這個清單還沒有曲目', 'This playlist has no tracks yet'],
-  ['未知的演出者', 'Unknown artist'],
-  ['此演出者暫無本機曲目', 'This artist has no local tracks'],
+  ['未知的藝術家', 'Unknown artist'],
+  ['此藝術家暫無本機曲目', 'This artist has no local tracks'],
   ['此發行公司在音樂庫內尚無可播放的曲目', 'This label has no playable tracks in your library'],
   ['已將 ‖ 首 TIDAL 最愛歌曲加入播放佇列', 'Added ‖ TIDAL favorite tracks to the queue'],
   ['已將《‖》‖ 首歌曲加入播放佇列', 'Added ‖ (‖ tracks) to the queue'],
@@ -65,7 +65,7 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['🔀 隨機播放最近播放紀錄', '🔀 Shuffling your play history'],
   ['🔀 隨機播放最愛專輯', '🔀 Shuffling favorite albums'],
   ['🔀 隨機播放最愛歌曲', '🔀 Shuffling favorite tracks'],
-  ['🔀 隨機播放最愛演出者歌曲', '🔀 Shuffling favorite artists’ tracks'],
+  ['🔀 隨機播放最愛藝術家歌曲', '🔀 Shuffling favorite artists’ tracks'],
   ['🔀 隨機播放歌單《‖》', '🔀 Shuffling playlist ‖'],
   ['🔁 循環模式：已關閉 (播放至隊列結束即停止)', '🔁 Repeat: off (stop at the end of the queue)'],
   ['🔁 循環模式：清單循環 (全部播放完後重新循環)', '🔁 Repeat: all (loop the whole queue)'],
@@ -74,13 +74,13 @@ window.I18N_MESSAGE_TEMPLATES = [
   // ---------------- 最愛 ----------------
   ['♥ 已將《‖》加入最愛專輯', '♥ Added ‖ to favorite albums'],
   ['♥ 已將「‖」加入最愛歌曲', '♥ Added “‖” to favorite tracks'],
-  ['⭐ 已將「‖」加入最愛演出者', '⭐ Added “‖” to favorite artists'],
+  ['⭐ 已將「‖」加入最愛藝術家', '⭐ Added “‖” to favorite artists'],
   ['已從最愛專輯移除《‖》', 'Removed ‖ from favorite albums'],
   ['已從最愛歌曲移除「‖」', 'Removed “‖” from favorite tracks'],
-  ['已從最愛演出者移除「‖」', 'Removed “‖” from favorite artists'],
+  ['已從最愛藝術家移除「‖」', 'Removed “‖” from favorite artists'],
   ['尚未收藏任何最愛專輯', 'You have no favorite albums yet'],
   ['尚未收藏任何最愛歌曲', 'You have no favorite tracks yet'],
-  ['尚未收藏任何最愛演出者', 'You have no favorite artists yet'],
+  ['尚未收藏任何最愛藝術家', 'You have no favorite artists yet'],
   ['尚未載入或無最愛歌曲', 'No favorite tracks loaded'],
 
   // ---------------- 播放紀錄 ----------------
@@ -108,7 +108,7 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['匯出功能尚未可用', 'Export is not available yet'],
   ['❌ 資料庫匯入失敗：‖', '❌ Database import failed: ‖'],
   ['❌ 資料庫匯出失敗：‖', '❌ Database export failed: ‖'],
-  ['🎉 資料庫匯出成功！ 已儲存至：‖ • 收錄資料夾：‖ 個 • 音訊曲目：‖ 首 • 我的最愛：‖ 張專輯 / ‖ 首歌曲 / ‖ 位演出者 • 包含 ‖ 筆播放歷史紀錄與完整統計次數', '🎉 Database exported successfully. Saved to: ‖ • folders indexed: ‖ • audio tracks: ‖ • favorites: ‖ albums / ‖ tracks / ‖ artists • including ‖ history entries with full play statistics'],
+  ['🎉 資料庫匯出成功！ 已儲存至：‖ • 收錄資料夾：‖ 個 • 音訊曲目：‖ 首 • 我的最愛：‖ 張專輯 / ‖ 首歌曲 / ‖ 位藝術家 • 包含 ‖ 筆播放歷史紀錄與完整統計次數', '🎉 Database exported successfully. Saved to: ‖ • folders indexed: ‖ • audio tracks: ‖ • favorites: ‖ albums / ‖ tracks / ‖ artists • including ‖ history entries with full play statistics'],
   ['請在 Electron 桌面環境中執行此功能', 'Please run this feature in the Electron desktop app'],
 
   // ---------------- 曲庫與專輯 ----------------
@@ -257,8 +257,8 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['⚠️ 請輸入有效的 Token', '⚠️ Please enter a valid token'],
   ['❌ 擷取失敗: ‖', '❌ Extraction failed: ‖'],
   ['❌ 驗證失敗: ‖', '❌ Verification failed: ‖'],
-  ['請輸入欲搜尋的 TIDAL 歌曲、演出者或專輯關鍵字', 'Please enter a TIDAL track, artist or album keyword'],
-  ['請輸入欲搜尋的歌曲、演出者或專輯關鍵字', 'Please enter a track, artist or album keyword'],
+  ['請輸入欲搜尋的 TIDAL 歌曲、藝術家或專輯關鍵字', 'Please enter a TIDAL track, artist or album keyword'],
+  ['請輸入欲搜尋的歌曲、藝術家或專輯關鍵字', 'Please enter a track, artist or album keyword'],
   ['連線 TIDAL 時發生錯誤：‖', 'Error connecting to TIDAL: ‖'],
   ['未連線 TIDAL', 'TIDAL not connected'],
   ['尚未連線 TIDAL：於「TIDAL」頁登入後，即可列出該發行公司在 TIDAL 的發行專輯並直接播放或加入曲庫。', 'TIDAL is not connected: sign in on the TIDAL page to list this label’s releases and play them or add them to your library.'],
@@ -325,7 +325,7 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['⏳ 正在搜尋曲目...', '⏳ Searching tracks...'],
   ['正在搜尋專輯背景資料並自動翻譯為繁體中文...', 'Searching for album background information...'],
   ['正在連線至維基百科音樂資料庫並自動翻譯為繁體中文...', 'Connecting to the Wikipedia music database...'],
-  ['正在連線維基百科取得演出者生平介紹與照片...', 'Fetching the artist biography and photos from Wikipedia...'],
+  ['正在連線維基百科取得藝術家生平介紹與照片...', 'Fetching the artist biography and photos from Wikipedia...'],
   ['資料來源：中文維基百科 (繁體中文)', 'Source: Chinese Wikipedia'],
   ['音樂庫資料庫簡介 (繁體中文)', 'Music library database profile'],
   ['音樂庫母帶深度元資料介紹 (繁體中文)', 'Music library master deep-metadata profile'],
@@ -334,18 +334,18 @@ window.I18N_MESSAGE_TEMPLATES = [
   ['📀 相關精選專輯 Selected Albums (‖ 張)', '📀 Related albums (‖)'],
   ['📀 相關精選專輯 Selected Albums (‖ 張，含 TIDAL 發燒雲端母帶)', '📀 Related albums (‖, including TIDAL hi-res masters)'],
   ['共發現 ‖ 張未收錄作品', 'Found ‖ albums you have not collected'],
-  ['暫無其他 ‖ 演出者推薦。', 'No other ‖ artist recommendations yet.'],
-  ['目前本機音樂庫中暫無其他 ‖ 演出者，匯入更多演出者作品即可自動擴充風格比對推薦！', 'No other ‖ artists in your local library yet — import more albums to widen the style-matched recommendations!'],
-  ['目前本機音樂庫中沒有與《‖》足夠相關的專輯（同演出者、同曲風或相近曲風、同廠牌、相同曲目收錄）。在「資料夾」加入更多音樂目錄即可擴充推薦。', 'Your local library has no albums closely related to “‖” (same artist, same or similar genre, same label, shared tracks). Add more music folders to widen the recommendations.'],
+  ['暫無其他 ‖ 藝術家推薦。', 'No other ‖ artist recommendations yet.'],
+  ['目前本機音樂庫中暫無其他 ‖ 藝術家，匯入更多藝術家作品即可自動擴充風格比對推薦！', 'No other ‖ artists in your local library yet — import more albums to widen the style-matched recommendations!'],
+  ['目前本機音樂庫中沒有與《‖》足夠相關的專輯（同藝術家、同曲風或相近曲風、同廠牌、相同曲目收錄）。在「資料夾」加入更多音樂目錄即可擴充推薦。', 'Your local library has no albums closely related to “‖” (same artist, same or similar genre, same label, shared tracks). Add more music folders to widen the recommendations.'],
   ['本機與 TIDAL 端目前都沒有與《‖》足夠相關的專輯推薦。', 'No albums related to “‖” were found locally or on TIDAL.'],
   ['最近播放的 ‖ 首歌曲 (依時間由最近到最久排序)', 'Your last ‖ tracks (newest first)'],
 
-  // ---------------- 演出者介紹與元資料 ----------------
-  ['‖ 是一位優秀的音樂創作者與演出者，在發燒音樂領域具備卓越表現。點擊查看更多個人專輯與作品。', '‖ is an accomplished musician and performer with outstanding work in audiophile music. Click to see more albums and works.'],
-  ['‖ 是深受音樂愛好者喜愛的知名音樂家與演出者。本機音樂庫中已收錄相關經典錄音。可點擊下方線上串流專區探索完整作品目錄。', '‖ is a well-loved musician and performer. Classic recordings are already in your local library; use the online streaming section below to explore the full catalogue.'],
-  ['‖ 是深受當代樂迷喜愛與推崇的經典音樂創作者，在發燒音響與高解析錄音領域擁有豐富代表作。本機音樂庫中已完整收錄多張珍貴母帶與熱門曲目，點擊「查看演出者主頁」即可探索其專屬生平介紹、發行專輯與完整串流曲庫。', '‖ is a celebrated classic artist with a rich body of audiophile and hi-res recordings. Your library already holds several of these masters and popular tracks; open the artist page for the biography, releases and the full streaming catalogue.'],
+  // ---------------- 藝術家介紹與元資料 ----------------
+  ['‖ 是一位優秀的音樂創作者與藝術家，在發燒音樂領域具備卓越表現。點擊查看更多個人專輯與作品。', '‖ is an accomplished musician and performer with outstanding work in audiophile music. Click to see more albums and works.'],
+  ['‖ 是深受音樂愛好者喜愛的知名音樂家與藝術家。本機音樂庫中已收錄相關經典錄音。可點擊下方線上串流專區探索完整作品目錄。', '‖ is a well-loved musician and performer. Classic recordings are already in your local library; use the online streaming section below to explore the full catalogue.'],
+  ['‖ 是深受當代樂迷喜愛與推崇的經典音樂創作者，在發燒音響與高解析錄音領域擁有豐富代表作。本機音樂庫中已完整收錄多張珍貴母帶與熱門曲目，點擊「查看藝術家主頁」即可探索其專屬生平介紹、發行專輯與完整串流曲庫。', '‖ is a celebrated classic artist with a rich body of audiophile and hi-res recordings. Your library already holds several of these masters and popular tracks; open the artist page for the biography, releases and the full streaming catalogue.'],
   ['未知專輯', 'Unknown album'],
-  ['未知演出者', 'Unknown artist'],
+  ['未知藝術家', 'Unknown artist'],
   ['未分類專輯', 'Unclassified album'],
   ['獨立發行 / 未標記廠牌', 'Self-released / no label'],
   ['地區: ‖ | 會員規格: 24-bit/192kHz Hi-Res FLAC | 帳號: ‖', 'Region: ‖ | membership: 24-bit/192kHz Hi-Res FLAC | account: ‖'],

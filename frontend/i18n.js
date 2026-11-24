@@ -4,7 +4,7 @@
  * 1) I18N_TEXT：以「繁體中文原文」為鍵的英譯表。套用时把文字節點正規化後比對，命中就換成英文，
  *    原文記在 WeakMap，換回中文時原樣還原（前後空白也照原樣保留）。
  * 2) I18N_PATTERNS：已知含動態内容的字串（「共 12 個播放清單」…）用 regex 對應英文。
- * 3) 通用統計字串翻譯：「N 筆（N 張專輯，N 位演出者…）」這類純計數字串，拆段後逐段換成英文；
+ * 3) 通用統計字串翻譯：「N 筆（N 張專輯，N 位藝術家…）」這類純計數字串，拆段後逐段換成英文；
  *    任何一段不認識就整串不翻（保留中文），不會翻出半中半英的怪句子。
  * 4) I18N_DOC_EN（i18n-docs-en.js）：說明頁各段落以 data-i18n-html="key" 標記，整段換成英文。
  * 5) MutationObserver：動態渲染出來的中文（列表、副標、按鈕）一樣會被翻譯，
@@ -25,7 +25,7 @@
   const I18N_TEXT = {
     // ===== 視窗與頂欄 =====
     '返回': 'Back', '前進': 'Forward',
-    '搜尋演出者、專輯、曲目、作曲家...': 'Search artists, albums, tracks, composers...',
+    '搜尋藝術家、專輯、曲目、作曲家...': 'Search artists, albums, tracks, composers...',
     '切換深色 / 淺色主題': 'Toggle dark / light theme',
     '深色': 'Dark', '淺色': 'Light',
     '選擇介面語言': 'Interface language',
@@ -40,7 +40,7 @@
     '音樂庫 LIBRARY': 'LIBRARY',
     '總覽 Overview': 'Overview',
     '專輯 Albums': 'Albums',
-    '演出者 Artists': 'Artists',
+    '藝術家 Artists': 'Artists',
     '曲目 Tracks': 'Tracks',
     '曲風流派 Genres': 'Genres',
     '播放紀錄': 'Play History',
@@ -49,7 +49,7 @@
     '我的最愛 FAVORITES': 'FAVORITES',
     '最愛專輯': 'Favorite Albums',
     '最愛歌曲': 'Favorite Tracks',
-    '最愛演出者': 'Favorite Artists',
+    '最愛藝術家': 'Favorite Artists',
     '線上串流': 'STREAMING',
     '線上串流 STREAMING': 'STREAMING',
     '管理與設定': 'SETTINGS & STORAGE',
@@ -74,12 +74,12 @@
     '隨機換一位 ↻': 'Shuffle to another artist ↻',
     '隨機換一位藝人': 'Show a random artist',
     '正在載入藝人生平簡介...': 'Loading artist biography...',
-    '演出者名稱': 'Artist name',
-    '查看演出者主頁 ➔': 'View artist page ➔',
+    '藝術家名稱': 'Artist name',
+    '查看藝術家主頁 ➔': 'View artist page ➔',
     '▶ 播放該歌手所有歌曲': '▶ Play all tracks by this artist',
     '📀 相關精選專輯 Selected Albums': '📀 Selected Albums',
-    '瀏覽全部演出者 ➔': 'Browse all artists ➔',
-    '🎤 探索演出者 Artists': '🎤 Explore Artists',
+    '瀏覽全部藝術家 ➔': 'Browse all artists ➔',
+    '🎤 探索藝術家 Artists': '🎤 Explore Artists',
 
     // ===== 專輯庫 =====
     '專輯庫 Albums': 'Album Library',
@@ -89,7 +89,7 @@
     '最近新增': 'Recently Added',
     '依新增順序排列': 'Sort: Recently added',
     '依專輯名稱 A-Z': 'Sort: Album name A-Z',
-    '依演出者 A-Z': 'Sort: Artist A-Z',
+    '依藝術家 A-Z': 'Sort: Artist A-Z',
     '依發行年份 (新到舊)': 'Sort: Release year (newest first)',
     '依曲目數量': 'Sort: Track count',
     '依最常播放 (播放次數)': 'Sort: Most played (play count)',
@@ -103,7 +103,7 @@
     '小尺寸頭像': 'Small avatars', '中尺寸頭像 (預設)': 'Medium avatars (default)', '大尺寸頭像': 'Large avatars',
 
     // ===== 表格欄位 =====
-    '時長': 'Length', '專輯': 'Album', '播放': 'Play', '演出者': 'Artist', '曲目名稱': 'Track',
+    '時長': 'Length', '專輯': 'Album', '播放': 'Play', '藝術家': 'Artist', '曲目名稱': 'Track',
     '格式規格': 'Format', '播放時間': 'Played at', '編輯': 'Edit', '操作': 'Actions',
     '曲目數': 'Tracks', '總時長': 'Total length', '更新時間': 'Updated', '清單名稱': 'Playlist',
     '格式': 'Format', '音訊規格': 'Audio spec',
@@ -156,13 +156,13 @@
     '▶ 播放專輯': '▶ Play album',
     '加入最愛專輯': 'Add album to Favorites',
     '已加入收藏': 'In Favorites',
-    '加入最愛演出者': 'Add artist to Favorites',
+    '加入最愛藝術家': 'Add artist to Favorites',
     '加入曲庫': 'Add to library',
     '從曲庫移除': 'Remove from library',
     '💿 其他發行版本 / VERSIONS': '💿 Other releases / VERSIONS',
     '點擊切換不同音質規格或發行版本': 'Switch between audio quality or release versions',
     '✨ 同類型推薦專輯 Recommended Albums': '✨ Similar albums you may like',
-    '🎤 推薦演出者 Recommended Artists': '🎤 Recommended artists',
+    '🎤 推薦藝術家 Recommended Artists': '🎤 Recommended artists',
     '📖 專輯介紹 Album Review': '📖 Album review',
     '點擊展開或縮小專輯介紹': 'Expand or collapse the album review',
     '資料來源：維基百科音樂資料庫': 'Source: Wikipedia',
@@ -171,9 +171,9 @@
     '📥 匯入至播放佇列': '📥 Add to play queue',
     '▶ 立即播放全部': '▶ Play all now',
 
-    // ===== 演出者 / 發行公司 =====
-    '演出者 Artists': 'Artists',
-    'ARTIST PROFILE • 演出者總覽': 'ARTIST PROFILE',
+    // ===== 藝術家 / 發行公司 =====
+    '藝術家 Artists': 'Artists',
+    'ARTIST PROFILE • 藝術家總覽': 'ARTIST PROFILE',
     'RECORD LABEL • 發行公司總覽': 'RECORD LABEL',
     '⏱️ 最近播放的專輯': '⏱️ Recently played albums',
     '💿 本機音樂庫收藏': '💿 In your local library',
@@ -188,7 +188,7 @@
     '比對範圍：本機檔案的 LABEL / PUBLISHER / COPYRIGHT 標籤，以及已加入曲庫的 TIDAL 專輯發行資料。': 'Matched from the LABEL / PUBLISHER / COPYRIGHT tags of your local files and the release data of TIDAL albums in your library.',
     '音樂庫內沒有以該發行公司標記的專輯；下方 TIDAL 發行清單可直接播放或加入曲庫。': 'No albums in your library carry this label; the TIDAL releases below can be played or added to your library.',
     '💎 TIDAL 該公司發行專輯': '💎 TIDAL releases from this label',
-    '以 TIDAL 專輯的發行公司資料（copyright 欄位）比對同一家唱片公司，並循該公司演出者的 TIDAL 歷年發行作品延伸查找；可直接以 rooPlayer 音訊引擎播放，或加入曲庫。': 'Matched against the TIDAL copyright field for the same label, then extended through that label’s artists’ TIDAL catalog. Play it directly with the rooPlayer engine, or add it to your library.',
+    '以 TIDAL 專輯的發行公司資料（copyright 欄位）比對同一家唱片公司，並循該公司藝術家的 TIDAL 歷年發行作品延伸查找；可直接以 rooPlayer 音訊引擎播放，或加入曲庫。': 'Matched against the TIDAL copyright field for the same label, then extended through that label’s artists’ TIDAL catalog. Play it directly with the rooPlayer engine, or add it to your library.',
     '▶ 播放該公司所有專輯': '▶ Play all albums from this label',
     '🔄 重新比對 TIDAL': '🔄 Re-check TIDAL',
     '重新連線 TIDAL 比對該發行公司': 'Reconnect to TIDAL and match this label',
@@ -204,16 +204,16 @@
     // ===== 我的最愛 =====
     '最愛專輯 Favorite Albums': 'Favorite Albums',
     '最愛歌曲 Favorite Tracks': 'Favorite Tracks',
-    '最愛演出者 Favorite Artists': 'Favorite Artists',
+    '最愛藝術家 Favorite Artists': 'Favorite Artists',
     '▶ 播放全部最愛專輯': '▶ Play all favorite albums',
     '▶ 播放全部最愛歌曲': '▶ Play all favorite tracks',
-    '▶ 播放最愛演出者歌曲': '▶ Play favorite artists',
+    '▶ 播放最愛藝術家歌曲': '▶ Play favorite artists',
     '尚未收藏任何最愛專輯': 'No favorite albums yet',
     '尚未收藏任何最愛歌曲': 'No favorite tracks yet',
-    '尚未收藏任何最愛演出者': 'No favorite artists yet',
+    '尚未收藏任何最愛藝術家': 'No favorite artists yet',
     '在任何專輯卡片上點擊 ♡ 空心愛心圖示即可加入我的最愛。': 'Tap the ♡ outline on any album card to add it to Favorites.',
     '在播放列左側愛心按鈕或曲目清單點擊 ♡ 即可收藏。': 'Tap the heart button in the player bar or the ♡ in any track list to favorite it.',
-    '在演出者介紹頁面或演出者卡片上點擊 ⭐ 即可加入最愛演出者。': 'Tap ⭐ on an artist page or artist card to favorite that artist.',
+    '在藝術家介紹頁面或藝術家卡片上點擊 ⭐ 即可加入最愛藝術家。': 'Tap ⭐ on an artist page or artist card to favorite that artist.',
 
     // ===== 本機資料夾 / 資料庫 =====
     '本機音樂庫設定 Storage': 'Local Library Settings',
@@ -267,7 +267,7 @@
     '專輯播放列表': 'Album track list',
     '母帶音訊串流': 'Master audio stream',
     '關閉視窗 (Esc)': 'Close (Esc)',
-    '點擊查看演出者簡介': 'View artist biography',
+    '點擊查看藝術家簡介': 'View artist biography',
     '點擊查看專輯詳情': 'View album details',
 
     // ===== 播放佇列 =====
@@ -416,7 +416,7 @@
     '發燒音響 Hi-Res': 'Hi-Res audiophile',
     '官方母帶 Masters': 'Official masters',
     '🔍 TIDAL 線上搜尋結果': '🔍 TIDAL search results',
-    '在 TIDAL Hi-Res 百萬曲庫搜尋歌曲/專輯/演出者...': 'Search tracks, albums or artists in the TIDAL Hi-Res catalog...',
+    '在 TIDAL Hi-Res 百萬曲庫搜尋歌曲/專輯/藝術家...': 'Search tracks, albums or artists in the TIDAL Hi-Res catalog...',
     '❮ 返回發燒推薦': '❮ Back to audiophile picks',
     '💿 相符專輯 Albums': '💿 Matching albums',
     '🎵 相符曲目 Tracks': '🎵 Matching tracks',
@@ -547,11 +547,11 @@
     .sort((a, b) => (literalLength(b[0]) - literalLength(a[0])) || (placeholderCount(a[0]) - placeholderCount(b[0])));
   const MESSAGE_PATTERNS = MESSAGE_TEMPLATES.map(([zh, en]) => [templateToRegex(zh), templateToReplacement(en)]);
 
-  // ---------------- 通用統計字串（「共 N 張專輯，N 位演出者…」）逐段翻譯 ----------------
+  // ---------------- 通用統計字串（「共 N 張專輯，N 位藝術家…」）逐段翻譯 ----------------
   // 單位寫成 [單數, 複數]，數量為 1 時用單數，避免 "1 items" 這種怪英文。
   const UNIT_MAP = {
     '張專輯': ['album', 'albums'], '張作品': ['album', 'albums'], '首歌曲': ['track', 'tracks'],
-    '首曲目': ['track', 'tracks'], '位演出者': ['artist', 'artists'],
+    '首曲目': ['track', 'tracks'], '位藝術家': ['artist', 'artists'],
     '種曲風': ['genre', 'genres'], '種格式': ['format', 'formats'],
     '個音樂曲風與流派': ['music style and genre', 'music styles and genres'],
     '個音樂風格與流派': ['music style and genre', 'music styles and genres'],
@@ -559,7 +559,7 @@
     '個版本': ['version', 'versions'], '個端點': ['endpoint', 'endpoints'],
     '筆結果': ['result', 'results'], '筆相符': ['match', 'matches'], '筆': ['item', 'items'],
     '張最愛專輯': ['favorite album', 'favorite albums'], '首最愛歌曲': ['favorite track', 'favorite tracks'],
-    '位最愛演出者': ['favorite artist', 'favorite artists'],
+    '位最愛藝術家': ['favorite artist', 'favorite artists'],
     '張': ['album', 'albums'], '位': ['artist', 'artists'], '首': ['track', 'tracks'],
     '段': ['band', 'bands'], '個': ['item', 'items'],
   };

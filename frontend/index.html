@@ -33,7 +33,7 @@
             <line x1="20.5" y1="20.5" x2="16.4" y2="16.4"></line>
           </svg>
         </span>
-        <input type="text" id="globalSearch" placeholder="搜尋演出者、專輯、曲目、作曲家..." autocomplete="off">
+        <input type="text" id="globalSearch" placeholder="搜尋藝術家、專輯、曲目、作曲家..." autocomplete="off">
         <button id="btnClearSearch" class="btn-clear" style="display: none;">✕</button>
       </div>
     </div>
@@ -111,7 +111,7 @@
               <path d="M5 20a7 7 0 0 1 14 0"></path>
             </svg>
           </span>
-          <span class="nav-label" data-i18n-en="Artists">演出者</span>
+          <span class="nav-label" data-i18n-en="Artists">藝術家</span>
           <span class="badge" id="artistCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="tracks">
@@ -187,7 +187,7 @@
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
           </span>
-          <span class="nav-label">最愛演出者</span>
+          <span class="nav-label">最愛藝術家</span>
           <span class="badge" id="favArtistsCountBadge">0</span>
         </button>
       </div>
@@ -605,7 +605,7 @@
         <div class="roo-musician-spotlight-banner" id="musicianSpotlightBanner">
           <div class="spotlight-left-brand">
             <div class="spotlight-tagline">演奏音樂來自：</div>
-            <h2 class="spotlight-artist-name" id="spotlightArtistName">精選演出者</h2>
+            <h2 class="spotlight-artist-name" id="spotlightArtistName">精選藝術家</h2>
             <button class="spotlight-play-btn" id="btnSpotlightPlayTracks">▶ 播放曲目</button>
           </div>
           <div class="spotlight-collaborators-row" id="spotlightCollaboratorsRow">
@@ -636,7 +636,7 @@
                 <th style="width: 38px;"></th>
                 <th>曲目名稱</th>
                 <th style="width: 70px; text-align: center;">YouTube</th>
-                <th>演出者</th>
+                <th>藝術家</th>
                 <th>專輯</th>
                 <th style="width: 130px;">播放時間</th>
                 <th style="width: 140px;">格式規格</th>
@@ -728,7 +728,7 @@
                   <th style="width: 45px;">#</th>
                   <th style="width: 70px; text-align: center;">播放</th>
                   <th>曲目名稱</th>
-                  <th>演出者</th>
+                  <th>藝術家</th>
                   <th>專輯</th>
                   <th style="width: 140px;">格式規格</th>
                   <th style="width: 80px; text-align: right;">時長</th>
@@ -765,7 +765,7 @@
             <select id="albumSortSelect" class="select-dropdown">
               <option value="added" selected>依新增順序排列</option>
               <option value="title">依專輯名稱 A-Z</option>
-              <option value="artist">依演出者 A-Z</option>
+              <option value="artist">依藝術家 A-Z</option>
               <option value="year">依發行年份 (新到舊)</option>
               <option value="tracks">依曲目數量</option>
               <option value="playCount">依最常播放 (播放次數)</option>
@@ -1005,21 +1005,21 @@
               <span class="section-count-badge" id="recommendCountBadge">0 張推薦</span>
             </div>
             <p class="section-desc" id="recommendDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
-              依同演出者、相同曲目收錄、曲風（<span id="recommendGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）與相近曲風、發行廠牌、製作或作曲、年代與音質規格綜合判斷；關聯不足者不顯示，卡片標示原因，滑過可看完整依據。
+              依同藝術家、相同曲目收錄、曲風（<span id="recommendGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）與相近曲風、發行廠牌、製作或作曲、年代與音質規格綜合判斷；關聯不足者不顯示，卡片標示原因，滑過可看完整依據。
             </p>
             <div class="album-grid recommend-album-grid" id="albumRecommendationsGrid">
               <!-- Injected via JS -->
             </div>
           </div>
 
-          <!-- 推薦演出者 (參考相同流派隨機推薦) -->
+          <!-- 推薦藝術家 (參考相同流派隨機推薦) -->
           <div class="album-recommendations-section" id="albumArtistsRecommendationsSection" style="margin-top: 36px;">
             <div class="section-header" style="margin-bottom: 12px;">
-              <h3 style="font-size: 16px;">推薦演出者</h3>
+              <h3 style="font-size: 16px;">推薦藝術家</h3>
               <span class="section-count-badge" id="recommendArtistCountBadge">0 位推薦</span>
             </div>
             <p class="section-desc" id="recommendArtistDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
-              為您隨機探索具備相同音樂流派（<span id="recommendArtistGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）的經典演出者與音樂家。
+              為您隨機探索具備相同音樂流派（<span id="recommendArtistGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）的經典藝術家與音樂家。
             </p>
             <div class="artist-grid recommend-artist-grid" id="albumArtistRecommendationsGrid">
               <!-- Injected via JS -->
@@ -1032,8 +1032,8 @@
       <section id="viewArtists" class="content-view">
         <div class="view-header" id="artistsViewHeader">
           <div>
-            <h1 class="page-title">演出者</h1>
-            <span class="page-subtitle" id="artistsHeaderCount">共 0 位演出者</span>
+            <h1 class="page-title">藝術家</h1>
+            <span class="page-subtitle" id="artistsHeaderCount">共 0 位藝術家</span>
           </div>
           <div class="cover-size-control" id="artistSizeControl">
             <span class="size-control-label">頭像尺寸：</span>
@@ -1061,7 +1061,7 @@
               <div id="artistDetailAvatarPlaceholder" class="artist-detail-avatar-placeholder"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg></div>
             </div>
             <div class="artist-detail-info">
-              <div class="artist-detail-tag">ARTIST PROFILE • 演出者總覽</div>
+              <div class="artist-detail-tag">ARTIST PROFILE • 藝術家總覽</div>
               <h1 class="artist-detail-name" id="artistDetailName">Artist Name</h1>
               <div class="artist-detail-genres" id="artistDetailGenres">
                 <!-- Genre chips -->
@@ -1085,7 +1085,7 @@
                     <line x1="4" y1="4" x2="9" y2="9"/>
                   </svg>
                 </button>
-                <button class="btn btn-secondary" id="btnFavArtistDetail" title="加入最愛演出者">
+                <button class="btn btn-secondary" id="btnFavArtistDetail" title="加入最愛藝術家">
                   <svg class="fav-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                   </svg>
@@ -1186,11 +1186,11 @@
               <div class="artist-detail-tag">RECORD LABEL • 發行公司總覽</div>
               <h1 class="artist-detail-name" id="labelDetailName">Record Label</h1>
               <div class="artist-detail-genres" id="labelDetailArtists">
-                <!-- 該公司演出者 chips -->
+                <!-- 該公司藝術家 chips -->
               </div>
               <div class="artist-detail-stats">
                 <span class="stat-pill"><span id="labelDetailAlbumCount">0</span> 張專輯</span>
-                <span class="stat-pill"><span id="labelDetailArtistCount">0</span> 位演出者</span>
+                <span class="stat-pill"><span id="labelDetailArtistCount">0</span> 位藝術家</span>
                 <span class="stat-pill"><span id="labelDetailTrackCount">0</span> 首歌曲</span>
               </div>
               <div class="artist-detail-actions">
@@ -1229,7 +1229,7 @@
             </div>
             <span class="section-count-badge" id="labelTidalAlbumsCount">載入中...</span>
           </div>
-          <p class="section-desc" id="labelTidalSectionDesc">以 TIDAL 專輯的發行公司資料（copyright 欄位）比對同一家唱片公司，並循該公司演出者的 TIDAL 歷年發行作品延伸查找；可直接以 rooPlayer 音訊引擎播放，或加入曲庫。</p>
+          <p class="section-desc" id="labelTidalSectionDesc">以 TIDAL 專輯的發行公司資料（copyright 欄位）比對同一家唱片公司，並循該公司藝術家的 TIDAL 歷年發行作品延伸查找；可直接以 rooPlayer 音訊引擎播放，或加入曲庫。</p>
 
           <div class="bio-loading" id="labelTidalLoading" style="display: none;">
             <span class="spinner"></span> 正在連線 TIDAL 並比對該發行公司的專輯...
@@ -1254,7 +1254,7 @@
               <option value="default">預設排序</option>
               <option value="playCount">依最常播放 (播放次數)</option>
               <option value="title">依曲目名稱 A-Z</option>
-              <option value="artist">依演出者 A-Z</option>
+              <option value="artist">依藝術家 A-Z</option>
               <option value="duration">依曲目長度</option>
             </select>
             <button class="btn btn-secondary btn-sm" id="btnPlayAllTracks">▶ 播放全部曲目</button>
@@ -1268,7 +1268,7 @@
                 <th style="width: 38px;"></th>
                 <th class="col-track-title" style="width: 42%;">曲目名稱</th>
                 <th style="width: 70px; text-align: center;">YouTube</th>
-                <th class="col-track-artist" style="width: 16%;">演出者</th>
+                <th class="col-track-artist" style="width: 16%;">藝術家</th>
                 <th class="col-track-album" style="width: 18%;">專輯</th>
                 <th style="width: 120px;">格式規格</th>
                 <th style="width: 75px; text-align: right;">時長</th>
@@ -1461,7 +1461,7 @@
               <option value="added" selected>依新增順序 (最新優先)</option>
               <option value="addedOldest">依新增順序 (最舊優先)</option>
               <option value="title">依專輯名稱 (A-Z)</option>
-              <option value="artist">依演出者名稱</option>
+              <option value="artist">依藝術家名稱</option>
               <option value="year">依發行年份 (最新)</option>
             </select>
             <button class="btn btn-secondary btn-sm" id="btnPlayAllFavAlbums">▶ 播放全部最愛專輯</button>
@@ -1490,7 +1490,7 @@
               <option value="added" selected>依新增順序 (最新優先)</option>
               <option value="addedOldest">依新增順序 (最舊優先)</option>
               <option value="title">依歌曲名稱 (A-Z)</option>
-              <option value="artist">依演出者名稱</option>
+              <option value="artist">依藝術家名稱</option>
               <option value="album">依專輯名稱</option>
             </select>
             <button class="btn btn-primary btn-sm" id="btnPlayAllFavTracks">▶ 播放全部最愛歌曲</button>
@@ -1505,7 +1505,7 @@
                 <th style="width: 38px;"></th>
                 <th class="col-track-title" style="width: 42%;">曲目名稱</th>
                 <th style="width: 70px; text-align: center;">YouTube</th>
-                <th class="col-track-artist" style="width: 16%;">演出者</th>
+                <th class="col-track-artist" style="width: 16%;">藝術家</th>
                 <th class="col-track-album" style="width: 18%;">專輯</th>
                 <th style="width: 120px;">格式規格</th>
                 <th style="width: 75px; text-align: right;">時長</th>
@@ -1527,18 +1527,18 @@
       <section id="viewFavArtists" class="content-view">
         <div class="view-header">
           <div>
-            <h1 class="page-title">最愛演出者</h1>
-            <span class="page-subtitle" id="favArtistsHeaderCount">共 0 位最愛演出者</span>
+            <h1 class="page-title">最愛藝術家</h1>
+            <span class="page-subtitle" id="favArtistsHeaderCount">共 0 位最愛藝術家</span>
           </div>
           <div class="header-actions">
-            <select id="favArtistsSortSelect" class="select-dropdown" title="最愛演出者排序方式">
+            <select id="favArtistsSortSelect" class="select-dropdown" title="最愛藝術家排序方式">
               <option value="added" selected>依新增順序 (最新優先)</option>
               <option value="addedOldest">依新增順序 (最舊優先)</option>
-              <option value="name">依演出者名稱 (A-Z)</option>
+              <option value="name">依藝術家名稱 (A-Z)</option>
               <option value="albums">依專輯數量 (最多)</option>
               <option value="tracks">依曲目數量 (最多)</option>
             </select>
-            <button class="btn btn-secondary btn-sm" id="btnPlayAllFavArtists">▶ 播放最愛演出者歌曲</button>
+            <button class="btn btn-secondary btn-sm" id="btnPlayAllFavArtists">▶ 播放最愛藝術家歌曲</button>
             <button class="btn btn-secondary btn-sm" id="btnShuffleFavArtists">隨機播放</button>
           </div>
         </div>
@@ -1547,8 +1547,8 @@
         </div>
         <div class="empty-hint" id="favArtistsEmptyHint" style="display: none; padding: 48px; text-align: center;">
           <div style="font-size: 36px; margin-bottom: 12px;">⭐</div>
-          <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛演出者</div>
-          <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在演出者介紹頁面或演出者卡片上點擊 ⭐ 即可加入最愛演出者。</div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--text-main);">尚未收藏任何最愛藝術家</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">在藝術家介紹頁面或藝術家卡片上點擊 ⭐ 即可加入最愛藝術家。</div>
         </div>
       </section>
 
@@ -1568,7 +1568,7 @@
                 <span class="kkbox-search-icon" aria-hidden="true">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </span>
-                <input type="text" id="kkboxSearchInput" placeholder="搜尋 KKBOX 歌曲、演出者、專輯..." class="kkbox-search-input">
+                <input type="text" id="kkboxSearchInput" placeholder="搜尋 KKBOX 歌曲、藝術家、專輯..." class="kkbox-search-input">
                 <button class="btn btn-sm btn-kkbox-search" id="btnKkboxSearch">搜尋</button>
               </div>
               <button class="btn btn-sm btn-kkbox-login" id="btnOpenKkboxLoginModal" title="KKBOX 帳號連線資訊">
@@ -1727,7 +1727,7 @@
                 <span class="tidal-search-icon" aria-hidden="true">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </span>
-                <input type="text" id="tidalSearchInput" placeholder="搜尋 TIDAL 歌曲、專輯、演出者..." class="tidal-search-input">
+                <input type="text" id="tidalSearchInput" placeholder="搜尋 TIDAL 歌曲、專輯、藝術家..." class="tidal-search-input">
                 <button class="btn btn-sm btn-tidal-search" id="btnTidalSearch">搜尋</button>
               </div>
               <button class="btn btn-sm btn-tidal-account" id="btnOpenTidalAccount" title="直接開啟 TIDAL 官方登入視窗">
@@ -1897,7 +1897,7 @@
                           <th style="width: 45px;">#</th>
                           <th style="width: 38px;"></th>
                           <th style="width: 44%;">曲目名稱</th>
-                          <th style="width: 18%;">演出者</th>
+                          <th style="width: 18%;">藝術家</th>
                           <th style="width: 20%;">專輯</th>
                           <th style="width: 100px;">音訊規格</th>
                           <th style="width: 70px; text-align: right;">時長</th>
@@ -3401,7 +3401,7 @@
 
           <div class="now-playing-meta">
             <h2 class="now-playing-track-title" id="nowPlayingTrackTitle">曲目名稱</h2>
-            <div class="now-playing-artist-name clickable-artist" id="nowPlayingArtistName" title="點擊查看演出者簡介">演出者</div>
+            <div class="now-playing-artist-name clickable-artist" id="nowPlayingArtistName" title="點擊查看藝術家簡介">藝術家</div>
             <div class="now-playing-album-name clickable-album" id="nowPlayingAlbumName" title="點擊查看專輯詳情">專輯名稱</div>
           </div>
 

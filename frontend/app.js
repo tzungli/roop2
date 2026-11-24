@@ -658,7 +658,7 @@ function applyRandomHeroGradient() {
 
 // ----------------- 介面語言選擇（繁體中文 / English） -----------------
 // 語言切換只動介面：選單、按鈕、表格欄頭、提示與說明頁全部跟著換；
-// 曲目名稱、演出者名稱、檔案路徑與使用者自訂濾波器名稱屬資料，一律保持原文。
+// 曲目名稱、藝術家名稱、檔案路徑與使用者自訂濾波器名稱屬資料，一律保持原文。
 const LANGUAGE_LABELS = { 'zh-TW': '繁體中文', 'en': 'English' };
 
 function updateLanguageControlUI() {
@@ -829,7 +829,7 @@ async function initApp() {
   if (window.location.search.includes('rpCapture')) {
     const capParams = new URLSearchParams(window.location.search);
     if (capParams.get('testVersions')) {
-      // 執行期測試：「其他版本」匹配邏輯——只允許同名＋同演出者的格式／解析度／平台差異
+      // 執行期測試：「其他版本」匹配邏輯——只允許同名＋同藝術家的格式／解析度／平台差異
       setTimeout(async () => {
         try {
           const now = Date.now();
@@ -843,8 +843,8 @@ async function initApp() {
           });
           const fixture = [
             ...[0, 1].map(i => mkTrack('Test Album', 'Artist A', i, 'FLAC', 44100, 16)),                       // A：目前專輯
-            ...[0, 1].map(i => mkTrack('Test Album', 'Artist B', i, 'WAV', 96000, 24)),                        // B：同名但不同演出者 → 必須排除
-            ...[0, 1].map(i => mkTrack('Test Album (Deluxe Edition)', 'Artist A', i, 'FLAC', 96000, 24))      // D：正規化後同專輯同演出者、不同解析度 → 必須納入
+            ...[0, 1].map(i => mkTrack('Test Album', 'Artist B', i, 'WAV', 96000, 24)),                        // B：同名但不同藝術家 → 必須排除
+            ...[0, 1].map(i => mkTrack('Test Album (Deluxe Edition)', 'Artist A', i, 'FLAC', 96000, 24))      // D：正規化後同專輯同藝術家、不同解析度 → 必須納入
           ];
           state.tracks = [...state.tracks, ...fixture];
           rebuildLibraryCollections();
@@ -873,12 +873,12 @@ async function initApp() {
             }
           }
           const pass = sectionShown && cards.length === 2 && excludedOk && includedDeluxe && orderStable && activeMoved;
-          // 附加檢查：專輯頁「推薦演出者」頭像尺寸必須跟隨演出者頁面的尺寸設定
+          // 附加檢查：專輯頁「推薦藝術家」頭像尺寸必須跟隨藝術家頁面的尺寸設定
           const recGrid = document.getElementById('albumArtistRecommendationsGrid');
           const mainGrid = document.getElementById('artistsGrid');
           const sizeOf = (g) => [...g.classList].find(c => c.startsWith('artist-size-')) || 'none';
           const sizeMatch = !!recGrid && !!mainGrid && sizeOf(recGrid) === sizeOf(mainGrid) && sizeOf(recGrid) !== 'none';
-          // 切換演出者頁尺寸到「大」：專輯頁推薦區必須即時同步
+          // 切換藝術家頁尺寸到「大」：專輯頁推薦區必須即時同步
           const largePill = document.querySelector('#artistSizePills .size-pill[data-artist-size="large"]');
           if (largePill) largePill.click();
           await new Promise(r => setTimeout(r, 400));
@@ -1101,7 +1101,7 @@ function recordTrackPlaybackHistory(track, foundAlbum) {
   const historyItem = {
     id: track.id || `${track.title}___${track.artist}`,
     title: track.title,
-    artist: track.artist || (foundAlbum ? foundAlbum.artist : '未知演出者'),
+    artist: track.artist || (foundAlbum ? foundAlbum.artist : '未知藝術家'),
     album: track.album || (foundAlbum ? foundAlbum.title : '未知專輯'),
     duration: track.duration || 0,
     filePath: track.filePath || '',
@@ -1373,6 +1373,7 @@ function isUnknownArtist(artist) {
     s === 'unknown artist' ||
     s === 'unknown artists' ||
     s === 'unknown album' ||
+    s === '未知藝術家' ||
     s === '未知演出者' ||
     s === '未知歌手' ||
     s === '未知' ||
@@ -1770,25 +1771,25 @@ function toggleArtistFavorite(artistName, triggerBtn = null) {
   const nowFav = (idx < 0);
   if (!nowFav) {
     state.favorites.artists.splice(idx, 1);
-    showToast(`已從最愛演出者移除「${name}」`);
+    showToast(`已從最愛藝術家移除「${name}」`);
   } else {
     state.favorites.artists.push(name);
-    showToast(`⭐ 已將「${name}」加入最愛演出者`);
+    showToast(`⭐ 已將「${name}」加入最愛藝術家`);
   }
   if (triggerBtn) {
     triggerBtn.classList.toggle('active', nowFav);
     if (triggerBtn.id === 'btnFavArtistDetail') {
       triggerBtn.innerHTML = getStarSvg(nowFav, 18);
-      triggerBtn.title = nowFav ? '取消最愛演出者' : '加入最愛演出者';
+      triggerBtn.title = nowFav ? '取消最愛藝術家' : '加入最愛藝術家';
     } else {
       const labelSpan = triggerBtn.querySelector('span');
       if (labelSpan) {
-        labelSpan.textContent = nowFav ? '已在最愛演出者' : '加入最愛演出者';
+        labelSpan.textContent = nowFav ? '已在最愛藝術家' : '加入最愛藝術家';
         triggerBtn.innerHTML = `${getStarSvg(nowFav, 15)} <span>${labelSpan.textContent}</span>`;
       } else {
         triggerBtn.innerHTML = getStarSvg(nowFav, 18);
       }
-      triggerBtn.title = nowFav ? '取消最愛演出者' : '加入最愛演出者';
+      triggerBtn.title = nowFav ? '取消最愛藝術家' : '加入最愛藝術家';
     }
   }
   saveFavorites();
@@ -1943,7 +1944,7 @@ function syncAllFavoriteUIs() {
       const isFav = isArtistFavorite(state.currentArtistDetail);
       btnFavArtist.classList.toggle('active', isFav);
       btnFavArtist.innerHTML = getStarSvg(isFav, 18);
-      btnFavArtist.title = isFav ? '取消最愛演出者' : '加入最愛演出者';
+      btnFavArtist.title = isFav ? '取消最愛藝術家' : '加入最愛藝術家';
     }
   }
 
@@ -1990,7 +1991,7 @@ function syncAllFavoriteUIs() {
       if (favBtn) {
         favBtn.classList.toggle('active', isFav);
         favBtn.innerHTML = getStarSvg(isFav, 14);
-        favBtn.title = isFav ? '取消最愛演出者' : '加入最愛演出者';
+        favBtn.title = isFav ? '取消最愛藝術家' : '加入最愛藝術家';
       }
     }
   });
@@ -2332,7 +2333,7 @@ function updateBadgesAndStats() {
   const favTracksHeader = document.getElementById('favTracksHeaderCount');
   if (favTracksHeader) favTracksHeader.textContent = `共 ${favTracksCount} 首最愛歌曲`;
   const favArtistsHeader = document.getElementById('favArtistsHeaderCount');
-  if (favArtistsHeader) favArtistsHeader.textContent = `共 ${favArtistsCount} 位最愛演出者`;
+  if (favArtistsHeader) favArtistsHeader.textContent = `共 ${favArtistsCount} 位最愛藝術家`;
 
   const heroAlb = document.getElementById('heroAlbumCount');
   if (heroAlb) heroAlb.textContent = totalAlbums;
@@ -2361,7 +2362,7 @@ function updateBadgesAndStats() {
   }
 
   document.getElementById('albumsHeaderCount').textContent = `共 ${totalAlbums} 張專輯`;
-  document.getElementById('artistsHeaderCount').textContent = `共 ${totalArtists} 位演出者`;
+  document.getElementById('artistsHeaderCount').textContent = `共 ${totalArtists} 位藝術家`;
   document.getElementById('tracksHeaderCount').textContent = `共 ${totalTracks} 首曲目`;
 }
 
@@ -2565,7 +2566,7 @@ async function renderArtistSpotlight(forceRefresh = false) {
         playTrackList(artistTracks, 0);
         showToast(`▶ 開始播放 ${artistName} 的所有曲目`);
       } else {
-        showToast('此演出者暫無本機曲目');
+        showToast('此藝術家暫無本機曲目');
       }
     };
   }
@@ -2574,14 +2575,14 @@ async function renderArtistSpotlight(forceRefresh = false) {
   avatarImg.style.display = 'none';
   avatarPlaceholder.style.display = 'flex';
   avatarPlaceholder.textContent = artistName.charAt(0).toUpperCase();
-  bioEl.textContent = '正在連線維基百科取得演出者生平介紹與照片...';
+  bioEl.textContent = '正在連線維基百科取得藝術家生平介紹與照片...';
 
   // 2. 關聯精選專輯（依資料庫內容最多顯示 3 張；若只有 1 張就顯示 1 張，以此類推，不補其他歌手的專輯）
   if (albumsGrid) {
     albumsGrid.innerHTML = '';
     let artistAlbums = state.albums.filter(a => (a.artist || '').toLowerCase().trim() === artistName.toLowerCase().trim());
     
-    // 若該演出者無獨立專輯，但有收錄在合輯/多曲目專輯中，補上包含該演出者曲目的專輯
+    // 若該藝術家無獨立專輯，但有收錄在合輯/多曲目專輯中，補上包含該藝術家曲目的專輯
     if (artistAlbums.length === 0) {
       artistAlbums = state.albums.filter(a => a.tracks && a.tracks.some(t => (t.artist || '').toLowerCase().trim() === artistName.toLowerCase().trim()));
     }
@@ -2603,7 +2604,7 @@ async function renderArtistSpotlight(forceRefresh = false) {
       });
     }
 
-    // 若已登入 TIDAL，非同步在 TIDAL 搜尋該演出者之發燒雲端專輯並加入相關精選專輯
+    // 若已登入 TIDAL，非同步在 TIDAL 搜尋該藝術家之發燒雲端專輯並加入相關精選專輯
     if (window.tidalService && window.tidalService.isLoggedIn) {
       window.tidalService.search(artistName, 8).then(res => {
         if (currentSpotlightArtistName !== artistName) return;
@@ -2761,12 +2762,12 @@ async function renderArtistSpotlight(forceRefresh = false) {
         }
         bioEl.textContent = trimmed;
       } else {
-        bioEl.textContent = `${artistName} 是深受當代樂迷喜愛與推崇的經典音樂創作者，在發燒音響與高解析錄音領域擁有豐富代表作。本機音樂庫中已完整收錄多張珍貴母帶與熱門曲目，點擊「查看演出者主頁」即可探索其專屬生平介紹、發行專輯與完整串流曲庫。`;
+        bioEl.textContent = `${artistName} 是深受當代樂迷喜愛與推崇的經典音樂創作者，在發燒音響與高解析錄音領域擁有豐富代表作。本機音樂庫中已完整收錄多張珍貴母帶與熱門曲目，點擊「查看藝術家主頁」即可探索其專屬生平介紹、發行專輯與完整串流曲庫。`;
       }
     }
   } catch (err) {
     if (currentSpotlightArtistName === artistName) {
-      bioEl.textContent = `${artistName} 是一位優秀的音樂創作者與演出者，在發燒音樂領域具備卓越表現。點擊查看更多個人專輯與作品。`;
+      bioEl.textContent = `${artistName} 是一位優秀的音樂創作者與藝術家，在發燒音樂領域具備卓越表現。點擊查看更多個人專輯與作品。`;
     }
   }
 }
@@ -2788,7 +2789,7 @@ function getRecentlyPlayedAlbums(maxCount = 5) {
       if (albTitle) {
         album = {
           title: albTitle,
-          artist: trk.artist || '未知演出者',
+          artist: trk.artist || '未知藝術家',
           cover: trk.cover || '',
           year: trk.year || '',
           genre: trk.genre || 'Various',
@@ -3258,7 +3259,7 @@ function toggleAlbumListenLater(album, btnEl) {
       tidalId: album.isTidal ? String(album.tidalId || album.id || '').replace(/^tidal_/, '') : null,
       isTidal: !!album.isTidal,
       title: album.title || '未知專輯',
-      artist: album.artist || '未知演出者',
+      artist: album.artist || '未知藝術家',
       coverUrl: sanitizeListenLaterCover(album.coverUrl || album.artwork || album.cover || ''),
       audioQuality: album.audioQuality || '',
       formatText: formatAlbumSpecShort(album),
@@ -3335,7 +3336,7 @@ function renderRooListenLater() {
   visible.forEach(entry => {
     const liveAlbum = resolveListenLaterAlbum(entry);
     const title = (liveAlbum && liveAlbum.title) || entry.title || '未知專輯';
-    const artist = (liveAlbum && liveAlbum.artist) || entry.artist || '未知演出者';
+    const artist = (liveAlbum && liveAlbum.artist) || entry.artist || '未知藝術家';
     const fmtText = liveAlbum ? formatAlbumSpecShort(liveAlbum) : (entry.formatText || '');
     const rawCover = (liveAlbum && (liveAlbum.cover || liveAlbum.coverUrl || liveAlbum.artwork))
       || entry.coverUrl
@@ -3493,7 +3494,7 @@ function renderDailyPickCard(entry) {
   const heroBox = document.getElementById('dailyPickHeroBox');
 
   const pick = entry.pickAlbum;
-  const seedArtist = entry.seedArtist || pick.artist || '精選演出者';
+  const seedArtist = entry.seedArtist || pick.artist || '精選藝術家';
 
   if (seedArtistEl) seedArtistEl.textContent = seedArtist;
   if (albumArtistEl) albumArtistEl.textContent = `${pick.title || '精選專輯'} - ${pick.artist || seedArtist}`;
@@ -3580,12 +3581,12 @@ function renderRooDailyPick() {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    const seedArtist = (recent5[0] && recent5[0].artist) || (pool[0] && pool[0].artist) || '精選演出者';
+    const seedArtist = (recent5[0] && recent5[0].artist) || (pool[0] && pool[0].artist) || '精選藝術家';
     dailyPickCandidates = pool.slice(0, 10).map(alb => ({ seedArtist, pickAlbum: alb }));
   }
 
   if (dailyPickCandidates.length === 0) {
-    dailyPickCandidates = [{ seedArtist: '精選演出者', pickAlbum: { title: '尚無專輯', artist: '請匯入音樂庫' } }];
+    dailyPickCandidates = [{ seedArtist: '精選藝術家', pickAlbum: { title: '尚無專輯', artist: '請匯入音樂庫' } }];
   }
 
   dailyPickIndex = 0;
@@ -3741,7 +3742,7 @@ function renderNewReleases(tab = 'albums', page = 0) {
   if (featuredEntry) {
     const alb = featuredEntry.alb;
     const isTrackMode = tab === 'tracks' && featuredEntry.track;
-    const dispArtist = (isTrackMode ? featuredEntry.track.artist : alb.artist) || '未知演出者';
+    const dispArtist = (isTrackMode ? featuredEntry.track.artist : alb.artist) || '未知藝術家';
     const dispTitle = (isTrackMode ? featuredEntry.track.title : alb.title) || '未命名作品';
     const gInfo = getGenreIllustrationInfo(featuredEntry.g);
     const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : featuredEntry.g) || '音樂';
@@ -3788,7 +3789,7 @@ function renderNewReleases(tab = 'albums', page = 0) {
   restItems.forEach((entry) => {
     const alb = entry.alb;
     const isTrackMode = tab === 'tracks' && entry.track;
-    const dispArtist = (isTrackMode ? entry.track.artist : alb.artist) || '未知演出者';
+    const dispArtist = (isTrackMode ? entry.track.artist : alb.artist) || '未知藝術家';
     const dispTitle = (isTrackMode ? entry.track.title : alb.title) || '未命名作品';
     const gInfo = getGenreIllustrationInfo(entry.g);
     const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : entry.g) || '';
@@ -5026,7 +5027,7 @@ function renderRooRecommendedArtistsWithCues(page = 0) {
 
   grid.innerHTML = '';
   if (recommendations.length === 0) {
-    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">匯入並聆聽音樂後，系統將依您的偏好推薦相關演出者與作品</div>';
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">匯入並聆聽音樂後，系統將依您的偏好推薦相關藝術家與作品</div>';
     return;
   }
 
@@ -5101,7 +5102,7 @@ function renderRooMusicianSpotlight() {
     .slice(0, 20);
 
   if (top20.length === 0) {
-    if (nameEl) nameEl.textContent = '尚無演出者';
+    if (nameEl) nameEl.textContent = '尚無藝術家';
     if (btnPlay) btnPlay.onclick = () => showToast('音樂庫尚無可播放曲目');
     return;
   }
@@ -5184,7 +5185,7 @@ function setupRooDiscoverBanner() {
   }
 }
 
-// ----------------- Overview: 探索演出者 (metadata-driven artist discovery) -----------------
+// ----------------- Overview: 探索藝術家 (metadata-driven artist discovery) -----------------
 let discoverArtistsOpId = 0;
 
 // Build a listening profile from local metadata: playback history, recently played albums,
@@ -5521,7 +5522,7 @@ function createAlbumCard(album) {
     </div>
     <div class="album-meta">
       <div class="album-title" title="${escapeXml(album.title)}">${escapeXml(album.title)}</div>
-      <div class="album-artist clickable-artist" title="查看演出者介紹">${escapeXml(album.artist)}</div>
+      <div class="album-artist clickable-artist" title="查看藝術家介紹">${escapeXml(album.artist)}</div>
       <div class="album-year">${album.year ? album.year + ' • ' : ''}${album.tracks ? album.tracks.length + ' 首' : ''}${playCountText}</div>
     </div>
   `;
@@ -5558,8 +5559,8 @@ function createAlbumCard(album) {
 }
 
 // Create Artist Card
-// ----------------- Artist Avatar Engine（登入 TIDAL 時由 TIDAL 抓取演出者照片） -----------------
-const artistAvatarCache = new Map(); // 小寫演出者名 -> TIDAL picture 圖片 ID
+// ----------------- Artist Avatar Engine（登入 TIDAL 時由 TIDAL 抓取藝術家照片） -----------------
+const artistAvatarCache = new Map(); // 小寫藝術家名 -> TIDAL picture 圖片 ID
 try {
   const rawAvatars = localStorage.getItem('rooplayer_artist_avatars');
   if (rawAvatars) Object.entries(JSON.parse(rawAvatars) || {}).forEach(([k, v]) => { if (v) artistAvatarCache.set(k, v); });
@@ -5602,7 +5603,7 @@ async function hydrateArtistAvatars(container) {
       try {
         const res = await svc.search(name, 5);
         const items = (res && res.artists) || [];
-        // 僅接受名稱完全相符或去符號後相符者，避免誤掛不相干演出者的照片
+        // 僅接受名稱完全相符或去符號後相符者，避免誤掛不相干藝術家的照片
         const hit = items.find(a => normArtistKey(a.name) === key)
           || items.find(a => looseArtistKey(a.name) && looseArtistKey(a.name) === looseArtistKey(name));
         const pic = hit && (hit.picture || hit.image);
@@ -5635,7 +5636,7 @@ function createArtistCard(art) {
   } else if (art.isTidal) {
     subText = 'TIDAL 推薦藝人';
   } else {
-    subText = '演出者';
+    subText = '藝術家';
   }
 
   let avatarHtml = `<div class="artist-avatar">${initial}</div>`;
@@ -5658,7 +5659,7 @@ function createArtistCard(art) {
   card.innerHTML = `
     <div class="artist-avatar-wrap">
       ${avatarHtml}
-      <button class="artist-fav-btn ${isFav ? 'active' : ''}" title="${isFav ? '取消最愛演出者' : '加入最愛演出者'}">${getStarSvg(isFav, 14)}</button>
+      <button class="artist-fav-btn ${isFav ? 'active' : ''}" title="${isFav ? '取消最愛藝術家' : '加入最愛藝術家'}">${getStarSvg(isFav, 14)}</button>
       ${tidalBadgeHtml}
     </div>
     <div class="artist-name">${escapeXml(art.name)}</div>
@@ -5684,8 +5685,8 @@ function renderArtists() {
   if (state.artists.length === 0) {
     artistsGrid.innerHTML = `
       <div style="grid-column: 1/-1; padding: 60px 20px; text-align: center; color: var(--text-muted);">
-        <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無演出者</div>
-        <div style="font-size: 13px; margin-bottom: 20px;">匯入音樂後，系統將自動解析歌手與演出者資訊。</div>
+        <div style="font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 8px;">音樂庫尚無藝術家</div>
+        <div style="font-size: 13px; margin-bottom: 20px;">匯入音樂後，系統將自動解析歌手與藝術家資訊。</div>
         <button class="btn btn-primary" onclick="navigateTo('storage')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">匯入音樂資料夾</button>
       </div>
     `;
@@ -5696,7 +5697,7 @@ function renderArtists() {
     frag.appendChild(createArtistCard(art));
   });
   artistsGrid.appendChild(frag);
-  hydrateArtistAvatars(artistsGrid); // 登入 TIDAL 時補抓演出者照片
+  hydrateArtistAvatars(artistsGrid); // 登入 TIDAL 時補抓藝術家照片
 }
 
 // ----------------- Artist Detail View -----------------
@@ -5760,7 +5761,7 @@ async function openArtistDetail(artistName) {
     const isFav = isArtistFavorite(artistName);
     btnFavArtist.classList.toggle('active', isFav);
     btnFavArtist.innerHTML = getStarSvg(isFav, 18);
-    btnFavArtist.title = isFav ? '取消最愛演出者' : '加入最愛演出者';
+    btnFavArtist.title = isFav ? '取消最愛藝術家' : '加入最愛藝術家';
     btnFavArtist.onclick = (e) => {
       e.stopPropagation();
       toggleArtistFavorite(artistName, btnFavArtist);
@@ -5962,7 +5963,7 @@ async function fetchArtistBio(artistName, localAlbums = []) {
       };
     }
   } else {
-    textEl.textContent = `${artistName} 是深受音樂愛好者喜愛的知名音樂家與演出者。本機音樂庫中已收錄相關經典錄音。可點擊下方線上串流專區探索完整作品目錄。`;
+    textEl.textContent = `${artistName} 是深受音樂愛好者喜愛的知名音樂家與藝術家。本機音樂庫中已收錄相關經典錄音。可點擊下方線上串流專區探索完整作品目錄。`;
     textEl.style.display = 'block';
     sourceBadge.textContent = '音樂庫資料庫簡介 (繁體中文)';
     if (btnToggleBioLang) btnToggleBioLang.style.display = 'none';
@@ -7180,7 +7181,7 @@ async function fetchAlbumBio(album) {
     const producerPart = album.producer ? `，由製作人 ${album.producer} 操刀製作` : '';
     const composerPart = album.composer ? `，主要作曲由 ${album.composer} 執筆` : '';
 
-    const p1 = `《${album.title}》是由知名演出者 ${album.artist} ${yearText}的代表性音樂作品${labelPart}${producerPart}${composerPart}。作品在藝術性與音樂張力上皆深具份量，細膩融合了 ${genreText} 的核心精髓，展現出高度成熟的編曲層次與深厚的情感共鳴。`;
+    const p1 = `《${album.title}》是由知名藝術家 ${album.artist} ${yearText}的代表性音樂作品${labelPart}${producerPart}${composerPart}。作品在藝術性與音樂張力上皆深具份量，細膩融合了 ${genreText} 的核心精髓，展現出高度成熟的編曲層次與深厚的情感共鳴。`;
 
     const p2 = `全張專輯共精選收錄 ${trackCount} 首完整曲目錄音，總播放時間長達 ${totalDurationText}。其中包括焦點代表作如 ${sampleTracks} 等，在樂器對位、節奏鋪陳與人聲演繹之間呈現精緻的動態起伏，為樂迷帶來沉浸式的完整聽覺旅程。`;
 
@@ -7568,7 +7569,7 @@ function createLabelTidalCard(alb) {
   return card;
 }
 
-// TIDAL 端該公司的發行專輯：① 直接以公司名稱搜尋 ② 循該公司在庫演出者的 TIDAL 歷年發行延伸
+// TIDAL 端該公司的發行專輯：① 直接以公司名稱搜尋 ② 循該公司在庫藝術家的 TIDAL 歷年發行延伸
 // 兩者都只保留 TIDAL 發行資料（copyright 欄位）確實屬於該公司者。
 async function fetchLabelTidalAlbums(labelName, localMatched) {
   const loadingEl = document.getElementById('labelTidalLoading');
@@ -7607,7 +7608,7 @@ async function fetchLabelTidalAlbums(labelName, localMatched) {
     } catch (e) { console.warn('[label] TIDAL label search failed:', e); }
     if (seq !== labelDetailRenderSeq) return;
 
-    // 2) 循該公司在庫演出者延伸其 TIDAL 歷年發行（最多 8 位，避免大量請求）
+    // 2) 循該公司在庫藝術家延伸其 TIDAL 歷年發行（最多 8 位，避免大量請求）
     const artistNames = [...new Set((localMatched || []).map(a => a.artist).filter(Boolean))].slice(0, 8);
     for (const artistName of artistNames) {
       try {
@@ -7615,7 +7616,7 @@ async function fetchLabelTidalAlbums(labelName, localMatched) {
         if (!artistObj || !artistObj.id) continue;
         const discography = await window.tidalService.getArtistAlbums(artistObj.id, 50);
         (discography || []).forEach(accept);
-      } catch (e) { /* 單一演出者失敗不影響整頁 */ }
+      } catch (e) { /* 單一藝術家失敗不影響整頁 */ }
       if (seq !== labelDetailRenderSeq) return;
     }
 
@@ -7675,7 +7676,7 @@ async function openLabelDetail(labelName) {
   const backdrop = document.getElementById('labelHeroBackdrop');
   if (backdrop) { backdrop.style.backgroundImage = 'none'; backdrop.style.opacity = '0'; }
 
-  // 該公司演出者 chips（點擊開演出者頁）
+  // 該公司藝術家 chips（點擊開藝術家頁）
   const chipsBox = document.getElementById('labelDetailArtists');
   if (chipsBox) {
     chipsBox.innerHTML = '';
@@ -7683,7 +7684,7 @@ async function openLabelDetail(labelName) {
       const chip = document.createElement('span');
       chip.className = 'genre-chip label-artist-chip';
       chip.textContent = name;
-      chip.title = `開啟 ${name} 的演出者頁面`;
+      chip.title = `開啟 ${name} 的藝術家頁面`;
       chip.addEventListener('click', () => openArtistDetail(name));
       chipsBox.appendChild(chip);
     });
@@ -7928,9 +7929,9 @@ function createRecommendAlbumCard(alb, reason, detail) {
 // ----------------- Album Recommendations Engine（多訊號加權評分 + TIDAL 真實關聯） -----------------
 // 目標：讓「同類型推薦專輯」與正在瀏覽的專輯真正相關，而不是只靠曲風字串相同。
 // 本機訊號與權重（可互相抵銷）：
-//   同演出者 70｜收錄相同曲目 每首 15（上限 45）｜同曲風 60｜相近曲風 26｜同廠牌 25
+//   同藝術家 70｜收錄相同曲目 每首 15（上限 45）｜同曲風 60｜相近曲風 26｜同廠牌 25
 //   同製作或作曲 18｜年代相近 18/10/4（容忍度依曲風生命週期調整）｜同為 Hi-Res 或 DSD 12
-//   扣分：不同曲風 -25｜合輯或精選 -35、Various Artists 再 -25｜單曲 -18、EP -12｜演出者不明 -30｜曲目過少 -20
+//   扣分：不同曲風 -25｜合輯或精選 -35、Various Artists 再 -25｜單曲 -18、EP -12｜藝術家不明 -30｜曲目過少 -20
 // 低於 RECOMMEND_MIN_SCORE 的候選不顯示，避免「湊數」的推薦；每張卡片列出實際命中的訊號。
 const RECOMMEND_MIN_SCORE = 40;
 
@@ -7960,7 +7961,7 @@ const GENRE_ERA_TOLERANCE = {
 };
 
 let albumRecommendRenderSeq = 0;
-const tidalRecommendCache = new Map(); // 演出者名稱 ➔ { discography, similarAlbums, genreAlbums }
+const tidalRecommendCache = new Map(); // 藝術家名稱 ➔ { discography, similarAlbums, genreAlbums }
 
 function albumIdentityKey(alb) {
   if (!alb) return '';
@@ -7974,7 +7975,7 @@ function titleArtistKey(alb) {
 }
 
 function albumRecordingMap(alb) {
-  const map = new Map(); // 正規化歌名 ➔ 該曲目出現過的演出者名稱（含 track / album 層）
+  const map = new Map(); // 正規化歌名 ➔ 該曲目出現過的藝術家名稱（含 track / album 層）
   (alb.tracks || []).forEach(t => {
     const titleKey = normalizeSongKey(t.title);
     if (!titleKey) return;
@@ -7988,8 +7989,8 @@ function albumRecordingMap(alb) {
   return map;
 }
 
-// 相同錄音收錄數：同一首歌（歌名＋可相容的演出者）出現在兩張專輯，是很強的關聯
-// 例：合輯裡各曲目仍帶原本的演出者 ➔ 與正式專輯相符；不同演出者翻唱同一首歌 ➔ 不算相同錄音
+// 相同錄音收錄數：同一首歌（歌名＋可相容的藝術家）出現在兩張專輯，是很強的關聯
+// 例：合輯裡各曲目仍帶原本的藝術家 ➔ 與正式專輯相符；不同藝術家翻唱同一首歌 ➔ 不算相同錄音
 function albumSharedRecordings(src, cand) {
   const srcMap = albumRecordingMap(src);
   if (!srcMap.size) return 0;
@@ -8044,7 +8045,7 @@ function scoreAlbumSimilarity(src, cand) {
     && (srcArtist.toLowerCase() === candArtist.toLowerCase() || artistKeysMatch(srcArtist, candArtist));
   if (sameArtist) {
     score += 70;
-    signals.push({ weight: 70, label: `同演出者 ${candArtist}` });
+    signals.push({ weight: 70, label: `同藝術家 ${candArtist}` });
   }
 
   const srcGenre = String(src.genre || '').trim();
@@ -8111,7 +8112,7 @@ function scoreAlbumSimilarity(src, cand) {
   }
   if (isVariousArtistsAlbum(cand)) {
     score -= 25;
-    signals.push({ weight: -25, label: '演出者為 Various Artists' });
+    signals.push({ weight: -25, label: '藝術家為 Various Artists' });
   }
   const candTrackCount = (cand.tracks || []).length;
   if (candTrackCount === 1) {
@@ -8126,7 +8127,7 @@ function scoreAlbumSimilarity(src, cand) {
   }
   if (isUnknownArtist(candArtist)) {
     score -= 30;
-    signals.push({ weight: -30, label: '演出者不明' });
+    signals.push({ weight: -30, label: '藝術家不明' });
   }
 
   return { score, signals, shared };
@@ -8143,7 +8144,7 @@ function recommendReasonDetail(signals, score) {
   return `關聯原因：${parts.join('、') || '無'}｜關聯分 ${score}`;
 }
 
-// TIDAL 端改用真實關聯圖譜：同演出者的完整發行 + TIDAL 的「相近演出者」及其作品
+// TIDAL 端改用真實關聯圖譜：同藝術家的完整發行 + TIDAL 的「相近藝術家」及其作品
 function scoreTidalRecommendation(src, item) {
   const { alb, kind } = item;
   const signals = [];
@@ -8156,7 +8157,7 @@ function scoreTidalRecommendation(src, item) {
 
   if (kind === 'discography' || sameArtist) {
     score += 70;
-    signals.push({ weight: 70, label: `同演出者 ${candArtist || srcArtist} (TIDAL)` });
+    signals.push({ weight: 70, label: `同藝術家 ${candArtist || srcArtist} (TIDAL)` });
   } else if (kind === 'similar') {
     score += 45;
     signals.push({ weight: 45, label: `與 ${srcArtist || '本專輯'} 風格相近 (TIDAL)` });
@@ -8234,7 +8235,7 @@ async function fetchTidalRecommendationAlbums(album) {
     }
     tidalRecommendCache.set(artistName || '__no_artist__', entry);
     if (tidalRecommendCache.size > 40) {
-      // 只保留最近使用的演出者，避免久開後記憶體持續成長
+      // 只保留最近使用的藝術家，避免久開後記憶體持續成長
       const oldest = tidalRecommendCache.keys().next().value;
       if (oldest !== (artistName || '__no_artist__')) tidalRecommendCache.delete(oldest);
     }
@@ -8288,7 +8289,7 @@ function renderAlbumRecommendations(album) {
   if (localRecommendations.length === 0 && !isTidalLoggedIn) {
     const empty = document.createElement('div');
     empty.className = 'recommend-empty-hint';
-    empty.textContent = `目前本機音樂庫中沒有與《${album.title}》足夠相關的專輯（同演出者、同曲風或相近曲風、同廠牌、相同曲目收錄）。在「資料夾」加入更多音樂目錄即可擴充推薦。`;
+    empty.textContent = `目前本機音樂庫中沒有與《${album.title}》足夠相關的專輯（同藝術家、同曲風或相近曲風、同廠牌、相同曲目收錄）。在「資料夾」加入更多音樂目錄即可擴充推薦。`;
     container.appendChild(empty);
   } else if (countBadge) {
     countBadge.textContent = `${localRecommendations.length} 張推薦`;
@@ -8393,7 +8394,7 @@ async function runRecommendSelfTest() {
       ...mk('rec_c2', 'Third Field Session', 'Monk Test', 'Jazz', 1961, 'Field Records', ['Song Beta', 'Quiet River', 'Night Harbor', 'Old Town'], false),
       ...mk('rec_c3', 'Fourth Field Session', 'Sonny Test', 'Blues', 1960, null, ['Delta Morning', 'Slow Train', 'Evening Dust', 'Cold Hall'], false),
       ...mk('rec_c4', 'Fifth Field Session', 'Nina Test', 'Metal', 1995, null, ['Heavy Anvil', 'Iron Peak', 'Storm Forge', 'Deep Cellar'], false),
-      // 同一演出者的精選輯：收錄完全相同的四首錄音 ➔ 靠相同曲目取得高關聯，但仍被合輯扣分
+      // 同一藝術家的精選輯：收錄完全相同的四首錄音 ➔ 靠相同曲目取得高關聯，但仍被合輯扣分
       ...mk('rec_c5', 'Field Session Anthology', 'Miles Test', 'Jazz', 1959, null, ['Song Alpha', 'Song Beta', 'Song Gamma', 'Song Delta'], false),
       // Various Artists 合輯：同曲風同年代，但沒有相同錄音 ➔ 被合輯與 Various Artists 扣分後低於門檻
       ...mk('rec_c6', 'Field Session Sampler', 'Various Artists', 'Jazz', 1959, null, ['Sample One', 'Sample Two', 'Sample Three', 'Sample Four'], false),
@@ -8410,7 +8411,7 @@ async function runRecommendSelfTest() {
     const src = byTitle('Blue Field Sessions');
     if (!src) { bad('fixture source album built from injected tracks'); finish(); return; }
 
-    // ① 評分：每個候選的预期分數（同演出者 70／同曲風 60／相近曲風 26／相同曲目 15×n 上限 45／
+    // ① 評分：每個候選的预期分數（同藝術家 70／同曲風 60／相近曲風 26／相同曲目 15×n 上限 45／
     //    同廠牌 25／年代 18／Hi-Res 8／合輯 -14／不同曲風 -25）
     const expectScores = [
       ['Second Field Session', 196],
@@ -8442,9 +8443,9 @@ async function runRecommendSelfTest() {
     const titles = [...grid.querySelectorAll('.recommend-card')].map(cardText);
     const wantOrder = ['Second Field Session', 'Field Session Anthology', 'Third Field Session', 'Fourth Field Session'];
     if (JSON.stringify(titles) === JSON.stringify(wantOrder)) {
-      ok('推薦排序依關聯分且同演出者優先', titles.join(' > '));
+      ok('推薦排序依關聯分且同藝術家優先', titles.join(' > '));
     } else {
-      bad('推薦排序依關聯分且同演出者優先', `得到 ${titles.join(' > ')}｜預期 ${wantOrder.join(' > ')}｜ready=${ready}`);
+      bad('推薦排序依關聯分且同藝術家優先', `得到 ${titles.join(' > ')}｜預期 ${wantOrder.join(' > ')}｜ready=${ready}`);
     }
 
     if (titles.includes('Fifth Field Session')) bad('不同曲風的專輯被門檻過濾', 'Fifth Field Session 仍出現');
@@ -8462,7 +8463,7 @@ async function runRecommendSelfTest() {
 
     const details = [...grid.querySelectorAll('.recommend-card')].map(c => c.dataset.recommendDetail || '');
     const reasons = [...grid.querySelectorAll('.recommend-card')].map(c => c.dataset.recommendReason || '');
-    if (reasons[0] && reasons[0].startsWith('同演出者 Miles Test')) ok('卡片標示最強關聯原因', reasons[0]);
+    if (reasons[0] && reasons[0].startsWith('同藝術家 Miles Test')) ok('卡片標示最強關聯原因', reasons[0]);
     else bad('卡片標示最強關聯原因', reasons[0] || '無原因');
     if (reasons[2] && reasons[2].includes('同廠牌 Field Records')) ok('同廠牌訊號列入原因', reasons[2]);
     else bad('同廠牌訊號列入原因', reasons[2] || '無原因');
@@ -8503,7 +8504,7 @@ async function runRecommendSelfTest() {
     try { window.electronAPI.captureStep(18, 'recommend grid rendered'); } catch (err) {}
     await sleep(3000);
 
-    // ③ TIDAL 端：真實 discography + 相近演出者；單曲／已在曲庫／與本機重複都要被排除
+    // ③ TIDAL 端：真實 discography + 相近藝術家；單曲／已在曲庫／與本機重複都要被排除
     window.tidalService = {
       isLoggedIn: true,
       searchArtist: async (name) => ({ id: 'a1', name }),
@@ -8545,9 +8546,9 @@ async function runRecommendSelfTest() {
     else bad('徽章顯示含 TIDAL 的張數', badge2 ? badge2.textContent.trim() : '無徽章');
 
     const tidalReasons = [...grid.querySelectorAll('.recommend-card')].map(c => c.dataset.recommendReason || '').filter(r => r.includes('TIDAL'));
-    if (tidalReasons[0] && tidalReasons[0].includes('同演出者') && tidalReasons[1] && tidalReasons[1].includes('風格相近')) {
-      ok('TIDAL 卡片原因區分同演出者與相近演出者', `${tidalReasons[0]} / ${tidalReasons[1]}`);
-    } else bad('TIDAL 卡片原因區分同演出者與相近演出者', tidalReasons.join(' / ') || '無原因');
+    if (tidalReasons[0] && tidalReasons[0].includes('同藝術家') && tidalReasons[1] && tidalReasons[1].includes('風格相近')) {
+      ok('TIDAL 卡片原因區分同藝術家與相近藝術家', `${tidalReasons[0]} / ${tidalReasons[1]}`);
+    } else bad('TIDAL 卡片原因區分同藝術家與相近藝術家', tidalReasons.join(' / ') || '無原因');
 
     // ④ 清理
     state.tracks = savedTracks || [];
@@ -8587,7 +8588,7 @@ function renderAlbumArtistRecommendations(album) {
 
   if (!container) return;
   container.innerHTML = '';
-  // 頭像尺寸跟隨「演出者頁面」的尺寸設定（小／中／大），兩頁視覺一致
+  // 頭像尺寸跟隨「藝術家頁面」的尺寸設定（小／中／大），兩頁視覺一致
   container.classList.remove('artist-size-small', 'artist-size-medium', 'artist-size-large');
   container.classList.add(`artist-size-${state.artistCardSize || 'small'}`);
 
@@ -8694,7 +8695,7 @@ function renderAlbumArtistRecommendations(album) {
   if (chosenArtists.length === 0 && !isTidalLoggedIn) {
     const empty = document.createElement('div');
     empty.className = 'recommend-empty-hint';
-    empty.textContent = `目前本機音樂庫中暫無其他 ${currentGenre || '同類型'} 演出者，匯入更多演出者作品即可自動擴充風格比對推薦！`;
+    empty.textContent = `目前本機音樂庫中暫無其他 ${currentGenre || '同類型'} 藝術家，匯入更多藝術家作品即可自動擴充風格比對推薦！`;
     container.appendChild(empty);
   } else if (countBadge) {
     countBadge.textContent = `${chosenArtists.length} 位推薦`;
@@ -8768,7 +8769,7 @@ function renderAlbumArtistRecommendations(album) {
       if (totalArtists === 0) {
         const empty = document.createElement('div');
         empty.className = 'recommend-empty-hint';
-        empty.textContent = `暫無其他 ${currentGenre || '同類型'} 演出者推薦。`;
+        empty.textContent = `暫無其他 ${currentGenre || '同類型'} 藝術家推薦。`;
         container.appendChild(empty);
       }
     }).catch(err => {
@@ -9206,8 +9207,8 @@ async function renderAlbumVersions(album) {
   const norm = (s) => (s || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9\u4e00-\u9fa5]/g, '').trim();
-  // 「其他版本」定義：同專輯名稱＋同演出者，只有格式／解析度／平台不同。
-  // 同名但不同演出者的專輯（翻唱、同名合輯）不是版本，一律排除。
+  // 「其他版本」定義：同專輯名稱＋同藝術家，只有格式／解析度／平台不同。
+  // 同名但不同藝術家的專輯（翻唱、同名合輯）不是版本，一律排除。
   const artistOf = (a) => {
     let ar = a && (a.artist || a.albumArtist);
     if (ar && typeof ar === 'object') ar = ar.name;
@@ -9405,12 +9406,12 @@ function openAlbumDetail(album) {
             try { renderAlbumMetadata(album); } catch (e) {}
             try { renderDetailTracklist(album); } catch (e) {}
           } else if (state.activeAlbumDetail === album && isUnknownArtist(album.artist)) {
-            if (detailArtist) detailArtist.textContent = '未知演出者';
+            if (detailArtist) detailArtist.textContent = '未知藝術家';
           }
         });
       }
     } else {
-      detailArtist.textContent = album.artist || '未知演出者';
+      detailArtist.textContent = album.artist || '未知藝術家';
     }
   }
   
@@ -9718,7 +9719,7 @@ async function playCurrentTrack() {
   } else {
     recordRecentlyPlayed({
       title: track.album || track.title || '單曲',
-      artist: track.artist || '未知演出者',
+      artist: track.artist || '未知藝術家',
       cover: track.cover || '',
       year: track.year || '',
       formatName: track.formatName || 'PCM',
@@ -15933,9 +15934,9 @@ async function runPlaylistsSelfTest() {
       else bad('匯入 M3U：三行曲目都讀到', `${importedItems.length} 首：${importedItems.map(t => t.title).join(' → ')}`);
       const externalOne = importedItems.find(t => t.title === '外部曲目 一');
       if (externalOne && externalOne.filePath === 'D:/External/Music/external_one.flac' && externalOne.artist === 'rooPlayer 自我測試') {
-        ok('不在音樂庫的路徑也保留檔案路徑，演出者與曲目分開還原', `${externalOne.artist} / ${externalOne.title} @ ${externalOne.filePath}`);
+        ok('不在音樂庫的路徑也保留檔案路徑，藝術家與曲目分開還原', `${externalOne.artist} / ${externalOne.title} @ ${externalOne.filePath}`);
       } else {
-        bad('不在音樂庫的路徑也保留檔案路徑，演出者與曲目分開還原', externalOne ? `${externalOne.artist} / ${externalOne.title} @ ${externalOne.filePath}` : '沒有這一首');
+        bad('不在音樂庫的路徑也保留檔案路徑，藝術家與曲目分開還原', externalOne ? `${externalOne.artist} / ${externalOne.title} @ ${externalOne.filePath}` : '沒有這一首');
       }
 
       const roundTrip = parseM3uItems(playlistToM3u(plForExport));
@@ -16004,7 +16005,7 @@ try {
 
 // ----------------- 介面語言自我測試（main.js --test-language） -----------------
 // 檢查：語言選擇按鈕在深色/淺色按鈕右方、選 English 後選單/表格/說明頁都變成英文、
-// 曲目與演出者名稱不被翻譯、偏好會記住、換回中文可完整還原。
+// 曲目與藝術家名稱不被翻譯、偏好會記住、換回中文可完整還原。
 async function runLanguageSelfTest() {
   const lines = [];
   const ok = (name, detail) => lines.push(`PASS ${name}${detail ? ' [' + detail + ']' : ''}`);
@@ -16117,11 +16118,11 @@ async function runLanguageSelfTest() {
       bad('曲目頁表格欄頭與頁面副標變成英文', `欄頭 ${trackHeaders.join(' / ')}、副標 ${subtitleEn}、標題 ${pageTitleEn}`);
     }
 
-    // 曲目與演出者名稱屬資料，不可被翻譯
+    // 曲目與藝術家名稱屬資料，不可被翻譯
     const rowTitles = Array.from(document.querySelectorAll('#allTracksTable tbody .track-name-span')).slice(0, 5).map(el => String(el.textContent || '').trim());
     const stillData = rowTitles.length > 0 && (!demoTrackName || rowTitles.some(t => t === demoTrackName || t.includes(demoTrackName)));
-    if (stillData) ok('曲目名稱與演出者名稱保持原文（不被翻譯）', `${rowTitles.length} 筆列舉：${rowTitles.slice(0, 2).join(' / ')}`);
-    else bad('曲目名稱與演出者名稱保持原文（不被翻譯）', `列舉 ${rowTitles.join(' / ')}（期望含 ${demoTrackName}）`);
+    if (stillData) ok('曲目名稱與藝術家名稱保持原文（不被翻譯）', `${rowTitles.length} 筆列舉：${rowTitles.slice(0, 2).join(' / ')}`);
+    else bad('曲目名稱與藝術家名稱保持原文（不被翻譯）', `列舉 ${rowTitles.join(' / ')}（期望含 ${demoTrackName}）`);
 
     // 說明頁整段英文
     navigateTo('about');
@@ -16490,7 +16491,7 @@ async function runQueueContrastSelfTest() {
       const current = queueList.querySelector('.queue-item.current');
       const targets = [
         ['佇列標題', getComputedStyle(item.querySelector('.queue-item-title')).color, drawerBg, 4.5],
-        ['佇列演出者', getComputedStyle(item.querySelector('.queue-item-artist')).color, drawerBg, 4.5],
+        ['佇列藝術家', getComputedStyle(item.querySelector('.queue-item-artist')).color, drawerBg, 4.5],
         ['佇列序號', getComputedStyle(item.firstElementChild).color, drawerBg, 4.5],
         ['佇列時間', getComputedStyle(item.lastElementChild).color, drawerBg, 4.5],
         ['佇列標題（目前播放列）', getComputedStyle(current.querySelector('.queue-item-title')).color, getComputedStyle(current).backgroundColor, 4.5],
@@ -16871,7 +16872,7 @@ function playlistTrackEntry(track) {
     if (track[key] !== undefined && track[key] !== null) out[key] = track[key];
   }
   if (!out.title) out.title = out.fileName || '未知曲目';
-  if (!out.artist) out.artist = '未知演出者';
+  if (!out.artist) out.artist = '未知藝術家';
   return out;
 }
 
@@ -17232,7 +17233,7 @@ function renderPlaylistDetail(id) {
           ${missingFile ? '<span class="format-chip">檔案已移除</span>' : ''}
         </div>
       </td>
-      <td>${escapeXml(track.artist || '未知演出者')}</td>
+      <td>${escapeXml(track.artist || '未知藝術家')}</td>
       <td>${escapeXml(track.album || '未知專輯')}</td>
       <td><span class="format-chip ${isHires ? 'hires' : ''}">${escapeXml(specLabel)}</span></td>
       <td style="text-align: right;">${formatDuration(track.duration)}</td>
@@ -17339,7 +17340,7 @@ function buildTrackFromPathLine(rawPath, titleHint, artistHint) {
     filePath: clean,
     fileName: fileName,
     title: (titleHint || fileName.replace(/\.[a-z0-9]{2,4}$/i, '')).trim() || '未知曲目',
-    artist: (artistHint || '').trim() || '未知演出者',
+    artist: (artistHint || '').trim() || '未知藝術家',
     album: '未知專輯',
     duration: 0,
     formatName: ext,
@@ -17357,7 +17358,7 @@ function parseM3uItems(text) {
     const line = rawLine.trim();
     if (!line) continue;
     if (/^#EXTINF/i.test(line)) {
-      // M3U 的常見寫法是「演出者 - 曲目」，能拆開就分開存，清單裡兩欄才不會混在一起
+      // M3U 的常見寫法是「藝術家 - 曲目」，能拆開就分開存，清單裡兩欄才不會混在一起
       const rawTitle = line.split(',').slice(1).join(',').trim();
       const splitMatch = /^(.+?)\s+-\s+(.+)$/.exec(rawTitle);
       if (splitMatch && splitMatch[1].length <= 80) {
@@ -17459,7 +17460,7 @@ function playlistToM3u(playlist) {
   const lines = ['#EXTM3U', `#PLAYLIST:${playlist.name}`];
   (Array.isArray(playlist.items) ? playlist.items : []).forEach(t => {
     const dur = Number(t.duration) > 0 ? Math.round(t.duration) : -1;
-    lines.push(`#EXTINF:${dur},${t.artist || '未知演出者'} - ${t.title || '未知曲目'}`);
+    lines.push(`#EXTINF:${dur},${t.artist || '未知藝術家'} - ${t.title || '未知曲目'}`);
     lines.push(t.filePath || `${t.artist || ''} - ${t.title || ''}`);
   });
   return lines.join('\n') + '\n';
@@ -17600,7 +17601,7 @@ function renderPlaybackHistory() {
           </div>
         </td>
         <td class="track-yt-cell">${onlineLinksHtml}</td>
-        <td><span class="history-artist-link" title="前往演出者頁面">${escapeXml(track.artist || '未知演出者')}</span></td>
+        <td><span class="history-artist-link" title="前往藝術家頁面">${escapeXml(track.artist || '未知藝術家')}</span></td>
         <td><span class="history-album-link" title="前往專輯頁面">${escapeXml(track.album || '未知專輯')}</span></td>
         <td style="color: var(--text-muted); font-size: 12px;">${formatTimeAgo(track.playedAt)}</td>
         <td><span class="format-chip ${isHires ? 'hires' : ''}">${specLabel}</span></td>
@@ -17631,7 +17632,7 @@ function renderPlaybackHistory() {
           if (track.artist && !isUnknownArtist(track.artist)) {
             openArtistDetail(track.artist);
           } else {
-            showToast('未知的演出者');
+            showToast('未知的藝術家');
           }
           return;
         }
@@ -17643,7 +17644,7 @@ function renderPlaybackHistory() {
           } else {
             const fallbackAlbum = {
               title: track.album || track.title || '未知專輯',
-              artist: track.artist || '未知演出者',
+              artist: track.artist || '未知藝術家',
               cover: track.cover || '',
               year: track.year || '',
               genre: track.genre || 'Various',
@@ -17764,7 +17765,7 @@ function renderFavArtists() {
   grid.classList.remove('artist-size-small', 'artist-size-medium', 'artist-size-large');
   grid.classList.add(`artist-size-${curSize}`);
   const favList = getFavoriteArtistsList();
-  if (countBadge) countBadge.textContent = `共 ${favList.length} 位最愛演出者`;
+  if (countBadge) countBadge.textContent = `共 ${favList.length} 位最愛藝術家`;
 
   if (favList.length === 0) {
     if (emptyHint) emptyHint.style.display = 'block';
@@ -17875,9 +17876,9 @@ function setupFavoritesEvents() {
       if (allFavArtistTracks.length > 0) {
         setShuffleState(false);
         playTrackList(allFavArtistTracks, 0);
-        showToast('▶ 播放最愛演出者所有歌曲');
+        showToast('▶ 播放最愛藝術家所有歌曲');
       } else {
-        showToast('尚未收藏任何最愛演出者');
+        showToast('尚未收藏任何最愛藝術家');
       }
     });
   }
@@ -17891,9 +17892,9 @@ function setupFavoritesEvents() {
         setShuffleState(true);
         const rand = Math.floor(Math.random() * allFavArtistTracks.length);
         playTrackList(allFavArtistTracks, rand);
-        showToast('🔀 隨機播放最愛演出者歌曲');
+        showToast('🔀 隨機播放最愛藝術家歌曲');
       } else {
-        showToast('尚未收藏任何最愛演出者');
+        showToast('尚未收藏任何最愛藝術家');
       }
     });
   }
@@ -18936,7 +18937,7 @@ function setupScannerEvents() {
         const histCount = res.historyCount || 0;
         const ratingCount = res.ratingCount || 0;
         const llCount = res.listenLaterCount || 0;
-        alert(`🎉 資料庫匯出成功！\n\n已儲存至：${res.filePath}\n• 收錄資料夾：${res.folderCount} 個 (含 ${netFCount} 個 SAMBA 網路資料夾)\n• 音訊曲目：${res.trackCount} 首\n• 我的最愛：${favAlbs} 張專輯 / ${favTrks} 首歌曲 / ${favArts} 位演出者\n• 專輯評分：${ratingCount} 筆 / 稍後聆聽：${llCount} 張\n• 播放清單：${plCount} 個\n• 包含 ${histCount} 筆播放歷史紀錄與完整統計次數`);
+        alert(`🎉 資料庫匯出成功！\n\n已儲存至：${res.filePath}\n• 收錄資料夾：${res.folderCount} 個 (含 ${netFCount} 個 SAMBA 網路資料夾)\n• 音訊曲目：${res.trackCount} 首\n• 我的最愛：${favAlbs} 張專輯 / ${favTrks} 首歌曲 / ${favArts} 位藝術家\n• 專輯評分：${ratingCount} 筆 / 稍後聆聽：${llCount} 張\n• 播放清單：${plCount} 個\n• 包含 ${histCount} 筆播放歷史紀錄與完整統計次數`);
       } else {
         alert(`❌ 資料庫匯出失敗：${(res && res.error) || '未知錯誤'}`);
       }
@@ -20197,7 +20198,7 @@ function formatDuration(sec) {
 // ============================================================
 // 歌曲層級比對：KKBOX 歌曲清單 ➔ 本機曲庫 / TIDAL 的同一首歌
 // 基準：正規化歌名完全相同（去括號、去 " - Remastered 2011" 這類尾註、去 feat. 之後文字），
-// 且演出者相同或以合作串接方式包含（"Queen + David Bowie" 可，"Beatles Cover Band" 不可）。
+// 且藝術家相同或以合作串接方式包含（"Queen + David Bowie" 可，"Beatles Cover Band" 不可）。
 // 命中後在歌名右側顯示「本機」或「TIDAL」圖示，點擊連結到該專輯頁面。
 // ============================================================
 const SONG_MATCH_TITLE_NOISE = /\s*[-–—]\s*(\d{4}\s*)?(remaster\w*|remix\w*|mix|edit|version|live|acoustic|mono|stereo|single|radio edit|deluxe|bonus\w*|instrumental|demo|karaoke|cover)\b.*$/i;
@@ -20227,7 +20228,7 @@ function artistKeysMatch(rawA, rawB) {
   const rawShorter = a.length <= b.length ? rawA : rawB;
   const rawLonger = a.length <= b.length ? rawB : rawA;
   if (shorter.length < 2 || !longer.startsWith(shorter)) return false;
-  // 多出來的部分必須像合作串接，否則可能是翻唱團體／致敬專輯等不同演出者
+  // 多出來的部分必須像合作串接，否則可能是翻唱團體／致敬專輯等不同藝術家
   const rest = String(rawLonger || '').toLowerCase();
   const head = String(rawShorter || '').toLowerCase();
   const at = rest.indexOf(head);
@@ -20239,7 +20240,7 @@ function songMatchKeyOf(title, artist) {
   return `${normalizeSongKey(title)}|||${normalizeSongKey(artist)}`;
 }
 
-// 依正規化歌名索引整庫（同名的不同演出者寫法在比對階段再判定）；曲庫重建時自動失效
+// 依正規化歌名索引整庫（同名的不同藝術家寫法在比對階段再判定）；曲庫重建時自動失效
 let songMatchIndex = null;
 let songMatchIndexVersion = -1;
 
@@ -20998,7 +20999,7 @@ function initKkboxStreaming() {
   function doSearch() {
     const q = (searchInput ? searchInput.value : '').trim();
     if (!q) {
-      showToast('請輸入欲搜尋的歌曲、演出者或專輯關鍵字');
+      showToast('請輸入欲搜尋的歌曲、藝術家或專輯關鍵字');
       return;
     }
     switchTab('search');
@@ -21722,7 +21723,7 @@ function setupTidalExplorerUI() {
   function doTidalSearch() {
     const q = (searchInput ? searchInput.value : '').trim();
     if (!q) {
-      showToast('請輸入欲搜尋的 TIDAL 歌曲、演出者或專輯關鍵字');
+      showToast('請輸入欲搜尋的 TIDAL 歌曲、藝術家或專輯關鍵字');
       return;
     }
     switchTidalTab('search');
