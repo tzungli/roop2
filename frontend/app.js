@@ -14639,7 +14639,13 @@ let lineOutRestoreVolume = null; // 解除 Line Out 時回復的音量
 function applyVolume(v) {
   if (v > 0) lastVolume = v;
   state.volume = v;
-  nativeAudio.volume = v;
+  const activeZ = state.activeAudioZone || 'local';
+  if (activeZ === 'local') {
+    nativeAudio.volume = v;
+  }
+  if (!state.lineOut && typeof saveZoneVolume === 'function') {
+    saveZoneVolume(activeZ, v);
+  }
   if (audioCtx && currentSynthNodes.length) {
     const masterGain = currentSynthNodes[currentSynthNodes.length - 1];
     if (masterGain && masterGain.gain) {
@@ -14875,8 +14881,10 @@ function initRooVolumeControls() {
     });
   }
 
-  // Initial volume sync
-  applyVolume(state.volume !== undefined ? state.volume : 1);
+  // Initial volume sync: restore last saved volume for active zone (local defaults to 100%)
+  const initZoneId = state.activeAudioZone || 'local';
+  const savedInitVol = (typeof getSavedZoneVolume === 'function') ? getSavedZoneVolume(initZoneId, 1.0) : 1.0;
+  applyVolume(savedInitVol);
 }
 
 // ----------------- Floating Signal Path Popover Controls -----------------
@@ -19914,6 +19922,31 @@ async function refreshAudioDevices(showFeedback = false) {
 }
 
 const ZONE_DSP_STORAGE_KEY = 'rooplayer_zone_dsp_profiles';
+const ZONE_VOL_STORAGE_KEY = 'rooplayer_zone_volumes';
+
+function loadAllZoneVolumes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ZONE_VOL_STORAGE_KEY) || '{}');
+    return (raw && typeof raw === 'object') ? raw : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveZoneVolume(zoneId, vol) {
+  if (!zoneId || typeof vol !== 'number' || !isFinite(vol)) return;
+  const clamped = Math.max(0, Math.min(1, vol));
+  try {
+    const all = loadAllZoneVolumes();
+    all[zoneId] = Math.round(clamped * 1000) / 1000;
+    localStorage.setItem(ZONE_VOL_STORAGE_KEY, JSON.stringify(all));
+  } catch (_) {}
+}
+
+function getSavedZoneVolume(zoneId, fallback = 1.0) {
+  const saved = loadAllZoneVolumes()[zoneId];
+  return (typeof saved === 'number' && isFinite(saved)) ? Math.max(0, Math.min(1, saved)) : fallback;
+}
 
 function cloneDspConfig(dspObj) {
   const src = dspObj || {};
@@ -19973,7 +20006,7 @@ function getZoneLiveInfo(zoneId) {
     return {
       isPlaying: !!state.isPlaying,
       track: trk,
-      volume: zoneId !== 'local' ? 1.0 : (typeof state.volume === 'number' ? state.volume : 0.8),
+      volume: typeof state.volume === 'number' ? state.volume : getSavedZoneVolume(zoneId, 1.0),
       dsp: cloneDspConfig(state.dsp),
     };
   }
@@ -19982,7 +20015,7 @@ function getZoneLiveInfo(zoneId) {
   return {
     isPlaying: !!(z && z.isPlaying),
     track: trk,
-    volume: (z && typeof z.volume === 'number') ? z.volume : (zoneId !== 'local' ? 1.0 : 0.8),
+    volume: (z && typeof z.volume === 'number') ? z.volume : getSavedZoneVolume(zoneId, 1.0),
     dsp: getZoneDspProfile(zoneId),
   };
 }
@@ -20019,12 +20052,20 @@ async function toggleZoneInlinePlayPause(zoneId) {
 function setZoneInlineVolume(zoneId, pct) {
   const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
   const vol = clamped / 100;
+  saveZoneVolume(zoneId, vol);
   if (zoneId === state.activeAudioZone) {
     state.volume = vol;
     const volSlider = document.getElementById('volumeSlider');
     const volFill = document.getElementById('volumeFill');
-    if (volSlider) volSlider.value = clamped;
+    const curNum = document.getElementById('currentVolumeNumber');
+    const popNum = document.getElementById('popoverVolumeNumber');
+    if (volSlider) {
+      volSlider.value = vol;
+      volSlider.style.setProperty('--vol-percent', `${clamped}%`);
+    }
     if (volFill) volFill.style.width = `${clamped}%`;
+    if (curNum) curNum.textContent = clamped;
+    if (popNum) popNum.textContent = clamped;
     if (zoneId === 'local') {
       if (nativeAudio) nativeAudio.volume = vol;
     } else if (window.electronAPI && window.electronAPI.setDlnaVolume) {
@@ -20159,7 +20200,7 @@ function ensureZoneState(zoneId, deviceObj = null) {
       queue: [],
       currentTrackIndex: -1,
       isPlaying: false,
-      volume: zoneId !== 'local' ? 1.0 : (typeof state.volume === 'number' ? state.volume : 0.8),
+      volume: getSavedZoneVolume(zoneId, 1.0),
       repeatMode: 'none',
       isShuffling: false,
       currentSec: 0,
@@ -20247,7 +20288,7 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   state.queue = Array.isArray(z.queue) ? z.queue.slice() : [];
   state.currentTrackIndex = z.currentTrackIndex;
   state.isPlaying = !!z.isPlaying;
-  state.volume = typeof z.volume === 'number' ? z.volume : (zoneId !== 'local' ? 1.0 : 0.8);
+  state.volume = typeof z.volume === 'number' ? z.volume : getSavedZoneVolume(zoneId, 1.0);
   state.repeatMode = z.repeatMode || 'none';
   state.isShuffling = !!z.isShuffling;
 
@@ -20268,10 +20309,18 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
     state.dlnaMaxProgressSec = z.dlnaMaxProgressSec || 0;
   }
   // Sync volume slider UI without mutating other zone's hardware volume
+  const volPct = Math.round(state.volume * 100);
   const volSlider = document.getElementById('volumeSlider');
   const volFill = document.getElementById('volumeFill');
-  if (volSlider) volSlider.value = Math.round(state.volume * 100);
-  if (volFill) volFill.style.width = `${Math.round(state.volume * 100)}%`;
+  const curNum = document.getElementById('currentVolumeNumber');
+  const popNum = document.getElementById('popoverVolumeNumber');
+  if (volSlider) {
+    volSlider.value = state.lineOut ? 1 : state.volume;
+    volSlider.style.setProperty('--vol-percent', `${state.lineOut ? 100 : volPct}%`);
+  }
+  if (volFill) volFill.style.width = `${state.lineOut ? 100 : volPct}%`;
+  if (curNum) curNum.textContent = state.lineOut ? '100' : volPct;
+  if (popNum) popNum.textContent = state.lineOut ? '100' : volPct;
   syncPlayerBarForActiveZone();
 }
 
@@ -20425,7 +20474,8 @@ async function switchAudioZone(target) {
       const isFirstDlnaVisit = !(state.zones && state.zones[dev.id]);
       restoreZoneSnapshot(dev.id, dev);
       if (isFirstDlnaVisit && window.electronAPI && window.electronAPI.setDlnaVolume) {
-        window.electronAPI.setDlnaVolume(dev.id, 100).catch(() => {});
+        const volPct = Math.round((state.lineOut ? 1 : state.volume) * 100);
+        window.electronAPI.setDlnaVolume(dev.id, volPct).catch(() => {});
       }
       renderAudioDevicesList();
       showToast(`📡 已切換控制區域：${dev.name}（其他裝置保持獨立播放）`);
