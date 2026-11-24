@@ -2207,6 +2207,8 @@ function renderViewIfNeeded(viewId) {
   // 切換至總覽時，必定自動更新「最近聆聽」，確保任何頁面播放後的最新紀錄即時呈現
   if (viewId === 'overview') {
     renderRecentPlayedAlbums();
+    renderRooRecentActivity(currentRecentActivityTab, currentRecentActivityPage);
+    renderRooListeningAnalytics();
   }
   // If not dirty and not kkbox or tidal, preserve already-built DOM and avoid reflow
   if (!viewDirtyState[viewId] && viewId !== 'kkbox' && viewId !== 'tidal') return;
@@ -3666,29 +3668,150 @@ function renderRooCuratedPlaylists() {
   });
 }
 
+function formatListeningDuration(totalSec) {
+  const s = Math.max(0, Math.round(totalSec || 0));
+  if (s === 0) return '0m';
+  const totalMins = Math.max(1, Math.round(s / 60));
+  if (totalMins < 60) return `${totalMins}m`;
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
 function renderRooListeningAnalytics() {
+  const history = getPlaybackHistory() || [];
+  const stats = getPlayStatsRef();
+  const norm = (s) => String(s || '').trim().toLowerCase();
+
+  // Wire "更多" buttons
+  const btnMoreGenres = document.getElementById('btnMoreGenres');
+  if (btnMoreGenres) btnMoreGenres.onclick = () => navigateTo('genres');
+  const btnMoreTopArtists = document.getElementById('btnMoreTopArtists');
+  if (btnMoreTopArtists) btnMoreTopArtists.onclick = () => navigateTo('artists');
+  const btnMoreTopAlbums = document.getElementById('btnMoreTopAlbums');
+  if (btnMoreTopAlbums) btnMoreTopAlbums.onclick = () => navigateTo('albums');
+
+  // Compute start of current week (Monday 00:00:00 local time)
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const jsDay = todayStart.getDay(); // 0=Sun..6=Sat
+  const monOffset = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon..6=Sun
+  const thisWeekMonMs = todayStart.getTime() - monOffset * 86400000;
+  const weekMs = 7 * 86400000;
+
+  // Build 4-week buckets: index 0 = this week, 1 = 1 week ago, 2 = 2 weeks ago, 3 = 3 weeks ago
+  const weeks = [
+    { secs: 0, activeDays: new Set() },
+    { secs: 0, activeDays: new Set() },
+    { secs: 0, activeDays: new Set() },
+    { secs: 0, activeDays: new Set() }
+  ];
+
+  // Fast lookup map for track duration/genre/cover fallback
+  const trackById = new Map();
+  const trackByTitleArtist = new Map();
+  (state.tracks || []).forEach(t => {
+    if (t.id) trackById.set(String(t.id), t);
+    trackByTitleArtist.set(`${norm(t.title)}___${norm(t.artist)}`, t);
+  });
+
+  const genreSecs = new Map();
+  const artistSecs = new Map(); // norm -> { name, secs }
+  const albumSecs = new Map();  // normKey -> { title, artist, cover, secs }
+
+  const addEntryStats = (title, artist, album, cover, genreRaw, durSec) => {
+    const d = Math.max(10, Number(durSec) || 210);
+    const cg = canonicalizeGenre(genreRaw || '', { title, artist, album });
+    genreSecs.set(cg, (genreSecs.get(cg) || 0) + d);
+
+    if (artist && !isUnknownArtist(artist)) {
+      const ak = norm(artist);
+      const prev = artistSecs.get(ak);
+      if (prev) prev.secs += d;
+      else artistSecs.set(ak, { name: String(artist).trim(), secs: d });
+    }
+    if (album && String(album).trim()) {
+      const bk = `${norm(album)}___${norm(artist)}`;
+      const prev = albumSecs.get(bk);
+      if (prev) {
+        prev.secs += d;
+        if (!prev.cover && cover) prev.cover = cover;
+      } else {
+        albumSecs.set(bk, { title: String(album).trim(), artist: String(artist || '').trim(), cover: cover || '', secs: d });
+      }
+    }
+  };
+
+  // Accumulate from real playback history
+  history.forEach(h => {
+    if (!h) return;
+    const matched = (h.id && trackById.get(String(h.id)))
+      || trackByTitleArtist.get(`${norm(h.title)}___${norm(h.artist)}`);
+    const durSec = Number(h.duration) || (matched && Number(matched.duration)) || 210;
+    const playedMs = h.playedAt ? (typeof h.playedAt === 'number' ? h.playedAt : Date.parse(h.playedAt)) : 0;
+
+    if (playedMs && !Number.isNaN(playedMs)) {
+      const diffFromMon = playedMs - thisWeekMonMs;
+      let weekIdx = -1;
+      if (diffFromMon >= 0 && diffFromMon < weekMs) {
+        weekIdx = 0;
+      } else if (diffFromMon < 0) {
+        const ago = Math.floor((-diffFromMon - 1) / weekMs) + 1;
+        if (ago >= 1 && ago <= 3) weekIdx = ago;
+      }
+      if (weekIdx >= 0 && weekIdx < 4) {
+        weeks[weekIdx].secs += durSec;
+        const dObj = new Date(playedMs);
+        const dayIdx = dObj.getDay() === 0 ? 6 : dObj.getDay() - 1;
+        weeks[weekIdx].activeDays.add(dayIdx);
+      }
+    }
+
+    addEntryStats(
+      h.title,
+      h.artist || (matched && matched.artist),
+      h.album || (matched && matched.album),
+      h.cover || (matched && matched.cover),
+      h.genre || (matched && matched.genre),
+      durSec
+    );
+  });
+
+  // Fallback to playStats if playbackHistory is empty (e.g. imported play counts)
+  if (history.length === 0 && stats && stats.tracks) {
+    (state.tracks || []).forEach(t => {
+      const tKey = t.id || `${t.title}___${t.artist}`;
+      const plays = stats.tracks[tKey] || 0;
+      if (plays > 0) {
+        addEntryStats(t.title, t.artist, t.album, t.cover, t.genre, (Number(t.duration) || 210) * plays);
+      }
+    });
+  }
+
+  // 1. Update Total 4-Week Listening Time
+  const total4WeeksSecs = weeks.reduce((sum, w) => sum + w.secs, 0);
+  const totalEl = document.getElementById('totalListeningTime');
+  if (totalEl) {
+    totalEl.textContent = formatListeningDuration(total4WeeksSecs);
+  }
+
+  // 2. Render 4-Week Activity Bars & Active Weekday Dots
   const weeklyContainer = document.getElementById('weeklyBarsContainer');
   if (weeklyContainer) {
     weeklyContainer.innerHTML = '';
-    const weeksData = [
-      { mins: 3, percent: 60, activeDay: 2 },
-      { mins: 0, percent: 0, activeDay: -1 },
-      { mins: 0, percent: 0, activeDay: -1 },
-      { mins: 1, percent: 20, activeDay: 6 }
-    ];
-
-    weeksData.forEach(w => {
+    const maxWeekSecs = Math.max(1, ...weeks.map(w => w.secs));
+    weeks.forEach(w => {
       const row = document.createElement('div');
       row.className = 'weekly-bar-row';
+      const pct = w.secs > 0 ? Math.max(6, Math.round((w.secs / maxWeekSecs) * 100)) : 0;
       let dotsHtml = '';
       for (let d = 0; d < 7; d++) {
-        dotsHtml += `<div class="day-dot ${d === w.activeDay ? 'active' : ''}"></div>`;
+        dotsHtml += `<div class="day-dot ${w.activeDays.has(d) ? 'active' : ''}"></div>`;
       }
-
       row.innerHTML = `
-        <div class="weekly-val-lbl">${w.mins}m</div>
+        <div class="weekly-val-lbl">${formatListeningDuration(w.secs)}</div>
         <div class="weekly-progress-wrap">
-          <div class="weekly-progress-fill" style="width: ${w.percent}%;"></div>
+          <div class="weekly-progress-fill" style="width: ${pct}%;"></div>
         </div>
         <div class="weekly-dots-row">${dotsHtml}</div>
       `;
@@ -3696,103 +3819,123 @@ function renderRooListeningAnalytics() {
     });
   }
 
+  // 3. Render Real Genres Donut Chart
   const donutSvg = document.getElementById('genreDonutSvg');
   const donutLegend = document.getElementById('genreDonutLegend');
   if (donutSvg && donutLegend) {
-    const genresData = [
-      { name: '國際音樂', percent: 45, color: '#3b82f6' },
-      { name: '亞洲流行樂', percent: 30, color: '#6366f1' },
-      { name: '節奏藍調', percent: 15, color: '#93c5fd' },
-      { name: '流行樂', percent: 10, color: '#cbd5e1' }
-    ];
-
-    let currentAngle = 0;
+    const palette = ['#5b46e8', '#8b7dff', '#a5b4fc', '#cbd5e1'];
+    const sortedGenres = Array.from(genreSecs.entries()).sort((a, b) => b[1] - a[1]);
     const r = 52;
     const cx = 80, cy = 80;
     const C = 2 * Math.PI * r;
 
-    let paths = '';
-    let legendHtml = '';
+    if (sortedGenres.length === 0) {
+      donutSvg.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(148,163,184,0.22)" stroke-width="18"></circle>`;
+      donutLegend.innerHTML = '<div style="font-size:12px; color: var(--text-muted);">尚無播放統計紀錄</div>';
+    } else {
+      const top4 = sortedGenres.slice(0, 4);
+      const totalGSecs = top4.reduce((s, x) => s + x[1], 0) || 1;
+      let currentPct = 0;
+      let paths = '';
+      let legendHtml = '';
 
-    genresData.forEach(g => {
-      const strokeLen = (g.percent / 100) * C;
-      const strokeDash = `${strokeLen} ${C - strokeLen}`;
-      const strokeOffset = - (currentAngle / 100) * C;
-      currentAngle += g.percent;
+      top4.forEach(([genreName, secs], idx) => {
+        const pct = idx === top4.length - 1
+          ? Math.max(1, 100 - currentPct)
+          : Math.max(1, Math.round((secs / totalGSecs) * 100));
+        const strokeLen = (pct / 100) * C;
+        const strokeDash = `${strokeLen} ${Math.max(0, C - strokeLen)}`;
+        const strokeOffset = -(currentPct / 100) * C;
+        currentPct += pct;
 
-      paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${g.color}" stroke-width="18" stroke-dasharray="${strokeDash}" stroke-dashoffset="${strokeOffset}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
-      legendHtml += `
-        <div class="legend-item">
-          <div class="legend-color-box" style="background: ${g.color};"></div>
-          <span>${g.name}</span>
-        </div>
-      `;
-    });
+        const color = palette[idx % palette.length];
+        const info = getGenreIllustrationInfo(genreName);
+        const label = (info && info.zhName ? info.zhName.split(' • ')[0] : genreName) || genreName;
 
-    donutSvg.innerHTML = paths;
-    donutLegend.innerHTML = legendHtml;
+        paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="18" stroke-dasharray="${strokeDash}" stroke-dashoffset="${strokeOffset}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
+        legendHtml += `
+          <div class="legend-item">
+            <div class="legend-color-box" style="background: ${color};"></div>
+            <span>${escapeXml(label)} ${pct}%</span>
+          </div>
+        `;
+      });
+
+      donutSvg.innerHTML = paths;
+      donutLegend.innerHTML = legendHtml;
+    }
   }
 
+  // 4. Render Real Top Played Artists
   const topArtistsList = document.getElementById('topArtistsList');
   if (topArtistsList) {
     topArtistsList.innerHTML = '';
-    const topArtists = [
-      { name: '尾崎豐', mins: '4m', fill: 85 },
-      { name: 'CNBLUE', mins: '3m', fill: 65 },
-      { name: '平井堅', mins: '2m', fill: 45 },
-      { name: 'サザンオールスターズ', mins: '1m', fill: 25 }
-    ];
-
-    topArtists.forEach((a, i) => {
-      const liveArtist = (state.artists || []).find(art => art.name && art.name.includes(a.name)) || (state.artists && state.artists[i]);
-      const avatarSrc = (liveArtist && liveArtist.avatar) || createSvgCover(a.name, '', '#27272a', '#18181b');
-      const item = document.createElement('div');
-      item.className = 'top-rank-item';
-      item.innerHTML = `
-        <img src="${avatarSrc}" class="top-rank-avatar" alt="${escapeXml(a.name)}">
-        <div class="top-rank-content">
-          <div class="top-rank-name">${escapeXml(a.name)}</div>
-          <div class="top-rank-progress-bar">
-            <div class="top-rank-progress-fill" style="width: ${a.fill}%;"></div>
+    const topArtists = Array.from(artistSecs.values()).sort((a, b) => b.secs - a.secs).slice(0, 4);
+    if (topArtists.length === 0) {
+      topArtistsList.innerHTML = '<div style="padding:16px 0; font-size:12px; color: var(--text-muted);">尚無播放統計紀錄</div>';
+    } else {
+      const maxSecs = Math.max(1, topArtists[0].secs);
+      topArtists.forEach(a => {
+        const liveArtist = (state.artists || []).find(art => norm(art.name) === norm(a.name));
+        const avatarSrc = (liveArtist && liveArtist.avatar) || createSvgCover(a.name, '', '#27272a', '#18181b');
+        const fill = Math.max(8, Math.round((a.secs / maxSecs) * 100));
+        const item = document.createElement('div');
+        item.className = 'top-rank-item';
+        item.innerHTML = `
+          <img src="${avatarSrc}" class="top-rank-avatar" alt="${escapeXml(a.name)}">
+          <div class="top-rank-content">
+            <div class="top-rank-name" title="${escapeXml(a.name)}">${escapeXml(a.name)}</div>
+            <div class="top-rank-progress-bar">
+              <div class="top-rank-progress-fill" style="width: ${fill}%;"></div>
+            </div>
           </div>
-        </div>
-        <div class="top-rank-duration">${a.mins}</div>
-      `;
-      topArtistsList.appendChild(item);
-    });
+          <div class="top-rank-duration">${formatListeningDuration(a.secs)}</div>
+        `;
+        if (liveArtist) {
+          item.style.cursor = 'pointer';
+          item.onclick = () => openArtistDetail(liveArtist);
+        }
+        topArtistsList.appendChild(item);
+      });
+    }
   }
 
+  // 5. Render Real Top Played Albums
   const topAlbumsList = document.getElementById('topAlbumsList');
   if (topAlbumsList) {
     topAlbumsList.innerHTML = '';
-    const topAlbums = [
-      { title: 'All Time Best', artist: 'Yutaka Ozaki', spec: 'MQA 44kHz', mins: '4m', fill: 85 },
-      { title: 'Bluetory', artist: 'CNBLUE', spec: 'FLAC 44/16', mins: '3m', fill: 65 },
-      { title: 'Japanese Singer', artist: 'Ken Hirai', spec: 'FLAC 44/16', mins: '2m', fill: 45 },
-      { title: 'バラッド 3', artist: 'サザンオールスターズ', spec: 'FLAC 44/16', mins: '1m', fill: 25 }
-    ];
-
-    topAlbums.forEach((alb, i) => {
-      const liveAlb = (state.albums || []).find(a => a.title && a.title.includes(alb.title)) || (state.albums && state.albums[i]);
-      const cSrc = (liveAlb && liveAlb.cover) ? formatCoverSrc(liveAlb.cover) : createSvgCover(alb.title, alb.artist);
-      const item = document.createElement('div');
-      item.className = 'top-rank-item';
-      item.innerHTML = `
-        <img src="${cSrc}" class="top-rank-cover" alt="${escapeXml(alb.title)}">
-        <div class="top-rank-content">
-          <div class="top-rank-name">${escapeXml(alb.title)}</div>
-          <div class="top-rank-progress-bar">
-            <div class="top-rank-progress-fill" style="width: ${alb.fill}%;"></div>
+    const topAlbums = Array.from(albumSecs.values()).sort((a, b) => b.secs - a.secs).slice(0, 4);
+    if (topAlbums.length === 0) {
+      topAlbumsList.innerHTML = '<div style="padding:16px 0; font-size:12px; color: var(--text-muted);">尚無播放統計紀錄</div>';
+    } else {
+      const maxSecs = Math.max(1, topAlbums[0].secs);
+      topAlbums.forEach(alb => {
+        const liveAlb = (state.albums || []).find(a =>
+          norm(a.title) === norm(alb.title) && (!alb.artist || norm(a.artist) === norm(alb.artist))
+        ) || (state.albums || []).find(a => norm(a.title) === norm(alb.title));
+        const cSrc = (liveAlb && liveAlb.cover)
+          ? formatCoverSrc(liveAlb.cover)
+          : (alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(alb.title, alb.artist));
+        const fill = Math.max(8, Math.round((alb.secs / maxSecs) * 100));
+        const item = document.createElement('div');
+        item.className = 'top-rank-item';
+        item.innerHTML = `
+          <img src="${cSrc}" class="top-rank-cover" alt="${escapeXml(alb.title)}">
+          <div class="top-rank-content">
+            <div class="top-rank-name" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
+            <div class="top-rank-progress-bar">
+              <div class="top-rank-progress-fill" style="width: ${fill}%;"></div>
+            </div>
           </div>
-        </div>
-        <div class="top-rank-duration">${alb.mins}</div>
-      `;
-      if (liveAlb) {
-        item.style.cursor = 'pointer';
-        item.onclick = () => openAlbumDetail(liveAlb);
-      }
-      topAlbumsList.appendChild(item);
-    });
+          <div class="top-rank-duration">${formatListeningDuration(alb.secs)}</div>
+        `;
+        if (liveAlb) {
+          item.style.cursor = 'pointer';
+          item.onclick = () => openAlbumDetail(liveAlb);
+        }
+        topAlbumsList.appendChild(item);
+      });
+    }
   }
 }
 
