@@ -10258,6 +10258,21 @@ body.table-col-resizing * {
 }
 
 /* Light Theme Overrides for About View */
+[data-theme="light"] #viewAbout,
+[data-theme="light"] #viewAbout * {
+  color: #000000 !important;
+}
+
+[data-theme="light"] #viewAbout code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+[data-theme="light"] #viewAbout table tr {
+  border-bottom-color: rgba(0, 0, 0, 0.1) !important;
+}
+
 [data-theme="light"] .about-card {
   background: #ffffff;
   border-color: rgba(0, 0, 0, 0.08);
