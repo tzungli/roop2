@@ -19973,7 +19973,7 @@ function getZoneLiveInfo(zoneId) {
     return {
       isPlaying: !!state.isPlaying,
       track: trk,
-      volume: typeof state.volume === 'number' ? state.volume : 0.8,
+      volume: zoneId !== 'local' ? 1.0 : (typeof state.volume === 'number' ? state.volume : 0.8),
       dsp: cloneDspConfig(state.dsp),
     };
   }
@@ -19982,7 +19982,7 @@ function getZoneLiveInfo(zoneId) {
   return {
     isPlaying: !!(z && z.isPlaying),
     track: trk,
-    volume: (z && typeof z.volume === 'number') ? z.volume : 0.8,
+    volume: (z && typeof z.volume === 'number') ? z.volume : (zoneId !== 'local' ? 1.0 : 0.8),
     dsp: getZoneDspProfile(zoneId),
   };
 }
@@ -20159,7 +20159,7 @@ function ensureZoneState(zoneId, deviceObj = null) {
       queue: [],
       currentTrackIndex: -1,
       isPlaying: false,
-      volume: typeof state.volume === 'number' ? state.volume : 0.8,
+      volume: zoneId !== 'local' ? 1.0 : (typeof state.volume === 'number' ? state.volume : 0.8),
       repeatMode: 'none',
       isShuffling: false,
       currentSec: 0,
@@ -20247,7 +20247,7 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   state.queue = Array.isArray(z.queue) ? z.queue.slice() : [];
   state.currentTrackIndex = z.currentTrackIndex;
   state.isPlaying = !!z.isPlaying;
-  state.volume = typeof z.volume === 'number' ? z.volume : 0.8;
+  state.volume = typeof z.volume === 'number' ? z.volume : (zoneId !== 'local' ? 1.0 : 0.8);
   state.repeatMode = z.repeatMode || 'none';
   state.isShuffling = !!z.isShuffling;
 
@@ -20422,7 +20422,11 @@ async function switchAudioZone(target) {
         }
       }
 
+      const isFirstDlnaVisit = !(state.zones && state.zones[dev.id]);
       restoreZoneSnapshot(dev.id, dev);
+      if (isFirstDlnaVisit && window.electronAPI && window.electronAPI.setDlnaVolume) {
+        window.electronAPI.setDlnaVolume(dev.id, 100).catch(() => {});
+      }
       renderAudioDevicesList();
       showToast(`📡 已切換控制區域：${dev.name}（其他裝置保持獨立播放）`);
     }
