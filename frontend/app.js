@@ -10241,9 +10241,15 @@ async function playSoxTrack(track, startSec = 0) {
     }
 
     const engineOn = !!(state.dsp && state.dsp.enabled);
-    const targetRate = engineOn ? calculateTargetSampleRate(track.sampleRate || 44100, state.dsp.rateMode) : (track.sampleRate || 44100);
-    const isDsd = engineOn && isDsdRateMode(state.dsp.rateMode);
-    const dsdMode = isDsd ? state.dsp.rateMode : '';
+    const rawTargetRate = engineOn ? calculateTargetSampleRate(track.sampleRate || 44100, state.dsp.rateMode) : (track.sampleRate || 44100);
+    const requestedDsd = engineOn && isDsdRateMode(state.dsp.rateMode);
+    // 本機 System Output (<audio> / WASAPI) 無法直出 1-bit DSF 串流：
+    // 自動改以 4x 整數倍 24-bit PCM 升頻播放並完整保留所選濾波器，同時不覆寫 state.dsp.rateMode（切回 DLNA 立即恢復 DSD）。
+    const targetRate = requestedDsd
+      ? calculateTargetSampleRate(track.sampleRate || 44100, '4x')
+      : rawTargetRate;
+    const isDsd = false;
+    const dsdMode = '';
     const dsdOrder = state.dsp.dsdOrder || 5;
     const filterPhase = state.dsp.filterPhase || 'precise-linear';
     const ultrasonicFilter = (state.dsp && state.dsp.ultrasonicFilter) || '30k';
@@ -10280,7 +10286,9 @@ async function playSoxTrack(track, startSec = 0) {
       state.isPlaying = true;
       btnPlayPause.textContent = '⏸';
       const phaseText = filterLabel(filterPhase);
-      if (isDsd) {
+      if (requestedDsd) {
+        showToast(`本機輸出不支援原生 DSD 串流，已自動以 ${formatKhz(targetRate)} 24-bit PCM（${phaseText}）升頻播放`);
+      } else if (isDsd) {
         const mhz = getDsdMhz(state.dsp.rateMode);
         showToast(`⚡ 1-bit DSD 調變: PCM ➔ ${state.dsp.rateMode.toUpperCase()} (${dsdOrderLabel(dsdOrder)} • ${phaseText} • ${mhz})`);
       } else if (!engineOn) {
@@ -11752,8 +11760,17 @@ function initMuseControls() {
   });
 }
 
+function updateLocalDsdNotice() {
+  const notice = document.getElementById('dspLocalDsdNotice');
+  if (!notice) return;
+  const isLocal = !(state.activeAudioZone !== 'local' && state.activeDlnaDevice);
+  const show = isLocal && !!(state.dsp && isDsdRateMode(state.dsp.rateMode));
+  notice.style.display = show ? '' : 'none';
+}
+
 function renderDspView() {
   const activeTarget = state.activeAudioZone !== 'local' && state.activeDlnaDevice ? state.activeDlnaDevice : 'local';
+  updateLocalDsdNotice();
   if (typeof updateBottomZoneIcon === 'function') {
     updateBottomZoneIcon(activeTarget);
   } else {
@@ -13378,6 +13395,7 @@ function initDspControls() {
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
       if (dspActiveRateHint) dspActiveRateHint.textContent = btn.textContent;
       if (dspActiveDsdHint) dspActiveDsdHint.textContent = '可選 DSD 格式';
+      updateLocalDsdNotice();
       triggerLiveDspUpdate();
     });
   }
@@ -13397,6 +13415,7 @@ function initDspControls() {
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
       if (dspActiveDsdHint) dspActiveDsdHint.textContent = `${btn.textContent} (已生效)`;
       if (dspActiveRateHint) dspActiveRateHint.textContent = '使用 DSD 調變中';
+      updateLocalDsdNotice();
       triggerLiveDspUpdate();
     });
   }

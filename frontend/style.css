@@ -10864,6 +10864,18 @@ body.table-col-resizing * {
   min-width: 48px;
 }
 
+.dsp-local-dsd-notice {
+  margin-top: -6px;
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--accent-purple, #6366f1);
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.24);
+}
+
 .nav-item[data-view="tidal"]:hover .nav-icon {
   filter: none;
 }
