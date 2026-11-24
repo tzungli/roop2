@@ -3034,8 +3034,26 @@ function renderRooOverviewHeader() {
 }
 
 let currentRecentActivityTab = 'added';
+let currentRecentActivityPage = 0;
 
-function renderRooRecentActivity(activeTab = 'added') {
+function formatRelativeActivityTime(ts, verb) {
+  if (!ts) return `最近${verb}`;
+  const ms = typeof ts === 'number' ? (ts < 1e12 ? ts * 1000 : ts) : Date.parse(ts);
+  if (!ms || Number.isNaN(ms)) return `最近${verb}`;
+  const diffSec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (diffSec < 60) return `剛剛${verb}`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `在 ${diffMin} 分鐘前${verb}`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `在 ${diffHr} 小時前${verb}`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `在 ${diffDay} 天前${verb}`;
+}
+
+function renderRooRecentActivity(activeTab = 'added', page = 0) {
+  const MAX_ITEMS = 10;
+  const PAGE_SIZE = 5;
+
   currentRecentActivityTab = activeTab;
   const grid = document.getElementById('recentActivityGrid');
   if (!grid) return;
@@ -3046,8 +3064,8 @@ function renderRooRecentActivity(activeTab = 'added') {
     tabPlayed.classList.toggle('active', activeTab === 'played');
     tabAdded.classList.toggle('active', activeTab === 'added');
 
-    tabPlayed.onclick = () => renderRooRecentActivity('played');
-    tabAdded.onclick = () => renderRooRecentActivity('added');
+    tabPlayed.onclick = () => renderRooRecentActivity('played', 0);
+    tabAdded.onclick = () => renderRooRecentActivity('added', 0);
   }
 
   const btnMore = document.getElementById('btnRecentActivityMore');
@@ -3055,32 +3073,62 @@ function renderRooRecentActivity(activeTab = 'added') {
     btnMore.onclick = () => navigateTo(activeTab === 'played' ? 'history' : 'albums');
   }
 
-  grid.innerHTML = '';
-  let items = [];
+  let allItems = [];
   if (activeTab === 'played') {
-    items = getRecentlyPlayedAlbums(5);
+    allItems = getRecentlyPlayedAlbums(MAX_ITEMS);
   } else {
-    items = [...(state.albums || [])].sort((a, b) => {
+    allItems = [...(state.albums || [])].sort((a, b) => {
       const ta = a.addedAt || a.dateAdded || 0;
       const tb = b.addedAt || b.dateAdded || 0;
       return tb - ta;
-    }).slice(0, 5);
+    }).slice(0, MAX_ITEMS);
   }
 
-  if (items.length === 0) items = (state.albums || []).slice(0, 5);
-  if (items.length === 0) {
+  if (allItems.length === 0) allItems = (state.albums || []).slice(0, MAX_ITEMS);
+
+  const totalPages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
+  currentRecentActivityPage = Math.max(0, Math.min(page, totalPages - 1));
+
+  const btnPrev = document.getElementById('btnRecentActivityPrev');
+  const btnNext = document.getElementById('btnRecentActivityNext');
+  if (btnPrev) {
+    const canPrev = currentRecentActivityPage > 0;
+    btnPrev.disabled = !canPrev;
+    btnPrev.style.opacity = canPrev ? '1' : '0.4';
+    btnPrev.style.cursor = canPrev ? 'pointer' : 'default';
+    btnPrev.onclick = () => {
+      if (currentRecentActivityPage > 0) {
+        renderRooRecentActivity(currentRecentActivityTab, currentRecentActivityPage - 1);
+      }
+    };
+  }
+  if (btnNext) {
+    const canNext = currentRecentActivityPage < totalPages - 1;
+    btnNext.disabled = !canNext;
+    btnNext.style.opacity = canNext ? '1' : '0.4';
+    btnNext.style.cursor = canNext ? 'pointer' : 'default';
+    btnNext.onclick = () => {
+      if (currentRecentActivityPage < totalPages - 1) {
+        renderRooRecentActivity(currentRecentActivityTab, currentRecentActivityPage + 1);
+      }
+    };
+  }
+
+  grid.innerHTML = '';
+  if (allItems.length === 0) {
     grid.innerHTML = '<div style="grid-column: 1/-1; padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">尚無紀錄，匯入音樂後將在此自動列出</div>';
     return;
   }
 
-  const daysLabels = ['在 30 天前新增', '在 42 天前新增', '在 58 天前新增', '在 113 天前新增', '在 120 天前新增'];
-  const playedLabels = ['在 1 小時前播放', '在 3 小時前播放', '在 1 天前播放', '在 3 天前播放', '在 5 天前播放'];
+  const startIdx = currentRecentActivityPage * PAGE_SIZE;
+  const pageItems = allItems.slice(startIdx, startIdx + PAGE_SIZE);
 
-  items.forEach((alb, idx) => {
+  pageItems.forEach((alb) => {
     const item = document.createElement('div');
     item.className = 'activity-album-item';
     const coverSrc = formatCoverSrc(alb.cover) || createSvgCover(alb.title, alb.artist);
-    const timeLabel = activeTab === 'played' ? (playedLabels[idx] || '最近播放') : (daysLabels[idx] || '最近新增');
+    const ts = activeTab === 'played' ? (alb.playedAt || alb.lastPlayedAt) : (alb.addedAt || alb.dateAdded);
+    const timeLabel = formatRelativeActivityTime(ts, activeTab === 'played' ? '播放' : '新增');
     const firstTrack = (alb.tracks && alb.tracks[0]) || {};
     const fmt = getAudioFormatFromPath(firstTrack.filePath || alb.filePath || '', alb.formatName || 'PCM').toUpperCase();
     const rate = firstTrack.sampleRate ? `${Math.round(firstTrack.sampleRate / 1000)}/${firstTrack.bitsPerSample || 16}` : '44/16';
