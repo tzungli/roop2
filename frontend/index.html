@@ -2012,8 +2012,8 @@
                 <br>• <strong>線性相位 (Linear Phase)</strong>：對稱衝激響應，全頻段群延遲恆定，<strong>絕對零相位失真</strong>。
                 <br>• <strong>最小相位 (Minimum Phase)</strong>：透過複倒頻譜希爾伯特變換（Spectral Factorization）將零點完全反射至單位圓內，<strong>預響鈴嚴格為零 (0.00% Pre-ringing)</strong>，符合人耳聽覺心理前向遮蔽效應。
                 <br>• <strong>高斯長階 (Gauss Long)</strong>：仿 HQPlayer <code>poly-sinc-gauss-long</code>，採純高斯窗（σ = 0.17L，邊緣自然衰減 &lt; -150 dB）搭配 449 輸入階多相 Sinc，20 kHz 內零衰減、奈奎斯特 -166.6 dB 深度抑鏡，時域呈平滑高斯包絡無硬切邊。
-                <br>• <strong>延伸磚牆 (Ext2)</strong>：仿 HQPlayer <code>poly-sinc-ext2</code>，1,281 輸入階超高陡峭 Kaiser 窗（As = 175 dB），通帶延伸至 20.8 kHz 依然 0.000 dB 完全平坦，於 22.05 kHz 瞬間達成 -183.0 dB 磚牆抑鏡。
-                <br>• <strong>百萬階磚牆 (Sinc-M)</strong>：仿 HQPlayer <code>sinc-M</code> / Chord M-Scaler，採 <strong>Partitioned FFT 分段多相卷積</strong>（立體聲複數打包 L+iR 2 倍加速），每相 65,535 階（16x 升頻總原型達 <strong>1,048,545 taps</strong>），44.1 kHz 下平坦延伸至 21.95 kHz、22.15 kHz 第一鏡像直壓 -205.3 dB，1 kHz 重建 SNR 達 242.5 dB，且 4x 1 秒立體聲僅耗時 17.0 ms（~59x 即時速度）。
+                <br>• <strong>poly-sinc-ext2</strong>：仿 HQPlayer <code>poly-sinc-ext2</code>，1,281 輸入階超高陡峭 Kaiser 窗（As = 175 dB），通帶延伸至 20.8 kHz 依然 0.000 dB 完全平坦，於 22.05 kHz 瞬間達成 -183.0 dB 磚牆抑鏡。
+                <br>• <strong>sinc-M</strong>：仿 HQPlayer <code>sinc-M</code> / Chord M-Scaler，採 <strong>Partitioned FFT 分段多相卷積</strong>（立體聲複數打包 L+iR 2 倍加速），每相 65,535 階（16x 升頻總原型達 <strong>1,048,545 taps</strong>），44.1 kHz 下平坦延伸至 21.95 kHz、22.15 kHz 第一鏡像直壓 -205.3 dB，1 kHz 重建 SNR 達 242.5 dB，且 4x 1 秒立體聲僅耗時 17.0 ms（~59x 即時速度）。
               </p>
 
               <!-- 表 1-1: 頻率響應衰減實測表 -->
@@ -2078,7 +2078,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">-237.20 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">延伸磚牆，線性相位 (Ext2)</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">poly-sinc-ext2，線性相位</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB (20.8k 亦 0dB)</td>
@@ -2087,7 +2087,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">-213.26 dB</td>
                     </tr>
                     <tr>
-                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">百萬階磚牆，線性相位 (Sinc-M)</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">sinc-M，線性相位</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (21.95k 亦 0dB)</td>
@@ -2161,7 +2161,7 @@
                       <td style="padding: 8px 10px;"><strong>寬鬆立體全能王</strong>：無截斷硬邊震盪，兼顧高解析、自然泛音與立體音場。</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">延伸磚牆，線性相位 (Ext2)</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">poly-sinc-ext2，線性相位</td>
                       <td style="padding: 8px 10px;">5,121 (4x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -2170,7 +2170,7 @@
                       <td style="padding: 8px 10px;"><strong>極致通透高解析</strong>：通帶延伸至 20.8kHz、-183dB 抑鏡，空氣感與微細節密度極高。</td>
                     </tr>
                     <tr>
-                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">百萬階磚牆，線性相位 (Sinc-M)</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">sinc-M，線性相位</td>
                       <td style="padding: 8px 10px; font-weight: 600;">262,137 (4x)<br>1,048,545 (16x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -2417,8 +2417,8 @@
                 <li><strong>發燒黑膠老類比韻味組合</strong>：<code>平滑，最小相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD64 / DSD128</code> ➔ <code>20k / 30k</code>。零預響鈴加上超短後響鈴，完全消除數位硬邊，重現經典黑膠唱片與早期 SACD 迷人的溫潤厚重感。</li>
                 <li><strong>純 PCM 超取樣直通組合</strong>：<code>精準，線性相位</code> ➔ <code>4x 整數倍頻 (176.4k / 192k)</code> ➔ <code>TPDF 抖動</code> ➔ <code>關閉 (None) / 30k</code>。純 PCM 多相 FIR 超取樣直出，線性無失真量化抖動，由 DAC 本地解碼，細節通透開闊。</li>
                 <li><strong>HQPlayer 風格全能發燒組合 (Gauss Long)</strong>：<code>高斯長階，線性相位</code> ➔ <code>7 階 (CLANS)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。純高斯包絡兼顧 20kHz 內零衰減與極低自然響鈴，音場寬鬆立體、久聽不累，適合各類人聲、爵士與古典。</li>
-                <li><strong>極致透明與高頻空氣感組合 (Ext2)</strong>：<code>延伸磚牆，線性相位 (Ext2)</code> ➔ <code>7 階 (CLANS) 或 8x PCM</code> ➔ <code>TPDF / Noise-Shaped</code> ➔ <code>40k / 關閉</code>。通帶延伸至 20.8kHz 且奈奎斯特直壓 -183dB，樂器輪廓、空間殘響與微細節分離度極致鮮明。</li>
-                <li><strong>百萬階 M-Scaler 終極空間解析組合 (Sinc-M)</strong>：<code>百萬階磚牆，線性相位 (Sinc-M)</code> ➔ <code>8x / 16x 整數倍 PCM 或 DSD256</code> ➔ <code>Noise-Shaped / Gauss</code> ➔ <code>關閉 / 40k</code>。Partitioned FFT 百萬階多相卷積提供 242dB 重建精度與 22kHz 垂直刀切抑鏡，重現現場廳堂深度與針點結像。</li>
+                <li><strong>極致透明與高頻空氣感組合 (Ext2)</strong>：<code>poly-sinc-ext2，線性相位</code> ➔ <code>7 階 (CLANS) 或 8x PCM</code> ➔ <code>TPDF / Noise-Shaped</code> ➔ <code>40k / 關閉</code>。通帶延伸至 20.8kHz 且奈奎斯特直壓 -183dB，樂器輪廓、空間殘響與微細節分離度極致鮮明。</li>
+                <li><strong>百萬階 M-Scaler 終極空間解析組合 (Sinc-M)</strong>：<code>sinc-M，線性相位</code> ➔ <code>8x / 16x 整數倍 PCM 或 DSD256</code> ➔ <code>Noise-Shaped / Gauss</code> ➔ <code>關閉 / 40k</code>。Partitioned FFT 百萬階多相卷積提供 242dB 重建精度與 22kHz 垂直刀切抑鏡，重現現場廳堂深度與針點結像。</li>
               </ul>
             </div>
           </div>

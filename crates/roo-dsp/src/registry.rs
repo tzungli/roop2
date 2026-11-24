@@ -109,14 +109,14 @@ impl FilterRegistry {
             },
             FilterDescriptor {
                 id: "poly-ext2".to_string(),
-                label: "延伸磚牆，線性相位 (Ext2)".to_string(),
+                label: "poly-sinc-ext2，線性相位".to_string(),
                 sound: "仿 HQPlayer poly-sinc-ext2：1281 階超陡峭磚牆，通帶延伸至 21kHz 零衰減、奈奎斯特 -170dB 徹底抑鏡，通透高密度微細節".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
             },
             FilterDescriptor {
                 id: "sinc-m".to_string(),
-                label: "百萬階磚牆，線性相位 (Sinc-M)".to_string(),
+                label: "sinc-M，線性相位".to_string(),
                 sound: "仿 HQPlayer sinc-M / M-Scaler：FFT 分段多相卷積百萬階極致磚牆，22kHz 零衰減、奈奎斯特 -175dB 垂直截止，極致空間解析力".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
