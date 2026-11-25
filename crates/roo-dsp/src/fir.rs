@@ -204,9 +204,85 @@ pub fn build_fir_phases(gf: &FirFilter) -> Option<PolyphaseBank> {
     })
 }
 
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn dot_product_avx2_fma(x: &[f64], g: &[f64]) -> f64 {
+    use std::arch::x86_64::*;
+    let len = x.len().min(g.len());
+    let px = x.as_ptr();
+    let pg = g.as_ptr();
+
+    let mut acc0 = _mm256_setzero_pd();
+    let mut acc1 = _mm256_setzero_pd();
+    let mut j = 0usize;
+
+    while j + 8 <= len {
+        let vx0 = _mm256_loadu_pd(px.add(j));
+        let vg0 = _mm256_loadu_pd(pg.add(j));
+        acc0 = _mm256_fmadd_pd(vx0, vg0, acc0);
+
+        let vx1 = _mm256_loadu_pd(px.add(j + 4));
+        let vg1 = _mm256_loadu_pd(pg.add(j + 4));
+        acc1 = _mm256_fmadd_pd(vx1, vg1, acc1);
+        j += 8;
+    }
+
+    let mut sum256 = _mm256_add_pd(acc0, acc1);
+    if j + 4 <= len {
+        let vx = _mm256_loadu_pd(px.add(j));
+        let vg = _mm256_loadu_pd(pg.add(j));
+        sum256 = _mm256_fmadd_pd(vx, vg, sum256);
+        j += 4;
+    }
+
+    let hi128 = _mm256_extractf128_pd::<1>(sum256);
+    let lo128 = _mm256_castpd256_pd128(sum256);
+    let s128 = _mm_add_pd(lo128, hi128);
+    let shuf = _mm_unpackhi_pd(s128, s128);
+    let s64 = _mm_add_sd(s128, shuf);
+    let mut acc = _mm_cvtsd_f64(s64);
+
+    while j < len {
+        acc += *px.add(j) * *pg.add(j);
+        j += 1;
+    }
+    acc
+}
+
+/// Vectorized 64-bit dot product with runtime AVX2 + FMA dispatch for polyphase FIR scanning.
+#[inline]
+pub fn polyphase_dot_product(x: &[f64], g: &[f64]) -> f64 {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            return unsafe { dot_product_avx2_fma(x, g) };
+        }
+    }
+    let t = x.len().min(g.len());
+    let mut s0 = 0.0f64;
+    let mut s1 = 0.0f64;
+    let mut s2 = 0.0f64;
+    let mut s3 = 0.0f64;
+    let chunks = t / 4;
+    let mut j = 0usize;
+    for _ in 0..chunks {
+        s0 += x[j] * g[j];
+        s1 += x[j + 1] * g[j + 1];
+        s2 += x[j + 2] * g[j + 2];
+        s3 += x[j + 3] * g[j + 3];
+        j += 4;
+    }
+    let mut acc = (s0 + s1) + (s2 + s3);
+    while j < t {
+        acc += x[j] * g[j];
+        j += 1;
+    }
+    acc
+}
+
 #[inline]
 pub fn fir_sample(input: &[f64], in_len: usize, out_idx: usize, ratio: f64, gf: &FirFilter) -> f64 {
-    // Fast path: contiguous polyphase scan with precomputed bank (4-way unrolled for AVX2+FMA)
+    // Fast path: contiguous polyphase scan with precomputed bank (AVX2+FMA 8-wide / 4-way unrolled)
     if let Some(ph) = &gf.poly_phases {
         let phi = out_idx % ph.p;
         let entry = &ph.entries[phi];
@@ -214,27 +290,7 @@ pub fn fir_sample(input: &[f64], in_len: usize, out_idx: usize, ratio: f64, gf: 
         let t = entry.t;
         if k_base >= 0 && (k_base as usize + t) <= in_len {
             let start = k_base as usize;
-            let x = &input[start..start + t];
-            let g = &entry.g[..t];
-            let mut s0 = 0.0f64;
-            let mut s1 = 0.0f64;
-            let mut s2 = 0.0f64;
-            let mut s3 = 0.0f64;
-            let chunks = t / 4;
-            let mut j = 0usize;
-            for _ in 0..chunks {
-                s0 += x[j] * g[j];
-                s1 += x[j + 1] * g[j + 1];
-                s2 += x[j + 2] * g[j + 2];
-                s3 += x[j + 3] * g[j + 3];
-                j += 4;
-            }
-            let mut acc = (s0 + s1) + (s2 + s3);
-            while j < t {
-                acc += x[j] * g[j];
-                j += 1;
-            }
-            return acc;
+            return polyphase_dot_product(&input[start..start + t], &entry.g[..t]);
         }
     }
 

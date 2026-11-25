@@ -181,11 +181,33 @@ impl PcmChannelDither {
         }
     }
 
+    /// Transparent Inter-Sample Peak (ISP) soft-knee protection:
+    /// Bit-identical linear pass-through for `|x| <= 0.985` (-0.13 dBFS);
+    /// smoothly compresses transient overs above 0.985 towards ±1.0 via `tanh`
+    /// to prevent digital hard-clipping after high-order oversampling reconstruction.
+    #[inline(always)]
+    pub fn soft_clip_isp(x: f64) -> f64 {
+        const KNEE: f64 = 0.985;
+        const MARGIN: f64 = 1.0 - KNEE;
+        let ax = x.abs();
+        if ax <= KNEE {
+            x
+        } else {
+            let y = KNEE + MARGIN * ((ax - KNEE) / MARGIN).tanh();
+            y.copysign(x)
+        }
+    }
+
     /// Quantize a normalized sample [-1.0, 1.0] to 24-bit integer [-8388608, 8388607]
     #[inline]
     pub fn quantize_24bit(&mut self, sample: f64, dither: DitherType) -> i32 {
         const SCALE: f64 = 8388607.0;
-        let x = sample.clamp(-1.0, 1.0) * SCALE;
+        let clamped = if dither == DitherType::None {
+            sample.clamp(-1.0, 1.0)
+        } else {
+            Self::soft_clip_isp(sample)
+        };
+        let x = clamped * SCALE;
 
         match dither {
             DitherType::None => (x.round() as i64).clamp(-8388608, 8388607) as i32,
@@ -214,7 +236,12 @@ impl PcmChannelDither {
     #[inline]
     pub fn quantize_16bit(&mut self, sample: f64, dither: DitherType) -> i16 {
         const SCALE: f64 = 32767.0;
-        let x = sample.clamp(-1.0, 1.0) * SCALE;
+        let clamped = if dither == DitherType::None {
+            sample.clamp(-1.0, 1.0)
+        } else {
+            Self::soft_clip_isp(sample)
+        };
+        let x = clamped * SCALE;
 
         match dither {
             DitherType::None => (x.round() as i64).clamp(-32768, 32767) as i16,

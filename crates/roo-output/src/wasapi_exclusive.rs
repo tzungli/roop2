@@ -9,7 +9,10 @@ use windows::Win32::Media::Audio::{
     WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
 };
 use windows::Win32::System::Com::{CoInitializeEx, CoCreateInstance, CLSCTX_ALL, COINIT_MULTITHREADED};
-use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
+use windows::Win32::System::Threading::{
+    CreateEventW, GetCurrentThread, SetThreadPriority, WaitForSingleObject,
+    THREAD_PRIORITY_TIME_CRITICAL,
+};
 use windows::Win32::Foundation::HANDLE;
 use windows::core::HRESULT;
 use crate::probe::KSDATAFORMAT_SUBTYPE_PCM;
@@ -149,6 +152,7 @@ where
 {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
         let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
             .map_err(|e| format!("CoCreateInstance MMDeviceEnumerator failed: {}", e))?;
 
@@ -162,7 +166,7 @@ where
                 .map_err(|e| format!("GetDefaultAudioEndpoint failed: {}", e))?
         };
 
-        let client: IAudioClient = device.Activate(CLSCTX_ALL, None)
+        let mut client: IAudioClient = device.Activate(CLSCTX_ALL, None)
             .map_err(|e| format!("Activate IAudioClient failed: {}", e))?;
 
         let rate = opts.rate;
@@ -207,6 +211,7 @@ where
                     p_fmt,
                     None,
                 ).map_err(|e| format!("WASAPI aligned init failed: {}", e))?;
+                client = client2;
             } else {
                 return Err(format!("Initialize exclusive mode failed: {}", e));
             }
@@ -242,19 +247,21 @@ where
         let mut total_bytes_streamed = opts.start_byte;
         let mut last_progress_report = std::time::Instant::now();
         let bytes_per_frame = 6usize; // 24-bit stereo in stream
-
-        let mut raw_buf = vec![0u8; buffer_frame_count as usize * bytes_per_frame];
+        let mut raw_buf = vec![0u8; buffer_frame_count as usize * bytes_per_frame + bytes_per_frame];
+        let mut leftover_len = 0usize;
 
         while !stop_signal.load(Ordering::SeqCst) {
             // Check if seek requested
             let req_seek = seek_byte.swap(0, Ordering::SeqCst);
             if req_seek > 0 {
+                let aligned_seek = 44 + ((req_seek.saturating_sub(44)) / bytes_per_frame as u64) * bytes_per_frame as u64;
                 if let Ok(new_resp) = http_client.get(&opts.url)
-                    .header("Range", format!("bytes={}-", req_seek))
+                    .header("Range", format!("bytes={}-", aligned_seek))
                     .send()
                 {
                     stream_resp = new_resp;
-                    total_bytes_streamed = req_seek;
+                    total_bytes_streamed = aligned_seek;
+                    leftover_len = 0;
                 }
             }
 
@@ -275,18 +282,31 @@ where
             };
 
             let bytes_needed = buffer_frame_count as usize * bytes_per_frame;
-            if raw_buf.len() < bytes_needed {
-                raw_buf.resize(bytes_needed, 0);
+            if raw_buf.len() < bytes_needed + bytes_per_frame {
+                raw_buf.resize(bytes_needed + bytes_per_frame, 0);
             }
 
-            let read_bytes = std::io::Read::read(&mut stream_resp, &mut raw_buf[..bytes_needed]).unwrap_or(0);
-            if read_bytes == 0 {
+            // Fill full WASAPI buffer without leaving partial (< 6 byte) frame splits across TCP reads
+            let mut total_read = leftover_len;
+            while total_read < bytes_needed {
+                match std::io::Read::read(&mut stream_resp, &mut raw_buf[total_read..bytes_needed]) {
+                    Ok(0) => break, // EOF
+                    Ok(n) => total_read += n,
+                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => break,
+                }
+            }
+
+            let valid_bytes = (total_read / bytes_per_frame) * bytes_per_frame;
+            leftover_len = total_read - valid_bytes;
+
+            if valid_bytes == 0 {
                 let _ = render_client.ReleaseBuffer(buffer_frame_count, 0x2); // AUDCLNT_BUFFERFLAGS_SILENT
                 emit_event(serde_json::json!({ "ev": "eof" }));
                 break;
             }
 
-            let frames_read = (read_bytes / bytes_per_frame) as u32;
+            let frames_read = (valid_bytes / bytes_per_frame) as u32;
 
             // Pack 24-bit into 32-bit container (Left 3 bytes -> 4 bytes, Right 3 bytes -> 4 bytes)
             let dest_slice = std::slice::from_raw_parts_mut(dest_buf_ptr, buffer_frame_count as usize * 8);
@@ -307,6 +327,11 @@ where
                 dest_slice[dst_base + 7] = raw_buf[src_base + 5];
             }
 
+            // Preserve any partial trailing bytes (< 6) for the next WASAPI period
+            if leftover_len > 0 {
+                raw_buf.copy_within(valid_bytes..total_read, 0);
+            }
+
             // Zero fill remainder
             if frames_read < buffer_frame_count {
                 for i in (frames_read as usize * 8)..(buffer_frame_count as usize * 8) {
@@ -315,7 +340,7 @@ where
             }
 
             let _ = render_client.ReleaseBuffer(buffer_frame_count, 0);
-            total_bytes_streamed += read_bytes as u64;
+            total_bytes_streamed += valid_bytes as u64;
 
             if last_progress_report.elapsed() >= Duration::from_millis(250) {
                 let sec = total_bytes_streamed.saturating_sub(44) as f64 / (rate as f64 * bytes_per_frame as f64);

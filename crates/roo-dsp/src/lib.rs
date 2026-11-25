@@ -830,4 +830,27 @@ mod tests {
         }
         assert!(d192.left.err_history[0].is_finite() && d192.left.err_history[0].abs() < 10.0);
     }
+
+    #[test]
+    fn test_fir_avx2_fma_and_isp_soft_knee() {
+        let f = build_poly_ext2_filter(192000.0, 44100.0);
+        let bank = f.poly_phases.as_ref().expect("polyphase bank");
+        let entry = &bank.entries[0];
+        let x: Vec<f64> = (0..entry.t).map(|i| ((i as f64) * 0.13).sin()).collect();
+
+        let scalar: f64 = x.iter().zip(entry.g.iter()).map(|(a, b)| a * b).sum();
+        let simd = polyphase_dot_product(&x, &entry.g);
+        assert!(
+            (scalar - simd).abs() < 1e-12,
+            "AVX2+FMA polyphase mismatch: scalar={}, simd={}",
+            scalar,
+            simd
+        );
+
+        // Verify ISP soft-knee is bit-exact below 0.985 and smoothly saturates overs above 1.0
+        assert_eq!(PcmChannelDither::soft_clip_isp(0.95), 0.95);
+        assert_eq!(PcmChannelDither::soft_clip_isp(-0.985), -0.985);
+        let clipped = PcmChannelDither::soft_clip_isp(1.12);
+        assert!(clipped > 0.985 && clipped < 1.0, "ISP over should stay < 1.0, got {}", clipped);
+    }
 }

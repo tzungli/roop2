@@ -103,26 +103,7 @@ fn upsample_stage1_channel(
             let t = entry.t;
             if k_base >= 0 && (k_base as usize + t) <= in_len {
                 let start = k_base as usize;
-                let src_slice = &pcm[start..start + t];
-                let g_slice = &entry.g[..t];
-                // 4-way unrolled FMA dot product: LLVM auto-vectorizes to 256-bit AVX2 vfmadd231pd
-                let mut acc0 = 0.0;
-                let mut acc1 = 0.0;
-                let mut acc2 = 0.0;
-                let mut acc3 = 0.0;
-                let chunks = t / 4;
-                for c in 0..chunks {
-                    let j = c * 4;
-                    acc0 += src_slice[j] * g_slice[j];
-                    acc1 += src_slice[j + 1] * g_slice[j + 1];
-                    acc2 += src_slice[j + 2] * g_slice[j + 2];
-                    acc3 += src_slice[j + 3] * g_slice[j + 3];
-                }
-                let mut acc = (acc0 + acc1) + (acc2 + acc3);
-                for j in (chunks * 4)..t {
-                    acc += src_slice[j] * g_slice[j];
-                }
-                out[dst_i] = acc;
+                out[dst_i] = roo_dsp::polyphase_dot_product(&pcm[start..start + t], &entry.g[..t]);
             } else {
                 out[dst_i] = roo_dsp::fir_sample(pcm, in_len, out_idx, ratio, gf);
             }
@@ -191,21 +172,14 @@ fn render_pcm_range_helper(
     start_f: usize,
     end_f: usize,
     dither_type: roo_dsp::DitherType,
+    ditherer: &mut roo_dsp::StereoPcmDitherer,
     buf: &mut [u8],
 ) {
     let mut off = 0;
-    let seed_l1 = 0x1234_5678_9abc_def0 ^ ((start_f as u64) << 16);
-    let seed_l2 = 0xfedc_ba98_7654_3210 ^ ((start_f as u64) << 17);
-    let seed_r1 = 0x0123_4567_89ab_cdef ^ ((start_f as u64) << 18);
-    let seed_r2 = 0x9876_5432_10fe_dcba ^ ((start_f as u64) << 19);
-    let mut ditherer = roo_dsp::StereoPcmDitherer {
-        left: roo_dsp::PcmChannelDither::with_sample_rate(seed_l1, seed_l2, target_rate as f64),
-        right: roo_dsp::PcmChannelDither::with_sample_rate(seed_r1, seed_r2, target_rate as f64),
-    };
 
     if target_rate != src_rate {
-        if let Some(StageResampler::SincM(sinc_m)) = resampler {
-            let (up_l, up_r) = sinc_m.upsample_range_stereo(left, right, start_f, end_f);
+        if let Some(res) = resampler {
+            let (up_l, up_r) = res.upsample_range_stereo(left, right, ratio, start_f, end_f);
             for (sl_f, sr_f) in up_l.into_iter().zip(up_r.into_iter()) {
                 let (i_l, i_r) = ditherer.quantize_24bit(sl_f, sr_f, dither_type);
                 let bytes_l = i_l.to_le_bytes();
@@ -223,22 +197,9 @@ fn render_pcm_range_helper(
         }
     }
 
-    let gf = match resampler {
-        Some(StageResampler::Fir(f)) => Some(f),
-        _ => None,
-    };
-
     for i in start_f..end_f {
-        let (sl_f, sr_f) = if target_rate == src_rate {
-            (left[i], right[i])
-        } else if let Some(filter) = gf {
-            (
-                roo_dsp::fir_sample(left, left.len(), i, ratio, filter),
-                roo_dsp::fir_sample(right, right.len(), i, ratio, filter),
-            )
-        } else {
-            (left[i.min(left.len() - 1)], right[i.min(right.len() - 1)])
-        };
+        let idx = i.min(left.len().saturating_sub(1));
+        let (sl_f, sr_f) = (left[idx], right[idx]);
 
         let (i_l, i_r) = ditherer.quantize_24bit(sl_f, sr_f, dither_type);
         let bytes_l = i_l.to_le_bytes();
@@ -554,10 +515,11 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         let gf = Arc::new(gf);
 
         let dither_type = opts.dither.as_deref().and_then(DitherType::from_str_opt).unwrap_or(DitherType::Tpdf);
+        let mut ditherer = roo_dsp::StereoPcmDitherer::with_sample_rate(target_rate as f64);
         let initial_frames = out_frames.min(target_rate as usize * 3);
         let mut initial_bytes = vec![0u8; initial_frames * 6];
         if initial_frames > 0 {
-            render_pcm_range_helper(&left, &right, gf.as_ref().as_ref(), target_rate, src_rate, ratio, 0, initial_frames, dither_type, &mut initial_bytes);
+            render_pcm_range_helper(&left, &right, gf.as_ref().as_ref(), target_rate, src_rate, ratio, 0, initial_frames, dither_type, &mut ditherer, &mut initial_bytes);
             use std::io::{Seek, SeekFrom, Write};
             let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&temp_file_path)?;
             file.seek(SeekFrom::Start(44))?;
@@ -614,7 +576,7 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     }
                     let frames_to_run = (out_frames - curr_frame).min(batch_frames);
                     let slice = &mut batch_buf[..frames_to_run * 6];
-                    render_pcm_range_helper(&bg_left, &bg_right, bg_gf.as_ref().as_ref(), target_rate, src_rate, ratio, curr_frame, curr_frame + frames_to_run, dither_type, slice);
+                    render_pcm_range_helper(&bg_left, &bg_right, bg_gf.as_ref().as_ref(), target_rate, src_rate, ratio, curr_frame, curr_frame + frames_to_run, dither_type, &mut ditherer, slice);
                     if file.write_all(slice).is_err() {
                         return;
                     }
