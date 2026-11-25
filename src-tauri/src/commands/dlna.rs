@@ -52,11 +52,36 @@ pub struct KnownDlnaDevice {
     pub last_used: u64,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct KnownAirPlayDevice {
+    pub id: String,
+    pub name: String,
+    pub model: String,
+    pub ip: String,
+    pub port: u16,
+    #[serde(default = "default_true")]
+    pub supports_unencrypted: bool,
+    #[serde(default)]
+    pub requires_password: bool,
+    pub last_seen: u64,
+}
+
+fn default_true() -> bool {
+    true
+}
+
 fn known_devices_path() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("rooPlayer")
         .join("dlna_known_devices.json")
+}
+
+fn known_airplay_path() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("rooPlayer")
+        .join("airplay_known_devices.json")
 }
 
 pub fn load_known_dlna_devices() -> Vec<KnownDlnaDevice> {
@@ -67,8 +92,16 @@ pub fn load_known_dlna_devices() -> Vec<KnownDlnaDevice> {
         .unwrap_or_default()
 }
 
-pub fn remember_dlna_device(dev: &DlnaDevice) {
-    if dev.location.is_empty() && dev.ip.is_empty() {
+pub fn load_known_airplay_devices() -> Vec<KnownAirPlayDevice> {
+    let path = known_airplay_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn remember_dlna_devices(devs: &[DlnaDevice]) {
+    if devs.is_empty() {
         return;
     }
     let path = known_devices_path();
@@ -81,26 +114,75 @@ pub fn remember_dlna_device(dev: &DlnaDevice) {
         .unwrap_or_default()
         .as_secs();
 
-    list.retain(|k| k.id != dev.id && !(k.ip == dev.ip && !dev.ip.is_empty() && k.name == dev.name));
-    list.insert(
-        0,
-        KnownDlnaDevice {
-            id: dev.id.clone(),
-            name: dev.name.clone(),
-            ip: dev.ip.clone(),
-            location: dev.location.clone(),
-            last_used: now,
-        },
-    );
-    list.truncate(16);
+    for dev in devs {
+        if dev.location.is_empty() && dev.ip.is_empty() {
+            continue;
+        }
+        list.retain(|k| k.id != dev.id && !(k.ip == dev.ip && !dev.ip.is_empty() && k.name == dev.name));
+        list.insert(
+            0,
+            KnownDlnaDevice {
+                id: dev.id.clone(),
+                name: dev.name.clone(),
+                ip: dev.ip.clone(),
+                location: dev.location.clone(),
+                last_used: now,
+            },
+        );
+    }
+    list.truncate(24);
 
     if let Ok(json) = serde_json::to_string_pretty(&list) {
         let _ = std::fs::write(&path, json);
     }
 }
 
-/// Fast warm-probe of remembered DLNA devices (used on startup & start of scan).
-pub async fn warm_probe_known_dlna(app: &AppHandle, manager: &DlnaManager) -> Vec<DlnaDevice> {
+pub fn remember_dlna_device(dev: &DlnaDevice) {
+    remember_dlna_devices(std::slice::from_ref(dev));
+}
+
+pub fn remember_airplay_devices(devs: &[AirPlayDevice]) {
+    if devs.is_empty() {
+        return;
+    }
+    let path = known_airplay_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut list = load_known_airplay_devices();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    for dev in devs {
+        if dev.ip.is_empty() || dev.port == 0 {
+            continue;
+        }
+        list.retain(|k| k.id != dev.id && !(k.ip == dev.ip && k.port == dev.port));
+        list.insert(
+            0,
+            KnownAirPlayDevice {
+                id: dev.id.clone(),
+                name: dev.name.clone(),
+                model: dev.model.clone(),
+                ip: dev.ip.clone(),
+                port: dev.port,
+                supports_unencrypted: dev.supports_unencrypted,
+                requires_password: dev.requires_password,
+                last_seen: now,
+            },
+        );
+    }
+    list.truncate(24);
+
+    if let Ok(json) = serde_json::to_string_pretty(&list) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+/// Fast warm-probe of remembered DLNA devices (< 100ms for online devices).
+pub async fn warm_probe_known_dlna(manager: &DlnaManager) -> Vec<DlnaDevice> {
     let known = load_known_dlna_devices();
     if known.is_empty() {
         return Vec::new();
@@ -116,10 +198,79 @@ pub async fn warm_probe_known_dlna(app: &AppHandle, manager: &DlnaManager) -> Ve
                 merged.push(dev.clone());
             }
         }
-        manager.set_devices(merged.clone());
-        let _ = app.emit("dlna:devicesChanged", &merged);
+        manager.set_devices(merged);
     }
     found
+}
+
+/// Fast parallel TCP reachability warm-probe of remembered AirPlay devices (< 50ms on LAN).
+pub async fn warm_probe_known_airplay(airplay: &AirPlayManager) -> Vec<AirPlayDevice> {
+    let known = load_known_airplay_devices();
+    if known.is_empty() {
+        return Vec::new();
+    }
+    let mut handles = Vec::with_capacity(known.len());
+    for k in known {
+        handles.push(tokio::spawn(async move {
+            let addr = format!("{}:{}", k.ip, k.port);
+            let ok = tokio::time::timeout(
+                std::time::Duration::from_millis(300),
+                tokio::net::TcpStream::connect(&addr),
+            )
+            .await
+            .map(|r| r.is_ok())
+            .unwrap_or(false);
+            if ok {
+                Some(AirPlayDevice {
+                    id: k.id,
+                    name: k.name,
+                    model: k.model,
+                    ip: k.ip,
+                    port: k.port,
+                    protocol: "airplay".to_string(),
+                    supports_unencrypted: k.supports_unencrypted,
+                    requires_password: k.requires_password,
+                })
+            } else {
+                None
+            }
+        }));
+    }
+
+    let mut found = Vec::new();
+    for h in handles {
+        if let Ok(Some(dev)) = h.await {
+            found.push(dev);
+        }
+    }
+    if !found.is_empty() {
+        let mut merged = airplay.get_devices();
+        for dev in &found {
+            if let Some(existing) = merged.iter_mut().find(|d| d.id == dev.id) {
+                *existing = dev.clone();
+            } else {
+                merged.push(dev.clone());
+            }
+        }
+        airplay.set_devices(merged);
+    }
+    found
+}
+
+/// Concurrent Phase-1 warm-probe of all remembered DLNA & AirPlay devices, emitting immediately.
+pub async fn warm_probe_all_known(
+    app: &AppHandle,
+    manager: &DlnaManager,
+    airplay: &AirPlayManager,
+) -> (Vec<DlnaDevice>, Vec<AirPlayDevice>) {
+    let (dlna_found, ap_found) = tokio::join!(
+        warm_probe_known_dlna(manager),
+        warm_probe_known_airplay(airplay)
+    );
+    if !dlna_found.is_empty() || !ap_found.is_empty() {
+        emit_merged_devices(app, manager, airplay);
+    }
+    (dlna_found, ap_found)
 }
 
 pub fn resolve_local_ip_for_target(target_host_or_ip: &str) -> String {
@@ -174,36 +325,42 @@ pub async fn dlna_scan(
     manager: State<'_, DlnaManager>,
     airplay: State<'_, AirPlayManager>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    // Phase 1 (< 100ms): Instantly probe remembered DLNA devices by location/IP
-    let fast_found = warm_probe_known_dlna(&app, &manager).await;
+    // Phase 1 (< 100ms): Instantly warm-probe all remembered DLNA & AirPlay addresses in parallel
+    let (fast_dlna, fast_ap) = warm_probe_all_known(&app, &manager, &airplay).await;
 
-    // Phase 2: Concurrent SSDP (DLNA) + mDNS (AirPlay) discovery
+    // Phase 2: Concurrent SSDP (DLNA) + mDNS (AirPlay) multicast discovery for new/DHCP-changed devices
     let (ssdp_res, ap_res) = tokio::join!(
         discover_dlna_devices(2),
-        tokio::task::spawn_blocking(|| discover_airplay_devices(1800))
+        tokio::task::spawn_blocking(|| discover_airplay_devices(1200))
     );
     let ssdp_found = ssdp_res.unwrap_or_default();
     let ap_found = ap_res.unwrap_or_default();
 
-    let mut merged: std::collections::HashMap<String, DlnaDevice> = std::collections::HashMap::new();
-    for dev in fast_found {
-        merged.insert(dev.id.clone(), dev);
+    let mut merged_dlna: std::collections::HashMap<String, DlnaDevice> = std::collections::HashMap::new();
+    for dev in fast_dlna {
+        merged_dlna.insert(dev.id.clone(), dev);
     }
     for dev in ssdp_found {
-        merged.insert(dev.id.clone(), dev);
+        merged_dlna.insert(dev.id.clone(), dev);
     }
 
-    // Refresh remembered device location/IP if a previously known device changed address
-    let known = load_known_dlna_devices();
-    for dev in merged.values() {
-        if known.iter().any(|k| k.id == dev.id && (k.ip != dev.ip || k.location != dev.location)) {
-            remember_dlna_device(dev);
-        }
+    let mut merged_ap: std::collections::HashMap<String, AirPlayDevice> = std::collections::HashMap::new();
+    for dev in fast_ap {
+        merged_ap.insert(dev.id.clone(), dev);
+    }
+    for dev in ap_found {
+        merged_ap.insert(dev.id.clone(), dev);
     }
 
-    let dlna_devices: Vec<DlnaDevice> = merged.into_values().collect();
+    let dlna_devices: Vec<DlnaDevice> = merged_dlna.into_values().collect();
+    let ap_devices: Vec<AirPlayDevice> = merged_ap.into_values().collect();
+
+    // Persist ALL discovered DLNA & AirPlay addresses so future startups & scans resolve in < 100ms
+    remember_dlna_devices(&dlna_devices);
+    remember_airplay_devices(&ap_devices);
+
     manager.set_devices(dlna_devices);
-    airplay.set_devices(ap_found);
+    airplay.set_devices(ap_devices);
 
     let all_devices = merged_devices_json(&manager, &airplay);
     let _ = app.emit("dlna:devicesChanged", &all_devices);

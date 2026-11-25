@@ -153,18 +153,35 @@ async fn main() {
             let handle = app.handle().clone();
             let dlna_warm_handle = app.handle().clone();
             tokio::spawn(async move {
-                // Fast warm-probe of previously used DLNA devices on startup (< 100ms)
+                // Phase 1 (< 100ms): Fast parallel warm-probe of all remembered DLNA & AirPlay addresses
                 let mgr = dlna_warm_handle.state::<DlnaManager>();
                 let ap = dlna_warm_handle.state::<AirPlayManager>();
-                let _ = commands::dlna::warm_probe_known_dlna(&dlna_warm_handle, &mgr).await;
-                // Concurrent mDNS AirPlay discovery on startup
-                let ap_found = tokio::task::spawn_blocking(|| roo_airplay::discover_airplay_devices(1400))
-                    .await
-                    .unwrap_or_default();
-                if !ap_found.is_empty() {
-                    ap.set_devices(ap_found);
-                    commands::dlna::emit_merged_devices(&dlna_warm_handle, &mgr, &ap);
+                let (warm_dlna, warm_ap) = commands::dlna::warm_probe_all_known(&dlna_warm_handle, &mgr, &ap).await;
+
+                // Phase 2 (background): Concurrent SSDP + mDNS discovery for any new/DHCP-changed devices
+                let (ssdp_res, ap_res) = tokio::join!(
+                    roo_dlna::discover_dlna_devices(2),
+                    tokio::task::spawn_blocking(|| roo_airplay::discover_airplay_devices(1200))
+                );
+                let mut dlna_map: std::collections::HashMap<String, roo_dlna::DlnaDevice> = std::collections::HashMap::new();
+                for d in warm_dlna { dlna_map.insert(d.id.clone(), d); }
+                for d in ssdp_res.unwrap_or_default() { dlna_map.insert(d.id.clone(), d); }
+                let dlna_list: Vec<roo_dlna::DlnaDevice> = dlna_map.into_values().collect();
+
+                let mut ap_map: std::collections::HashMap<String, roo_airplay::AirPlayDevice> = std::collections::HashMap::new();
+                for d in warm_ap { ap_map.insert(d.id.clone(), d); }
+                for d in ap_res.unwrap_or_default() { ap_map.insert(d.id.clone(), d); }
+                let ap_list: Vec<roo_airplay::AirPlayDevice> = ap_map.into_values().collect();
+
+                if !dlna_list.is_empty() {
+                    commands::dlna::remember_dlna_devices(&dlna_list);
+                    mgr.set_devices(dlna_list);
                 }
+                if !ap_list.is_empty() {
+                    commands::dlna::remember_airplay_devices(&ap_list);
+                    ap.set_devices(ap_list);
+                }
+                commands::dlna::emit_merged_devices(&dlna_warm_handle, &mgr, &ap);
             });
             tokio::spawn(async move {
                 // Emergency fallback: reveal main window after 2.5s only if frontend failed to reveal it
