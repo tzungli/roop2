@@ -5239,7 +5239,7 @@ body.table-col-resizing * {
 }
 
 .btn-heart:hover, .btn-heart.active {
-  color: #f43f5e;
+  color: var(--accent-purple);
 }
 
 /* Center Controls */
@@ -7770,17 +7770,25 @@ body.table-col-resizing * {
 }
 
 .card-fav-btn:hover {
-  color: #f43f5e;
-  border-color: rgba(244, 63, 94, 0.5);
-  background-color: rgba(18, 18, 24, 0.9);
+  color: var(--accent-purple);
+  border-color: rgba(124, 92, 255, 0.55);
+  background-color: rgba(22, 18, 36, 0.9);
   transform: scale(1.08) !important;
 }
 
 .card-fav-btn.active {
   opacity: 1;
-  color: #f43f5e;
-  background-color: rgba(28, 20, 26, 0.9);
-  border-color: rgba(244, 63, 94, 0.5);
+  color: var(--accent-purple);
+  background-color: rgba(24, 20, 42, 0.9);
+  border-color: rgba(124, 92, 255, 0.55);
+  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.28);
+}
+
+[data-theme="light"] .card-fav-btn.active {
+  color: var(--accent-purple);
+  background-color: rgba(245, 243, 255, 0.94);
+  border-color: rgba(124, 92, 255, 0.55);
+  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.22);
 }
 
 .artist-avatar-wrap {
@@ -7848,12 +7856,12 @@ body.table-col-resizing * {
 }
 
 .btn-track-fav:hover {
-  color: #f43f5e;
+  color: var(--accent-purple);
   transform: scale(1.15);
 }
 
 .btn-track-fav.active {
-  color: #f43f5e;
+  color: var(--accent-purple);
 }
 
 .fav-svg-icon,
