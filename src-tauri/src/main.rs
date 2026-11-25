@@ -301,7 +301,6 @@ async fn main() {
             audio_get_dsd_stream_url,
             audio_get_sox_stream_url,
             audio_get_duration,
-            audio_get_spectrum,
             conv_get_ir_info,
             conv_pick_ir_file,
             // DSP commands

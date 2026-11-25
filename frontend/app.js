@@ -262,7 +262,6 @@ const state = {
   availableDevices: [],
   dlnaCurrentSec: 0,
   dlnaTotalSec: 0,
-  activeSpectrumToken: null,
   favorites: {
     albums: [],
     tracks: [],
@@ -10291,7 +10290,6 @@ async function playCurrentTrack() {
         if (res && res.success) {
           clearDlnaPrepareUi();
           state.isPlaying = true;
-          state.activeSpectrumToken = res.token || null; // DSP sessions carry a spectrum window; direct streams return null data and the visualizer hides itself
           updatePlayPauseBtnUI();
           const dur = track.duration || 0;
           if (dspOptions && dspOptions.dsdMode) {
@@ -14530,14 +14528,6 @@ function setNowPlayingViewMode(mode) {
     fontControls.style.display = safeMode === 'lyrics' ? 'inline-flex' : 'none';
   }
 
-  if (safeMode === 'cover') {
-    if (typeof window.startNowPlayingSpectrum === 'function') {
-      requestAnimationFrame(() => window.startNowPlayingSpectrum());
-    }
-  } else if (typeof window.stopNowPlayingSpectrum === 'function') {
-    window.stopNowPlayingSpectrum();
-  }
-
   if (safeMode === 'lyrics') {
     const activeLine = document.querySelector('#nowPlayingLyricsContainer .lyric-line.active');
     if (activeLine) {
@@ -14886,9 +14876,6 @@ function openNowPlayingModal() {
       updateNowPlayingPlaybackProgress();
     }, 250);
   }
-  if (currentNpViewMode === 'cover' && typeof window.startNowPlayingSpectrum === 'function') {
-    requestAnimationFrame(() => window.startNowPlayingSpectrum());
-  }
 }
 
 function closeNowPlayingModal() {
@@ -14898,9 +14885,6 @@ function closeNowPlayingModal() {
   if (nowPlayingSyncInterval) {
     clearInterval(nowPlayingSyncInterval);
     nowPlayingSyncInterval = null;
-  }
-  if (typeof window.stopNowPlayingSpectrum === 'function') {
-    window.stopNowPlayingSpectrum();
   }
 }
 
@@ -16362,142 +16346,6 @@ function describeClockGaps(samples, topN = 3) {
   return gaps.slice(0, topN).map(g => `${Math.round(g.gapMs)}ms(${g.from.toFixed(3)}→${g.to.toFixed(3)})`).join(' ');
 }
 
-// 連續取頻譜窗：相鄰兩窗內容完全相同 = 頻譜卡頓（取到的還是同一個窗）
-async function sampleSpectrumWindows(getTime, getToken, count, gapMs) {
-  const wins = [];
-  for (let i = 0; i < count; i++) {
-    const t = getTime();
-    let res = null;
-    try { res = await window.electronAPI.getAudioSpectrum(getToken(), t); } catch (err) {}
-    const key = (res && res.left && res.left.length >= 16)
-      ? Array.from(res.left.slice(res.left.length - 8)).map(x => x.toFixed(6)).join(',') : 'null';
-    wins.push({ t, key });
-    await new Promise(r => setTimeout(r, gapMs));
-  }
-  const got = wins.filter(w => w.key !== 'null');
-  let repeats = 0;
-  for (let i = 1; i < got.length; i++) if (got[i].key === got[i - 1].key) repeats++;
-  return { got: got.length, repeats, pairs: Math.max(1, got.length - 1) };
-}
-
-// ----------------- 頻譜順滑度自我測試（main.js --test-spectrum-smooth） -----------------
-// helper 的 pos 事件最快 250ms 一次；若播放位置只跟著事件走，NOW PLAYING 頻譜會連續幾次
-// 取到同一個窗再突然跳一格（卡頓）。這裡直接量「播放位置推進是否連續」與「頻譜窗是否重複」。
-async function runSpectrumSmoothSelfTest(fixturePath) {
-  const lines = [];
-  const ok = (name, detail) => lines.push(`PASS ${name}${detail ? ' [' + detail + ']' : ''}`);
-  const bad = (name, detail) => lines.push(`FAIL ${name}${detail ? ' [' + detail + ']' : ''}`);
-  const finish = () => {
-    exclusiveEventTap = null;
-    restoreNowPlaying();
-    try { exclusiveStopStream(); } catch (err) {}
-    const failed = lines.filter(l => l.startsWith('FAIL'));
-    const report = (failed.length ? 'FAIL ' : 'PASS ') + lines.join(' | ');
-    try { window.electronAPI.captureStep(24, report); } catch (err) {}
-  };
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const waitForEvent = (pred, ms) => new Promise((resolve) => {
-    const t0 = Date.now();
-    const tick = () => {
-      const hit = events.find(pred);
-      if (hit) { resolve(hit); return; }
-      if (Date.now() - t0 > ms) { resolve(null); return; }
-      setTimeout(tick, 100);
-    };
-    tick();
-  });
-  const sampleClock = sampleClockRaf;
-  const analyzeClock = analyzeClockSamples;
-  const sampleWindows = (count, gapMs) => sampleSpectrumWindows(
-    () => getCurrentPlaybackTime(), () => null, count, gapMs);
-
-  const events = [];
-  let savedQueue = null, savedIndex = -1, savedPlaying = false, savedIsSox = false, npOpened = false;
-  const restoreNowPlaying = () => {
-    try {
-      if (npOpened) { closeNowPlayingModal(); npOpened = false; }
-      state.queue = savedQueue;
-      state.currentTrackIndex = savedIndex;
-      state.isPlaying = savedPlaying;
-      isCurrentSox = savedIsSox;
-    } catch (err) {}
-  };
-  try {
-    if (!fixturePath || !window.electronAPI || !window.electronAPI.getSoxStreamUrl) {
-      bad('fixture / stream IPC available', 'fixture=' + fixturePath); finish(); return;
-    }
-    const cap = await exclusiveEnsureCapability(true);
-    const rates = exclusiveSupportedRates();
-    if (!cap || !cap.ok || !rates.length) {
-      bad('probe exclusive capability', JSON.stringify(cap || {}).slice(0, 160)); finish(); return;
-    }
-    const rate = exclusiveChooseRate(44100, 96000) || rates[0];
-    const url = await window.electronAPI.getSoxStreamUrl(fixturePath, 0, rate, '', 5, 'linear', '', '');
-    if (!url) { bad('build engine sox-stream url'); finish(); return; }
-
-    // 記錄事件但交還給 app 正常處理（exclusiveEventTap 回傳 false），否則位置不會被更新
-    exclusiveEventTap = (ev) => { events.push(ev); return false; };
-    const started = await exclusiveStartStream({ filePath: fixturePath, sampleRate: 44100, duration: 14 }, 0, url, rate);
-    if (!started) { bad('exclusive start accepted'); finish(); return; }
-    const ready = await waitForEvent(e => e.ev === 'ready', 20000);
-    if (!ready) { bad('helper ready event', 'no ready within 20s'); finish(); return; }
-    await sleep(1500);
-
-    // 開 NOW PLAYING 並把這筆測試音放進佇列狀態，讓真正的頻譜迴圈一起跑（截圖才有內容）
-    savedQueue = state.queue; savedIndex = state.currentTrackIndex; savedPlaying = state.isPlaying; savedIsSox = isCurrentSox;
-    state.queue = [{ title: 'Spectrum Test Tone', artist: 'rooPlayer 自我測試', filePath: fixturePath, duration: 14, sampleRate: 44100, bitsPerSample: 24 }];
-    state.currentTrackIndex = 0;
-    state.isPlaying = true;
-    isCurrentSox = true; // 與實際獨佔播放相同：playSoxTrack 會先標記為引擎串流
-    openNowPlayingModal();
-    npOpened = true;
-    const specCanvas = document.getElementById('nowPlayingSpectrum');
-    const canvasReady = await new Promise((resolve) => {
-      const t0 = Date.now();
-      const tick = () => {
-        if (specCanvas && specCanvas.clientWidth > 100 && specCanvas.clientHeight > 40) { resolve(true); return; }
-        if (Date.now() - t0 > 6000) { resolve(false); return; }
-        setTimeout(tick, 120);
-      };
-      tick();
-    });
-    if (canvasReady) ok('NOW PLAYING 頻譜畫布已啟動', `${specCanvas.clientWidth}×${specCanvas.clientHeight}px`);
-    else bad('NOW PLAYING 頻譜畫布已啟動', '畫布未可見');
-    await sleep(600);
-
-    const posEvents = events.filter(e => e.ev === 'pos');
-    lines.push(`NOTE helper pos 事件 ${posEvents.length} 次（每 250ms 上限），取樣期間 ${posEvents.length ? ((posEvents[posEvents.length - 1].audible - posEvents[0].audible) / rate).toFixed(2) : '0'}s`);
-
-    const a = analyzeClock(await sampleClock(() => getCurrentPlaybackTime(), 2500));
-    // 門檻 120ms：要擋的是 helper 事件 250ms 一次的階梯；rAF 取樣本身會因掉幀有幾十毫秒抖動
-    if (a.maxFreezeMs <= 120) ok('播放位置連續推進（沒有 0.25 秒階梯）', `最大停滯 ${Math.round(a.maxFreezeMs)}ms、更新 ${a.changes} 次 / ${(a.spanMs / 1000).toFixed(1)}s`);
-    else bad('播放位置連續推進（沒有 0.25 秒階梯）', `最大停滯 ${Math.round(a.maxFreezeMs)}ms（需要 ≤120ms）`);
-    if (a.ratio > 0.9 && a.ratio < 1.1) ok('推算位置與牆鐘一致', `比例 ${a.ratio.toFixed(3)}（推進 ${a.advancedSec.toFixed(2)}s / ${a.spanMs.toFixed(0)}ms）`);
-    else bad('推算位置與牆鐘一致', `比例 ${a.ratio.toFixed(3)}`);
-    if (a.backwards === 0) ok('推算位置不回跳');
-    else bad('推算位置不回跳', `回跳 ${a.backwards} 次`);
-
-    // 頻譜窗：相鄰兩次取窗若內容完全相同，就是頻譜卡頓的直接原因
-    try { window.electronAPI.captureStep(23, 'spectrum windows sampling'); } catch (err) {}
-    const winStats = await sampleWindows(16, 90);
-    if (winStats.got >= 12 && winStats.repeats / winStats.pairs <= 0.1) ok('頻譜窗持續前進（不會重複取同一窗）', `${winStats.got} 次取窗、相鄰重複 ${winStats.repeats} 次`);
-    else bad('頻譜窗持續前進（不會重複取同一窗）', `取得 ${winStats.got} 次、相鄰重複 ${winStats.repeats}/${winStats.pairs}`);
-  } catch (err) {
-    bad('self-test threw', String((err && err.message) || err));
-  }
-  finish();
-}
-
-try {
-  const rpSpecParams = new URLSearchParams(window.location.search || '');
-  if (rpSpecParams.get('testSpectrumSmooth') === '1' && window.electronAPI && window.electronAPI.captureStep) {
-    setTimeout(() => { runSpectrumSmoothSelfTest(rpSpecParams.get('fixture') || ''); }, 2600);
-  }
-} catch (err) {}
-
-// ----------------- DLNA 串流準備提示自我測試（main.js --test-dlna-hint） -----------------
-// 用 tools/fake-dlna-renderer.js 的假 MediaRenderer（Play 後位置停在 0 三秒，模擬裝置 ramp-up），
-// 走完整的 playCurrentTrack 流程，斷言：提示立即出現、顯示實際記憶體緩衝、
 // 準備中連按三次播放鍵不會重送串流指令、裝置開播後提示自動消失。
 async function runDlnaPrepareHintSelfTest(fixturePath) {
   const lines = [];
@@ -16664,11 +16512,6 @@ async function runDlnaPrepareHintSelfTest(fixturePath) {
     else bad('DLNA 推算位置與牆鐘一致', `比例 ${a.ratio.toFixed(3)}`);
     if (a.backwards === 0) ok('DLNA 推算位置不回跳');
     else bad('DLNA 推算位置不回跳', `回跳 ${a.backwards} 次`);
-
-    const winStats = await sampleSpectrumWindows(
-      () => getCurrentPlaybackTime(), () => state.activeSpectrumToken || null, 14, 90);
-    if (winStats.got >= 10 && winStats.repeats / winStats.pairs <= 0.1) ok('DLNA 頻譜窗持續前進（不會重複取同一窗）', `${winStats.got} 次取窗、相鄰重複 ${winStats.repeats} 次`);
-    else bad('DLNA 頻譜窗持續前進（不會重複取同一窗）', `取得 ${winStats.got} 次、相鄰重複 ${winStats.repeats}/${winStats.pairs}`);
   } catch (err) {
     bad('self-test threw', String((err && err.message) || err));
   }
@@ -24094,181 +23937,6 @@ function updateTidalUIStatus() {
     }
   }
 }
-
-// ================= NOW PLAYING real-time spectrum visualizer =================
-// Fed directly from the DSP engine's source PCM (IPC window fetch ~8/s, FFT in the renderer).
-// Works for DLNA streaming (session token from playDlnaTrack) and local DSP playback (main-side
-// fallback token). Purely visual: it never touches the audio path and hides itself when the
-// active stream has no DSP session (direct passthrough).
-(function nowPlayingSpectrum() {
-  const canvas = document.getElementById('nowPlayingSpectrum');
-  const wrap = document.getElementById('nowPlayingSpectrumWrap');
-  if (!canvas || !wrap) return;
-  if (!window.electronAPI || !window.electronAPI.getAudioSpectrum) { wrap.style.display = 'none'; return; }
-
-  const BARS = 64, FFT_N = 2048;
-  const bars = new Float32Array(BARS), peaks = new Float32Array(BARS), targets = new Float32Array(BARS);
-  const re = new Float64Array(FFT_N), im = new Float64Array(FFT_N);
-  const hann = new Float32Array(FFT_N); let hannSum = 0;
-  for (let i = 0; i < FFT_N; i++) { hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FFT_N); hannSum += hann[i]; }
-
-  // Iterative radix-2 FFT with precomputed tables
-  let bits = 0; while ((1 << bits) < FFT_N) bits++;
-  const rev = new Uint16Array(FFT_N);
-  for (let i = 0; i < FFT_N; i++) { let r = 0; for (let b = 0; b < bits; b++) if (i & (1 << b)) r |= 1 << (bits - 1 - b); rev[i] = r; }
-  const cosT = new Float64Array(FFT_N / 2), sinT = new Float64Array(FFT_N / 2);
-  for (let i = 0; i < FFT_N / 2; i++) { cosT[i] = Math.cos(2 * Math.PI * i / FFT_N); sinT[i] = Math.sin(2 * Math.PI * i / FFT_N); }
-  function fftRun() {
-    for (let i = 0; i < FFT_N; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
-    for (let size = 2; size <= FFT_N; size <<= 1) {
-      const half = size >> 1, step = FFT_N / size;
-      for (let i = 0; i < FFT_N; i += size) {
-        for (let j = i, k = 0; j < i + half; j++, k += step) {
-          const c = cosT[k], s = -sinT[k];
-          const ar = re[j + half], ai = im[j + half];
-          const wr = ar * c - ai * s, wi = ar * s + ai * c;
-          re[j + half] = re[j] - wr; im[j + half] = im[j] - wi;
-          re[j] += wr; im[j] += wi;
-        }
-      }
-    }
-  }
-
-  // Log-frequency bar ranges: 40 Hz .. min(16 kHz, 0.45 x rate)
-  let binRanges = null, binRate = 0;
-  function buildBins(rate) {
-    const fMin = 40, fMax = Math.min(16000, rate * 0.45);
-    binRanges = new Array(BARS);
-    for (let b = 0; b < BARS; b++) {
-      const f0 = fMin * Math.pow(fMax / fMin, b / BARS), f1 = fMin * Math.pow(fMax / fMin, (b + 1) / BARS);
-      const k0 = Math.max(1, Math.round(f0 * FFT_N / rate));
-      const k1 = Math.max(k0 + 1, Math.min(Math.round(f1 * FFT_N / rate), FFT_N / 2 - 1));
-      binRanges[b] = [k0, k1, Math.sqrt(f0 * f1)];
-    }
-    binRate = rate;
-  }
-
-  // DLNA zone -> that stream's DSP session token; local zone -> only DSP playback
-  // (null token = main-side fallback to the latest local DSP session). undefined = no source.
-  function spectrumSource() {
-    if (state.activeAudioZone !== 'local' && state.activeDlnaDevice) return state.activeSpectrumToken || undefined;
-    return (isCurrentDsd || isCurrentSox) ? null : undefined;
-  }
-
-  let fetching = false, lastFetch = 0;
-  async function fetchSpectrum() {
-    const src = spectrumSource();
-    if (src === undefined) { targets.fill(0); return; }
-    let res = null;
-    try { res = await window.electronAPI.getAudioSpectrum(src, getCurrentPlaybackTime()); } catch (e) { res = null; }
-    if (!res || !res.left || res.left.length < FFT_N || !res.rate) { targets.fill(0); return; }
-    if (binRate !== res.rate) buildBins(res.rate);
-    const L = res.left, R = res.right, start = L.length - FFT_N;
-    for (let i = 0; i < FFT_N; i++) { re[i] = (L[start + i] + R[start + i]) * 0.5 * hann[i]; im[i] = 0; }
-    fftRun();
-    for (let b = 0; b < BARS; b++) {
-      const rng = binRanges[b], k0 = rng[0], k1 = rng[1];
-      let acc = 0;
-      for (let k = k0; k < k1; k++) acc += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
-      const mag = acc / ((k1 - k0) * hannSum);
-      let db = 20 * Math.log10(mag + 1e-12);
-      db += Math.max(0, Math.min(14, 10 * Math.log10(rng[2] / 200))); // gentle pink tilt keeps highs lively
-      targets[b] = Math.max(0, Math.min(1, (db + 78) / 66));
-    }
-  }
-
-  // Canvas sizing + gradient matching the scrubber palette (cyan -> purple -> pink)
-  let ctx = null, cw = 0, ch = 0, grad = null;
-  function resize() {
-    cw = canvas.clientWidth; ch = canvas.clientHeight;
-    if (!cw || !ch) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
-    ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    grad = ctx.createLinearGradient(0, ch, 0, 0);
-    grad.addColorStop(0, '#06b6d4');
-    grad.addColorStop(0.55, '#8b5cf6');
-    grad.addColorStop(1, '#ec4899');
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, cw, ch);
-    const slot = cw / BARS, barW = Math.max(2, slot * 0.62);
-    ctx.fillStyle = 'rgba(139, 92, 246, 0.16)';
-    ctx.fillRect(0, ch - 2, cw, 2); // idle baseline
-    for (let b = 0; b < BARS; b++) {
-      const v = bars[b];
-      if (v < 0.004) continue;
-      const hgt = Math.max(3, v * (ch - 10));
-      const x = b * slot + (slot - barW) / 2, y = ch - hgt - 2;
-      ctx.globalAlpha = 0.22; // soft glow halo
-      ctx.fillStyle = grad;
-      ctx.fillRect(x - 2, y - 2, barW + 4, hgt + 2);
-      ctx.globalAlpha = 1;
-      ctx.fillRect(x, y, barW, hgt);
-      const py = ch - Math.max(3, peaks[b] * (ch - 10)) - 4; // falling peak-hold caps
-      if (py > 1) { ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x, py, barW, 2); }
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  let animId = null;
-  let isRunning = false;
-
-  function stop() {
-    isRunning = false;
-    if (animId) {
-      cancelAnimationFrame(animId);
-      animId = null;
-    }
-  }
-
-  function start() {
-    if (isRunning) return;
-    if (!canvas.offsetParent) return;
-    isRunning = true;
-    animId = requestAnimationFrame(frame);
-  }
-
-  function frame(ts) {
-    if (!isRunning) return;
-    if (!canvas.offsetParent) {
-      // Completely halt animation loop when modal is closed to allow WebView2 to sleep
-      stop();
-      return;
-    }
-    animId = requestAnimationFrame(frame);
-    if (!canvas.clientWidth || canvas.clientWidth !== cw || canvas.clientHeight !== ch) resize();
-    if (!cw || !ch || !ctx) return; // modal closed: no drawing, no fetching
-    if (state.isPlaying && !fetching && ts - lastFetch > 90) {
-      lastFetch = ts; fetching = true;
-      Promise.resolve().then(fetchSpectrum).finally(() => { fetching = false; });
-    }
-    if (!state.isPlaying) targets.fill(0);
-    for (let b = 0; b < BARS; b++) {
-      bars[b] = Math.max(targets[b], bars[b] * 0.90); // instant attack, smooth fall
-      peaks[b] = Math.max(bars[b], peaks[b] - 0.010);
-    }
-    draw();
-  }
-
-  window.startNowPlayingSpectrum = start;
-  window.stopNowPlayingSpectrum = stop;
-
-  // Observe modal visibility changes to automatically start/stop without polling
-  const npModal = document.getElementById('nowPlayingModal');
-  if (npModal && window.MutationObserver) {
-    const observer = new MutationObserver(() => {
-      if (npModal.style.display !== 'none' && npModal.offsetParent !== null) {
-        start();
-      } else {
-        stop();
-      }
-    });
-    observer.observe(npModal, { attributes: true, attributeFilter: ['style', 'class'] });
-  }
-})();
 
 // ================= Roon-style Collapsible Sidebar Drawer (<= 900px) & Pin =================
 (function initCollapsibleSidebarDrawer() {

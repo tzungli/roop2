@@ -351,7 +351,6 @@
     resumeDlna: (deviceId) => invoke('dlna_resume', { deviceId }),
     stopDlna: (deviceId) => invoke('dlna_stop', { deviceId }),
     seekDlna: (deviceId, seconds) => invoke('dlna_seek', { deviceId, seconds }),
-    getAudioSpectrum: (token, timeSec) => invoke('audio_get_spectrum', { token, timeSec }),
     setDlnaVolume: (deviceId, volume) => invoke('dlna_set_volume', { deviceId, volume }),
     onDlnaDevicesChanged: (callback) => listen('dlna:devicesChanged', callback),
     onDlnaProgress: (callback) => listen('dlna:progress', callback),

@@ -157,13 +157,13 @@
 
     'about.manual.m11': `<div class="manual-item-header">
                   <span class="item-badge">Playback Experience</span>
-                  <h4>Player Controls, Spectrum &amp; Adaptive UI</h4>
+                  <h4>Player Controls &amp; Adaptive UI</h4>
                 </div>
                 <div class="manual-item-body">
                   <p>Immersive audiophile player and responsive window layout:</p>
                   <ul>
                     <li><strong>Audiophile Bottom Bar</strong>: Full playback controls, repeat/shuffle modes, volume slider, and live Hi-Res format badge.</li>
-                    <li><strong>Full-Screen Artwork &amp; Live Spectrum</strong>: Click cover art to open full-screen view featuring large album art, real-time spectrum, and lyrics.</li>
+                    <li><strong>Full-Screen Now Playing</strong>: Click cover art to open full-screen view featuring synced lyrics, large album artwork, album info, and tracklist.</li>
                     <li><strong>840 × 680 Window Protection</strong>: Minimum window boundary locked to 840 × 680 with responsive element layout to eliminate button collisions.</li>
                     <li><strong>Smart Resume</strong>: Automatically restores the last played track upon launch.</li>
                   </ul>

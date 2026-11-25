@@ -127,8 +127,3 @@ pub async fn conv_pick_ir_file() -> Result<Option<String>, String> {
 
     Ok(picked.map(|p| p.to_string_lossy().to_string()))
 }
-
-#[tauri::command]
-pub async fn audio_get_spectrum(_token: Option<String>, _time_sec: Option<f64>) -> Result<Vec<f64>, String> {
-    Ok(vec![0.0; 64])
-}
