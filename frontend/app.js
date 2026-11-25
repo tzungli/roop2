@@ -2356,6 +2356,12 @@ function updateBadgesAndStats() {
   }
   updateHistoryCountBadges();
 
+  const localFolderBadge = document.getElementById('localFolderCountBadge');
+  if (localFolderBadge) {
+    const localCount = (state.folders || []).filter(f => !isNetworkFolderPath(f)).length;
+    localFolderBadge.textContent = localCount;
+  }
+
   const netFolderBadge = document.getElementById('netFolderCountBadge');
   if (netFolderBadge) {
     const netCount = (state.folders || []).filter(f => isNetworkFolderPath(f)).length;
@@ -6825,12 +6831,15 @@ function isNetworkFolderPath(f) {
 
 // Render Scanned Local Folders
 function renderFolders() {
+  const localFolders = (state.folders || []).filter(f => !isNetworkFolderPath(f));
+  const localFolderBadge = document.getElementById('localFolderCountBadge');
+  if (localFolderBadge) localFolderBadge.textContent = localFolders.length;
+
   scannedFoldersList.innerHTML = '';
   if (!state.folders || state.folders.length === 0) {
     scannedFoldersList.innerHTML = '<div class="empty-folder-hint">尚未加入任何音樂資料夾，請點擊上方按鈕選取包含音樂的檔案夾。</div>';
     return;
   }
-  const localFolders = state.folders.filter(f => !isNetworkFolderPath(f));
   if (localFolders.length === 0) {
     scannedFoldersList.innerHTML = '<div class="empty-folder-hint">尚未加入任何本機音樂資料夾，請點擊上方按鈕選取。</div>';
     return;
@@ -6884,6 +6893,12 @@ function renderNetworkFolders() {
   const netFolders = (state.folders || []).filter(f => isNetworkFolderPath(f));
 
   // 更新左側導覽列徽章
+  const localFolderBadge = document.getElementById('localFolderCountBadge');
+  if (localFolderBadge) {
+    const localCount = (state.folders || []).filter(f => !isNetworkFolderPath(f)).length;
+    localFolderBadge.textContent = localCount;
+  }
+
   const netFolderBadge = document.getElementById('netFolderCountBadge');
   if (netFolderBadge) netFolderBadge.textContent = netFolders.length;
 
