@@ -11789,6 +11789,11 @@ function initMuseControls() {
         if (bypassEl) bypassEl.checked = false;
       }
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      if (typeof syncConvModalUI === 'function') syncConvModalUI();
+      if (typeof updateSignalPathUI === 'function') updateSignalPathUI();
+      if (typeof saveZoneDspProfile === 'function' && state.activeAudioZone) {
+        saveZoneDspProfile(state.activeAudioZone, state.dsp);
+      }
       peqScheduleReapply();
     });
   }
@@ -12448,6 +12453,7 @@ function initConvControls() {
     toggleConv.addEventListener('change', () => {
       state.dsp.conv.enabled = toggleConv.checked;
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      if (typeof saveZoneDspProfile === 'function' && state.activeAudioZone) saveZoneDspProfile(state.activeAudioZone, state.dsp);
       syncConvModalUI();
       updateSignalPathUI();
       if (state.isPlaying) restartCurrentStreamWithDsp();
@@ -12464,6 +12470,7 @@ function initConvControls() {
       if (!state.dsp.conv.enabled) state.dsp.conv.enabled = true; // loading an IR implies wanting it active
       convInfoCache = null;
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      if (typeof saveZoneDspProfile === 'function' && state.activeAudioZone) saveZoneDspProfile(state.activeAudioZone, state.dsp);
       syncConvModalUI();
       updateSignalPathUI();
       if (state.isPlaying) restartCurrentStreamWithDsp();
@@ -12477,6 +12484,7 @@ function initConvControls() {
       state.dsp.conv.enabled = false;
       convInfoCache = null;
       localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      if (typeof saveZoneDspProfile === 'function' && state.activeAudioZone) saveZoneDspProfile(state.activeAudioZone, state.dsp);
       syncConvModalUI();
       updateSignalPathUI();
       if (state.isPlaying) restartCurrentStreamWithDsp();
@@ -20150,6 +20158,8 @@ function cloneDspConfig(dspObj) {
     filterPhase: src.filterPhase || 'precise-linear',
     ultrasonicFilter: src.ultrasonicFilter || '30k',
     dither: src.dither || 'tpdf',
+    peq: typeof normalizePeqSettings === 'function' ? normalizePeqSettings(src.peq) : src.peq,
+    conv: typeof normalizeConvSettings === 'function' ? normalizeConvSettings(src.conv) : src.conv,
   };
 }
 

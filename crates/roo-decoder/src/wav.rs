@@ -22,7 +22,7 @@ pub fn parse_wav(file: &mut (impl Read + Seek)) -> Result<WavHeader> {
         bail!("Not a valid WAV/RIFF file");
     }
 
-    let mut fmt: Option<(u16, u16, u32, u16, u16)> = None;
+    let mut fmt: Option<(bool, u16, u32, u16, u16)> = None;
     let mut data_offset = 0u64;
     let mut data_size = 0u64;
 
@@ -32,6 +32,7 @@ pub fn parse_wav(file: &mut (impl Read + Seek)) -> Result<WavHeader> {
             break;
         }
         let chunk_size = file.read_u32::<LittleEndian>()? as u64;
+        let chunk_start = file.stream_position()?;
 
         if &chunk_id == b"fmt " {
             let format_tag = file.read_u16::<LittleEndian>()?;
@@ -40,21 +41,30 @@ pub fn parse_wav(file: &mut (impl Read + Seek)) -> Result<WavHeader> {
             let _byte_rate = file.read_u32::<LittleEndian>()?;
             let block_align = file.read_u16::<LittleEndian>()?;
             let bits_per_sample = file.read_u16::<LittleEndian>()?;
-            fmt = Some((format_tag, channels, sample_rate, block_align, bits_per_sample));
 
-            if chunk_size > 16 {
-                file.seek(SeekFrom::Current((chunk_size - 16) as i64))?;
+            let mut is_float = format_tag == 3;
+            // Handle WAVE_FORMAT_EXTENSIBLE (0xFFFE): SubFormat GUID starts at byte 24 of fmt chunk
+            if format_tag == 0xFFFE && chunk_size >= 40 {
+                // Skip cbSize (2), wValidBitsPerSample (2), dwChannelMask (4) = 8 bytes
+                file.seek(SeekFrom::Start(chunk_start + 24))?;
+                let subformat_tag = file.read_u16::<LittleEndian>()?;
+                is_float = subformat_tag == 3;
             }
+            fmt = Some((is_float, channels, sample_rate, block_align, bits_per_sample));
+
+            let next_pos = chunk_start + chunk_size + (chunk_size & 1);
+            file.seek(SeekFrom::Start(next_pos))?;
         } else if &chunk_id == b"data" {
-            data_offset = file.stream_position()?;
+            data_offset = chunk_start;
             data_size = chunk_size;
             break;
         } else {
-            file.seek(SeekFrom::Current(chunk_size as i64))?;
+            let next_pos = chunk_start + chunk_size + (chunk_size & 1);
+            file.seek(SeekFrom::Start(next_pos))?;
         }
     }
 
-    let (format_tag, channels, sample_rate, block_align, bits_per_sample) = match fmt {
+    let (is_float, channels, sample_rate, block_align, bits_per_sample) = match fmt {
         Some(f) => f,
         None => bail!("Missing 'fmt ' chunk in WAV file"),
     };
@@ -64,7 +74,7 @@ pub fn parse_wav(file: &mut (impl Read + Seek)) -> Result<WavHeader> {
         channels,
         bits_per_sample,
         block_align,
-        is_float: format_tag == 3,
+        is_float,
         data_offset,
         data_size,
     })

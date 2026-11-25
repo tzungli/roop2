@@ -6,10 +6,10 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use std::sync::LazyLock;
 use roo_dsp::{
-    build_dsf_header, DsdModulator, DitherType,
-    PeqBand, PeqChain, REGISTRY,
+    build_dsf_header, ConvolutionEngine, DsdModulator, DitherType,
+    PeqBand, PeqChain, REGISTRY, ir_response_peak, resample_ir_to_rate,
 };
-use roo_decoder::read_pcm_samples;
+use roo_decoder::{read_pcm_samples, read_wav_pcm};
 use anyhow::{bail, Result};
 
 pub struct ProgressiveSession {
@@ -307,6 +307,9 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
             }
         }
     }
+
+    // 3.5 Apply Convolution (IR) if configured
+    apply_convolution_if_configured(&opts.conv_json, src_rate, &mut left, &mut right);
 
     // 4. Apply ultrasonic noise protection filter if configured (e.g. 20k, 30k, 40k, 50k)
     if let Some(mode) = &opts.ultrasonic_filter {
@@ -691,6 +694,80 @@ pub struct PeqConfig {
     pub bands: Vec<PeqBand>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ConvConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(rename = "irPath", alias = "ir_path", default)]
+    pub ir_path: Option<String>,
+}
+
+fn apply_convolution_if_configured(
+    conv_json: &Option<String>,
+    src_rate: u32,
+    left: &mut Vec<f64>,
+    right: &mut Vec<f64>,
+) {
+    let conv_str = match conv_json {
+        Some(s) if !s.trim().is_empty() && s.trim() != "null" => s.trim(),
+        _ => return,
+    };
+    let conv_conf: ConvConfig = match serde_json::from_str(conv_str) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("[Convolution] Failed to parse conv_json: {}", e);
+            return;
+        }
+    };
+    if !conv_conf.enabled {
+        return;
+    }
+    let ir_path = match conv_conf.ir_path {
+        Some(p) if !p.trim().is_empty() => p,
+        _ => return,
+    };
+
+    match read_wav_pcm(&ir_path, 0.0, 30.0) {
+        Ok((ir_sr, mut ir_l, mut ir_r)) => {
+            if ir_l.is_empty() || ir_r.is_empty() {
+                tracing::warn!("[Convolution] IR file has 0 samples: {}", ir_path);
+                return;
+            }
+            if ir_sr != src_rate {
+                tracing::info!(
+                    "[Convolution] Resampling IR '{}' from {} Hz -> {} Hz",
+                    ir_path, ir_sr, src_rate
+                );
+                ir_l = resample_ir_to_rate(&ir_l, ir_sr as f64, src_rate as f64);
+                ir_r = resample_ir_to_rate(&ir_r, ir_sr as f64, src_rate as f64);
+            }
+            let peak = ir_response_peak(&ir_l).max(ir_response_peak(&ir_r));
+            if peak > 1.0 {
+                let scale = 1.0 / peak;
+                for x in ir_l.iter_mut() { *x *= scale; }
+                for x in ir_r.iter_mut() { *x *= scale; }
+                tracing::info!(
+                    "[Convolution] Auto-attenuated IR by {:.2} dB (peak={:.3}) to prevent clipping",
+                    -20.0 * peak.log10(),
+                    peak
+                );
+            }
+            if let Some(mut engine) = ConvolutionEngine::new(src_rate as f64, &ir_l, &ir_r) {
+                let (out_l, out_r) = engine.apply_stereo_aligned(left, right);
+                *left = out_l;
+                *right = out_r;
+                tracing::info!(
+                    "[Convolution] Applied IR '{}' ({} taps @ {} Hz) to {} stereo frames",
+                    ir_path, ir_l.len(), src_rate, left.len()
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!("[Convolution] Failed to read IR '{}', bypassing: {}", ir_path, e);
+        }
+    }
+}
+
 pub struct GeneratedStream {
     pub mime_type: &'static str,
     pub total_bytes: u64,
@@ -719,6 +796,9 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
             }
         }
     }
+
+    // 2.5 Apply Convolution (IR) if configured
+    apply_convolution_if_configured(&opts.conv_json, src_rate, &mut left, &mut right);
 
     // Apply ultrasonic noise protection filter on input if configured (e.g. 20k, 30k, 40k, 50k)
     if let Some(mode) = &opts.ultrasonic_filter {

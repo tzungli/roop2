@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 use std::path::Path;
 use lofty::file::AudioFile;
-use roo_decoder::read_wav_pcm;
+use roo_decoder::{parse_wav, read_wav_pcm};
 use roo_dsp::ir_response_peak;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -12,6 +13,10 @@ pub struct IrInfo {
     #[serde(rename = "sampleRate")]
     pub sample_rate: u32,
     pub channels: usize,
+    #[serde(rename = "durationMs")]
+    pub duration_ms: f64,
+    #[serde(rename = "responsePeak")]
+    pub response_peak: f64,
     #[serde(rename = "peakGainLin")]
     pub peak_gain_lin: f64,
     #[serde(rename = "peakGainDb")]
@@ -88,9 +93,12 @@ pub async fn audio_get_duration(file_path: String) -> Result<f64, String> {
 
 #[tauri::command]
 pub async fn conv_get_ir_info(ir_path: String) -> Result<IrInfo, String> {
-    let (sr, left, _right) = read_wav_pcm(&ir_path, 0.0, 30.0).map_err(|e| e.to_string())?;
+    let mut f = File::open(&ir_path).map_err(|e| format!("無法開啟檔案: {}", e))?;
+    let header = parse_wav(&mut f).map_err(|e| e.to_string())?;
+    let (sr, left, right) = read_wav_pcm(&ir_path, 0.0, 30.0).map_err(|e| e.to_string())?;
     let taps = left.len();
-    let peak_lin = ir_response_peak(&left);
+    let duration_ms = if sr > 0 { (taps as f64 / sr as f64) * 1000.0 } else { 0.0 };
+    let peak_lin = ir_response_peak(&left).max(ir_response_peak(&right));
     let peak_db = if peak_lin > 1e-7 { 20.0 * peak_lin.log10() } else { -120.0 };
 
     Ok(IrInfo {
@@ -98,7 +106,9 @@ pub async fn conv_get_ir_info(ir_path: String) -> Result<IrInfo, String> {
         path: ir_path,
         taps,
         sample_rate: sr,
-        channels: 2,
+        channels: header.channels as usize,
+        duration_ms,
+        response_peak: peak_lin,
         peak_gain_lin: peak_lin,
         peak_gain_db: peak_db,
     })
@@ -106,8 +116,16 @@ pub async fn conv_get_ir_info(ir_path: String) -> Result<IrInfo, String> {
 
 #[tauri::command]
 pub async fn conv_pick_ir_file() -> Result<Option<String>, String> {
-    // Return empty / dialog placeholder
-    Ok(None)
+    let picked = tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("選擇卷積濾波器脈衝響應 (IR) WAV 檔案")
+            .add_filter("Impulse Response WAV", &["wav"])
+            .pick_file()
+    })
+    .await
+    .map_err(|e| format!("對話框執行失敗: {}", e))?;
+
+    Ok(picked.map(|p| p.to_string_lossy().to_string()))
 }
 
 #[tauri::command]

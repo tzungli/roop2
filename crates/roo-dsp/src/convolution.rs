@@ -218,4 +218,117 @@ impl ConvolutionEngine {
             out_r[i] = or;
         }
     }
+
+    /// Convolve a full stereo buffer with exact latency compensation:
+    /// flushes the 1-block (CONV_BLOCK_SIZE - 1) overlap-save pipeline delay
+    /// so output sample `i` corresponds directly to linear convolution `y[i]`.
+    pub fn apply_stereo_aligned(&mut self, in_l: &[f64], in_r: &[f64]) -> (Vec<f64>, Vec<f64>) {
+        let n = in_l.len().min(in_r.len());
+        let latency = CONV_BLOCK_SIZE - 1;
+        let mut out_l = vec![0.0f64; n];
+        let mut out_r = vec![0.0f64; n];
+
+        for i in 0..n {
+            let (ol, or) = self.process_pair(in_l[i], in_r[i]);
+            if i >= latency {
+                out_l[i - latency] = ol;
+                out_r[i - latency] = or;
+            }
+        }
+        for j in 0..latency {
+            let (ol, or) = self.process_pair(0.0, 0.0);
+            let idx = n + j;
+            if idx >= latency && (idx - latency) < n {
+                out_l[idx - latency] = ol;
+                out_r[idx - latency] = or;
+            }
+        }
+        (out_l, out_r)
+    }
+}
+
+/// Resample an impulse response from `src_fs` to `dst_fs` using a Kaiser-windowed sinc
+/// interpolator, scaling amplitude by `src_fs / dst_fs` so frequency-domain gain stays invariant.
+pub fn resample_ir_to_rate(ir: &[f64], src_fs: f64, dst_fs: f64) -> Vec<f64> {
+    if ir.is_empty() || src_fs <= 0.0 || dst_fs <= 0.0 {
+        return Vec::new();
+    }
+    if (src_fs - dst_fs).abs() < 1e-3 {
+        return ir.iter().copied().take(CONV_MAX_IR_TAPS).collect();
+    }
+
+    let ratio = dst_fs / src_fs;
+    let out_len = ((ir.len() as f64 * ratio).round() as usize).clamp(1, CONV_MAX_IR_TAPS);
+    let cutoff = ratio.min(1.0);
+    let half_win: isize = 24;
+    let inv_ratio = src_fs / dst_fs;
+    let gain_scale = inv_ratio * cutoff; // preserves unity passband gain
+    let mut out = vec![0.0f64; out_len];
+
+    for n in 0..out_len {
+        let pos = n as f64 * inv_ratio;
+        let center = pos.floor() as isize;
+        let mut acc = 0.0f64;
+        for m in (center - half_win + 1)..=(center + half_win) {
+            if m < 0 || (m as usize) >= ir.len() {
+                continue;
+            }
+            let x = pos - m as f64;
+            let sinc_arg = std::f64::consts::PI * cutoff * x;
+            let sinc = if sinc_arg.abs() < 1e-12 {
+                1.0
+            } else {
+                sinc_arg.sin() / sinc_arg
+            };
+            // Hann window over [-half_win, half_win]
+            let u = x / (half_win as f64);
+            let win = if u.abs() >= 1.0 {
+                0.0
+            } else {
+                0.5 * (1.0 + (std::f64::consts::PI * u).cos())
+            };
+            acc += ir[m as usize] * sinc * win;
+        }
+        out[n] = acc * gain_scale;
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_stereo_aligned_zero_latency() {
+        let mut ir_l = vec![0.0; 2600];
+        ir_l[5] = 0.75;
+        ir_l[2500] = -0.25;
+        let mut ir_r = vec![0.0; 2600];
+        ir_r[0] = 1.0;
+
+        let mut eng = ConvolutionEngine::new(48000.0, &ir_l, &ir_r).unwrap();
+        let mut in_l = vec![0.0; 3000];
+        let mut in_r = vec![0.0; 3000];
+        in_l[0] = 1.0;
+        in_r[10] = 0.5;
+
+        let (out_l, out_r) = eng.apply_stereo_aligned(&in_l, &in_r);
+        assert!((out_l[5] - 0.75).abs() < 1e-12, "L tap 5: {}", out_l[5]);
+        assert!((out_l[2500] - (-0.25)).abs() < 1e-12, "L tap 2500: {}", out_l[2500]);
+        assert!((out_r[10] - 0.5).abs() < 1e-12, "R tap 10: {}", out_r[10]);
+    }
+
+    #[test]
+    fn test_resample_ir_preserves_dc_gain() {
+        // Dirac delta at center of 48kHz IR
+        let mut ir = vec![0.0; 129];
+        ir[64] = 1.0;
+        let ir_441 = resample_ir_to_rate(&ir, 48000.0, 44100.0);
+        let sum_441: f64 = ir_441.iter().sum();
+        assert!((sum_441 - 1.0).abs() < 1e-3, "DC gain at 44.1kHz = {}", sum_441);
+
+        let ir_96 = resample_ir_to_rate(&ir, 48000.0, 96000.0);
+        let sum_96: f64 = ir_96.iter().sum();
+        assert!((sum_96 - 1.0).abs() < 1e-3, "DC gain at 96kHz = {}", sum_96);
+    }
 }
