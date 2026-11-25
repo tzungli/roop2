@@ -3611,68 +3611,157 @@ function renderRooDailyPick() {
 
 let currentNewReleasesTab = 'albums';
 let currentNewReleasesPage = 0;
-let _underExploredCacheVersion = -1;
+let _underExploredCacheKey = '';
 let _underExploredAlbums = [];
 let _underExploredTracks = [];
 
 function buildUnderExploredPools() {
-  if (_underExploredCacheVersion === libraryCollectionVersion && _underExploredAlbums.length > 0) {
+  const history = getPlaybackHistory() || [];
+  const stats = getPlayStatsRef();
+  const favAlbums = (state.favorites && state.favorites.albums) || [];
+  const favTracks = (state.favorites && state.favorites.tracks) || [];
+  const latestHistKey = (history[0] && (history[0].playedAt || history[0].timestamp || history[0].title)) || '';
+  const cacheKey = `${libraryCollectionVersion}__${history.length}__${latestHistKey}__${favAlbums.length}__${favTracks.length}`;
+
+  if (_underExploredCacheKey === cacheKey && (_underExploredAlbums.length > 0 || _underExploredTracks.length > 0)) {
     return { albums: _underExploredAlbums, tracks: _underExploredTracks };
   }
 
   const norm = (s) => String(s || '').trim().toLowerCase();
-  const history = getPlaybackHistory() || [];
-  const stats = getPlayStatsRef();
+  const allAlbums = Array.isArray(state.albums) ? state.albums : [];
+  const allTracks = Array.isArray(state.tracks) ? state.tracks : [];
+  const albumByKey = new Map();
+  allAlbums.forEach(alb => {
+    if (!alb || !alb.title) return;
+    albumByKey.set(`${norm(alb.title)}___${norm(alb.artist)}`, alb);
+  });
 
-  const artistPlayCounts = new Map();
-  const albumPlayCounts = new Map();
-  const genrePlayCounts = new Map();
+  // =========================================================================
+  // 1. ALBUM RECOMMENDATION POOL: driven by the albums the user has listened to
+  // =========================================================================
+  const albumListenScore = new Map(); // bk -> score
+  const albumPlayCounts = new Map();  // bk -> play count
+  const albumSeedMap = new Map();     // bk -> { title, artist, genre, label, year, score }
+  const albumGenreAffinity = new Map();
+  const albumArtistAffinity = new Map();
+  const albumLabelAffinity = new Map();
+  const listenedAlbumYears = [];
 
   const bump = (map, k, n = 1) => {
     if (!k) return;
     map.set(k, (map.get(k) || 0) + n);
   };
 
-  history.forEach(h => {
+  const registerAlbumSignal = (albTitle, artName, genreHint, labelHint, yearHint, weight, countInc = 0) => {
+    const at = String(albTitle || '').trim();
+    const ar = String(artName || '').trim();
+    if (!at) return;
+    const bk = `${norm(at)}___${norm(ar)}`;
+    const matchedAlb = albumByKey.get(bk);
+    const g = canonicalizeGenre(genreHint || (matchedAlb && matchedAlb.genre) || '', matchedAlb || { title: at, artist: ar });
+    const lbl = norm(labelHint || (matchedAlb && matchedAlb.label) || '');
+    const yr = parseInt(yearHint || (matchedAlb && (matchedAlb.year || (matchedAlb.date ? String(matchedAlb.date).slice(0, 4) : ''))) || '', 10);
+
+    if (countInc > 0) bump(albumPlayCounts, bk, countInc);
+    bump(albumListenScore, bk, weight);
+    if (g) bump(albumGenreAffinity, g, weight);
+    if (ar && !isUnknownArtist(ar)) bump(albumArtistAffinity, norm(ar), weight);
+    if (lbl) bump(albumLabelAffinity, lbl, weight);
+    if (!Number.isNaN(yr) && yr > 1900) listenedAlbumYears.push(yr);
+
+    const prev = albumSeedMap.get(bk);
+    const nextScore = (prev ? prev.score : 0) + weight;
+    albumSeedMap.set(bk, {
+      title: (matchedAlb && matchedAlb.title) || at,
+      artist: (matchedAlb && matchedAlb.artist) || ar,
+      genre: g,
+      label: lbl,
+      year: (!Number.isNaN(yr) && yr > 1900) ? yr : 0,
+      score: nextScore,
+    });
+  };
+
+  history.slice(0, 150).forEach((h, idx) => {
     if (!h) return;
-    bump(artistPlayCounts, norm(h.artist), 1);
-    bump(albumPlayCounts, `${norm(h.album)}___${norm(h.artist)}`, 1);
-    bump(genrePlayCounts, canonicalizeGenre(h.genre || '', h), 1);
+    const recencyWeight = idx < 20 ? 3.0 : (idx < 60 ? 1.8 : 1.0);
+    registerAlbumSignal(h.album, h.artist, h.genre, h.label, h.year, recencyWeight, 1);
   });
 
-  (state.tracks || []).forEach(t => {
+  allTracks.forEach(t => {
+    if (!t) return;
     const tKey = t.id || `${t.title}___${t.artist}`;
     const plays = (stats.tracks && stats.tracks[tKey]) || 0;
     if (plays > 0) {
-      bump(artistPlayCounts, norm(t.artist), plays);
-      bump(albumPlayCounts, `${norm(t.album)}___${norm(t.artist)}`, plays);
-      bump(genrePlayCounts, t.genre || canonicalizeGenre(t.genre, t), plays);
+      registerAlbumSignal(t.album, t.artist, t.genre, t.label, t.year, Math.min(plays, 12) * 1.4, plays);
     }
   });
 
-  // Score albums: lower total play count across album + artist + genre = higher discovery priority
-  const scoredAlbums = (state.albums || []).map(alb => {
+  favAlbums.forEach(fa => {
+    if (!fa) return;
+    registerAlbumSignal(fa.title || fa.album, fa.artist, fa.genre, fa.label, fa.year, 4.5, 0);
+  });
+
+  const seedAlbums = Array.from(albumSeedMap.values()).sort((a, b) => b.score - a.score);
+
+  const scoredAlbums = allAlbums.map(alb => {
     const ak = norm(alb.artist);
     const bk = `${norm(alb.title)}___${ak}`;
     const g = canonicalizeGenre(alb.genre || '', alb);
-    const aPlays = artistPlayCounts.get(ak) || 0;
-    const bPlays = albumPlayCounts.get(bk) || 0;
-    const gPlays = genrePlayCounts.get(g) || 0;
-    // Lower score = less listened (more under-explored)
-    const listenWeight = bPlays * 6 + aPlays * 3 + Math.min(gPlays, 20) * 0.5;
-    const hasCoverBonus = alb.cover ? -0.35 : 0;
-    const jitter = Math.random() * 1.2;
-    return { alb, g, bPlays, aPlays, gPlays, score: listenWeight + hasCoverBonus + jitter };
-  }).sort((a, b) => a.score - b.score);
+    const lbl = norm(alb.label || '');
+    const yr = parseInt(alb.year || (alb.date ? String(alb.date).slice(0, 4) : ''), 10) || 0;
 
-  // Pick up to 15 diverse under-explored albums (preferring unique artists)
+    const bPlays = albumPlayCounts.get(bk) || 0;
+    const aPlays = albumArtistAffinity.get(ak) || 0;
+    const gAff = albumGenreAffinity.get(g) || 0;
+    const lAff = lbl ? (albumLabelAffinity.get(lbl) || 0) : 0;
+
+    // Novelty vs familiarity balance: prioritize unplayed/lightly played albums matching listened albums
+    let score = bPlays === 0 ? 6.0 : (bPlays <= 2 ? 2.0 : -12.0 - Math.min(bPlays, 15));
+    score += Math.min(10, gAff * 2.2);
+    score += Math.min(9, aPlays * 2.5);
+    score += Math.min(3.5, lAff * 1.2);
+
+    if (yr > 1900 && listenedAlbumYears.some(sy => Math.abs(sy - yr) <= 5)) {
+      score += 1.5;
+    }
+    if (alb.cover) score += 0.6;
+    score += Math.random() * 1.4;
+
+    // Pick best matching listened album as explanation seed
+    let seedAlbum = null;
+    let reasonType = 'discovery';
+    if (aPlays > 0) {
+      seedAlbum = seedAlbums.find(s => norm(s.artist) === ak && norm(s.title) !== norm(alb.title)) || seedAlbums.find(s => norm(s.artist) === ak);
+      if (seedAlbum) reasonType = 'artist';
+    }
+    if (!seedAlbum && gAff > 0 && g) {
+      seedAlbum = seedAlbums.find(s => s.genre === g && norm(s.title) !== norm(alb.title));
+      if (seedAlbum) reasonType = 'genre';
+    }
+    if (!seedAlbum && lAff > 0 && lbl) {
+      seedAlbum = seedAlbums.find(s => s.label === lbl && norm(s.title) !== norm(alb.title));
+      if (seedAlbum) reasonType = 'label';
+    }
+
+    return {
+      alb,
+      g,
+      bPlays,
+      aPlays,
+      gPlays: gAff,
+      seedAlbum,
+      reasonType,
+      score
+    };
+  }).sort((a, b) => b.score - a.score);
+
   const pickedAlbums = [];
-  const usedArtists = new Set();
+  const usedAlbumArtists = new Set();
   for (const entry of scoredAlbums) {
     if (pickedAlbums.length >= 15) break;
     const ak = norm(entry.alb.artist);
-    if (ak && usedArtists.has(ak)) continue;
-    if (ak) usedArtists.add(ak);
+    if (ak && usedAlbumArtists.has(ak)) continue;
+    if (ak) usedAlbumArtists.add(ak);
     pickedAlbums.push(entry);
   }
   if (pickedAlbums.length < 15) {
@@ -3682,26 +3771,159 @@ function buildUnderExploredPools() {
     }
   }
 
-  // Pick up to 15 under-explored tracks (1 per album for variety)
+  // =========================================================================
+  // 2. TRACK RECOMMENDATION POOL: driven by the individual tracks the user listens to
+  // =========================================================================
+  const trackArtistAffinity = new Map();
+  const trackGenreAffinity = new Map();
+  const trackComposerAffinity = new Map();
+  const playedTrackKeys = new Map(); // tk -> play count
+  const seedTrackMap = new Map();
+  let durSum = 0;
+  let durCnt = 0;
+
+  const trackIdentityKey = (t) => t.filePath
+    ? `fp:${t.filePath}`
+    : `${norm(t.title)}___${norm(t.artist)}___${norm(t.album)}`;
+
+  const registerTrackSignal = (tObj, weight, countInc = 0) => {
+    if (!tObj || !tObj.title) return;
+    const tk = trackIdentityKey(tObj);
+    const ar = String(tObj.artist || '').trim();
+    const ak = norm(ar);
+    const g = canonicalizeGenre(tObj.genre || '', tObj);
+    const cmp = norm(tObj.composer || '');
+    const dur = Number(tObj.duration) || 0;
+
+    if (countInc > 0) bump(playedTrackKeys, tk, countInc);
+    if (ar && !isUnknownArtist(ar)) bump(trackArtistAffinity, ak, weight);
+    if (g) bump(trackGenreAffinity, g, weight);
+    if (cmp) bump(trackComposerAffinity, cmp, weight);
+    if (dur > 30 && dur < 1800) {
+      durSum += dur;
+      durCnt++;
+    }
+
+    const prev = seedTrackMap.get(tk);
+    seedTrackMap.set(tk, {
+      title: tObj.title,
+      artist: ar,
+      album: tObj.album || '',
+      genre: g,
+      composer: cmp,
+      score: (prev ? prev.score : 0) + weight,
+    });
+  };
+
+  history.slice(0, 150).forEach((h, idx) => {
+    if (!h) return;
+    const recencyWeight = idx < 15 ? 3.5 : (idx < 50 ? 2.0 : 1.0);
+    registerTrackSignal(h, recencyWeight, 1);
+  });
+
+  allTracks.forEach(t => {
+    if (!t) return;
+    const tKey = t.id || `${t.title}___${t.artist}`;
+    const plays = (stats.tracks && stats.tracks[tKey]) || 0;
+    if (plays > 0) {
+      registerTrackSignal(t, Math.min(plays, 12) * 1.6, plays);
+    }
+  });
+
+  favTracks.forEach(ft => {
+    if (!ft) return;
+    registerTrackSignal(ft, 4.5, 0);
+  });
+
+  const seedTracks = Array.from(seedTrackMap.values()).sort((a, b) => b.score - a.score);
+  const avgTrackDur = durCnt > 0 ? durSum / durCnt : 0;
+
+  // Prevent Tracks tab from duplicating the top recommended albums
+  const topAlbumKeys = new Set(
+    pickedAlbums.slice(0, 10).map(e => `${norm(e.alb.title)}___${norm(e.alb.artist)}`)
+  );
+
+  const scoredTracks = [];
+  for (let i = 0; i < allTracks.length; i++) {
+    const t = allTracks[i];
+    if (!t || !t.title) continue;
+    const tk = trackIdentityKey(t);
+    const tPlays = getTrackPlayCount(t) || playedTrackKeys.get(tk) || 0;
+    const ak = norm(t.artist);
+    const bk = `${norm(t.album)}___${ak}`;
+    const alb = albumByKey.get(bk) || { title: t.album || '未分類專輯', artist: t.artist || '未知藝術家', cover: t.cover, year: t.year, genre: t.genre, tracks: [t] };
+    const g = canonicalizeGenre(t.genre || alb.genre || '', t);
+    const cmp = norm(t.composer || '');
+    const dur = Number(t.duration) || 0;
+
+    const aAff = trackArtistAffinity.get(ak) || 0;
+    const gAff = trackGenreAffinity.get(g) || 0;
+    const cAff = cmp ? (trackComposerAffinity.get(cmp) || 0) : 0;
+
+    // Prefer unplayed tracks; strongly separate from the Albums recommendation top list
+    let score = tPlays === 0 ? 6.5 : (tPlays === 1 ? 1.0 : -14.0 - Math.min(tPlays, 15));
+    if (topAlbumKeys.has(bk)) score -= 15.0;
+
+    score += Math.min(10, aAff * 2.6);
+    score += Math.min(8, gAff * 2.0);
+    score += Math.min(4, cAff * 1.5);
+    if (avgTrackDur > 0 && dur > 30 && Math.abs(dur - avgTrackDur) <= avgTrackDur * 0.4) {
+      score += 1.5;
+    }
+    if (t.cover || alb.cover) score += 0.5;
+    score += Math.random() * 1.6;
+
+    let seedTrack = null;
+    let reasonType = 'discovery';
+    if (aAff > 0) {
+      seedTrack = seedTracks.find(s => norm(s.artist) === ak && norm(s.title) !== norm(t.title));
+      if (seedTrack) reasonType = 'artist';
+    }
+    if (!seedTrack && gAff > 0 && g) {
+      seedTrack = seedTracks.find(s => s.genre === g && norm(s.title) !== norm(t.title));
+      if (seedTrack) reasonType = 'genre';
+    }
+
+    scoredTracks.push({
+      track: t,
+      alb,
+      g,
+      bPlays: tPlays,
+      aPlays: aAff,
+      gPlays: gAff,
+      seedTrack,
+      reasonType,
+      score
+    });
+  }
+  scoredTracks.sort((a, b) => b.score - a.score);
+
   const pickedTracks = [];
-  for (const entry of pickedAlbums) {
-    const trks = entry.alb.tracks || [];
-    if (trks.length > 0) {
-      const unplayed = trks.find(t => getTrackPlayCount(t) === 0) || trks[0];
-      pickedTracks.push({
-        track: unplayed,
-        alb: entry.alb,
-        g: entry.g,
-        bPlays: entry.bPlays,
-        aPlays: entry.aPlays,
-        gPlays: entry.gPlays
-      });
+  const usedTrackArtists = new Set();
+  const usedTrackAlbums = new Set();
+  for (const entry of scoredTracks) {
+    if (pickedTracks.length >= 15) break;
+    const ak = norm(entry.track.artist);
+    const bk = `${norm(entry.track.album)}___${ak}`;
+    if (ak && usedTrackArtists.has(ak)) continue;
+    if (bk && usedTrackAlbums.has(bk)) continue;
+    if (ak) usedTrackArtists.add(ak);
+    if (bk) usedTrackAlbums.add(bk);
+    pickedTracks.push(entry);
+  }
+  if (pickedTracks.length < 15) {
+    for (const entry of scoredTracks) {
+      if (pickedTracks.length >= 15) break;
+      const bk = `${norm(entry.track.album)}___${norm(entry.track.artist)}`;
+      if (usedTrackAlbums.has(bk) || pickedTracks.includes(entry)) continue;
+      usedTrackAlbums.add(bk);
+      pickedTracks.push(entry);
     }
   }
 
   _underExploredAlbums = pickedAlbums;
   _underExploredTracks = pickedTracks;
-  _underExploredCacheVersion = libraryCollectionVersion;
+  _underExploredCacheKey = cacheKey;
   return { albums: _underExploredAlbums, tracks: _underExploredTracks };
 }
 
@@ -3747,6 +3969,17 @@ function renderNewReleases(tab = 'albums', page = 0) {
   const startIdx = currentNewReleasesPage * PAGE_SIZE;
   const pageItems = pool.slice(startIdx, startIdx + PAGE_SIZE);
 
+  const getRecReasonTag = (entry, isTrackMode, gLabel) => {
+    if (isTrackMode) {
+      if (entry.reasonType === 'artist') return `同歌手遺珠 • ${gLabel}`;
+      if (entry.reasonType === 'genre') return `相似單曲 • ${gLabel}`;
+      return `探索單曲 • ${gLabel}`;
+    }
+    if (entry.reasonType === 'artist') return `延伸專輯 • ${gLabel}`;
+    if (entry.reasonType === 'genre' || entry.reasonType === 'label') return `同風格推薦 • ${gLabel}`;
+    return `探索曲庫 • ${gLabel}`;
+  };
+
   const featuredEntry = pageItems[0];
   const featArtistEl = document.getElementById('featuredReleaseArtist');
   const featTitleEl = document.getElementById('featuredReleaseTitle');
@@ -3763,26 +3996,29 @@ function renderNewReleases(tab = 'albums', page = 0) {
     const gInfo = getGenreIllustrationInfo(featuredEntry.g);
     const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : featuredEntry.g) || '音樂';
     const trackCount = (alb.tracks && alb.tracks.length) || 0;
+    const reasonTag = getRecReasonTag(featuredEntry, isTrackMode, gLabel);
 
     if (featArtistEl) featArtistEl.textContent = dispArtist;
     if (featTitleEl) featTitleEl.textContent = dispTitle;
     if (featDateEl) {
-      const reasonTag = featuredEntry.gPlays === 0
-        ? `少聽曲風 • ${gLabel}`
-        : (featuredEntry.aPlays === 0 ? `少聽歌手 • ${gLabel}` : `尚未聆聽 • ${gLabel}`);
       featDateEl.textContent = alb.year ? `${alb.year} 年 • ${reasonTag}` : reasonTag;
     }
     if (featDescEl) {
-      const lead = featuredEntry.bPlays === 0
-        ? `您尚未聆聽過 ${dispArtist} 的《${alb.title}》`
-        : `您較少聆聽 ${dispArtist} 的《${alb.title}》`;
-      const tail = isTrackMode
-        ? `，推薦從〈${dispTitle}〉開始探索您曲庫中「${gLabel}」風格的隱藏佳作。`
-        : `（${gLabel}${trackCount > 0 ? ` • 共 ${trackCount} 首` : ''}），為您從音樂庫中發掘較少接觸的精彩作品。`;
-      featDescEl.textContent = `${lead}${tail}`;
+      if (isTrackMode) {
+        if (featuredEntry.seedTrack && featuredEntry.seedTrack.title) {
+          featDescEl.textContent = `因為你常聽〈${featuredEntry.seedTrack.title}〉，推薦聆聽 ${dispArtist} 收錄於《${alb.title}》的〈${dispTitle}〉。`;
+        } else {
+          featDescEl.textContent = `推薦聆聽 ${dispArtist} 收錄於《${alb.title}》的「${gLabel}」風格單曲〈${dispTitle}〉。`;
+        }
+      } else if (featuredEntry.seedAlbum && featuredEntry.seedAlbum.title) {
+        featDescEl.textContent = `根據你聆聽過的《${featuredEntry.seedAlbum.title}》，推薦你探索 ${dispArtist} 的《${alb.title}》（${gLabel} • 共 ${trackCount} 首）。`;
+      } else {
+        featDescEl.textContent = `為您從音樂庫挑選尚未探索的 ${dispArtist} 專輯《${alb.title}》（${gLabel}${trackCount > 0 ? ` • 共 ${trackCount} 首` : ''}）。`;
+      }
     }
     if (featImg) {
-      featImg.src = formatCoverSrc(alb.cover) || createSvgCover(dispTitle, dispArtist);
+      const coverSource = (isTrackMode && featuredEntry.track.cover) || alb.cover;
+      featImg.src = formatCoverSrc(coverSource) || createSvgCover(dispTitle, dispArtist);
     }
     if (featCard) {
       featCard.onclick = () => {
@@ -3808,14 +4044,13 @@ function renderNewReleases(tab = 'albums', page = 0) {
     const dispArtist = (isTrackMode ? entry.track.artist : alb.artist) || '未知藝術家';
     const dispTitle = (isTrackMode ? entry.track.title : alb.title) || '未命名作品';
     const gInfo = getGenreIllustrationInfo(entry.g);
-    const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : entry.g) || '';
-    const subTag = entry.aPlays === 0
-      ? `少聽歌手${gLabel ? ` • ${gLabel}` : ''}`
-      : (entry.gPlays === 0 ? `少聽曲風 • ${gLabel}` : (alb.year ? `${alb.year} 年${gLabel ? ` • ${gLabel}` : ''}` : gLabel));
+    const gLabel = (gInfo && gInfo.zhName ? gInfo.zhName.split(' • ')[0] : entry.g) || '音樂';
+    const subTag = getRecReasonTag(entry, isTrackMode, gLabel);
 
     const item = document.createElement('div');
     item.className = 'compact-release-item';
-    const cSrc = alb.cover ? formatCoverSrc(alb.cover) : createSvgCover(dispTitle, dispArtist);
+    const coverSource = (isTrackMode && entry.track.cover) || alb.cover;
+    const cSrc = coverSource ? formatCoverSrc(coverSource) : createSvgCover(dispTitle, dispArtist);
     item.innerHTML = `
       <div class="compact-release-info">
         <div class="compact-release-artist" title="${escapeXml(dispArtist)}">${escapeXml(dispArtist)}</div>
