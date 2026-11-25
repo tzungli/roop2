@@ -17,6 +17,7 @@ use commands::tidal::*;
 use commands::window::*;
 
 use roo_dlna::DlnaManager;
+use roo_airplay::AirPlayManager;
 use roo_library::LibraryDatabase;
 use roo_output::ExclusiveController;
 use roo_streamer::StreamServer;
@@ -85,6 +86,7 @@ async fn main() {
 
     let exclusive_controller = ExclusiveController::new();
     let dlna_manager = DlnaManager::new();
+    let airplay_manager = AirPlayManager::new();
     let window_state_path = app_data_dir.join("window_state.json");
     let tidal_state = TidalState::new(app_data_dir);
 
@@ -153,7 +155,16 @@ async fn main() {
             tokio::spawn(async move {
                 // Fast warm-probe of previously used DLNA devices on startup (< 100ms)
                 let mgr = dlna_warm_handle.state::<DlnaManager>();
+                let ap = dlna_warm_handle.state::<AirPlayManager>();
                 let _ = commands::dlna::warm_probe_known_dlna(&dlna_warm_handle, &mgr).await;
+                // Concurrent mDNS AirPlay discovery on startup
+                let ap_found = tokio::task::spawn_blocking(|| roo_airplay::discover_airplay_devices(1400))
+                    .await
+                    .unwrap_or_default();
+                if !ap_found.is_empty() {
+                    ap.set_devices(ap_found);
+                    commands::dlna::emit_merged_devices(&dlna_warm_handle, &mgr, &ap);
+                }
             });
             tokio::spawn(async move {
                 // Emergency fallback: reveal main window after 2.5s only if frontend failed to reveal it
@@ -193,7 +204,9 @@ async fn main() {
                         let win = window.clone();
                         tauri::async_runtime::spawn(async move {
                             let dlna = win.state::<DlnaManager>();
-                            // Stop DLNA renderer BEFORE tearing down HTTP streams so Pause/Stop/ClearURI succeed cleanly
+                            let airplay = win.state::<AirPlayManager>();
+                            // Stop DLNA & AirPlay renderers BEFORE tearing down HTTP streams
+                            airplay.stop_all();
                             dlna.stop_active().await;
                             roo_streamer::cancel_all_progressive_streams();
                             let _ = win.close();
@@ -255,6 +268,7 @@ async fn main() {
         .manage(library_state)
         .manage(exclusive_controller)
         .manage(dlna_manager)
+        .manage(airplay_manager)
         .manage(tidal_state)
         .invoke_handler(tauri::generate_handler![
             // Native HTTP request command

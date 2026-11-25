@@ -10506,10 +10506,15 @@ function updateSignalPathUI(track = null) {
 
   // Output Zone Info
   if (state.activeAudioZone !== 'local' && state.activeDlnaDevice) {
-    if (signalOutputIcon) signalOutputIcon.textContent = '📡';
-    if (signalOutputTitle) signalOutputTitle.textContent = `${state.activeDlnaDevice.name} (DLNA / UPnP)`;
+    const isAirPlayZone = state.activeDlnaDevice.protocol === 'airplay' || String(state.activeAudioZone || '').startsWith('airplay:');
+    if (signalOutputIcon) signalOutputIcon.textContent = isAirPlayZone ? '📶' : '📡';
+    if (signalOutputTitle) signalOutputTitle.textContent = isAirPlayZone
+      ? `${state.activeDlnaDevice.name} (AirPlay)`
+      : `${state.activeDlnaDevice.name} (DLNA / UPnP)`;
     if (signalOutputDesc) {
-      if (state.dsp && state.dsp.enabled && isDsdRateMode(state.dsp.rateMode)) {
+      if (isAirPlayZone) {
+        signalOutputDesc.textContent = `透過區網即時傳輸 44.1kHz / 16-bit ALAC 無損串流至 ${state.activeDlnaDevice.ip} (AirPlay RAOP)`;
+      } else if (state.dsp && state.dsp.enabled && isDsdRateMode(state.dsp.rateMode)) {
         signalOutputDesc.textContent = `透過區網即時傳輸 1-bit ${state.dsp.rateMode.toUpperCase()} DSF 串流至 ${state.activeDlnaDevice.ip} (UPnP AVTransport)`;
       } else {
         signalOutputDesc.textContent = `透過區網即時串流至 ${state.activeDlnaDevice.ip} (UPnP AVTransport)`;
@@ -11009,7 +11014,10 @@ function updateSignalPathUI(track = null) {
     const timelineOutputDesc = document.getElementById('timelineOutputDesc');
     if (timelineOutputDesc) {
       if (isDlna) {
-        timelineOutputDesc.textContent = `UPnP AVTransport 區網串流 (${state.activeDlnaDevice.ip})`;
+        const isAirPlayZone = state.activeDlnaDevice.protocol === 'airplay' || String(state.activeAudioZone || '').startsWith('airplay:');
+        timelineOutputDesc.textContent = isAirPlayZone
+          ? `AirPlay (RAOP) 44.1kHz ALAC 無損串流 (${state.activeDlnaDevice.ip})`
+          : `UPnP AVTransport 區網串流 (${state.activeDlnaDevice.ip})`;
       } else if (isLocalExclusive) {
         timelineOutputDesc.textContent = 'WASAPI Exclusive 獨佔模式 24-bit';
       } else if (state.lineOut) {
@@ -19848,6 +19856,15 @@ function getRoonDeviceIconSvg(kind, isBottomBar = false) {
     </svg>`;
   }
 
+  if (kind === 'airplay') {
+    // Minimalist AirPlay audio concentric waves + triangle icon
+    return `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 14.5 21.5 A 9.5 9.5 0 1 1 29.5 21.5"/>
+      <path d="M 17.5 18.5 A 5.5 5.5 0 1 1 26.5 18.5"/>
+      <polygon points="22,19 16.5,27 27.5,27" fill="currentColor" stroke="none"/>
+    </svg>`;
+  }
+
   if (kind === 'tv') {
     // Minimalist Smart TV outline
     return `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
@@ -19870,6 +19887,7 @@ function getRoonDeviceIconSvg(kind, isBottomBar = false) {
 
 function getDeviceIconKind(dev) {
   if (!dev || dev === 'local' || dev.isLocal) return 'speaker';
+  if (dev.protocol === 'airplay' || dev.deviceCategory === 'airplay' || String(dev.id || '').startsWith('airplay:')) return 'airplay';
   const name = (dev.name || '').toLowerCase();
   if (dev.deviceCategory === 'tv' || name.includes('webos') || name.includes('tv')) return 'tv';
   if (dev.deviceCategory === 'bridge' || name.includes('hqplayer') || name.includes('squeezebox')) return 'bridge';
@@ -20119,7 +20137,7 @@ function initAudioZones() {
 async function refreshAudioDevices(showFeedback = false) {
   const spinner = document.getElementById('deviceScanSpinner');
   if (spinner) spinner.classList.add('spinning');
-  if (showFeedback) showToast('🔍 正在全網段搜尋 DLNA / UPnP 串流設備...');
+  if (showFeedback) showToast('🔍 正在全網段搜尋 DLNA / AirPlay 串流設備...');
 
   if (window.electronAPI && window.electronAPI.scanDlnaDevices) {
     try {
@@ -20234,7 +20252,8 @@ function getZoneDspProfile(zoneId) {
   return cloneDspConfig(state.dsp);
 }
 
-function formatZoneDspSummary(dspObj, isLocalZone = false) {
+function formatZoneDspSummary(dspObj, isLocalZone = false, isAirPlayZone = false) {
+  if (isAirPlayZone) return 'AirPlay • ALAC';
   if (!dspObj || !dspObj.enabled) return '原生直通';
   const mode = String(dspObj.rateMode || '2x').toLowerCase();
   if (isDsdRateMode(mode)) {
@@ -20329,7 +20348,8 @@ function setZoneInlineVolume(zoneId, pct) {
 
 function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSelect }) {
   const info = getZoneLiveInfo(zoneId);
-  const dspTag = formatZoneDspSummary(info.dsp, zoneId === 'local');
+  const isAirPlayZone = iconKind === 'airplay' || String(zoneId || '').startsWith('airplay:');
+  const dspTag = formatZoneDspSummary(info.dsp, zoneId === 'local', isAirPlayZone);
   const hasTrack = !!info.track;
 
   const card = document.createElement('div');
@@ -20726,10 +20746,13 @@ async function switchAudioZone(target) {
       updateBottomZoneIcon(dev);
       if (btnAudioOutput) btnAudioOutput.classList.add('network-active');
 
-      if (signalOutputIcon) signalOutputIcon.textContent = (dev.deviceCategory === 'tv') ? '📺' : '📡';
-      if (signalOutputTitle) signalOutputTitle.textContent = `${dev.name} (DLNA / UPnP)`;
+      const isAirPlayDev = dev.protocol === 'airplay' || String(dev.id || '').startsWith('airplay:');
+      if (signalOutputIcon) signalOutputIcon.textContent = isAirPlayDev ? '📶' : ((dev.deviceCategory === 'tv') ? '📺' : '📡');
+      if (signalOutputTitle) signalOutputTitle.textContent = isAirPlayDev ? `${dev.name} (AirPlay)` : `${dev.name} (DLNA / UPnP)`;
       if (signalOutputDesc) {
-        if (state.dsp && state.dsp.enabled && isDsdRateMode(state.dsp.rateMode)) {
+        if (isAirPlayDev) {
+          signalOutputDesc.textContent = `透過區網即時傳輸 44.1kHz / 16-bit ALAC 無損串流至 ${dev.ip} (AirPlay RAOP)`;
+        } else if (state.dsp && state.dsp.enabled && isDsdRateMode(state.dsp.rateMode)) {
           signalOutputDesc.textContent = `透過區網即時傳輸 1-bit ${state.dsp.rateMode.toUpperCase()} DSF 串流至 ${dev.ip} (UPnP AVTransport)`;
         } else {
           signalOutputDesc.textContent = `透過區網即時串流至 ${dev.ip} (UPnP AVTransport)`;

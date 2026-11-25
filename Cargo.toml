@@ -6,6 +6,7 @@ members = [
     "crates/roo-output",
     "crates/roo-streamer",
     "crates/roo-dlna",
+    "crates/roo-airplay",
     "crates/roo-library",
     "src-tauri",
 ]

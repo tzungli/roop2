@@ -1,6 +1,47 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use roo_dlna::{discover_dlna_devices, probe_device_ip, probe_known_devices, DlnaDevice, DlnaManager};
+use roo_airplay::{discover_airplay_devices, AirPlayDevice, AirPlayManager};
+
+fn airplay_to_unified_json(dev: &AirPlayDevice) -> serde_json::Value {
+    serde_json::json!({
+        "id": dev.id,
+        "name": dev.name,
+        "model": dev.model,
+        "ip": dev.ip,
+        "port": dev.port,
+        "protocol": "airplay",
+        "deviceCategory": "airplay",
+        "isLocal": false,
+        "supportsUnencrypted": dev.supports_unencrypted,
+        "requiresPassword": dev.requires_password,
+    })
+}
+
+pub fn merged_devices_json(dlna: &DlnaManager, airplay: &AirPlayManager) -> Vec<serde_json::Value> {
+    let mut out: Vec<serde_json::Value> = dlna
+        .get_devices()
+        .into_iter()
+        .filter_map(|d| {
+            let mut val = serde_json::to_value(d).ok()?;
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert("protocol".to_string(), serde_json::json!("dlna"));
+            }
+            Some(val)
+        })
+        .collect();
+
+    for ap in airplay.get_devices() {
+        out.push(airplay_to_unified_json(&ap));
+    }
+    out
+}
+
+pub fn emit_merged_devices(app: &AppHandle, dlna: &DlnaManager, airplay: &AirPlayManager) {
+    let merged = merged_devices_json(dlna, airplay);
+    let _ = app.emit("dlna:devicesChanged", &merged);
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct KnownDlnaDevice {
@@ -120,17 +161,29 @@ pub fn resolve_local_ip_for_target(target_host_or_ip: &str) -> String {
 }
 
 #[tauri::command]
-pub async fn dlna_get_devices(manager: State<'_, DlnaManager>) -> Result<Vec<DlnaDevice>, String> {
-    Ok(manager.get_devices())
+pub async fn dlna_get_devices(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+) -> Result<Vec<serde_json::Value>, String> {
+    Ok(merged_devices_json(&manager, &airplay))
 }
 
 #[tauri::command]
-pub async fn dlna_scan(app: AppHandle, manager: State<'_, DlnaManager>) -> Result<Vec<DlnaDevice>, String> {
-    // Phase 1 (< 100ms): Instantly probe remembered DLNA devices by location/IP and emit right away
+pub async fn dlna_scan(
+    app: AppHandle,
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+) -> Result<Vec<serde_json::Value>, String> {
+    // Phase 1 (< 100ms): Instantly probe remembered DLNA devices by location/IP
     let fast_found = warm_probe_known_dlna(&app, &manager).await;
 
-    // Phase 2: Full concurrent SSDP multicast discovery to catch new or DHCP-changed devices
-    let ssdp_found = discover_dlna_devices(2).await.unwrap_or_default();
+    // Phase 2: Concurrent SSDP (DLNA) + mDNS (AirPlay) discovery
+    let (ssdp_res, ap_res) = tokio::join!(
+        discover_dlna_devices(2),
+        tokio::task::spawn_blocking(|| discover_airplay_devices(1800))
+    );
+    let ssdp_found = ssdp_res.unwrap_or_default();
+    let ap_found = ap_res.unwrap_or_default();
 
     let mut merged: std::collections::HashMap<String, DlnaDevice> = std::collections::HashMap::new();
     for dev in fast_found {
@@ -148,10 +201,13 @@ pub async fn dlna_scan(app: AppHandle, manager: State<'_, DlnaManager>) -> Resul
         }
     }
 
-    let devices: Vec<DlnaDevice> = merged.into_values().collect();
-    manager.set_devices(devices.clone());
-    let _ = app.emit("dlna:devicesChanged", &devices);
-    Ok(devices)
+    let dlna_devices: Vec<DlnaDevice> = merged.into_values().collect();
+    manager.set_devices(dlna_devices);
+    airplay.set_devices(ap_found);
+
+    let all_devices = merged_devices_json(&manager, &airplay);
+    let _ = app.emit("dlna:devicesChanged", &all_devices);
+    Ok(all_devices)
 }
 
 #[tauri::command]
@@ -169,7 +225,15 @@ pub async fn dlna_probe_ip(manager: State<'_, DlnaManager>, ip: String) -> Resul
 }
 
 #[tauri::command]
-pub async fn dlna_select_device(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
+pub async fn dlna_select_device(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+) -> Result<bool, String> {
+    if device_id.starts_with("airplay:") {
+        let _ = manager.select_device("local");
+        return Ok(airplay.get_device(&device_id).is_some());
+    }
     let ok = manager.select_device(&device_id);
     if ok {
         if let Some(dev) = manager.get_devices().into_iter().find(|d| d.id == device_id) {
@@ -185,6 +249,7 @@ static TOKEN_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU6
 pub async fn dlna_play_track(
     app: AppHandle,
     manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
     device_id: String,
     track: serde_json::Value,
     start_sec: Option<f64>,
@@ -193,6 +258,81 @@ pub async fn dlna_play_track(
     let title = track.get("title").and_then(|v| v.as_str()).unwrap_or("Track");
     let artist = track.get("artist").and_then(|v| v.as_str()).unwrap_or("Artist");
     let album = track.get("album").and_then(|v| v.as_str()).unwrap_or("Album");
+
+    // Route AirPlay devices directly to native RAOP engine (44.1kHz / 16-bit ALAC lossless)
+    if device_id.starts_with("airplay:") {
+        let file_path = track.get("filePath").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if file_path.is_empty() {
+            return Err("Track has no filePath".to_string());
+        }
+        let start = start_sec.unwrap_or(0.0);
+        let peq_json = dsp_options
+            .as_ref()
+            .and_then(|o| o.get("peq"))
+            .map(|v| v.to_string())
+            .filter(|s| !s.is_empty() && s != "null");
+        let conv_json = dsp_options
+            .as_ref()
+            .and_then(|o| o.get("conv"))
+            .map(|v| v.to_string())
+            .filter(|s| !s.is_empty() && s != "null");
+
+        let app_prog = app.clone();
+        let app_end = app.clone();
+        let dev_prog = device_id.clone();
+        let dev_end = device_id.clone();
+        let on_progress: Arc<dyn Fn(f64, f64, &str) + Send + Sync> = Arc::new(move |pos, dur, state| {
+            let _ = app_prog.emit("dlna:progress", serde_json::json!({
+                "deviceId": dev_prog,
+                "currentSec": pos,
+                "positionSec": pos,
+                "durationSec": dur,
+                "maxSec": pos,
+                "relTime": format!("{:.1}", pos),
+                "trackDuration": format!("{:.1}", dur),
+                "state": state
+            }));
+        });
+        let on_ended: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+            let _ = app_end.emit("dlna:trackEnded", serde_json::json!({
+                "deviceId": dev_end
+            }));
+        });
+
+        let ap_clone = airplay.inner().clone();
+        let dev_id_clone = device_id.clone();
+        let title_owned = title.to_string();
+        let artist_owned = artist.to_string();
+        let album_owned = album.to_string();
+        let res = tokio::task::spawn_blocking(move || {
+            ap_clone.play(
+                &dev_id_clone,
+                &file_path,
+                start,
+                &title_owned,
+                &artist_owned,
+                &album_owned,
+                peq_json.as_deref(),
+                conv_json.as_deref(),
+                on_progress,
+                on_ended,
+            )
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        return match res {
+            Ok(_) => Ok(serde_json::json!({ "success": true, "ok": true, "protocol": "airplay" })),
+            Err(e) => {
+                tracing::error!("AirPlay play failed on {}: {}", device_id, e);
+                Ok(serde_json::json!({
+                    "success": false,
+                    "ok": false,
+                    "error": e.to_string(),
+                    "msg": e.to_string()
+                }))
+            }
+        };
+    }
     let file_path = track.get("filePath").or_else(|| track.get("path")).and_then(|v| v.as_str()).unwrap_or("");
     let raw_cover = track.get("cover").or_else(|| track.get("coverPath")).and_then(|v| v.as_str()).unwrap_or("");
     let start = start_sec.unwrap_or(0.0);
@@ -376,6 +516,9 @@ pub async fn dlna_queue_next_track(
     track: serde_json::Value,
     dsp_options: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
+    if device_id.starts_with("airplay:") {
+        return Ok(serde_json::json!({ "ok": false, "unsupported": true }));
+    }
     let file_path = track.get("filePath").and_then(|v| v.as_str()).unwrap_or("");
     if file_path.is_empty() {
         return Ok(serde_json::json!({ "ok": false, "reason": "no filePath" }));
@@ -503,17 +646,39 @@ pub async fn dlna_queue_next_track(
 }
 
 #[tauri::command]
-pub async fn dlna_pause(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
+pub async fn dlna_pause(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+) -> Result<bool, String> {
+    if device_id.starts_with("airplay:") {
+        return airplay.pause(&device_id).map(|_| true).map_err(|e| e.to_string());
+    }
     manager.pause(&device_id).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn dlna_resume(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
+pub async fn dlna_resume(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+) -> Result<bool, String> {
+    if device_id.starts_with("airplay:") {
+        return airplay.resume(&device_id).map(|_| true).map_err(|e| e.to_string());
+    }
     manager.resume(&device_id).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn dlna_stop(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
+pub async fn dlna_stop(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+) -> Result<bool, String> {
+    if device_id.starts_with("airplay:") {
+        airplay.stop(&device_id);
+        return Ok(true);
+    }
     if let Some(old_tok) = manager.take_device_token(&device_id) {
         roo_streamer::cancel_progressive_stream(&old_tok);
     }
@@ -524,12 +689,28 @@ pub async fn dlna_stop(manager: State<'_, DlnaManager>, device_id: String) -> Re
 }
 
 #[tauri::command]
-pub async fn dlna_seek(manager: State<'_, DlnaManager>, device_id: String, seconds: f64) -> Result<bool, String> {
+pub async fn dlna_seek(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+    seconds: f64,
+) -> Result<bool, String> {
+    if device_id.starts_with("airplay:") {
+        return airplay.seek(&device_id, seconds).map(|_| true).map_err(|e| e.to_string());
+    }
     manager.seek(&device_id, seconds).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn dlna_set_volume(manager: State<'_, DlnaManager>, device_id: String, volume: u32) -> Result<bool, String> {
+pub async fn dlna_set_volume(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+    volume: u32,
+) -> Result<bool, String> {
+    if device_id.starts_with("airplay:") {
+        return airplay.set_volume(&device_id, volume).map(|_| true).map_err(|e| e.to_string());
+    }
     manager.set_volume(&device_id, volume).await.map(|_| true).map_err(|e| e.to_string())
 }
 

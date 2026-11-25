@@ -3713,6 +3713,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "roo-airplay"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "rand",
+ "roo-decoder",
+ "roo-dsp",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "roo-decoder"
 version = "0.1.0"
 dependencies = [
@@ -3798,6 +3813,7 @@ dependencies = [
  "open",
  "reqwest 0.12.28",
  "rfd",
+ "roo-airplay",
  "roo-decoder",
  "roo-dlna",
  "roo-dsp",

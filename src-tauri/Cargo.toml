@@ -27,4 +27,5 @@ roo-decoder = { path = "../crates/roo-decoder" }
 roo-output = { path = "../crates/roo-output" }
 roo-streamer = { path = "../crates/roo-streamer" }
 roo-dlna = { path = "../crates/roo-dlna" }
+roo-airplay = { path = "../crates/roo-airplay" }
 roo-library = { path = "../crates/roo-library" }
