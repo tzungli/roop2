@@ -7038,8 +7038,8 @@ async function fetchAlbumBio(album) {
         const data = await res.json();
         const hit = data.query?.search?.[0]?.title;
         if (hit) {
-          // Fetch full extract for rich narrative details
-          const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
+          // Fetch full extract for rich narrative details (request zh-tw Traditional Chinese variant)
+          const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
           const extRes = await fetch(zhExtractUrl);
           if (extRes.ok) {
             const extData = await extRes.json();

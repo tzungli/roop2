@@ -771,8 +771,124 @@ pub async fn shell_open_external(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| e.to_string())
 }
 
+fn split_translate_chunks(text: &str, max_chars: usize) -> Vec<String> {
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_len = 0usize;
+
+    for sentence in text.split_inclusive(|c| c == '。' || c == '.' || c == '!' || c == '?' || c == '\n') {
+        let s_len = sentence.chars().count();
+        if current_len + s_len > max_chars && !current.is_empty() {
+            chunks.push(std::mem::take(&mut current));
+            current_len = 0;
+        }
+        if s_len > max_chars {
+            // Hard-split overly long sentence by char boundary
+            for ch in sentence.chars() {
+                current.push(ch);
+                current_len += 1;
+                if current_len >= max_chars {
+                    chunks.push(std::mem::take(&mut current));
+                    current_len = 0;
+                }
+            }
+        } else {
+            current.push_str(sentence);
+            current_len += s_len;
+        }
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
+async fn translate_chunk_zh_tw(client: &reqwest::Client, chunk: &str) -> Result<String, String> {
+    let trimmed = chunk.trim();
+    if trimmed.is_empty() {
+        return Ok(String::new());
+    }
+    let resp = client
+        .post("https://translate.googleapis.com/translate_a/single")
+        .query(&[
+            ("client", "gtx"),
+            ("sl", "auto"),
+            ("tl", "zh-TW"),
+            ("dt", "t"),
+        ])
+        .form(&[("q", trimmed)])
+        .send()
+        .await
+        .map_err(|e| format!("translate request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("translate HTTP {}", resp.status()));
+    }
+
+    let data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("translate JSON parse failed: {}", e))?;
+
+    if let Some(sentences) = data.get(0).and_then(|v| v.as_array()) {
+        let mut out = String::new();
+        for seg in sentences {
+            if let Some(s) = seg.get(0).and_then(|v| v.as_str()) {
+                out.push_str(s);
+            }
+        }
+        let res = out.trim().to_string();
+        if !res.is_empty() {
+            return Ok(res);
+        }
+    }
+    Ok(trimmed.to_string())
+}
+
 #[tauri::command]
 pub async fn util_translate_to_zh_tw(text: String) -> Result<String, String> {
-    // OpenCC / simple pass-through if already Traditional Chinese
-    Ok(text)
+    if text.trim().is_empty() {
+        return Ok(String::new());
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+        .timeout(std::time::Duration::from_secs(12))
+        .build()
+        .map_err(|e| format!("reqwest build error: {}", e))?;
+
+    let paragraphs: Vec<&str> = text.split("\n\n").collect();
+    let mut translated_paragraphs = Vec::with_capacity(paragraphs.len());
+
+    for para in paragraphs {
+        let trimmed = para.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.chars().count() <= 1600 {
+            let t = translate_chunk_zh_tw(&client, trimmed)
+                .await
+                .unwrap_or_else(|_| trimmed.to_string());
+            translated_paragraphs.push(t);
+        } else {
+            let chunks = split_translate_chunks(trimmed, 1500);
+            let mut merged = String::new();
+            for chunk in chunks {
+                let t = translate_chunk_zh_tw(&client, &chunk)
+                    .await
+                    .unwrap_or_else(|_| chunk);
+                if !merged.is_empty() && !t.is_empty() {
+                    merged.push(' ');
+                }
+                merged.push_str(&t);
+            }
+            translated_paragraphs.push(merged);
+        }
+    }
+
+    if translated_paragraphs.is_empty() {
+        Ok(text)
+    } else {
+        Ok(translated_paragraphs.join("\n\n"))
+    }
 }
