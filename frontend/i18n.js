@@ -472,6 +472,16 @@
     '📜 使用授權範圍': '📜 License',
     '⚖️ 免責聲明': '⚖️ Disclaimer',
     '⚙️ 核心音訊規格': '⚙️ Audio specifications',
+
+    // ===== Roon 風格播放畫面 =====
+    '動態歌詞': 'Synced Lyrics',
+    '專輯封面': 'Album Artwork',
+    '專輯資料': 'Album Info',
+    '專輯歌曲清單': 'Album Tracks',
+    '收錄於': 'From',
+    '藝術家：': 'Artist: ',
+    '尚無此專輯的詳細介紹資料。': 'No detailed review available for this album.',
+    '正在載入專輯資料...': 'Loading album info...',
   };
 
   // ---------------- 已知含動態内容的字串（regex → 英文，$1… 取自原文） ----------------
@@ -525,6 +535,10 @@
     [/^(\d+) 筆相符$/, '$1 matches'],
     [/^(\d+) 筆結果$/, '$1 results'],
     [/^國家\/地區: (\w+) \| 連線就緒$/, 'Country/region: $1 | connection ready'],
+    [/^發行年份：(.+)$/, 'Released: $1'],
+    [/^曲風：(.+)$/, 'Genre: $1'],
+    [/^廠牌：(.+)$/, 'Label: $1'],
+    [/^音訊規格：(.+)$/, 'Format: $1'],
   ];
 
   // ---------------- 訊息模板（‖ 代表程式插值處，編譯成 ^…$ regex） ----------------

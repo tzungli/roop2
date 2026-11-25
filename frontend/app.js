@@ -14243,21 +14243,283 @@ function updatePlayPauseBtnUI() {
   if (npBtn) npBtn.innerHTML = state.isPlaying ? NP_PAUSE_SVG : NP_PLAY_SVG;
 }
 
+const NP_VIEW_MODE_STORAGE_KEY = 'rooplayer_np_view_mode';
+const NP_VALID_VIEW_MODES = ['lyrics', 'cover', 'info', 'tracklist'];
+let currentNpViewMode = (() => {
+  try {
+    const saved = localStorage.getItem(NP_VIEW_MODE_STORAGE_KEY);
+    return NP_VALID_VIEW_MODES.includes(saved) ? saved : 'lyrics';
+  } catch (e) {
+    return 'lyrics';
+  }
+})();
+let _npViewSwitcherBound = false;
+let npAlbumInfoRenderToken = 0;
+
+function getNowPlayingZoneLabel() {
+  if (state.activeAudioZone && state.activeAudioZone !== 'local' && state.activeDlnaDevice) {
+    const dev = state.activeDlnaDevice;
+    return dev.protocol === 'airplay' ? `${dev.name} (AirPlay)` : (dev.name || 'DLNA 裝置');
+  }
+  return 'System Output';
+}
+
+function setNowPlayingViewMode(mode) {
+  const safeMode = NP_VALID_VIEW_MODES.includes(mode) ? mode : 'lyrics';
+  currentNpViewMode = safeMode;
+  try {
+    localStorage.setItem(NP_VIEW_MODE_STORAGE_KEY, safeMode);
+  } catch (e) {}
+
+  const toolbar = document.getElementById('npViewToolbar');
+  if (toolbar) {
+    toolbar.querySelectorAll('.np-roon-view-btn').forEach((btn) => {
+      const active = btn.dataset.npView === safeMode;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+
+  const stageMap = {
+    lyrics: document.getElementById('npStageLyrics'),
+    cover: document.getElementById('npStageCover'),
+    info: document.getElementById('npStageInfo'),
+    tracklist: document.getElementById('npStageTracklist'),
+  };
+  Object.entries(stageMap).forEach(([key, el]) => {
+    if (el) el.classList.toggle('active', key === safeMode);
+  });
+
+  const fontControls = document.getElementById('npLyricsFontControls');
+  if (fontControls) {
+    fontControls.style.display = safeMode === 'lyrics' ? 'inline-flex' : 'none';
+  }
+
+  if (safeMode === 'cover') {
+    if (typeof window.startNowPlayingSpectrum === 'function') {
+      requestAnimationFrame(() => window.startNowPlayingSpectrum());
+    }
+  } else if (typeof window.stopNowPlayingSpectrum === 'function') {
+    window.stopNowPlayingSpectrum();
+  }
+
+  if (safeMode === 'lyrics') {
+    const activeLine = document.querySelector('#nowPlayingLyricsContainer .lyric-line.active');
+    if (activeLine) {
+      setTimeout(() => activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' }), 40);
+    }
+  } else if (safeMode === 'tracklist') {
+    const activeRow = document.querySelector('#nowPlayingTracklistContainer .np-track-item.active');
+    if (activeRow) {
+      setTimeout(() => activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 40);
+    }
+  }
+}
+
+function initNowPlayingViewSwitcher() {
+  if (!_npViewSwitcherBound) {
+    const toolbar = document.getElementById('npViewToolbar');
+    if (toolbar) {
+      toolbar.querySelectorAll('.np-roon-view-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          setNowPlayingViewMode(btn.dataset.npView);
+        });
+      });
+      _npViewSwitcherBound = true;
+    }
+  }
+  setNowPlayingViewMode(currentNpViewMode);
+}
+
+function renderNpInfoParagraphs(bioEl, text) {
+  if (!bioEl) return;
+  const paragraphs = String(text || '')
+    .split(/\n+/)
+    .map(p => p.trim())
+    .filter(Boolean);
+  bioEl.innerHTML = '';
+  paragraphs.forEach((p) => {
+    const pEl = document.createElement('p');
+    pEl.textContent = p;
+    bioEl.appendChild(pEl);
+  });
+}
+
+async function fetchAlbumBioTextForNowPlaying(albumObj) {
+  if (!albumObj || !albumObj.title) return '';
+  const cacheKey = `${albumObj.title}___${albumObj.artist || ''}`;
+  if (albumBioCache.has(cacheKey)) {
+    const cached = albumBioCache.get(cacheKey);
+    const preferEn = (localStorage.getItem('rooplayer_language') === 'en');
+    if (preferEn && cached.isFromEnWiki && cached.originalText) {
+      return cached.originalText;
+    }
+    return cached.translatedText || cached.originalText || '';
+  }
+
+  let rawBioText = '';
+  let isFromEnWiki = false;
+  const qTitle = albumObj.title || '';
+  const qArtist = albumObj.artist || '';
+
+  try {
+    const zhSearchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(qTitle + ' ' + qArtist)}&format=json&origin=*`;
+    let res = await fetch(zhSearchUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const hit = data.query?.search?.[0]?.title;
+      if (hit) {
+        const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
+        const extRes = await fetch(zhExtractUrl);
+        if (extRes.ok) {
+          const extData = await extRes.json();
+          const pages = extData.query?.pages;
+          const raw = pages ? Object.values(pages)[0]?.extract : '';
+          if (raw) {
+            const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+            if (cleaned && cleaned.length >= 80) rawBioText = cleaned;
+          }
+        }
+      }
+    }
+
+    if (!rawBioText) {
+      const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(qTitle + ' ' + qArtist + ' album')}&format=json&origin=*`;
+      res = await fetch(enSearchUrl);
+      if (res.ok) {
+        const data = await res.json();
+        const hit = data.query?.search?.[0]?.title;
+        if (hit) {
+          const enExtractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
+          const extRes = await fetch(enExtractUrl);
+          if (extRes.ok) {
+            const extData = await extRes.json();
+            const pages = extData.query?.pages;
+            const raw = pages ? Object.values(pages)[0]?.extract : '';
+            if (raw) {
+              const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+              if (cleaned && cleaned.length >= 80) {
+                rawBioText = cleaned;
+                isFromEnWiki = true;
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('NowPlaying album bio fetch error:', err);
+  }
+
+  if (!rawBioText) return '';
+
+  let translatedBioText = rawBioText;
+  const preferEn = (localStorage.getItem('rooplayer_language') === 'en');
+  if (!preferEn || !isFromEnWiki) {
+    try {
+      translatedBioText = await translateTextToZhTw(rawBioText);
+    } catch (e) {
+      translatedBioText = rawBioText;
+    }
+  }
+  albumBioCache.set(cacheKey, {
+    originalText: rawBioText,
+    translatedText: translatedBioText,
+    isFromEnWiki
+  });
+  return (preferEn && isFromEnWiki) ? rawBioText : translatedBioText;
+}
+
+async function renderNowPlayingAlbumInfo(track, foundAlbum) {
+  const token = ++npAlbumInfoRenderToken;
+  const titleEl = document.getElementById('npAlbumInfoTitle');
+  const artistEl = document.getElementById('npAlbumInfoArtist');
+  const metaEl = document.getElementById('npAlbumInfoMeta');
+  const bioEl = document.getElementById('npAlbumInfoBio');
+  if (!titleEl || !artistEl || !metaEl || !bioEl) return;
+
+  const albumTitle = (foundAlbum && foundAlbum.title) || track.album || '未分類專輯';
+  const albumArtist = (foundAlbum && foundAlbum.artist) || track.artist || '未知藝術家';
+  titleEl.textContent = albumTitle;
+  artistEl.textContent = albumArtist;
+
+  const chips = [];
+  const yearVal = (foundAlbum && (foundAlbum.year || (foundAlbum.date ? String(foundAlbum.date).slice(0, 4) : ''))) || track.year || '';
+  if (yearVal) chips.push(`發行年份：${yearVal}`);
+  const genreVal = (foundAlbum && foundAlbum.genre) || track.genre || '';
+  if (genreVal && genreVal !== 'Various') chips.push(`曲風：${genreVal}`);
+  const labelVal = (foundAlbum && foundAlbum.label) || track.label || '';
+  if (labelVal) chips.push(`廠牌：${labelVal}`);
+  const trackCount = (foundAlbum && Array.isArray(foundAlbum.tracks))
+    ? foundAlbum.tracks.length
+    : (foundAlbum && foundAlbum.numberOfTracks) || (state.queue ? state.queue.length : 1);
+  if (trackCount > 0) chips.push(`${trackCount} 首曲目`);
+  const badgeText = document.getElementById('nowPlayingFormatBadge')?.textContent;
+  if (badgeText && badgeText !== '--') chips.push(`音訊規格：${badgeText}`);
+
+  metaEl.innerHTML = '';
+  chips.forEach((label) => {
+    const span = document.createElement('span');
+    span.className = 'np-info-chip';
+    span.textContent = label;
+    metaEl.appendChild(span);
+  });
+
+  const albumObj = foundAlbum || { title: albumTitle, artist: albumArtist, tracks: [track] };
+  const cacheKey = `${albumObj.title}___${albumObj.artist || ''}`;
+  if (albumBioCache.has(cacheKey)) {
+    const cached = albumBioCache.get(cacheKey);
+    const preferEn = (localStorage.getItem('rooplayer_language') === 'en');
+    const cachedText = (preferEn && cached.isFromEnWiki && cached.originalText)
+      ? cached.originalText
+      : (cached.translatedText || cached.originalText || '');
+    if (cachedText) {
+      renderNpInfoParagraphs(bioEl, cachedText);
+      return;
+    }
+  }
+
+  bioEl.innerHTML = '<div style="opacity:0.65; display:flex; align-items:center; gap:8px;"><span class="spinner"></span><span>正在載入專輯資料...</span></div>';
+
+  const fetched = await fetchAlbumBioTextForNowPlaying(albumObj);
+  if (token !== npAlbumInfoRenderToken) return;
+
+  if (fetched) {
+    renderNpInfoParagraphs(bioEl, fetched);
+  } else {
+    const fallbackLines = [
+      `《${albumTitle}》由 ${albumArtist} 演繹${yearVal ? `，於 ${yearVal} 年發行` : ''}。`,
+      chips.length > 0 ? `本專輯收錄 ${trackCount} 首曲目${genreVal && genreVal !== 'Various' ? `，風格屬於 ${genreVal}` : ''}。` : '',
+      '尚無此專輯的詳細介紹資料。'
+    ].filter(Boolean).join('\n');
+    renderNpInfoParagraphs(bioEl, fallbackLines);
+  }
+}
+
 function updateNowPlayingModalContent() {
   if (state.currentTrackIndex < 0 || !state.queue[state.currentTrackIndex]) return;
   const track = state.queue[state.currentTrackIndex];
   const foundAlbum = findAlbumForTrack(track);
 
-  // 1. Left: Cover Art & Track Info
+  initNowPlayingViewSwitcher();
+
+  // 1. Cover Art (Bottom Floating Cover + Stage Blurred Backdrop + Large Cover View) & Track Info
   const defaultCover = createSvgCover(track.album || track.title, track.artist, '#27272a', '#09090b');
   const coverSrc = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null)) || defaultCover;
-  const coverImg = document.getElementById('nowPlayingCoverImg');
-  if (coverImg) {
-    coverImg.src = coverSrc;
-    coverImg.onerror = () => {
-      coverImg.onerror = null;
-      coverImg.src = defaultCover;
-    };
+  ['nowPlayingCoverImg', 'nowPlayingBackdropImg', 'nowPlayingLargeCoverImg'].forEach((imgId) => {
+    const imgEl = document.getElementById(imgId);
+    if (imgEl) {
+      imgEl.src = coverSrc;
+      imgEl.onerror = () => {
+        imgEl.onerror = null;
+        imgEl.src = defaultCover;
+      };
+    }
+  });
+
+  const zoneLabelEl = document.getElementById('npBottomZoneName');
+  if (zoneLabelEl) {
+    zoneLabelEl.textContent = getNowPlayingZoneLabel();
   }
 
   const titleEl = document.getElementById('nowPlayingTrackTitle');
@@ -14304,7 +14566,7 @@ function updateNowPlayingModalContent() {
 
   updatePlayPauseBtnUI();
 
-  // 2. Middle: Playlist / Album Tracklist
+  // 2. Album Tracklist View
   const tracklistSource = (foundAlbum && foundAlbum.tracks && foundAlbum.tracks.length > 0)
     ? foundAlbum.tracks
     : state.queue;
@@ -14332,7 +14594,6 @@ function updateNowPlayingModalContent() {
       `;
       row.dataset.trackNum = t.trackNumber || (idx + 1);
       row.onclick = () => {
-        // Immediate visual response
         tracklistScroll.querySelectorAll('.np-track-item').forEach(el => {
           el.classList.remove('active');
           const numEl = el.querySelector('.np-track-num');
@@ -14360,7 +14621,10 @@ function updateNowPlayingModalContent() {
     });
   }
 
-  // 3. Right: Load Lyrics Online
+  // 3. Album Info View
+  renderNowPlayingAlbumInfo(track, foundAlbum);
+
+  // 4. Lyrics View
   loadLyricsForNowPlaying(track);
 
   // Update Time
@@ -14387,8 +14651,8 @@ function openNowPlayingModal() {
       updateNowPlayingPlaybackProgress();
     }, 250);
   }
-  if (typeof window.startNowPlayingSpectrum === 'function') {
-    window.startNowPlayingSpectrum();
+  if (currentNpViewMode === 'cover' && typeof window.startNowPlayingSpectrum === 'function') {
+    requestAnimationFrame(() => window.startNowPlayingSpectrum());
   }
 }
 
@@ -20788,6 +21052,10 @@ function syncPlayerBarForActiveZone() {
     btnPlayPause.textContent = state.isPlaying ? '⏸' : '▶';
   }
   if (typeof renderQueue === 'function') renderQueue();
+  const npZoneLabel = document.getElementById('npBottomZoneName');
+  if (npZoneLabel && typeof getNowPlayingZoneLabel === 'function') {
+    npZoneLabel.textContent = getNowPlayingZoneLabel();
+  }
   if (typeof updateNowPlayingPlaybackProgress === 'function') updateNowPlayingPlaybackProgress();
 }
 
