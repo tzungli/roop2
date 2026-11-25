@@ -8365,8 +8365,68 @@ body.table-col-resizing * {
   text-align: center;
 }
 
+.lyrics-font-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lyrics-font-btn {
+  height: 24px;
+  min-width: 28px;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(124, 92, 255, 0.32);
+  background: rgba(124, 92, 255, 0.1);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.lyrics-font-btn:hover {
+  background: var(--accent-purple);
+  border-color: var(--accent-purple);
+  color: #ffffff;
+}
+
+.lyrics-font-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.lyrics-font-size-label {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.lyrics-font-size-label:hover {
+  color: var(--accent-purple);
+}
+
+[data-theme="light"] .lyrics-font-btn {
+  background: rgba(124, 92, 255, 0.06);
+  border-color: rgba(124, 92, 255, 0.28);
+  color: #4c3f7a;
+}
+
+[data-theme="light"] .lyrics-font-btn:hover {
+  background: var(--accent-purple);
+  border-color: var(--accent-purple);
+  color: #ffffff;
+}
+
 .lyric-line {
-  font-size: 15px;
+  font-size: calc(15px * var(--lyrics-font-scale, 1));
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.35);
   padding: 8px 16px;
@@ -8383,7 +8443,7 @@ body.table-col-resizing * {
 
 .lyric-line.active {
   color: #fff;
-  font-size: 20px;
+  font-size: calc(20px * var(--lyrics-font-scale, 1));
   font-weight: 800;
   color: #fdf4ff;
   text-shadow: 0 0 16px rgba(217, 70, 239, 0.8), 0 0 32px rgba(217, 70, 239, 0.4);
@@ -8392,7 +8452,7 @@ body.table-col-resizing * {
 }
 
 .lyrics-plain-box {
-  font-size: 15px;
+  font-size: calc(15px * var(--lyrics-font-scale, 1));
   line-height: 2.3;
   color: #e4e4e7;
   white-space: pre-wrap;

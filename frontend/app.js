@@ -13740,22 +13740,164 @@ let currentSyncedLyrics = [];
 let currentActiveLyricIndex = -1;
 let nowPlayingSyncInterval = null;
 
+const LYRICS_FONT_SCALE_KEY = 'rooplayer_lyrics_font_scale';
+const LYRICS_FONT_MIN = 0.75;
+const LYRICS_FONT_MAX = 1.8;
+const LYRICS_FONT_STEP = 0.1;
+
+let currentLyricsFontScale = (() => {
+  try {
+    const v = parseFloat(localStorage.getItem(LYRICS_FONT_SCALE_KEY));
+    if (isFinite(v)) return Math.max(LYRICS_FONT_MIN, Math.min(LYRICS_FONT_MAX, Math.round(v * 100) / 100));
+  } catch (_) {}
+  return 1.0;
+})();
+
+function applyLyricsFontScale(scale) {
+  currentLyricsFontScale = Math.max(LYRICS_FONT_MIN, Math.min(LYRICS_FONT_MAX, Math.round(scale * 100) / 100));
+  try { localStorage.setItem(LYRICS_FONT_SCALE_KEY, String(currentLyricsFontScale)); } catch (_) {}
+  const container = document.getElementById('nowPlayingLyricsContainer');
+  if (container) container.style.setProperty('--lyrics-font-scale', String(currentLyricsFontScale));
+  const label = document.getElementById('lyricsFontSizeLabel');
+  if (label) label.textContent = `${Math.round(currentLyricsFontScale * 100)}%`;
+  const btnDown = document.getElementById('btnLyricsFontDown');
+  const btnUp = document.getElementById('btnLyricsFontUp');
+  if (btnDown) btnDown.disabled = currentLyricsFontScale <= LYRICS_FONT_MIN + 0.001;
+  if (btnUp) btnUp.disabled = currentLyricsFontScale >= LYRICS_FONT_MAX - 0.001;
+}
+
+function initLyricsFontControls() {
+  const btnDown = document.getElementById('btnLyricsFontDown');
+  const btnUp = document.getElementById('btnLyricsFontUp');
+  const label = document.getElementById('lyricsFontSizeLabel');
+  if (btnDown && !btnDown._lyricsBound) {
+    btnDown._lyricsBound = true;
+    btnDown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyLyricsFontScale(currentLyricsFontScale - LYRICS_FONT_STEP);
+    });
+  }
+  if (btnUp && !btnUp._lyricsBound) {
+    btnUp._lyricsBound = true;
+    btnUp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyLyricsFontScale(currentLyricsFontScale + LYRICS_FONT_STEP);
+    });
+  }
+  if (label && !label._lyricsBound) {
+    label._lyricsBound = true;
+    label.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyLyricsFontScale(1.0);
+    });
+  }
+  applyLyricsFontScale(currentLyricsFontScale);
+}
+
 function cleanTitleForLyrics(title) {
   if (!title) return '';
-  return title
-    .replace(/^\d+[\.\-\s]+/, '')
-    .replace(/\(.*?(?:feat|ft|live|version|remaster|mix|acoustic|edit|deluxe).*?\)/gi, '')
-    .replace(/\[.*?(?:feat|ft|live|version|remaster|mix|acoustic|edit|deluxe).*?\]/gi, '')
-    .replace(/\b(?:feat|ft)\.?\s+[^\-]+/i, '')
+  const cleaned = String(title)
+    .replace(/\.(flac|wav|mp3|m4a|alac|aac|ogg|dsf|dff|aiff|aif)$/i, '')
+    .replace(/^\d{1,3}[\.\-\s_]+(?=\S)/, '')
+    .replace(/[\(（][^\)）]*(?:feat|ft\.|live|version|remaster|mix|acoustic|edit|deluxe|bonus|stereo|mono|24bit|hi-?res|翻唱|現場|伴奏|純音樂)[^\)）]*[\)）]/gi, '')
+    .replace(/\[[^\]]*(?:feat|ft\.|live|version|remaster|mix|acoustic|edit|deluxe|bonus|24bit|hi-?res|翻唱|現場)[^\]]*\]/gi, '')
+    .replace(/\s+-\s+(?:remaster(?:ed)?(?:\s+\d{4})?|live.*|single\s+version|album\s+version|radio\s+edit|acoustic.*|bonus\s+track)$/i, '')
+    .replace(/\b(?:feat|ft)\.?\s+[^\-]+$/i, '')
     .replace(/\s+/g, ' ')
-    .trim() || title;
+    .trim();
+  return cleaned || String(title).trim();
+}
+
+function cleanArtistForLyrics(artist) {
+  if (!artist || isUnknownArtist(artist)) return '';
+  return String(artist)
+    .replace(/[\(（][^\)）]*[\)）]|\[[^\]]*\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeLyricMatchStr(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\s\p{P}\p{S}]+/gu, '');
+}
+
+function scoreLyricsCandidate(cand, targetTitle, targetArtist, targetAlbum, targetDuration) {
+  const cTitle = normalizeLyricMatchStr(cleanTitleForLyrics(cand.trackName || cand.name || ''));
+  const tTitle = normalizeLyricMatchStr(targetTitle);
+  if (!cTitle || !tTitle) return -100;
+
+  let score = 0;
+
+  // 1. Title similarity (primary signal)
+  let titleExact = false;
+  if (cTitle === tTitle) {
+    score += 60;
+    titleExact = true;
+  } else if (cTitle.includes(tTitle) || tTitle.includes(cTitle)) {
+    const ratio = Math.min(cTitle.length, tTitle.length) / Math.max(cTitle.length, tTitle.length);
+    if (ratio >= 0.55) {
+      score += 38;
+    } else {
+      score -= 20;
+    }
+  } else {
+    return -100; // Unrelated song title
+  }
+
+  // 2. Artist similarity (crucial to avoid homonym / wrong artist covers)
+  const tArtNorm = normalizeLyricMatchStr(targetArtist);
+  const cArtNorm = normalizeLyricMatchStr(cand.artistName || '');
+  const tPrimary = normalizeLyricMatchStr(String(targetArtist || '').split(/[,;&\/、]|feat\.?|ft\.?/i)[0]);
+  let artistMatched = false;
+  if (tArtNorm) {
+    if (cArtNorm === tArtNorm || (tPrimary && cArtNorm === tPrimary)) {
+      score += 50;
+      artistMatched = true;
+    } else if (cArtNorm && (cArtNorm.includes(tArtNorm) || tArtNorm.includes(cArtNorm) || (tPrimary && (cArtNorm.includes(tPrimary) || tPrimary.includes(cArtNorm))))) {
+      score += 32;
+      artistMatched = true;
+    } else {
+      score -= 45;
+    }
+  }
+
+  // 3. Duration match (filters out wrong live/remix/radio edits)
+  const candDur = Number(cand.duration) || 0;
+  const tgtDur = Number(targetDuration) || 0;
+  if (tgtDur > 10 && candDur > 10) {
+    const diff = Math.abs(candDur - tgtDur);
+    if (diff <= 3) score += 25;
+    else if (diff <= 8) score += 15;
+    else if (diff <= 15) score += 5;
+    else if (diff > 30) score -= 35;
+    else score -= 12;
+  }
+
+  // 4. Album match bonus
+  const tAlbNorm = normalizeLyricMatchStr(targetAlbum);
+  const cAlbNorm = normalizeLyricMatchStr(cand.albumName || '');
+  if (tAlbNorm && cAlbNorm && (cAlbNorm === tAlbNorm || cAlbNorm.includes(tAlbNorm) || tAlbNorm.includes(cAlbNorm))) {
+    score += 12;
+  }
+
+  // 5. Prefer synced lyrics among genuinely matching candidates
+  if (cand.syncedLyrics) score += 10;
+
+  // Hard guard: when artist is known and didn't match at all, require exact title + very close duration
+  if (tArtNorm && !artistMatched) {
+    const durClose = tgtDur > 10 && candDur > 10 && Math.abs(candDur - tgtDur) <= 4;
+    if (!(titleExact && durClose)) return -50;
+  }
+
+  return score;
 }
 
 function parseLrc(lrcText) {
   if (!lrcText) return [];
   const lines = lrcText.split('\n');
   const result = [];
-  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+  const timeRegex = /\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g;
   for (const line of lines) {
     const matches = [...line.matchAll(timeRegex)];
     const text = line.replace(timeRegex, '').trim();
@@ -13775,56 +13917,133 @@ function parseLrc(lrcText) {
 async function fetchLyricsOnline(title, artist, album, duration) {
   if (!title) return null;
   const cleanTitle = cleanTitleForLyrics(title);
-  const cleanArt = (artist && !isUnknownArtist(artist)) ? artist.replace(/\(.*?\)|\[.*?\]/g, '').trim() : '';
-  const cacheKey = `${cleanArt}___${cleanTitle}`.toLowerCase();
+  const cleanArt = cleanArtistForLyrics(artist);
+  const cleanAlb = album ? String(album).replace(/[\(（][^\)）]*(?:remaster|deluxe|edition|version)[^\)）]*[\)）]/gi, '').trim() : '';
+  const durRounded = (typeof duration === 'number' && isFinite(duration) && duration > 0) ? Math.round(duration) : 0;
+  const cacheKey = `${cleanArt}___${cleanTitle}___${durRounded}`.toLowerCase();
 
   if (nowPlayingLyricsCache.has(cacheKey)) {
     return nowPlayingLyricsCache.get(cacheKey);
   }
 
-  // 1. Try LRCLIB API (Best global database for synced + plain lyrics)
-  try {
-    const q = (cleanArt ? cleanArt + ' ' : '') + cleanTitle;
-    const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-    if (res.ok) {
-      const hits = await res.json();
-      if (Array.isArray(hits) && hits.length > 0) {
-        const best = hits.find(h => h.syncedLyrics) || hits[0];
-        if (best.syncedLyrics || best.plainLyrics) {
+  const pickBestLrclibHit = (hits) => {
+    if (!Array.isArray(hits) || hits.length === 0) return null;
+    let bestHit = null;
+    let bestScore = -Infinity;
+    for (const h of hits) {
+      if (!h || (!h.syncedLyrics && !h.plainLyrics)) continue;
+      const sc = scoreLyricsCandidate(h, cleanTitle, cleanArt, cleanAlb, durRounded);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestHit = h;
+      }
+    }
+    return (bestHit && bestScore >= 55) ? bestHit : null;
+  };
+
+  // 1. Try LRCLIB Exact Match API (/api/get) first — highest precision (title + artist + album + duration)
+  if (cleanArt && durRounded > 0) {
+    try {
+      const params = new URLSearchParams({
+        track_name: cleanTitle,
+        artist_name: cleanArt,
+        duration: String(durRounded),
+      });
+      if (cleanAlb) params.set('album_name', cleanAlb);
+      const getUrl = `https://lrclib.net/api/get?${params.toString()}`;
+      const res = await fetch(getUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.1' } });
+      if (res.ok) {
+        const hit = await res.json();
+        if (hit && !hit.instrumental && (hit.syncedLyrics || hit.plainLyrics)) {
           const result = {
-            source: 'LRCLIB 線上音樂資料庫',
-            synced: best.syncedLyrics || null,
-            plain: best.plainLyrics || null
+            source: 'LRCLIB 精準比對',
+            synced: hit.syncedLyrics || null,
+            plain: hit.plainLyrics || null,
           };
           nowPlayingLyricsCache.set(cacheKey, result);
           return result;
         }
       }
-    }
-  } catch (e) {
-    // LRCLIB error ignored
+    } catch (_) {}
   }
 
-  // 2. Try Netease Cloud Music Lyric API (Comprehensive fallback for Pop/Asian/Classic)
+  // 2. Try LRCLIB Structured Search (/api/search?track_name=...&artist_name=...) with multi-signal scoring
   try {
-    const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(cleanTitle + ' ' + cleanArt)}&type=1&offset=0&limit=3`;
+    const params = new URLSearchParams({ track_name: cleanTitle });
+    if (cleanArt) params.set('artist_name', cleanArt);
+    if (cleanAlb) params.set('album_name', cleanAlb);
+    const url = `https://lrclib.net/api/search?${params.toString()}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.1' } });
+    if (res.ok) {
+      const hits = await res.json();
+      const best = pickBestLrclibHit(hits);
+      if (best) {
+        const result = {
+          source: 'LRCLIB 線上音樂資料庫',
+          synced: best.syncedLyrics || null,
+          plain: best.plainLyrics || null,
+        };
+        nowPlayingLyricsCache.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (_) {}
+
+  // 3. Try LRCLIB Free-Text Search (/api/search?q=...) as fallback (still strictly scored!)
+  try {
+    const q = (cleanArt ? cleanArt + ' ' : '') + cleanTitle;
+    const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.1' } });
+    if (res.ok) {
+      const hits = await res.json();
+      const best = pickBestLrclibHit(hits);
+      if (best) {
+        const result = {
+          source: 'LRCLIB 線上音樂資料庫',
+          synced: best.syncedLyrics || null,
+          plain: best.plainLyrics || null,
+        };
+        nowPlayingLyricsCache.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (_) {}
+
+  // 4. Try Netease Cloud Music Lyric API (scored across top 8 results for Asian/Pop/Classic tracks)
+  try {
+    const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(cleanTitle + (cleanArt ? ' ' + cleanArt : ''))}&type=1&offset=0&limit=8`;
     const sRes = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (sRes.ok) {
       const sData = await sRes.json();
-      const songId = sData.result?.songs?.[0]?.id;
-      if (songId) {
-        const lyricUrl = `https://music.163.com/api/song/lyric?os=pc&id=${songId}&lv=-1&kv=-1&tv=-1`;
+      const songs = sData.result?.songs || [];
+      let bestSong = null;
+      let bestScore = -Infinity;
+      for (const s of songs) {
+        const cand = {
+          trackName: s.name || '',
+          artistName: (Array.isArray(s.artists) ? s.artists.map(a => a.name).join(' ') : ''),
+          albumName: s.album?.name || '',
+          duration: (Number(s.duration) || 0) / 1000,
+          syncedLyrics: true,
+        };
+        const sc = scoreLyricsCandidate(cand, cleanTitle, cleanArt, cleanAlb, durRounded);
+        if (sc > bestScore) {
+          bestScore = sc;
+          bestSong = s;
+        }
+      }
+      if (bestSong && bestScore >= 55) {
+        const lyricUrl = `https://music.163.com/api/song/lyric?os=pc&id=${bestSong.id}&lv=-1&kv=-1&tv=-1`;
         const lRes = await fetch(lyricUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         if (lRes.ok) {
           const lData = await lRes.json();
           const raw = lData.lrc?.lyric;
           if (raw && raw.trim()) {
-            const isSynced = raw.includes('[00:');
+            const isSynced = /\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/.test(raw);
             const result = {
               source: '網易雲音樂歌詞庫',
               synced: isSynced ? raw : null,
-              plain: raw
+              plain: raw,
             };
             nowPlayingLyricsCache.set(cacheKey, result);
             return result;
@@ -13832,14 +14051,13 @@ async function fetchLyricsOnline(title, artist, album, duration) {
         }
       }
     }
-  } catch (e) {
-    // Netease error ignored
-  }
+  } catch (_) {}
 
   return null;
 }
 
 async function loadLyricsForNowPlaying(track) {
+  initLyricsFontControls();
   const container = document.getElementById('nowPlayingLyricsContainer');
   const sourceEl = document.getElementById('nowPlayingLyricSource');
   if (!container) return;
