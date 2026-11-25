@@ -294,6 +294,7 @@ async fn main() {
             dlna_probe_ip,
             dlna_select_device,
             dlna_play_track,
+            dlna_queue_next_track,
             dlna_pause,
             dlna_resume,
             dlna_stop,

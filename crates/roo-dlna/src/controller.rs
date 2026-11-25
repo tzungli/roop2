@@ -32,24 +32,16 @@ impl UpnpController {
         Self { client }
     }
 
-    pub async fn set_av_transport_uri(
-        &self,
-        control_url: &str,
-        service_type: &str,
+    fn build_didl_pair(
         stream_url: &str,
         title: &str,
         artist: &str,
         album: &str,
         cover_url: Option<&str>,
         dsd_hz: Option<u32>,
+        pcm_hz: Option<u32>,
         duration_sec: Option<f64>,
-    ) -> Result<()> {
-        let st = if service_type.trim().is_empty() {
-            "urn:schemas-upnp-org:service:AVTransport:1"
-        } else {
-            service_type.trim()
-        };
-
+    ) -> (String, String) {
         let title_esc = xml_escape(title);
         let artist_esc = xml_escape(artist);
         let album_esc = xml_escape(album);
@@ -70,10 +62,14 @@ impl UpnpController {
                 hz, dur_attr, stream_url_esc, hz, dur_attr, stream_url_esc, hz, dur_attr, stream_url_esc, dur_attr, stream_url_esc
             )
         } else {
+            let pcm_attr = match pcm_hz {
+                Some(hz) if hz > 0 => format!(" sampleFrequency=\"{}\" bitsPerSample=\"24\" nrAudioChannels=\"2\"", hz),
+                _ => " bitsPerSample=\"24\" nrAudioChannels=\"2\"".to_string(),
+            };
             format!(
-                "<res protocolInfo=\"http-get:*:audio/wav:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000\"{}>{}</res>\
-                 <res protocolInfo=\"http-get:*:audio/x-wav:*\"{}>{}</res>",
-                dur_attr, stream_url_esc, dur_attr, stream_url_esc
+                "<res protocolInfo=\"http-get:*:audio/wav:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000\"{}{}>{}</res>\
+                 <res protocolInfo=\"http-get:*:audio/x-wav:*\"{}{}>{}</res>",
+                pcm_attr, dur_attr, stream_url_esc, pcm_attr, dur_attr, stream_url_esc
             )
         };
 
@@ -117,15 +113,6 @@ impl UpnpController {
             title_esc, artist_esc, optional_meta, res_tags
         );
 
-        // Attempt 1: Standard Rich Metadata (Title, Artist, Album, Cover Art)
-        match self.send_set_av_transport_uri(control_url, st, stream_url, &didl_rich).await {
-            Ok(_) => return Ok(()),
-            Err(e1) => {
-                eprintln!("[DLNA] SetAVTransportURI with rich metadata failed: {}. Retrying with basic metadata...", e1);
-            }
-        }
-
-        // Attempt 2: Basic Metadata (Title + Creator only - verified working on all devices)
         let didl_basic = format!(
             "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">\
             <item id=\"1\" parentID=\"0\" restricted=\"1\">\
@@ -138,6 +125,41 @@ impl UpnpController {
             title_esc, artist_esc, res_tags
         );
 
+        (didl_rich, didl_basic)
+    }
+
+    pub async fn set_av_transport_uri(
+        &self,
+        control_url: &str,
+        service_type: &str,
+        stream_url: &str,
+        title: &str,
+        artist: &str,
+        album: &str,
+        cover_url: Option<&str>,
+        dsd_hz: Option<u32>,
+        pcm_hz: Option<u32>,
+        duration_sec: Option<f64>,
+    ) -> Result<()> {
+        let st = if service_type.trim().is_empty() {
+            "urn:schemas-upnp-org:service:AVTransport:1"
+        } else {
+            service_type.trim()
+        };
+
+        let (didl_rich, didl_basic) = Self::build_didl_pair(
+            stream_url, title, artist, album, cover_url, dsd_hz, pcm_hz, duration_sec,
+        );
+
+        // Attempt 1: Standard Rich Metadata (Title, Artist, Album, Cover Art)
+        match self.send_set_av_transport_uri(control_url, st, stream_url, &didl_rich).await {
+            Ok(_) => return Ok(()),
+            Err(e1) => {
+                eprintln!("[DLNA] SetAVTransportURI with rich metadata failed: {}. Retrying with basic metadata...", e1);
+            }
+        }
+
+        // Attempt 2: Basic Metadata (Title + Creator only - verified working on all devices)
         match self.send_set_av_transport_uri(control_url, st, stream_url, &didl_basic).await {
             Ok(_) => return Ok(()),
             Err(e2) => {
@@ -147,6 +169,70 @@ impl UpnpController {
 
         // Attempt 3: Empty metadata (universal UPnP specification fallback)
         self.send_set_av_transport_uri(control_url, st, stream_url, "").await
+    }
+
+    /// Standard UPnP Gapless Playback: queue next track URI on renderer before current track ends.
+    pub async fn set_next_av_transport_uri(
+        &self,
+        control_url: &str,
+        service_type: &str,
+        stream_url: &str,
+        title: &str,
+        artist: &str,
+        album: &str,
+        cover_url: Option<&str>,
+        dsd_hz: Option<u32>,
+        pcm_hz: Option<u32>,
+        duration_sec: Option<f64>,
+    ) -> Result<()> {
+        let st = if service_type.trim().is_empty() {
+            "urn:schemas-upnp-org:service:AVTransport:1"
+        } else {
+            service_type.trim()
+        };
+
+        let (didl_rich, didl_basic) = Self::build_didl_pair(
+            stream_url, title, artist, album, cover_url, dsd_hz, pcm_hz, duration_sec,
+        );
+
+        if self.send_set_next_av_transport_uri(control_url, st, stream_url, &didl_rich).await.is_ok() {
+            return Ok(());
+        }
+        if self.send_set_next_av_transport_uri(control_url, st, stream_url, &didl_basic).await.is_ok() {
+            return Ok(());
+        }
+        self.send_set_next_av_transport_uri(control_url, st, stream_url, "").await
+    }
+
+    async fn send_set_next_av_transport_uri(
+        &self,
+        control_url: &str,
+        service_type: &str,
+        stream_url: &str,
+        didl_raw: &str,
+    ) -> Result<()> {
+        let didl_escaped = if didl_raw.is_empty() {
+            String::new()
+        } else {
+            xml_escape(didl_raw)
+        };
+        let next_uri_escaped = xml_escape(stream_url);
+
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+            <s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\
+            <s:Body>\
+            <u:SetNextAVTransportURI xmlns:u=\"{}\">\
+            <InstanceID>0</InstanceID>\
+            <NextURI>{}</NextURI>\
+            <NextURIMetaData>{}</NextURIMetaData>\
+            </u:SetNextAVTransportURI>\
+            </s:Body>\
+            </s:Envelope>",
+            service_type, next_uri_escaped, didl_escaped
+        );
+
+        self.soap_action(control_url, &format!("{}#SetNextAVTransportURI", service_type), &body).await
     }
 
     async fn send_set_av_transport_uri(
@@ -309,6 +395,11 @@ impl UpnpController {
     }
 
     pub async fn get_position_info(&self, control_url: &str, service_type: &str) -> Result<(f64, f64)> {
+        let (pos, dur, _) = self.get_position_info_full(control_url, service_type).await?;
+        Ok((pos, dur))
+    }
+
+    pub async fn get_position_info_full(&self, control_url: &str, service_type: &str) -> Result<(f64, f64, String)> {
         let st = if service_type.trim().is_empty() {
             "urn:schemas-upnp-org:service:AVTransport:1"
         } else {
@@ -330,7 +421,7 @@ impl UpnpController {
         let resp = self.client.post(control_url)
             .header("SOAPAction", format!("\"{}#GetPositionInfo\"", st))
             .header("Content-Type", "text/xml; charset=\"utf-8\"")
-            .header("User-Agent", "rooPlayer/0.1.0 UPnP/1.0 DLNADOC/1.50")
+            .header("User-Agent", "rooPlayer/0.2.1 UPnP/1.0 DLNADOC/1.50")
             .body(body)
             .send()
             .await?
@@ -339,11 +430,12 @@ impl UpnpController {
 
         let rel_time = extract_xml_value(&resp, "RelTime").unwrap_or_default();
         let track_dur = extract_xml_value(&resp, "TrackDuration").unwrap_or_default();
+        let track_uri = extract_xml_value(&resp, "TrackURI").unwrap_or_default();
 
         let pos_sec = parse_duration_hhmmss(&rel_time);
         let dur_sec = parse_duration_hhmmss(&track_dur);
 
-        Ok((pos_sec, dur_sec))
+        Ok((pos_sec, dur_sec, track_uri))
     }
 
     pub async fn get_transport_info(&self, control_url: &str, service_type: &str) -> Result<String> {

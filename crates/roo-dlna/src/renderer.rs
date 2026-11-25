@@ -16,6 +16,10 @@ pub struct DlnaManager {
     stop_txs: Arc<RwLock<HashMap<String, watch::Sender<bool>>>>,
     /// Per-zone active progressive stream token keyed by device_id
     active_tokens: Arc<RwLock<HashMap<String, String>>>,
+    /// Per-zone gapless next-track stream token keyed by device_id
+    next_tokens: Arc<RwLock<HashMap<String, String>>>,
+    /// Per-zone gapless next-track URI queued via SetNextAVTransportURI
+    next_uris: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl Default for DlnaManager {
@@ -33,16 +37,33 @@ impl DlnaManager {
             active_devices: Arc::new(RwLock::new(HashMap::new())),
             stop_txs: Arc::new(RwLock::new(HashMap::new())),
             active_tokens: Arc::new(RwLock::new(HashMap::new())),
+            next_tokens: Arc::new(RwLock::new(HashMap::new())),
+            next_uris: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// Record the new stream token for `device_id`, returning its previous token (if any)
     /// so the caller can cancel ONLY that device's old stream without affecting other zones.
     pub fn replace_device_token(&self, device_id: &str, new_token: String) -> Option<String> {
+        self.next_uris.write().unwrap().remove(device_id);
         self.active_tokens
             .write()
             .unwrap()
             .insert(device_id.to_string(), new_token)
+    }
+
+    /// Record the gapless next-track token for `device_id`, returning any stale next token.
+    pub fn replace_device_next_token(&self, device_id: &str, new_token: String) -> Option<String> {
+        self.next_tokens
+            .write()
+            .unwrap()
+            .insert(device_id.to_string(), new_token)
+    }
+
+    /// Remove and return the gapless next-track token for `device_id` (if any).
+    pub fn take_device_next_token(&self, device_id: &str) -> Option<String> {
+        self.next_uris.write().unwrap().remove(device_id);
+        self.next_tokens.write().unwrap().remove(device_id)
     }
 
     /// Remove and return the active stream token for `device_id` (if any).
@@ -93,6 +114,8 @@ impl DlnaManager {
             }
         }
         self.active_tokens.write().unwrap().clear();
+        self.next_tokens.write().unwrap().clear();
+        self.next_uris.write().unwrap().clear();
 
         let mut handles = Vec::new();
         for dev in targets {
@@ -135,6 +158,40 @@ impl DlnaManager {
         devs.iter().find(|d| d.id == device_id).cloned()
     }
 
+    /// Queue the next track on a DLNA renderer via UPnP SetNextAVTransportURI for true gapless playback.
+    pub async fn queue_next(
+        &self,
+        device_id: &str,
+        stream_url: &str,
+        title: &str,
+        artist: &str,
+        album: &str,
+        cover_url: Option<&str>,
+        dsd_hz: Option<u32>,
+        pcm_hz: Option<u32>,
+        duration_sec: Option<f64>,
+    ) -> Result<()> {
+        let dev = self.get_device_by_id(device_id)?;
+        self.controller.set_next_av_transport_uri(
+            &dev.av_transport_url,
+            &dev.av_transport_service_type,
+            stream_url,
+            title,
+            artist,
+            album,
+            cover_url,
+            dsd_hz,
+            pcm_hz,
+            duration_sec,
+        ).await?;
+        self.next_uris
+            .write()
+            .unwrap()
+            .insert(device_id.to_string(), stream_url.to_string());
+        tracing::info!("[DLNA Gapless] Queued SetNextAVTransportURI on {}: {}", dev.name, stream_url);
+        Ok(())
+    }
+
     pub async fn play(
         &self,
         device_id: &str,
@@ -144,10 +201,12 @@ impl DlnaManager {
         album: &str,
         cover_url: Option<&str>,
         dsd_hz: Option<u32>,
+        pcm_hz: Option<u32>,
         duration_sec: Option<f64>,
         start_sec: f64,
         on_progress: impl Fn(f64, f64, &str) + Send + Sync + 'static,
         on_ended: impl Fn() + Send + Sync + 'static,
+        on_gapless_advanced: impl Fn() + Send + Sync + 'static,
     ) -> Result<()> {
         let dev = match self.get_device(device_id) {
             Some(d) => d,
@@ -167,7 +226,7 @@ impl DlnaManager {
         let _ = self.controller.stop(&dev.av_transport_url, &dev.av_transport_service_type).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // 2. Set AVTransport URI with proper metadata (including title, artist, album, cover art, duration, dsd_hz)
+        // 2. Set AVTransport URI with proper metadata (including title, artist, album, cover art, duration, dsd_hz/pcm_hz)
         let set_res = self.controller.set_av_transport_uri(
             &dev.av_transport_url,
             &dev.av_transport_service_type,
@@ -177,6 +236,7 @@ impl DlnaManager {
             album,
             cover_url,
             dsd_hz,
+            pcm_hz,
             duration_sec,
         ).await;
         set_res?;
@@ -217,7 +277,7 @@ impl DlnaManager {
             });
         }
 
-        // 5. Start position and state polling loop for this zone
+        // 5. Start adaptive low-chatter position & gapless transition polling loop
         let (tx, rx) = watch::channel(false);
         self.stop_txs
             .write()
@@ -227,24 +287,67 @@ impl DlnaManager {
         let ctrl = self.controller.clone();
         let av_url = dev.av_transport_url.clone();
         let svc_type = dev.av_transport_service_type.clone();
+        let next_uris = self.next_uris.clone();
+        let next_tokens = self.next_tokens.clone();
+        let active_tokens = self.active_tokens.clone();
+        let dev_id_owned = device_id.to_string();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
             let mut was_playing = false;
-            let mut play_seconds = 0;
-            let mut near_end_count = 0;
-            let start_time = std::time::Instant::now();
+            let mut play_ticks = 0u32;
+            let mut near_end_count = 0u32;
+            let mut was_near_end = false;
+            let mut start_time = std::time::Instant::now();
+            let mut last_dur = 0.0f64;
+            let mut last_pos = 0.0f64;
 
             while !*rx.borrow() {
-                interval.tick().await;
-                if let Ok((pos, dur)) = ctrl.get_position_info(&av_url, &svc_type).await {
+                // Adaptive low-chatter polling:
+                // 500ms during startup (first 3s) or near track end (last 12s),
+                // 1000ms during steady mid-track playback to minimize network/CPU chatter on hardware streamers.
+                let is_fast_window = start_time.elapsed().as_secs_f64() < 3.5
+                    || (last_dur > 5.0 && last_pos >= (last_dur - 12.0));
+                tokio::time::sleep(Duration::from_millis(if is_fast_window { 500 } else { 1000 })).await;
+                if *rx.borrow() {
+                    break;
+                }
+
+                if let Ok((pos, dur, track_uri)) = ctrl.get_position_info_full(&av_url, &svc_type).await {
                     let state = ctrl.get_transport_info(&av_url, &svc_type).await
                         .unwrap_or_else(|_| "PLAYING".to_string());
 
                     let state_upper = state.to_uppercase();
+
+                    // Check if renderer seamlessly transitioned to our queued Gapless NextURI!
+                    let queued_next = next_uris.read().unwrap().get(&dev_id_owned).cloned();
+                    if let Some(expected_next_uri) = queued_next {
+                        let uri_matched = !track_uri.is_empty() && track_uri == expected_next_uri;
+                        let pos_wrapped = was_near_end && pos < 3.0 && state_upper == "PLAYING";
+                        if uri_matched || pos_wrapped {
+                            tracing::info!(
+                                "[DLNA Gapless] Seamless track transition detected on {} (uri_matched={}, pos={:.1})",
+                                dev_id_owned, uri_matched, pos
+                            );
+                            next_uris.write().unwrap().remove(&dev_id_owned);
+                            if let Some(promoted_tok) = next_tokens.write().unwrap().remove(&dev_id_owned) {
+                                active_tokens.write().unwrap().insert(dev_id_owned.clone(), promoted_tok);
+                            }
+                            was_playing = true;
+                            play_ticks = 0;
+                            near_end_count = 0;
+                            was_near_end = false;
+                            start_time = std::time::Instant::now();
+                            last_pos = pos;
+                            last_dur = dur;
+                            on_gapless_advanced();
+                            on_progress(pos, dur, &state);
+                            continue;
+                        }
+                    }
+
                     if state_upper == "PLAYING" || pos > 0.0 {
                         was_playing = true;
-                        play_seconds += 1;
+                        play_ticks += 1;
                     }
 
                     // Filter out stale near-end position from prior track during startup
@@ -252,31 +355,39 @@ impl DlnaManager {
                         continue;
                     }
 
+                    last_pos = pos;
+                    if dur > 0.0 {
+                        last_dur = dur;
+                    }
+                    if dur > 5.0 && pos >= (dur - 5.0) {
+                        was_near_end = true;
+                    }
+
                     on_progress(pos, dur, &state);
 
-                    // A track has finished only if it was genuinely playing AND:
-                    // 1. Explicitly reported STOPPED or NO_MEDIA_PRESENT/COMPLETED and is actually near the end of track
-                    // 2. Or reached duration for at least 2 consecutive ticks after playing for > 4s
                     let is_near_end = if dur > 5.0 {
                         pos >= (dur - 4.0)
                     } else {
-                        play_seconds > 4
+                        play_ticks > 4
                     };
 
                     let finished_by_state = was_playing && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT" || state_upper == "COMPLETED") && is_near_end;
-                    
-                    if was_playing && play_seconds > 4 && dur > 5.0 && pos >= (dur - 1.5) {
+
+                    if was_playing && play_ticks > 4 && dur > 5.0 && pos >= (dur - 1.5) {
                         near_end_count += 1;
                     } else {
                         near_end_count = 0;
                     }
-                    let finished_by_time = near_end_count >= 2;
+                    // If a gapless next URI is queued, give the renderer 1 extra tick to seamlessly wrap before firing on_ended
+                    let has_gapless_queued = next_uris.read().unwrap().contains_key(&dev_id_owned);
+                    let end_ticks_needed = if has_gapless_queued { 4 } else { 2 };
+                    let finished_by_time = near_end_count >= end_ticks_needed;
 
                     if finished_by_state || finished_by_time {
                         tracing::info!("Track finished on DLNA renderer (state={}, pos={}, dur={})", state, pos, dur);
                         on_ended();
                         break;
-                    } else if was_playing && play_seconds > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT") {
+                    } else if was_playing && play_ticks > 4 && (state_upper == "STOPPED" || state_upper == "NO_MEDIA_PRESENT") {
                         tracing::warn!("DLNA renderer stopped prematurely midway (state={}, pos={}, dur={}). Ending poll without on_ended to prevent track skip loop.", state, pos, dur);
                         break;
                     }

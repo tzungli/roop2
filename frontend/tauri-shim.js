@@ -345,6 +345,8 @@
     selectDlnaDevice: (deviceId) => invoke('dlna_select_device', { deviceId }),
     playDlnaTrack: (deviceId, track, startSec = 0, dspOptions = null) =>
       invoke('dlna_play_track', { deviceId, track, startSec, dspOptions }),
+    queueNextDlnaTrack: (deviceId, track, dspOptions = null) =>
+      invoke('dlna_queue_next_track', { deviceId, track, dspOptions }),
     pauseDlna: (deviceId) => invoke('dlna_pause', { deviceId }),
     resumeDlna: (deviceId) => invoke('dlna_resume', { deviceId }),
     stopDlna: (deviceId) => invoke('dlna_stop', { deviceId }),
@@ -354,6 +356,7 @@
     onDlnaDevicesChanged: (callback) => listen('dlna:devicesChanged', callback),
     onDlnaProgress: (callback) => listen('dlna:progress', callback),
     onDlnaTrackEnded: (callback) => listen('dlna:trackEnded', callback),
+    onDlnaGaplessAdvanced: (callback) => listen('dlna:gaplessAdvanced', callback),
     onDlnaPrepareStatus: (callback) => listen('dlna:prepareStatus', callback),
     getFakeDlnaRendererActions: () => invoke('dlna_fake_renderer_actions'),
 

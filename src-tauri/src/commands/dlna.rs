@@ -243,6 +243,7 @@ pub async fn dlna_play_track(
     let is_native_dsf = file_path.to_lowercase().ends_with(".dsf");
     let is_dsd_upsample = !dsd_mode.is_empty();
     let is_dsd = is_dsd_upsample || is_native_dsf;
+    let track_sample_rate = track.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(44100) as u32;
     let dsd_hz: Option<u32> = if is_dsd_upsample {
         match dsd_mode.to_lowercase().as_str() {
             "dsd128" => Some(5644800),
@@ -251,8 +252,13 @@ pub async fn dlna_play_track(
             _ => Some(2822400),
         }
     } else if is_native_dsf {
-        let track_rate = track.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(2822400) as u32;
-        Some(if track_rate > 0 { track_rate } else { 2822400 })
+        Some(if track_sample_rate > 0 { track_sample_rate } else { 2822400 })
+    } else {
+        None
+    };
+    let pcm_hz: Option<u32> = if !is_dsd {
+        let hz = if target_rate > 0 { target_rate } else { track_sample_rate };
+        if hz > 0 { Some(hz) } else { None }
     } else {
         None
     };
@@ -260,9 +266,12 @@ pub async fn dlna_play_track(
     let stream_filename = if is_dsd { "audio.dsf" } else { "audio.wav" };
     let stream_url = format!("http://{}:39840/stream/{}/{}", local_ip, stream_token, stream_filename);
 
-    // Cancel ONLY this device's prior progressive stream (other zones keep streaming!)
+    // Cancel ONLY this device's prior progressive stream & stale gapless stream (other zones keep streaming!)
     if let Some(old_tok) = manager.replace_device_token(&device_id, stream_token.clone()) {
         roo_streamer::cancel_progressive_stream(&old_tok);
+    }
+    if let Some(old_next) = manager.take_device_next_token(&device_id) {
+        roo_streamer::cancel_progressive_stream(&old_next);
     }
 
     if is_native_dsf && !is_dsd_upsample && peq_json.is_empty() && conv_json.is_empty() {
@@ -303,8 +312,10 @@ pub async fn dlna_play_track(
 
     let app_clone = app.clone();
     let app_clone2 = app.clone();
+    let app_clone3 = app.clone();
     let dev_id_prog = device_id.clone();
     let dev_id_end = device_id.clone();
+    let dev_id_gapless = device_id.clone();
     let res = manager.play(
         &device_id,
         &stream_url,
@@ -313,6 +324,7 @@ pub async fn dlna_play_track(
         album,
         Some(&cover_url),
         dsd_hz,
+        pcm_hz,
         duration_sec,
         start,
         move |pos, dur, state| {
@@ -330,6 +342,11 @@ pub async fn dlna_play_track(
         move || {
             let _ = app_clone2.emit("dlna:trackEnded", serde_json::json!({
                 "deviceId": dev_id_end
+            }));
+        },
+        move || {
+            let _ = app_clone3.emit("dlna:gaplessAdvanced", serde_json::json!({
+                "deviceId": dev_id_gapless
             }));
         },
     ).await;
@@ -353,6 +370,139 @@ pub async fn dlna_play_track(
 }
 
 #[tauri::command]
+pub async fn dlna_queue_next_track(
+    manager: State<'_, DlnaManager>,
+    device_id: String,
+    track: serde_json::Value,
+    dsp_options: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let file_path = track.get("filePath").and_then(|v| v.as_str()).unwrap_or("");
+    if file_path.is_empty() {
+        return Ok(serde_json::json!({ "ok": false, "reason": "no filePath" }));
+    }
+
+    let title = track.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown Track");
+    let artist = track.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown Artist");
+    let album = track.get("album").and_then(|v| v.as_str()).unwrap_or("");
+    let raw_cover = track.get("cover").and_then(|v| v.as_str()).unwrap_or("");
+    let duration_sec = track.get("duration").and_then(|v| v.as_f64()).filter(|&d| d > 0.0);
+
+    let dev = manager.get_devices().into_iter().find(|d| d.id == device_id);
+    let target_ip_or_host = dev.as_ref()
+        .map(|d| if !d.ip.is_empty() { d.ip.clone() } else { d.location.clone() })
+        .unwrap_or_default();
+    let local_ip = resolve_local_ip_for_target(&target_ip_or_host);
+
+    let stream_token = format!(
+        "nxt{:x}{:04x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        TOKEN_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+
+    let cover_url = format!("http://{}:39840/cover/{}/cover.jpg", local_ip, stream_token);
+    roo_streamer::register_cover_for_token(
+        &stream_token,
+        if raw_cover.is_empty() { None } else { Some(raw_cover.to_string()) },
+        Some(file_path.to_string()),
+    );
+
+    let (target_rate, dsd_mode, dsd_order, filter_phase, peq_json, conv_json, ultrasonic_filter, dither) =
+        if let Some(opts) = &dsp_options {
+            let rate = opts.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let dsd_m = opts.get("dsdMode").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let dsd_o = opts.get("dsdOrder").and_then(|v| v.as_u64()).unwrap_or(5) as u8;
+            let phase = opts.get("filterPhase").and_then(|v| v.as_str()).unwrap_or("linear").to_string();
+            let peq = opts.get("peq").map(|v| v.to_string()).unwrap_or_default();
+            let conv = opts.get("conv").map(|v| v.to_string()).unwrap_or_default();
+            let ultra = opts.get("ultrasonicFilter").and_then(|v| v.as_str()).unwrap_or("30k").to_string();
+            let dith = opts.get("dither").and_then(|v| v.as_str()).map(|s| s.to_string());
+            (rate, dsd_m, dsd_o, phase, peq, conv, ultra, dith)
+        } else {
+            (0, String::new(), 5, "linear".to_string(), String::new(), String::new(), "30k".to_string(), None)
+        };
+
+    let is_native_dsf = file_path.to_lowercase().ends_with(".dsf");
+    let is_dsd_upsample = !dsd_mode.is_empty();
+    let is_dsd = is_dsd_upsample || is_native_dsf;
+    let track_sample_rate = track.get("sampleRate").and_then(|v| v.as_u64()).unwrap_or(44100) as u32;
+    let dsd_hz: Option<u32> = if is_dsd_upsample {
+        match dsd_mode.to_lowercase().as_str() {
+            "dsd128" => Some(5644800),
+            "dsd256" => Some(11289600),
+            "dsd512" => Some(22579200),
+            _ => Some(2822400),
+        }
+    } else if is_native_dsf {
+        Some(if track_sample_rate > 0 { track_sample_rate } else { 2822400 })
+    } else {
+        None
+    };
+    let pcm_hz: Option<u32> = if !is_dsd {
+        let hz = if target_rate > 0 { target_rate } else { track_sample_rate };
+        if hz > 0 { Some(hz) } else { None }
+    } else {
+        None
+    };
+
+    let stream_filename = if is_dsd { "audio.dsf" } else { "audio.wav" };
+    let stream_url = format!("http://{}:39840/stream/{}/{}", local_ip, stream_token, stream_filename);
+
+    if let Some(old_next) = manager.replace_device_next_token(&device_id, stream_token.clone()) {
+        roo_streamer::cancel_progressive_stream(&old_next);
+    }
+
+    if is_native_dsf && !is_dsd_upsample && peq_json.is_empty() && conv_json.is_empty() {
+        roo_streamer::register_direct_file_stream(
+            &stream_token,
+            std::path::Path::new(file_path),
+            "audio/x-dsf",
+        ).map_err(|e| e.to_string())?;
+    } else {
+        let opts = roo_streamer::DspStreamOptions {
+            file_path: file_path.to_string(),
+            start_sec: 0.0,
+            target_rate,
+            dsd_mode: if dsd_mode.is_empty() { None } else { Some(dsd_mode.clone()) },
+            dsd_order,
+            filter_phase: filter_phase.clone(),
+            peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
+            conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
+            ultrasonic_filter: Some(ultrasonic_filter.clone()),
+            dop: Some(false),
+            dither,
+        };
+        let token_clone = stream_token.clone();
+        tokio::task::spawn_blocking(move || {
+            roo_streamer::start_progressive_stream(&opts, &token_clone)
+        }).await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    }
+
+    match manager.queue_next(
+        &device_id,
+        &stream_url,
+        title,
+        artist,
+        album,
+        Some(&cover_url),
+        dsd_hz,
+        pcm_hz,
+        duration_sec,
+    ).await {
+        Ok(_) => Ok(serde_json::json!({ "ok": true, "streamUrl": stream_url })),
+        Err(e) => {
+            if let Some(tok) = manager.take_device_next_token(&device_id) {
+                roo_streamer::cancel_progressive_stream(&tok);
+            }
+            tracing::debug!("[DLNA Gapless] SetNextAVTransportURI unsupported on {}: {}", device_id, e);
+            Ok(serde_json::json!({ "ok": false, "unsupported": true }))
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn dlna_pause(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
     manager.pause(&device_id).await.map(|_| true).map_err(|e| e.to_string())
 }
@@ -366,6 +516,9 @@ pub async fn dlna_resume(manager: State<'_, DlnaManager>, device_id: String) -> 
 pub async fn dlna_stop(manager: State<'_, DlnaManager>, device_id: String) -> Result<bool, String> {
     if let Some(old_tok) = manager.take_device_token(&device_id) {
         roo_streamer::cancel_progressive_stream(&old_tok);
+    }
+    if let Some(old_next) = manager.take_device_next_token(&device_id) {
+        roo_streamer::cancel_progressive_stream(&old_next);
     }
     manager.stop(&device_id).await.map(|_| true).map_err(|e| e.to_string())
 }

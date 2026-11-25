@@ -400,6 +400,7 @@ async fn serve_progressive_stream(
 
     struct ReaderState {
         file_path: std::path::PathBuf,
+        file: Option<Arc<std::sync::Mutex<std::fs::File>>>,
         current_pos: u64,
         end_pos: u64,
         total_len: u64,
@@ -411,6 +412,7 @@ async fn serve_progressive_stream(
 
     let initial_state = ReaderState {
         file_path: session.temp_file_path.clone(),
+        file: None,
         current_pos: start,
         end_pos: end,
         total_len,
@@ -456,7 +458,8 @@ async fn serve_progressive_stream(
         } else {
             written.saturating_sub(state.current_pos)
         };
-        let to_read = (state.end_pos + 1 - state.current_pos).min(available).min(128 * 1024) as usize;
+        // Smooth 256 KB burst reads into the DLNA renderer's RAM buffer
+        let to_read = (state.end_pos + 1 - state.current_pos).min(available).min(256 * 1024) as usize;
 
         if to_read == 0 {
             return None;
@@ -464,18 +467,26 @@ async fn serve_progressive_stream(
 
         let curr_pos = state.current_pos;
         let p = state.file_path.clone();
+        let existing_file = state.file.clone();
 
-        let read_res = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
+        let read_res = tokio::task::spawn_blocking(move || -> std::io::Result<(Vec<u8>, Arc<std::sync::Mutex<std::fs::File>>)> {
             use std::io::{Read, Seek, SeekFrom};
-            let mut file = std::fs::File::open(&p)?;
-            file.seek(SeekFrom::Start(curr_pos))?;
+            let file_arc = match existing_file {
+                Some(f) => f,
+                None => Arc::new(std::sync::Mutex::new(std::fs::File::open(&p)?)),
+            };
             let mut buf = vec![0u8; to_read];
-            file.read_exact(&mut buf)?;
-            Ok(buf)
+            {
+                let mut f = file_arc.lock().unwrap();
+                f.seek(SeekFrom::Start(curr_pos))?;
+                f.read_exact(&mut buf)?;
+            }
+            Ok((buf, file_arc))
         }).await;
 
         match read_res {
-            Ok(Ok(bytes)) => {
+            Ok(Ok((bytes, file_arc))) => {
+                state.file = Some(file_arc);
                 let bytes_len = bytes.len() as u64;
                 state.current_pos += bytes_len;
                 Some((Ok::<bytes::Bytes, std::io::Error>(bytes::Bytes::from(bytes)), state))

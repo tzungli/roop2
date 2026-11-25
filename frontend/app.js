@@ -20054,10 +20054,52 @@ function initAudioZones() {
     if (window.electronAPI.onDlnaTrackEnded) {
       window.electronAPI.onDlnaTrackEnded((payload) => {
         const endedId = (payload && typeof payload === 'object' && payload.deviceId) ? payload.deviceId : state.activeAudioZone;
+        if (endedId) dlnaGaplessQueuedByZone.delete(endedId);
         if (endedId && endedId === state.activeAudioZone && state.activeAudioZone !== 'local') {
           onTrackEnded();
         } else if (endedId && endedId !== 'local') {
           advanceBackgroundDlnaZoneTrack(endedId);
+        }
+      });
+    }
+
+    if (window.electronAPI.onDlnaGaplessAdvanced) {
+      window.electronAPI.onDlnaGaplessAdvanced((payload) => {
+        const devId = (payload && typeof payload === 'object' && payload.deviceId) ? payload.deviceId : state.activeAudioZone;
+        if (!devId || devId === 'local') return;
+        const queued = dlnaGaplessQueuedByZone.get(devId);
+        dlnaGaplessQueuedByZone.delete(devId);
+        if (!queued || typeof queued.nextIdx !== 'number') return;
+
+        if (devId === state.activeAudioZone) {
+          if (!state.queue || !state.queue[queued.nextIdx]) return;
+          state.currentTrackIndex = queued.nextIdx;
+          state.isPlaying = true;
+          state.dlnaTrackStartTime = Date.now();
+          state.dlnaHasStartedPlaying = true;
+          state.dlnaMaxProgressSec = 0;
+          dlnaSetAuthoritativePos(0);
+          const nextTrk = state.queue[queued.nextIdx];
+          state.dlnaTotalSec = (nextTrk && nextTrk.duration) || 0;
+          if (typeof recordTrackPlay === 'function' && nextTrk) {
+            try { recordTrackPlay(nextTrk); } catch (_) {}
+          }
+          syncPlayerBarForActiveZone();
+          renderAudioDevicesList();
+        } else {
+          const z = state.zones && state.zones[devId];
+          if (!z || !z.queue || !z.queue[queued.nextIdx]) return;
+          z.currentTrackIndex = queued.nextIdx;
+          z.isPlaying = true;
+          z.currentSec = 0;
+          z.dlnaPosEstSec = 0;
+          z.dlnaPosEstAtMs = performance.now();
+          z.dlnaTrackStartTime = Date.now();
+          z.dlnaHasStartedPlaying = true;
+          z.dlnaMaxProgressSec = 0;
+          const nextTrk = z.queue[queued.nextIdx];
+          z.durationSec = (nextTrk && nextTrk.duration) || 0;
+          renderAudioDevicesList();
         }
       });
     }
@@ -20806,6 +20848,46 @@ function dlnaResetPosClock(sec) {
   dlnaPosPollGapMs = 1000;
 }
 
+const dlnaGaplessQueuedByZone = new Map();
+
+function maybeQueueNextDlnaGapless(zoneId, currentSec, totalSec) {
+  if (!zoneId || zoneId === 'local') return;
+  if (!window.electronAPI || !window.electronAPI.queueNextDlnaTrack) return;
+  if (!(totalSec > 18 && currentSec > 5 && (totalSec - currentSec) <= 15)) return;
+
+  const isActive = zoneId === state.activeAudioZone;
+  const z = isActive ? state : (state.zones && state.zones[zoneId]);
+  if (!z || !Array.isArray(z.queue) || z.queue.length === 0) return;
+
+  const curIdx = z.currentTrackIndex;
+  const prev = dlnaGaplessQueuedByZone.get(zoneId);
+  if (prev && prev.fromIdx === curIdx) return;
+
+  const nextIdx = nextIndexForZone({
+    queue: z.queue,
+    currentTrackIndex: curIdx,
+    repeatMode: z.repeatMode || 'none',
+    isShuffling: !!z.isShuffling,
+  });
+  if (nextIdx < 0 || !z.queue[nextIdx]) return;
+
+  const nextTrack = z.queue[nextIdx];
+  if (!nextTrack || !nextTrack.filePath || nextTrack.isDemo) return;
+
+  const entry = { fromIdx: curIdx, nextIdx, supported: false };
+  dlnaGaplessQueuedByZone.set(zoneId, entry);
+
+  const zoneDsp = isActive ? state.dsp : getZoneDspProfile(zoneId);
+  const dspOpts = typeof buildDspOptions === 'function' ? buildDspOptions(nextTrack, zoneDsp) : null;
+  const enriched = typeof getEnrichedTrack === 'function' ? getEnrichedTrack(nextTrack) : nextTrack;
+
+  window.electronAPI.queueNextDlnaTrack(zoneId, enriched, dspOpts).then(res => {
+    if (res && res.ok) {
+      entry.supported = true;
+    }
+  }).catch(() => {});
+}
+
 function handleDlnaProgress(prog) {
   if (!prog) return;
   const progZoneId = prog.deviceId || state.activeAudioZone;
@@ -20824,6 +20906,7 @@ function handleDlnaProgress(prog) {
       z.dlnaPosEstAtMs = performance.now();
       if (stUpper === 'PLAYING' || cur > 0.5) z.dlnaHasStartedPlaying = true;
       if (cur > 0 && cur <= dur + 5) z.dlnaMaxProgressSec = Math.max(cur, z.dlnaMaxProgressSec || 0);
+      if (stUpper === 'PLAYING') maybeQueueNextDlnaGapless(progZoneId, cur, dur);
     }
     return;
   }
@@ -20849,6 +20932,10 @@ function handleDlnaProgress(prog) {
     state.dlnaHasStartedPlaying = true;
   }
 
+  if (stateUpper === 'PLAYING') {
+    maybeQueueNextDlnaGapless(progZoneId, currentSec, totalSec);
+  }
+
   if (currentSec > 0 && currentSec <= totalSec + 5) {
     state.dlnaMaxProgressSec = Math.max(currentSec, state.dlnaMaxProgressSec || 0);
   }
@@ -20865,7 +20952,9 @@ function handleDlnaProgress(prog) {
     totalTimeLabel.textContent = formatDuration(totalSec);
 
     // Front-end safety guard: trigger next track ONLY when playback genuinely progressed and reaches end
-    const reachedEnd = (totalSec > 5 && maxSec >= totalSec - 1.2 && currentSec > 3);
+    // (When Gapless SetNextAVTransportURI is active on this renderer, let the hardware wrap seamlessly!)
+    const gaplessActive = !!(dlnaGaplessQueuedByZone.get(progZoneId) && dlnaGaplessQueuedByZone.get(progZoneId).supported);
+    const reachedEnd = !gaplessActive && (totalSec > 5 && maxSec >= totalSec - 1.2 && currentSec > 3);
     const stoppedNearEnd = (totalSec > 5 && (stateUpper === 'STOPPED' || stateUpper === 'NO_MEDIA_PRESENT') && (maxSec >= totalSec - 4.5 || maxSec >= totalSec * 0.94) && maxSec > 5);
 
     if (state.isPlaying && state.dlnaHasStartedPlaying && elapsedSinceStart > 4500 && (reachedEnd || stoppedNearEnd) && !isTrackEndingHandled) {
