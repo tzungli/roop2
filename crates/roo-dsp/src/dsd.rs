@@ -485,6 +485,250 @@ fn load_hermite_forward_diffs(pcm: &[f64], in_len: usize, cur_idx: usize, inv_w:
 
 const DSD_GAUSS_CLT_SCALE: f64 = (0.0125 * 0.707) / 37837.22;
 
+/// Transposed 4-phase x 16-tap Kaiser polyphase anti-imaging FIR (`fc = 0.90 * Nyquist_1`, `beta = 14.0`)
+/// for Stage-1B 4x upsampling (`352.8 kHz -> 1.4112 MHz` for DSD128/256/512; `176.4 kHz -> 705.6 kHz` for DSD64).
+/// Each row `j in 0..16` holds `[phase0[j], phase1[j], phase2[j], phase3[j]]` corresponding to input offset `k = j as isize - 7`.
+/// Achieves 0.00000 dB flat passband (0..50 kHz) and -135.44 dB image suppression at 330.75 kHz (-319.4 dB at 352.8 kHz).
+pub const STAGE1B_4X_COLS: [[f64; 4]; 16] = [
+    [3.9023986676443513e-05, 2.1108268617849049e-05, 5.6340916213760199e-06, 1.7952577258708638e-07],
+    [-5.4494880539996782e-04, -3.1096418787067632e-04, -8.5430668102666398e-05, 2.3116153937175029e-05],
+    [3.3498297763530490e-03, 1.7134512457682980e-03, 2.3071224674505041e-04, -4.8894474004000112e-04],
+    [-1.2482504952381348e-02, -5.0160327597590067e-03, 1.0791028419561944e-03, 3.6954936488577616e-03],
+    [3.2119860036007378e-02, 7.1580527558763388e-03, -1.0631728746928831e-02, -1.6314234470704340e-02],
+    [-6.0969733743550115e-02, 6.4418062582985549e-03, 4.5842414228488830e-02, 5.0767648909425776e-02],
+    [8.8488612228475205e-02, -8.2572747139686029e-02, -1.4885653612815916e-01, -1.2759003485539483e-01],
+    [8.9999972294763875e-01, 8.2147280804584022e-01, 6.1241583213437922e-01, 3.4099929334106033e-01],
+    [8.8488612228475205e-02, 3.4099929334106033e-01, 6.1241583213437922e-01, 8.2147280804584022e-01],
+    [-6.0969733743550115e-02, -1.2759003485539483e-01, -1.4885653612815916e-01, -8.2572747139686029e-02],
+    [3.2119860036007378e-02, 5.0767648909425776e-02, 4.5842414228488830e-02, 6.4418062582985549e-03],
+    [-1.2482504952381348e-02, -1.6314234470704340e-02, -1.0631728746928831e-02, 7.1580527558763388e-03],
+    [3.3498297763530490e-03, 3.6954936488577616e-03, 1.0791028419561944e-03, -5.0160327597590067e-03],
+    [-5.4494880539996782e-04, -4.8894474004000112e-04, 2.3071224674505041e-04, 1.7134512457682980e-03],
+    [3.9023986676443513e-05, 2.3116153937175029e-05, -8.5430668102666398e-05, -3.1096418787067632e-04],
+    [-0.0000000000000000e+00, 1.7952577258708638e-07, 5.6340916213760199e-06, 2.1108268617849049e-05],
+];
+
+/// Evaluate the exact magnitude response (in dB) of the Stage-1B 4x 16-tap polyphase FIR at `freq_hz`.
+pub fn eval_stage1b_4x_response_db(freq_hz: f64, fs_stage1: f64) -> f64 {
+    let fs_1b = fs_stage1 * 4.0;
+    let mut re = 0.0;
+    let mut im = 0.0;
+    for phi in 0..4 {
+        for j in 0..16 {
+            let k = j as isize - 7;
+            let m = (-4 * k + phi as isize) as f64;
+            let ang = 2.0 * PI * freq_hz * m / fs_1b;
+            let h = STAGE1B_4X_COLS[j][phi];
+            re += h * ang.cos();
+            im -= h * ang.sin();
+        }
+    }
+    let mag = (re * re + im * im).sqrt() * 0.25;
+    20.0 * mag.max(1e-20).log10()
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn upsample_stage1b_4x_interior_avx2(pcm: &[f64], n_begin: usize, n_limit: usize, dst_offset: usize, out: &mut [f64]) {
+    use std::arch::x86_64::*;
+    let c0 = _mm256_loadu_pd(STAGE1B_4X_COLS[0].as_ptr());
+    let c1 = _mm256_loadu_pd(STAGE1B_4X_COLS[1].as_ptr());
+    let c2 = _mm256_loadu_pd(STAGE1B_4X_COLS[2].as_ptr());
+    let c3 = _mm256_loadu_pd(STAGE1B_4X_COLS[3].as_ptr());
+    let c4 = _mm256_loadu_pd(STAGE1B_4X_COLS[4].as_ptr());
+    let c5 = _mm256_loadu_pd(STAGE1B_4X_COLS[5].as_ptr());
+    let c6 = _mm256_loadu_pd(STAGE1B_4X_COLS[6].as_ptr());
+    let c7 = _mm256_loadu_pd(STAGE1B_4X_COLS[7].as_ptr());
+    let c8 = _mm256_loadu_pd(STAGE1B_4X_COLS[8].as_ptr());
+    let c9 = _mm256_loadu_pd(STAGE1B_4X_COLS[9].as_ptr());
+    let c10 = _mm256_loadu_pd(STAGE1B_4X_COLS[10].as_ptr());
+    let c11 = _mm256_loadu_pd(STAGE1B_4X_COLS[11].as_ptr());
+    let c12 = _mm256_loadu_pd(STAGE1B_4X_COLS[12].as_ptr());
+    let c13 = _mm256_loadu_pd(STAGE1B_4X_COLS[13].as_ptr());
+    let c14 = _mm256_loadu_pd(STAGE1B_4X_COLS[14].as_ptr());
+    let c15 = _mm256_loadu_pd(STAGE1B_4X_COLS[15].as_ptr());
+
+    let src_ptr = pcm.as_ptr();
+    let dst_ptr = out.as_mut_ptr();
+    let mut n = n_begin;
+    let mut d = dst_offset;
+
+    // 2x-unrolled AVX2+FMA loop: emits 8 upsampled 1.4112 MHz samples per iteration
+    while n + 1 < n_limit {
+        let p = src_ptr.add(n - 7);
+        let x0 = _mm256_set1_pd(*p);
+        let x1 = _mm256_set1_pd(*p.add(1));
+        let mut a0 = _mm256_mul_pd(x0, c0);
+        let mut a1 = _mm256_mul_pd(x1, c0);
+
+        let x2 = _mm256_set1_pd(*p.add(2));
+        a0 = _mm256_fmadd_pd(x1, c1, a0);
+        a1 = _mm256_fmadd_pd(x2, c1, a1);
+
+        let x3 = _mm256_set1_pd(*p.add(3));
+        a0 = _mm256_fmadd_pd(x2, c2, a0);
+        a1 = _mm256_fmadd_pd(x3, c2, a1);
+
+        let x4 = _mm256_set1_pd(*p.add(4));
+        a0 = _mm256_fmadd_pd(x3, c3, a0);
+        a1 = _mm256_fmadd_pd(x4, c3, a1);
+
+        let x5 = _mm256_set1_pd(*p.add(5));
+        a0 = _mm256_fmadd_pd(x4, c4, a0);
+        a1 = _mm256_fmadd_pd(x5, c4, a1);
+
+        let x6 = _mm256_set1_pd(*p.add(6));
+        a0 = _mm256_fmadd_pd(x5, c5, a0);
+        a1 = _mm256_fmadd_pd(x6, c5, a1);
+
+        let x7 = _mm256_set1_pd(*p.add(7));
+        a0 = _mm256_fmadd_pd(x6, c6, a0);
+        a1 = _mm256_fmadd_pd(x7, c6, a1);
+
+        let x8 = _mm256_set1_pd(*p.add(8));
+        a0 = _mm256_fmadd_pd(x7, c7, a0);
+        a1 = _mm256_fmadd_pd(x8, c7, a1);
+
+        let x9 = _mm256_set1_pd(*p.add(9));
+        a0 = _mm256_fmadd_pd(x8, c8, a0);
+        a1 = _mm256_fmadd_pd(x9, c8, a1);
+
+        let x10 = _mm256_set1_pd(*p.add(10));
+        a0 = _mm256_fmadd_pd(x9, c9, a0);
+        a1 = _mm256_fmadd_pd(x10, c9, a1);
+
+        let x11 = _mm256_set1_pd(*p.add(11));
+        a0 = _mm256_fmadd_pd(x10, c10, a0);
+        a1 = _mm256_fmadd_pd(x11, c10, a1);
+
+        let x12 = _mm256_set1_pd(*p.add(12));
+        a0 = _mm256_fmadd_pd(x11, c11, a0);
+        a1 = _mm256_fmadd_pd(x12, c11, a1);
+
+        let x13 = _mm256_set1_pd(*p.add(13));
+        a0 = _mm256_fmadd_pd(x12, c12, a0);
+        a1 = _mm256_fmadd_pd(x13, c12, a1);
+
+        let x14 = _mm256_set1_pd(*p.add(14));
+        a0 = _mm256_fmadd_pd(x13, c13, a0);
+        a1 = _mm256_fmadd_pd(x14, c13, a1);
+
+        let x15 = _mm256_set1_pd(*p.add(15));
+        a0 = _mm256_fmadd_pd(x14, c14, a0);
+        a1 = _mm256_fmadd_pd(x15, c14, a1);
+
+        let x16 = _mm256_set1_pd(*p.add(16));
+        a0 = _mm256_fmadd_pd(x15, c15, a0);
+        a1 = _mm256_fmadd_pd(x16, c15, a1);
+
+        _mm256_storeu_pd(dst_ptr.add(d), a0);
+        _mm256_storeu_pd(dst_ptr.add(d + 4), a1);
+        n += 2;
+        d += 8;
+    }
+
+    while n < n_limit {
+        let p = src_ptr.add(n - 7);
+        let mut a0 = _mm256_mul_pd(_mm256_set1_pd(*p), c0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(1)), c1, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(2)), c2, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(3)), c3, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(4)), c4, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(5)), c5, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(6)), c6, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(7)), c7, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(8)), c8, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(9)), c9, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(10)), c10, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(11)), c11, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(12)), c12, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(13)), c13, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(14)), c14, a0);
+        a0 = _mm256_fmadd_pd(_mm256_set1_pd(*p.add(15)), c15, a0);
+        _mm256_storeu_pd(dst_ptr.add(d), a0);
+        n += 1;
+        d += 4;
+    }
+}
+
+/// Stage-1B 4x polyphase FIR upsampler (`352.8 kHz -> 1.4112 MHz` or `176.4 kHz -> 705.6 kHz`).
+/// Suppresses the 330.75 kHz / 705.6 kHz / 1.058 MHz Stage-1 ultrasonic images by > 135 dB
+/// while leaving the 22.58 MHz per-bit modulator inner loop on ultra-fast 3-addition forward differences.
+pub fn upsample_stage1b_4x_slice(
+    pcm: &[f64],
+    in_len: usize,
+    start_bit: usize,
+    total_bytes: usize,
+    w_period: usize,
+) -> Option<(Vec<f64>, usize, usize)> {
+    if in_len == 0 || w_period < 8 || (w_period & 3) != 0 {
+        return None;
+    }
+    let w_sub = w_period >> 2;
+    let end_bit = start_bit + total_bytes * 8;
+    let s1b_min = (start_bit / w_sub).saturating_sub(1);
+    let s1b_max = (end_bit / w_sub) + 3;
+    let n_start = s1b_min >> 2;
+    let n_end = ((s1b_max >> 2) + 1).max(n_start + 1);
+    let count_in = n_end - n_start;
+    let mut out = vec![0.0f64; count_in * 4];
+
+    let int_begin = n_start.max(7).min(n_end);
+    let int_limit = in_len.saturating_sub(8).max(int_begin).min(n_end);
+
+    let eval_edge_sample = |n: usize, dst: &mut [f64]| {
+        let max_idx = in_len as isize - 1;
+        let mut acc0 = 0.0;
+        let mut acc1 = 0.0;
+        let mut acc2 = 0.0;
+        let mut acc3 = 0.0;
+        for j in 0..16 {
+            let idx = (n as isize + j as isize - 7).clamp(0, max_idx) as usize;
+            let x = pcm[idx];
+            let col = &STAGE1B_4X_COLS[j];
+            acc0 += x * col[0];
+            acc1 += x * col[1];
+            acc2 += x * col[2];
+            acc3 += x * col[3];
+        }
+        dst[0] = acc0;
+        dst[1] = acc1;
+        dst[2] = acc2;
+        dst[3] = acc3;
+    };
+
+    for n in n_start..int_begin {
+        let d = (n - n_start) * 4;
+        eval_edge_sample(n, &mut out[d..d + 4]);
+    }
+
+    if int_limit > int_begin {
+        #[cfg(target_arch = "x86_64")]
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            unsafe {
+                upsample_stage1b_4x_interior_avx2(pcm, int_begin, int_limit, (int_begin - n_start) * 4, &mut out);
+            }
+        } else {
+            for n in int_begin..int_limit {
+                let d = (n - n_start) * 4;
+                eval_edge_sample(n, &mut out[d..d + 4]);
+            }
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        for n in int_begin..int_limit {
+            let d = (n - n_start) * 4;
+            eval_edge_sample(n, &mut out[d..d + 4]);
+        }
+    }
+
+    for n in int_limit..n_end {
+        let d = (n - n_start) * 4;
+        eval_edge_sample(n, &mut out[d..d + 4]);
+    }
+
+    Some((out, start_bit - n_start * w_period, w_sub))
+}
+
 #[inline(always)]
 fn next_reg_gauss(prng: &mut u64) -> f64 {
     let mut x = *prng;
@@ -525,6 +769,12 @@ fn modulate_channel5(
     let total_bytes = num_blocks * DSD_BLOCK_SIZE;
 
     if gf.is_none() && w_period > 0 {
+        let s1b_stage = upsample_stage1b_4x_slice(pcm, in_len, start_bit, total_bytes, w_period);
+        let (pcm, in_len, start_bit, w_period) = if let Some((ref buf, sb, wp)) = s1b_stage {
+            (buf.as_slice(), buf.len(), sb, wp)
+        } else {
+            (pcm, in_len, start_bit, w_period)
+        };
         // Ultra-fast Forward-Difference Hermite + Register-local PRNG + Per-byte stability guard
         let inv_w = 1.0 / w_period as f64;
         let mut cur_idx = start_bit / w_period;
@@ -681,6 +931,12 @@ fn modulate_channel7(
     let total_bytes = num_blocks * DSD_BLOCK_SIZE;
 
     if gf.is_none() && w_period > 0 {
+        let s1b_stage = upsample_stage1b_4x_slice(pcm, in_len, start_bit, total_bytes, w_period);
+        let (pcm, in_len, start_bit, w_period) = if let Some((ref buf, sb, wp)) = s1b_stage {
+            (buf.as_slice(), buf.len(), sb, wp)
+        } else {
+            (pcm, in_len, start_bit, w_period)
+        };
         // Ultra-fast Forward-Difference Hermite + Register-local PRNG + Per-byte stability guard
         let inv_w = 1.0 / w_period as f64;
         let mut cur_idx = start_bit / w_period;
@@ -1365,6 +1621,12 @@ fn modulate_channel5_ec(
     let use_no_dither = matches!(dither_type, DitherType::None);
 
     if gf.is_none() && w_period > 0 {
+        let s1b_stage = upsample_stage1b_4x_slice(pcm, in_len, start_bit, total_bytes, w_period);
+        let (pcm, in_len, start_bit, w_period) = if let Some((ref buf, sb, wp)) = s1b_stage {
+            (buf.as_slice(), buf.len(), sb, wp)
+        } else {
+            (pcm, in_len, start_bit, w_period)
+        };
         #[cfg(target_arch = "x86_64")]
         if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
             // Safety: runtime-checked AVX2 + FMA support
@@ -1523,6 +1785,12 @@ fn modulate_channel7_ec(
     let use_no_dither = matches!(dither_type, DitherType::None);
 
     if gf.is_none() && w_period > 0 {
+        let s1b_stage = upsample_stage1b_4x_slice(pcm, in_len, start_bit, total_bytes, w_period);
+        let (pcm, in_len, start_bit, w_period) = if let Some((ref buf, sb, wp)) = s1b_stage {
+            (buf.as_slice(), buf.len(), sb, wp)
+        } else {
+            (pcm, in_len, start_bit, w_period)
+        };
         #[cfg(target_arch = "x86_64")]
         if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
             // Safety: runtime-checked AVX2 + FMA support

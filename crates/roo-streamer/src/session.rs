@@ -350,9 +350,9 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                 let num_bits = blocks_to_run * samples_per_block;
                 let start_s1 = start_bit / stage2_ratio;
                 let num_s1 = num_bits / stage2_ratio;
-                let pad_start = start_s1.saturating_sub(1);
+                let pad_start = start_s1.saturating_sub(8);
                 let lead_pad = start_s1 - pad_start;
-                let pad_end = start_s1 + num_s1 + 3;
+                let pad_end = start_s1 + num_s1 + 10;
                 let (s1_l, s1_r) = gf.upsample_range_stereo(src_l, src_r, stage1_ratio, pad_start, pad_end);
                 m.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, out_slice);
             } else {
@@ -429,9 +429,9 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                         let num_bits = blocks_to_run * samples_per_block;
                         let start_s1 = start_bit / stage2_ratio;
                         let num_s1 = num_bits / stage2_ratio;
-                        let pad_start = start_s1.saturating_sub(1);
+                        let pad_start = start_s1.saturating_sub(8);
                         let lead_pad = start_s1 - pad_start;
-                        let pad_end = start_s1 + num_s1 + 3;
+                        let pad_end = start_s1 + num_s1 + 10;
                         let (s1_l, s1_r) = gf.upsample_range_stereo(&bg_left, &bg_right, stage1_ratio, pad_start, pad_end);
                         bg_modulator.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, slice);
                     } else {
@@ -818,9 +818,9 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
                 let num_bits = blocks_to_run * samples_per_block;
                 let start_s1 = start_bit / stage2_ratio;
                 let num_s1 = num_bits / stage2_ratio;
-                let pad_start = start_s1.saturating_sub(1);
+                let pad_start = start_s1.saturating_sub(8);
                 let lead_pad = start_s1 - pad_start;
-                let pad_end = start_s1 + num_s1 + 3;
+                let pad_end = start_s1 + num_s1 + 10;
                 let (s1_l, s1_r) = gf.upsample_range_stereo(&left, &right, stage1_ratio, pad_start, pad_end);
                 let slice = &mut block_data[curr_block * 8192..(curr_block + blocks_to_run) * 8192];
                 modulator.run_blocks(&s1_l, &s1_r, s1_l.len(), lead_pad * stage2_ratio, blocks_to_run, stage2_inv_ratio, slice);

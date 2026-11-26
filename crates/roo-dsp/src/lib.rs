@@ -642,6 +642,23 @@ mod tests {
             println!("DSD512 ASDM7EC-super512+fs {} stress max_state={:.3}", label, max_fs);
             assert!(max_fs.is_finite() && max_fs < 4.5, "{} stress unstable: {}", label, max_fs);
         }
+
+        // Verify Stage-1B 4x 16-tap polyphase FIR frequency response & standalone AVX2 throughput
+        let db_20k = eval_stage1b_4x_response_db(20_000.0, 352_800.0);
+        let db_330k = eval_stage1b_4x_response_db(330_750.0, 352_800.0);
+        let db_352k = eval_stage1b_4x_response_db(352_800.0, 352_800.0);
+        let db_683k = eval_stage1b_4x_response_db(683_550.0, 352_800.0);
+        let s1_dummy = vec![0.25f64; 352_800];
+        let t_s1b = std::time::Instant::now();
+        let _ = upsample_stage1b_4x_slice(&s1_dummy, s1_dummy.len(), 0, 689 * DSD_BLOCK_SIZE, 64);
+        let _ = upsample_stage1b_4x_slice(&s1_dummy, s1_dummy.len(), 0, 689 * DSD_BLOCK_SIZE, 64);
+        let s1b_ms = t_s1b.elapsed().as_secs_f64() * 1000.0;
+        println!(
+            "Stage-1B 4x 16-tap Polyphase FIR (352.8k->1.4112MHz, 1s stereo={:.2}ms): 20kHz={:.5}dB, 330.75kHz={:.2}dB, 352.8kHz={:.2}dB, 683.55kHz={:.2}dB",
+            s1b_ms, db_20k, db_330k, db_352k, db_683k
+        );
+        assert!(db_20k.abs() < 1e-4, "Stage-1B 20kHz should be 0.0000 dB, got {}", db_20k);
+        assert!(db_330k < -130.0, "Stage-1B 330.75kHz image should be < -130 dB, got {}", db_330k);
     }
 
     #[test]
