@@ -7469,48 +7469,62 @@ function normalizeAlbumMatch(str) {
 
 function cleanAlbumTitleForSearch(title) {
   return String(title || '')
-    .replace(/\s*[\(\[【（](?:deluxe|remaster(?:ed)?|anniversary|special edition|expanded|live|mono|stereo|hi-res|24bit|dsd|sacd|disc\s*\d+|cd\s*\d+)[^)\]】）]*[\)\]】）]/gi, '')
+    .replace(/^\s*(?:19|20)\d{2}\s*[-–—·._]\s*/, '')
+    .replace(/\s*[～~-]\s*\d+(?:st|nd|rd|th)?\s*anniversary[^～~-]*[～~-]?/gi, '')
+    .replace(/\s*[\(\[【（](?:[^)\]】）]*(?:deluxe|remaster(?:ed)?|anniversary|special|expanded|live|mono|stereo|hi-res|24bit|dsd|sacd|xrcd|hdcd|flac|disc\s*\d+|cd\s*\d+|初回|限定|通常|豪華|精裝|台版|港版|日版|\d{4}\s*[A-Z]{2,3})[^)\]】）]*)[\)\]】）]/gi, '')
+    .replace(/\s*\(\d+\)\s*$/, '')
+    .replace(/\s+[A-Z]{2,5}-\d{3,6}\b/g, '')
     .replace(/\s*-\s*(?:deluxe|remastered|ep|single)\b.*$/i, '')
     .trim();
 }
 
-function albumTitleMatches(candTitle, targetTitle) {
+function albumTitleMatches(candTitle, targetTitle, altTargetTitle = '') {
   const c = normalizeAlbumMatch(candTitle);
-  const t = normalizeAlbumMatch(targetTitle);
-  if (!c || !t) return false;
-  if (c === t) return true;
-  if (c.includes(t) || t.includes(c)) {
-    const ratio = Math.min(c.length, t.length) / Math.max(c.length, t.length);
-    return ratio >= 0.45;
+  const targets = [normalizeAlbumMatch(targetTitle), normalizeAlbumMatch(altTargetTitle)].filter(Boolean);
+  if (!c || targets.length === 0) return false;
+  for (const t of targets) {
+    if (c === t) return true;
+    if (c.includes(t) || t.includes(c)) {
+      const ratio = Math.min(c.length, t.length) / Math.max(c.length, t.length);
+      if (ratio >= 0.45) return true;
+    }
   }
   return false;
 }
 
-function artistNameMatches(candArtist, targetArtist) {
+function artistNameMatches(candArtist, targetArtist, altTargetArtist = '') {
   const c = normalizeAlbumMatch(candArtist);
-  const t = normalizeAlbumMatch(targetArtist);
-  if (!t || t === 'various artists' || t === '群星') return true;
+  const tOrig = String(targetArtist || '').trim();
+  const t = normalizeAlbumMatch(tOrig);
+  const tAlt = normalizeAlbumMatch(altTargetArtist);
+  if (!t || t === 'various artists' || t === '群星' || t === 'unknown artist') return true;
   if (!c) return false;
-  const tPrimary = normalizeAlbumMatch(String(targetArtist || '').split(/[,;&\/、]|feat\.?|ft\.?/i)[0]);
-  return c === t || c.includes(t) || t.includes(c) || (tPrimary && (c.includes(tPrimary) || tPrimary.includes(c)));
+  const tPrimary = normalizeAlbumMatch(tOrig.split(/[,;&\/、]|feat\.?|ft\.?/i)[0]);
+  const tAltPrimary = normalizeAlbumMatch(String(altTargetArtist || '').split(/[,;&\/、]|feat\.?|ft\.?/i)[0]);
+  for (const cand of [t, tAlt, tPrimary, tAltPrimary].filter(Boolean)) {
+    if (c === cand || c.includes(cand) || cand.includes(c)) return true;
+  }
+  return false;
 }
 
-function isGenuineAlbumWikiArticle(pageTitle, extractText, albumTitle, artistName) {
+function isGenuineAlbumWikiArticle(pageTitle, extractText, albumTitle, artistName, altAlbumTitle = '') {
   const pNorm = normalizeAlbumMatch(pageTitle);
   const aNorm = normalizeAlbumMatch(albumTitle);
+  const aAltNorm = normalizeAlbumMatch(altAlbumTitle);
   const artNorm = normalizeAlbumMatch(artistName);
-  const head = String(extractText || '').slice(0, 450);
+  const head = String(extractText || '').slice(0, 500);
   const headLower = head.toLowerCase();
 
   // Reject exact artist biography pages when album title differs from artist name
-  if (artNorm && pNorm === artNorm && aNorm !== artNorm) return false;
+  if (artNorm && pNorm === artNorm && aNorm !== artNorm && aAltNorm !== artNorm) return false;
 
-  const pageHasAlbumTag = /\((?:.*album.*|.*ep.*|.*soundtrack.*|.*record.*)\)|（.*專輯.*）|專輯$/i.test(String(pageTitle || ''));
-  const titleMatchesAlbum = aNorm && (pNorm === aNorm || pNorm.includes(aNorm) || aNorm.includes(pNorm));
+  const pageHasAlbumTag = /\((?:.*album.*|.*ep.*|.*soundtrack.*|.*record.*)\)|（.*(?:專輯|专辑|原聲帶).*）|(?:專輯|专辑|アルバム)$/i.test(String(pageTitle || ''));
+  const titleMatchesAlbum = (aNorm && (pNorm === aNorm || pNorm.includes(aNorm) || aNorm.includes(pNorm)))
+    || (aAltNorm && (pNorm === aAltNorm || pNorm.includes(aAltNorm) || aAltNorm.includes(pNorm)));
   if (!titleMatchesAlbum && !pageHasAlbumTag) return false;
 
   const hasBioLead = /(出生於|生於\d|男歌手|女歌手|創作歌手|樂團成員|音樂家，|is a (?:chinese|taiwanese|japanese|korean|american|british|hong kong|canadian) .*?(?:singer|musician|band|rapper|composer|pianist|violinist|cellist)|was born (?:on|in))/i.test(head);
-  const hasAlbumSignals = /(專輯|唱片|迷你專輯|精選輯|原聲帶|個人第.+張|發行日期|共收錄|studio album|debut album|live album|compilation album|soundtrack album|extended play|released on|recorded in)/i.test(headLower);
+  const hasAlbumSignals = /(專輯|专辑|唱片|大碟|同名專輯|國語專輯|粵語專輯|日語專輯|迷你專輯|精選輯|原聲帶|個人第.+張|第.+張錄音室|發行日期|共收錄|發行之|アルバム|スタジオ・アルバム|サウンドトラック|発売|収録|studio album|debut album|live album|compilation album|soundtrack album|extended play|released on|recorded in)/i.test(headLower);
 
   if (hasBioLead && !hasAlbumSignals) return false;
   return hasAlbumSignals || pageHasAlbumTag;
@@ -7588,54 +7602,59 @@ function stripHtmlToPlainText(html) {
   return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function findEditorialNotesRecursive(node, depth = 0) {
-  if (!node || typeof node !== 'object' || depth > 12) return null;
-  if (node.editorialNotes && typeof node.editorialNotes === 'object') {
-    const raw = node.editorialNotes.standard || node.editorialNotes.short || '';
-    if (typeof raw === 'string' && raw.trim().length >= 35) return raw;
-  }
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      const found = findEditorialNotesRecursive(item, depth + 1);
-      if (found) return found;
+const zhCnSearchCache = new Map();
+
+async function convertToSimplifiedForSearch(text) {
+  const s = String(text || '').trim();
+  if (!s || !/[\u4e00-\u9fff]/.test(s)) return s;
+  if (zhCnSearchCache.has(s)) return zhCnSearchCache.get(s);
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=zh-CN&dt=t&q=${encodeURIComponent(s)}`;
+    const data = await nativeFetchJson(url, {}, 4000);
+    if (data && Array.isArray(data[0])) {
+      const converted = data[0].map(seg => (seg && seg[0]) ? seg[0] : '').join('').trim();
+      if (converted) {
+        zhCnSearchCache.set(s, converted);
+        return converted;
+      }
     }
-    return null;
-  }
-  for (const key of Object.keys(node)) {
-    const found = findEditorialNotesRecursive(node[key], depth + 1);
-    if (found) return found;
-  }
-  return null;
+  } catch (_) {}
+  return s;
 }
 
-function extractAppleMusicEditorialNotes(html) {
-  if (!html || typeof html !== 'string') return '';
-  const scriptMatch = html.match(/<script[^>]*id=["']serialized-server-data["'][^>]*>([\s\S]*?)<\/script>/i);
-  if (scriptMatch && scriptMatch[1]) {
-    try {
-      const parsed = JSON.parse(scriptMatch[1]);
-      const found = findEditorialNotesRecursive(parsed);
-      if (found) {
-        const cleaned = stripHtmlToPlainText(found);
-        if (cleaned.length >= 35) return cleaned;
-      }
-    } catch (_) {}
+function tracksOverlapWithSongs(localTracks, remoteSongNames, simplifiedTrackSet = null) {
+  if (!Array.isArray(localTracks) || localTracks.length === 0 || !Array.isArray(remoteSongNames) || remoteSongNames.length === 0) {
+    return false;
   }
+  const localNorms = localTracks
+    .map(t => normalizeAlbumMatch(t && t.title))
+    .filter(n => n.length >= 2);
+  if (localNorms.length === 0) return false;
 
-  const blockMatch = html.match(/"editorialNotes"\s*:\s*\{([\s\S]{15,4000}?)\}/);
-  if (blockMatch && blockMatch[1]) {
-    const stdMatch = blockMatch[1].match(/"standard"\s*:\s*"((?:\\.|[^"\\])*)"/);
-    const shortMatch = blockMatch[1].match(/"short"\s*:\s*"((?:\\.|[^"\\])*)"/);
-    const rawJsonStr = (stdMatch && stdMatch[1]) || (shortMatch && shortMatch[1]);
-    if (rawJsonStr) {
-      try {
-        const decoded = JSON.parse(`"${rawJsonStr}"`);
-        const cleaned = stripHtmlToPlainText(decoded);
-        if (cleaned.length >= 35) return cleaned;
-      } catch (_) {}
+  for (const rName of remoteSongNames) {
+    const rn = normalizeAlbumMatch(rName);
+    if (rn.length < 2) continue;
+    for (const ln of localNorms) {
+      if (ln === rn || (ln.length >= 3 && (ln.includes(rn) || rn.includes(ln)))) return true;
+    }
+    if (simplifiedTrackSet) {
+      for (const sn of simplifiedTrackSet) {
+        if (sn === rn || (sn.length >= 3 && (sn.includes(rn) || rn.includes(sn)))) return true;
+      }
     }
   }
-  return '';
+  return false;
+}
+
+function trimReviewLength(text, maxChars = 2400) {
+  const s = String(text || '').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (s.length <= maxChars) return s;
+  const cut = s.slice(0, maxChars);
+  const lastBreak = Math.max(cut.lastIndexOf('\n\n'), cut.lastIndexOf('。'), cut.lastIndexOf('. '));
+  if (lastBreak > maxChars * 0.55) {
+    return cut.slice(0, lastBreak + 1).trim();
+  }
+  return cut.trim() + '...';
 }
 
 function mergeOnlineMetaTags(onlineMeta, additions) {
@@ -7661,8 +7680,14 @@ async function resolveAlbumReviewData(album) {
   }
 
   const cleanTitle = cleanAlbumTitleForSearch(album.title) || String(album.title).trim();
-  const cleanArtist = String(album.artist || '').trim();
-  const searchQuery = cleanArtist && !isUnknownArtist(cleanArtist) ? `${cleanTitle} ${cleanArtist}` : cleanTitle;
+  const rawArtist = String((album.albumArtist && !isUnknownArtist(album.albumArtist) ? album.albumArtist : album.artist) || '').trim();
+  const cleanArtist = isUnknownArtist(rawArtist) ? '' : rawArtist;
+  const hasCjk = /[\u4e00-\u9fff]/.test(`${cleanTitle} ${cleanArtist}`);
+  const hasKana = /[\u3040-\u30ff]/.test(`${cleanTitle} ${cleanArtist}`);
+  const cleanTitleCn = hasCjk ? await convertToSimplifiedForSearch(cleanTitle) : cleanTitle;
+  const cleanArtistCn = (hasCjk && cleanArtist) ? await convertToSimplifiedForSearch(cleanArtist) : cleanArtist;
+  const searchQuery = cleanArtist ? `${cleanTitle} ${cleanArtist}` : cleanTitle;
+
   const onlineMeta = {
     releaseDate: '',
     label: '',
@@ -7683,7 +7708,7 @@ async function resolveAlbumReviewData(album) {
       if (!targetTidalId) {
         const candidates = await window.tidalService.searchAlbumVersions(cleanTitle, cleanArtist);
         const match = (candidates || []).find(a =>
-          albumTitleMatches(a.title, cleanTitle) && artistNameMatches(a.artist, cleanArtist)
+          albumTitleMatches(a.title, cleanTitle, cleanTitleCn) && artistNameMatches(a.artist, cleanArtist, cleanArtistCn)
         );
         if (match) targetTidalId = match.tidalId || match.id;
       }
@@ -7698,97 +7723,240 @@ async function resolveAlbumReviewData(album) {
     } catch (_) {}
   }
 
-  // 2. Apple Music Official Editorial Notes (Taiwan zh-TW first, then US en-US) via native HTTP
-  if (!rawBioText) {
-    for (const country of ['tw', 'us']) {
-      try {
-        const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&country=${country}&limit=5`;
-        const data = await nativeFetchJson(itunesUrl, {}, 8000);
-        const results = data?.results || [];
-        const hit = results.find(r =>
-          albumTitleMatches(r.collectionName, cleanTitle) && artistNameMatches(r.artistName, cleanArtist)
-        );
-        if (!hit) continue;
-
-        if (hit.releaseDate && !onlineMeta.releaseDate) {
-          onlineMeta.releaseDate = String(hit.releaseDate).slice(0, 10);
-        }
-        if (hit.copyright && !onlineMeta.copyright) {
-          onlineMeta.copyright = String(hit.copyright).trim();
-          let cleanLbl = onlineMeta.copyright.replace(/^[℗©pPcC0-9\s,\.\-]+/, '').trim();
-          cleanLbl = cleanLbl.replace(/(under exclusive license to|licensed to|a division of).*$/i, '').trim();
-          if (cleanLbl.length > 2 && !onlineMeta.label) onlineMeta.label = cleanLbl;
-        }
-        if (hit.primaryGenreName && hit.primaryGenreName !== 'Music') {
-          mergeOnlineMetaTags(onlineMeta, [hit.primaryGenreName]);
-        }
-
-        if (hit.collectionViewUrl) {
-          const pageRes = await nativeFetchText(hit.collectionViewUrl, {
-            'Accept-Language': country === 'tw' ? 'zh-TW,zh;q=0.9,en-US;q=0.8' : 'en-US,en;q=0.9'
-          }, 9000);
-          if (pageRes.ok && pageRes.body) {
-            const notes = extractAppleMusicEditorialNotes(pageRes.body);
-            if (notes && notes.length >= 35) {
-              rawBioText = notes;
-              isFromEnWiki = !/[\u4e00-\u9fff]/.test(notes);
-              sourceLabel = 'Apple Music 編輯精選簡介';
-              break;
-            }
-          }
-        }
-      } catch (_) {}
-    }
-  }
-
-  // 3. NetEase Cloud Music Official Album Description (CORS-free via native HTTP)
+  // 2. NetEase Cloud Music Official Album Description (fixed v1 endpoint + T/S Chinese + track overlap fallback)
   if (!rawBioText) {
     try {
       const neteaseHeaders = {
         'Referer': 'https://music.163.com/',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
       };
-      const searchQueries = cleanArtist && !isUnknownArtist(cleanArtist) ? [searchQuery, cleanTitle] : [cleanTitle];
-      let matchedBest = null;
+      const searchQueries = Array.from(new Set([
+        cleanArtistCn ? `${cleanTitleCn} ${cleanArtistCn}` : '',
+        cleanTitleCn,
+        cleanArtist ? searchQuery : '',
+        cleanTitle
+      ].filter(Boolean)));
+
+      const titleMatchesList = [];
+      let directArtistMatch = null;
       for (const qText of searchQueries) {
-        const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(qText)}&type=10&offset=0&limit=6`;
+        const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(qText)}&type=10&offset=0&limit=8`;
         const sData = await nativeFetchJson(searchUrl, neteaseHeaders, 8000);
         const albumsList = sData?.result?.albums || [];
-        const best = albumsList.find(a => {
-          const artStr = (a.artist && a.artist.name) || (Array.isArray(a.artists) ? a.artists.map(x => x.name).join(' ') : '');
-          return albumTitleMatches(a.name, cleanTitle) && artistNameMatches(artStr, cleanArtist);
-        });
-        if (best && best.id) {
-          matchedBest = best;
+        for (const a of albumsList) {
+          if (!albumTitleMatches(a.name, cleanTitle, cleanTitleCn)) continue;
+          const artParts = [];
+          if (a.artist) {
+            if (a.artist.name) artParts.push(a.artist.name);
+            if (Array.isArray(a.artist.alias)) artParts.push(...a.artist.alias);
+            if (Array.isArray(a.artist.transNames)) artParts.push(...a.artist.transNames);
+          }
+          if (Array.isArray(a.artists)) {
+            for (const x of a.artists) {
+              if (x && x.name) artParts.push(x.name);
+            }
+          }
+          const artStr = artParts.join(' ');
+          if (artistNameMatches(artStr, cleanArtist, cleanArtistCn)) {
+            directArtistMatch = a;
+            break;
+          }
+          if (!titleMatchesList.some(x => x.id === a.id)) {
+            titleMatchesList.push(a);
+          }
+        }
+        if (directArtistMatch) break;
+      }
+
+      const candidatesToInspect = directArtistMatch ? [directArtistMatch] : titleMatchesList.slice(0, 2);
+      let simplifiedTrackSet = null;
+      if (!directArtistMatch && candidatesToInspect.length > 0 && Array.isArray(album.tracks) && album.tracks.length > 0 && hasCjk) {
+        const joinedTracks = album.tracks.slice(0, 5).map(t => t.title || '').filter(Boolean).join('\n');
+        const conv = await convertToSimplifiedForSearch(joinedTracks);
+        simplifiedTrackSet = new Set(conv.split('\n').map(s => normalizeAlbumMatch(s)).filter(n => n.length >= 2));
+      }
+
+      for (const cand of candidatesToInspect) {
+        const albData = await nativeFetchJson(`https://music.163.com/api/v1/album/${cand.id}`, neteaseHeaders, 8000);
+        const albInfo = albData?.album;
+        if (!albInfo) continue;
+
+        if (!directArtistMatch) {
+          const remoteSongs = (albData.songs || []).map(s => s.name).filter(Boolean);
+          const artistIsLatinOrEmpty = !cleanArtist || !/[\u4e00-\u9fff]/.test(cleanArtist);
+          const overlapOk = tracksOverlapWithSongs(album.tracks, remoteSongs, simplifiedTrackSet);
+          const exactTitleOnly = artistIsLatinOrEmpty && (normalizeAlbumMatch(albInfo.name) === normalizeAlbumMatch(cleanTitle) || normalizeAlbumMatch(albInfo.name) === normalizeAlbumMatch(cleanTitleCn));
+          if (!overlapOk && !exactTitleOnly) continue;
+        }
+
+        if (albInfo.company && !onlineMeta.label) onlineMeta.label = String(albInfo.company).trim();
+        if (albInfo.publishTime && !onlineMeta.releaseDate) {
+          const d = new Date(albInfo.publishTime);
+          if (!Number.isNaN(d.getTime())) onlineMeta.releaseDate = d.toISOString().slice(0, 10);
+        }
+        const desc = trimReviewLength(albInfo.description || '', 2400);
+        if (desc.length >= 35) {
+          rawBioText = desc;
+          isFromEnWiki = !/[\u4e00-\u9fff]/.test(desc);
+          sourceLabel = '唱片官方專輯簡介';
           break;
         }
       }
+    } catch (_) {}
+  }
 
-      if (matchedBest && matchedBest.id) {
-        const albData = await nativeFetchJson(`https://music.163.com/api/album/${matchedBest.id}`, neteaseHeaders, 8000);
-        const albInfo = albData?.album;
-        if (albInfo) {
-          if (albInfo.company && !onlineMeta.label) onlineMeta.label = String(albInfo.company).trim();
-          if (albInfo.publishTime && !onlineMeta.releaseDate) {
-            const d = new Date(albInfo.publishTime);
-            if (!Number.isNaN(d.getTime())) onlineMeta.releaseDate = d.toISOString().slice(0, 10);
+  // 3. Fast iTunes Search Metadata (populates releaseDate, copyright, label, genre without broken HTML scraping)
+  try {
+    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&country=tw&limit=5`;
+    const data = await nativeFetchJson(itunesUrl, {}, 6500);
+    const results = data?.results || [];
+    const hit = results.find(r =>
+      albumTitleMatches(r.collectionName, cleanTitle, cleanTitleCn) && artistNameMatches(r.artistName, cleanArtist, cleanArtistCn)
+    ) || results.find(r => albumTitleMatches(r.collectionName, cleanTitle, cleanTitleCn) && !/[\u4e00-\u9fff]/.test(cleanArtist));
+    if (hit) {
+      if (hit.releaseDate && !onlineMeta.releaseDate) {
+        onlineMeta.releaseDate = String(hit.releaseDate).slice(0, 10);
+      }
+      if (hit.copyright && !onlineMeta.copyright) {
+        onlineMeta.copyright = String(hit.copyright).trim();
+        let cleanLbl = onlineMeta.copyright.replace(/^[℗©pPcC0-9\s,\.\-]+/, '').trim();
+        cleanLbl = cleanLbl.replace(/(under exclusive license to|licensed to|a division of).*$/i, '').trim();
+        if (cleanLbl.length > 2 && !onlineMeta.label) onlineMeta.label = cleanLbl;
+      }
+      if (hit.primaryGenreName && hit.primaryGenreName !== 'Music') {
+        mergeOnlineMetaTags(onlineMeta, [hit.primaryGenreName]);
+      }
+    }
+  } catch (_) {}
+
+  // 4. Strictly Validated Wikipedia (zh -> ja -> en) with multi-query fallback for bilingual artists
+  if (!rawBioText) {
+    try {
+      const zhQueries = Array.from(new Set([
+        cleanArtist ? `${cleanTitle} 專輯 ${cleanArtist}` : '',
+        `${cleanTitle} 專輯`,
+        cleanTitleCn !== cleanTitle ? `${cleanTitleCn} 專輯` : ''
+      ].filter(Boolean)));
+
+      for (const zq of zhQueries) {
+        const zhSearchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(zq)}&format=json&origin=*`;
+        const data = await nativeFetchJson(zhSearchUrl, {}, 8000);
+        const hits = (data?.query?.search || []).slice(0, 5);
+        for (const h of hits) {
+          const hitTitle = h.title || '';
+          if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
+            continue;
           }
-          const desc = String(albInfo.description || '').trim();
-          if (desc.length >= 35) {
-            rawBioText = desc;
+          const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
+          const extData = await nativeFetchJson(zhExtractUrl, {}, 8000);
+          const pages = extData?.query?.pages;
+          const raw = pages ? Object.values(pages)[0]?.extract : '';
+          const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+          if (cleaned && cleaned.length >= 60 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist, cleanTitleCn)) {
+            rawBioText = cleaned;
             isFromEnWiki = false;
-            sourceLabel = '唱片官方專輯簡介';
+            sourceLabel = '維基百科專輯資料庫';
+            break;
+          }
+        }
+        if (rawBioText) break;
+      }
+
+      if (!rawBioText && hasKana) {
+        const jaQueries = Array.from(new Set([
+          cleanArtist ? `${cleanTitle} ${cleanArtist}` : '',
+          `${cleanTitle} アルバム`
+        ].filter(Boolean)));
+        for (const jq of jaQueries) {
+          const jaSearchUrl = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(jq)}&format=json&origin=*`;
+          const jaData = await nativeFetchJson(jaSearchUrl, {}, 8000);
+          const jaHits = (jaData?.query?.search || []).slice(0, 5);
+          for (const h of jaHits) {
+            const hitTitle = h.title || '';
+            if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
+              continue;
+            }
+            const jaExtractUrl = `https://ja.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
+            const extData = await nativeFetchJson(jaExtractUrl, {}, 8000);
+            const pages = extData?.query?.pages;
+            const raw = pages ? Object.values(pages)[0]?.extract : '';
+            const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+            if (cleaned && cleaned.length >= 60 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist, cleanTitleCn)) {
+              rawBioText = cleaned;
+              isFromEnWiki = true;
+              sourceLabel = '維基百科專輯資料庫';
+              break;
+            }
+          }
+          if (rawBioText) break;
+        }
+      }
+
+      if (!rawBioText) {
+        const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(cleanTitle + ' ' + cleanArtist + ' album')}&format=json&origin=*`;
+        const enData = await nativeFetchJson(enSearchUrl, {}, 8000);
+        const enHits = (enData?.query?.search || []).slice(0, 5);
+        for (const h of enHits) {
+          const hitTitle = h.title || '';
+          if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
+            continue;
+          }
+          const enExtractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
+          const extData = await nativeFetchJson(enExtractUrl, {}, 8000);
+          const pages = extData?.query?.pages;
+          const raw = pages ? Object.values(pages)[0]?.extract : '';
+          const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+          if (cleaned && cleaned.length >= 80 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist, cleanTitleCn)) {
+            rawBioText = cleaned;
+            isFromEnWiki = true;
+            sourceLabel = '維基百科專輯資料庫';
+            break;
+          }
+        }
+      }
+
+      if (!rawBioText) {
+        const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTitle + ' (album)')}`;
+        const sumData = await nativeFetchJson(directUrl, { 'User-Agent': 'rooPlayer/0.2.4' }, 8000);
+        if (sumData && sumData.extract && sumData.type !== 'disambiguation' && isGenuineAlbumWikiArticle(sumData.title || (cleanTitle + ' (album)'), sumData.extract, cleanTitle, cleanArtist, cleanTitleCn)) {
+          rawBioText = sumData.extract;
+          isFromEnWiki = true;
+          sourceLabel = '維基百科專輯資料庫';
+        }
+      }
+    } catch (err) {
+      console.warn('Wikipedia album summary fetch error:', err);
+    }
+  }
+
+  // 5. Baidu Baike OpenAPI (Mandarin / Asian fallback with strict album-entity validation)
+  if (!rawBioText && hasCjk) {
+    try {
+      const bkKey = cleanTitleCn || cleanTitle;
+      const baikeUrl = `https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=${encodeURIComponent(bkKey)}&bk_length=800`;
+      const bd = await nativeFetchJson(baikeUrl, {}, 7500);
+      if (bd && bd.abstract) {
+        const combined = `${bd.desc || ''} ${bd.abstract || ''}`;
+        const isAlbumEntity = /(专辑|唱片|大碟|单曲|原声|精选|录音室)/.test(combined);
+        const artistOk = artistNameMatches(combined, cleanArtist, cleanArtistCn)
+          || (!/[\u4e00-\u9fff]/.test(cleanArtist) && /(发行专辑|音乐专辑)/.test(bd.desc || ''));
+        if (isAlbumEntity && artistOk) {
+          const cleaned = stripHtmlToPlainText(bd.abstract);
+          if (cleaned.length >= 45) {
+            rawBioText = cleaned;
+            isFromEnWiki = false;
+            sourceLabel = '百度百科專輯資料庫';
           }
         }
       }
     } catch (_) {}
   }
 
-  // 4. MusicBrainz Release-Group -> Annotation / Wikidata -> Exact Wikipedia Sitelink
+  // 6. MusicBrainz Release-Group -> Annotation / Wikidata -> Exact Wikipedia Sitelink
   if (!rawBioText) {
     try {
       const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.4 (https://github.com/tzungli/roop2)' };
-      const mbArtistClause = cleanArtist && !isUnknownArtist(cleanArtist)
+      const mbArtistClause = cleanArtist
         ? `+AND+artist:${encodeURIComponent('"' + cleanArtist + '"')}`
         : '';
       const mbSearchUrl = `https://musicbrainz.org/ws/2/release-group/?query=releasegroup:${encodeURIComponent('"' + cleanTitle + '"')}${mbArtistClause}&fmt=json&limit=5`;
@@ -7796,7 +7964,7 @@ async function resolveAlbumReviewData(album) {
       const rgs = mbSearch?.['release-groups'] || [];
       const rgHit = rgs.find(rg => {
         const artName = (rg['artist-credit'] || []).map(ac => ac.name || ac.artist?.name || '').join(' ');
-        return albumTitleMatches(rg.title, cleanTitle) && artistNameMatches(artName, cleanArtist);
+        return albumTitleMatches(rg.title, cleanTitle, cleanTitleCn) && artistNameMatches(artName, cleanArtist, cleanArtistCn);
       });
 
       if (rgHit && rgHit.id) {
@@ -7835,7 +8003,7 @@ async function resolveAlbumReviewData(album) {
             if (wikiRel) {
               const m = String(wikiRel.url.resource).match(/^https?:\/\/([a-z-]+)\.wikipedia\.org\/wiki\/(.+)$/i);
               if (m) {
-                wikiLang = m[1].toLowerCase().startsWith('zh') ? 'zh' : 'en';
+                wikiLang = m[1].toLowerCase().startsWith('zh') ? 'zh' : (m[1].toLowerCase().startsWith('ja') ? 'ja' : 'en');
                 wikiTitle = decodeURIComponent(m[2]).replace(/_/g, ' ');
               }
             }
@@ -7848,6 +8016,9 @@ async function resolveAlbumReviewData(album) {
                 if (sitelinks.zhwiki?.title) {
                   wikiLang = 'zh';
                   wikiTitle = sitelinks.zhwiki.title;
+                } else if (sitelinks.jawiki?.title && hasKana) {
+                  wikiLang = 'ja';
+                  wikiTitle = sitelinks.jawiki.title;
                 } else if (sitelinks.enwiki?.title) {
                   wikiLang = 'en';
                   wikiTitle = sitelinks.enwiki.title;
@@ -7857,7 +8028,7 @@ async function resolveAlbumReviewData(album) {
             if (wikiTitle) {
               const extUrl = wikiLang === 'zh'
                 ? `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(wikiTitle)}&format=json&origin=*`
-                : `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(wikiTitle)}&format=json&origin=*`;
+                : `https://${wikiLang === 'ja' ? 'ja' : 'en'}.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(wikiTitle)}&format=json&origin=*`;
               const extData = await nativeFetchJson(extUrl, {}, 8000);
               const pages = extData?.query?.pages;
               const raw = pages ? Object.values(pages)[0]?.extract : '';
@@ -7874,12 +8045,12 @@ async function resolveAlbumReviewData(album) {
     } catch (_) {}
   }
 
-  // 5. TheAudioDB Album Database (dedicated album descriptions, never artist bios)
-  if (!rawBioText && cleanArtist && !isUnknownArtist(cleanArtist)) {
+  // 7. TheAudioDB Album Database (dedicated album descriptions, never artist bios)
+  if (!rawBioText && cleanArtist) {
     try {
       const tadbUrl = `https://www.theaudiodb.com/api/v1/json/2/searchalbum.php?s=${encodeURIComponent(cleanArtist)}&a=${encodeURIComponent(cleanTitle)}`;
       const data = await nativeFetchJson(tadbUrl, {}, 8000);
-      const hit = (data?.album || []).find(a => albumTitleMatches(a.strAlbum, cleanTitle));
+      const hit = (data?.album || []).find(a => albumTitleMatches(a.strAlbum, cleanTitle, cleanTitleCn));
       if (hit) {
         if (hit.strLabel && !onlineMeta.label) onlineMeta.label = String(hit.strLabel).trim();
         if (hit.intYearReleased && !onlineMeta.releaseDate) onlineMeta.releaseDate = String(hit.intYearReleased).trim();
@@ -7897,67 +8068,6 @@ async function resolveAlbumReviewData(album) {
         }
       }
     } catch (_) {}
-  }
-
-  // 6. Strictly Validated Wikipedia Search Fallback (Top-5 candidates with anti-artist-biography guard)
-  if (!rawBioText) {
-    try {
-      const zhSearchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(cleanTitle + ' 專輯 ' + cleanArtist)}&format=json&origin=*`;
-      const data = await nativeFetchJson(zhSearchUrl, {}, 8000);
-      const hits = (data?.query?.search || []).slice(0, 5);
-      for (const h of hits) {
-        const hitTitle = h.title || '';
-        if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
-          continue;
-        }
-        const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
-        const extData = await nativeFetchJson(zhExtractUrl, {}, 8000);
-        const pages = extData?.query?.pages;
-        const raw = pages ? Object.values(pages)[0]?.extract : '';
-        const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
-        if (cleaned && cleaned.length >= 80 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist)) {
-          rawBioText = cleaned;
-          isFromEnWiki = false;
-          sourceLabel = '維基百科專輯資料庫';
-          break;
-        }
-      }
-
-      if (!rawBioText) {
-        const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(cleanTitle + ' ' + cleanArtist + ' album')}&format=json&origin=*`;
-        const enData = await nativeFetchJson(enSearchUrl, {}, 8000);
-        const enHits = (enData?.query?.search || []).slice(0, 5);
-        for (const h of enHits) {
-          const hitTitle = h.title || '';
-          if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
-            continue;
-          }
-          const enExtractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
-          const extData = await nativeFetchJson(enExtractUrl, {}, 8000);
-          const pages = extData?.query?.pages;
-          const raw = pages ? Object.values(pages)[0]?.extract : '';
-          const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
-          if (cleaned && cleaned.length >= 80 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist)) {
-            rawBioText = cleaned;
-            isFromEnWiki = true;
-            sourceLabel = '維基百科專輯資料庫';
-            break;
-          }
-        }
-      }
-
-      if (!rawBioText) {
-        const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTitle + ' (album)')}`;
-        const sumData = await nativeFetchJson(directUrl, { 'User-Agent': 'rooPlayer/0.2.4' }, 8000);
-        if (sumData && sumData.extract && sumData.type !== 'disambiguation' && isGenuineAlbumWikiArticle(sumData.title || (cleanTitle + ' (album)'), sumData.extract, cleanTitle, cleanArtist)) {
-          rawBioText = sumData.extract;
-          isFromEnWiki = true;
-          sourceLabel = '維基百科專輯資料庫';
-        }
-      }
-    } catch (err) {
-      console.warn('Wikipedia album summary fetch error:', err);
-    }
   }
 
   if (onlineMeta.releaseDate || onlineMeta.label || onlineMeta.copyright || onlineMeta.tags.length > 0 || onlineMeta.primaryType) {
