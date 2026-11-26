@@ -21193,11 +21193,15 @@ function toggleRooOutputPopover(force) {
 window.toggleRooOutputPopover = toggleRooOutputPopover;
 
 /**
- * Return crisp Roon-style monochrome line-art SVG for each audio device category.
- * @param {'streamer'|'bridge'|'tv'|'speaker'} kind
+ * Return crisp Roon-style or hardware-modeled monochrome line-art SVG for each audio device.
+ * @param {object|'streamer'|'bridge'|'tv'|'speaker'|'airplay'} kindOrDev
  * @param {boolean} isBottomBar
  */
-function getRoonDeviceIconSvg(kind, isBottomBar = false) {
+function getRoonDeviceIconSvg(kindOrDev, isBottomBar = false) {
+  if (window.ROO_DEVICE_ICONS && typeof window.ROO_DEVICE_ICONS.getDeviceSvg === 'function') {
+    return window.ROO_DEVICE_ICONS.getDeviceSvg(kindOrDev, isBottomBar);
+  }
+  const kind = (kindOrDev && typeof kindOrDev === 'object') ? getDeviceIconKind(kindOrDev) : kindOrDev;
   const w = isBottomBar ? 34 : 44;
   const h = isBottomBar ? 28 : 34;
 
@@ -21262,8 +21266,7 @@ function getDeviceIconKind(dev) {
 
 function updateBottomZoneIcon(target) {
   const isNetwork = target && target !== 'local' && !target.isLocal;
-  const kind = getDeviceIconKind(target);
-  const svgHtml = getRoonDeviceIconSvg(kind, true);
+  const svgHtml = getRoonDeviceIconSvg(isNetwork ? target : 'speaker', true);
   const displayName = isNetwork ? (target.name || 'UPnP MediaRenderer') : 'System Output';
 
   const iconWrap = document.getElementById('currentZoneIconWrap');
@@ -21818,7 +21821,7 @@ function startDlnaVolumeSyncLoop(dev) {
   }, 2500);
 }
 
-function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSelect }) {
+function buildZoneCardElement({ zoneId, name, iconKind, device, tooltip, isActive, onSelect }) {
   const info = getZoneLiveInfo(zoneId);
   const isAirPlayZone = iconKind === 'airplay' || String(zoneId || '').startsWith('airplay:');
   const dspTag = formatZoneDspSummary(info.dsp, zoneId === 'local', isAirPlayZone);
@@ -21847,7 +21850,7 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
 
   card.innerHTML = `
     <div class="roon-zone-card-main">
-      <span class="roon-zone-icon">${getRoonDeviceIconSvg(iconKind, false)}</span>
+      <span class="roon-zone-icon">${getRoonDeviceIconSvg(device || iconKind, false)}</span>
       <div class="roon-zone-meta">
         <div class="roon-zone-title-line">
           <span class="roon-zone-name">${escapeXml(name)}</span>
@@ -21909,6 +21912,7 @@ function renderAudioDevicesList() {
       zoneId: dev.id,
       name: dev.name || 'UPnP MediaRenderer',
       iconKind: kind,
+      device: dev,
       tooltip: detailTooltip,
       isActive: isDevActive,
       onSelect: () => switchAudioZone(dev),
