@@ -6778,9 +6778,7 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
               : `<span class="album-quality-tag tag-tidal">TIDAL FLAC</span>`;
 
             let statusText = '';
-            if (inLib) {
-              statusText = '<span class="tidal-accent-text">✓ 已在曲庫</span>';
-            } else if (hasLocal) {
+            if (!inLib && hasLocal) {
               statusText = '<span style="color:#a1a1aa;">📁 本機已有</span>';
             }
 
@@ -6793,10 +6791,10 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
               <div class="album-meta">
                 <div class="album-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
                 <div class="album-artist">${escapeXml(alb.artist)}</div>
-                <div class="album-year">${[alb.year, alb.numberOfTracks ? `${alb.numberOfTracks} 首` : '', statusText].filter(Boolean).join(' • ')}</div>
-              </div>
-              <div class="tidal-card-actions">
-                <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}">${getTidalLibBtnHtml(inLib)}</button>
+                <div class="tidal-card-footer">
+                  <div class="album-year">${[alb.year, alb.numberOfTracks ? `${alb.numberOfTracks} 首` : '', statusText].filter(Boolean).join(' • ')}</div>
+                  <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}" title="${inLib ? '已在曲庫（點擊從曲庫移除）' : '加入曲庫'}" aria-label="${inLib ? '已在曲庫' : '加入曲庫'}">${getTidalLibBtnHtml(inLib)}</button>
+                </div>
               </div>
             `;
 
@@ -8910,10 +8908,10 @@ function createLabelTidalCard(alb) {
     <div class="album-meta">
       <div class="album-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
       <div class="album-artist">${escapeXml(alb.artist)}</div>
-      <div class="album-year">${[alb.year, alb.numberOfTracks ? `${alb.numberOfTracks} 首` : '', inLib ? '<span class="tidal-accent-text">已在曲庫</span>' : (labelName ? escapeXml(labelName) : '')].filter(Boolean).join(' • ')}</div>
-    </div>
-    <div class="tidal-card-actions">
-      <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}">${getTidalLibBtnHtml(inLib)}</button>
+      <div class="tidal-card-footer">
+        <div class="album-year">${[alb.year, alb.numberOfTracks ? `${alb.numberOfTracks} 首` : '', labelName ? escapeXml(labelName) : ''].filter(Boolean).join(' • ')}</div>
+        <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}" title="${inLib ? '已在曲庫（點擊從曲庫移除）' : '加入曲庫'}" aria-label="${inLib ? '已在曲庫' : '加入曲庫'}">${getTidalLibBtnHtml(inLib)}</button>
+      </div>
     </div>
   `;
 
@@ -10369,9 +10367,17 @@ function isTidalAlbumInLibrary(tidalAlbumId) {
 
 function getTidalLibBtnHtml(inLib) {
   if (inLib) {
-    return `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>已在曲庫</span>`;
+    return `<svg class="lib-toggle-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
   }
-  return `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>加入曲庫</span>`;
+  return `<svg class="lib-toggle-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+}
+
+function syncTidalLibBtnState(btn, inLib) {
+  if (!btn) return;
+  btn.className = inLib ? 'btn-tidal-lib-action in-library' : 'btn-tidal-lib-action';
+  btn.innerHTML = getTidalLibBtnHtml(inLib);
+  btn.title = inLib ? '已在曲庫（點擊從曲庫移除）' : '加入曲庫';
+  btn.setAttribute('aria-label', inLib ? '已在曲庫' : '加入曲庫');
 }
 
 async function addTidalAlbumToLibrary(tidalAlbumId, preloadedData = null) {
@@ -10425,8 +10431,7 @@ async function addTidalAlbumToLibrary(tidalAlbumId, preloadedData = null) {
     }
 
     document.querySelectorAll(`.btn-tidal-lib-action[data-tidal-id="${tidalAlbumId}"]`).forEach(btn => {
-      btn.className = 'btn-tidal-lib-action in-library';
-      btn.innerHTML = getTidalLibBtnHtml(true);
+      syncTidalLibBtnState(btn, true);
     });
 
     return true;
@@ -10459,8 +10464,7 @@ async function removeTidalAlbumFromLibrary(tidalAlbumId) {
     }
 
     document.querySelectorAll(`.btn-tidal-lib-action[data-tidal-id="${tidalAlbumId}"]`).forEach(btn => {
-      btn.className = 'btn-tidal-lib-action';
-      btn.innerHTML = getTidalLibBtnHtml(false);
+      syncTidalLibBtnState(btn, false);
     });
 
     return true;
@@ -10574,8 +10578,7 @@ async function importAllTidalFavAlbumsToLibrary() {
       document.querySelectorAll('.btn-tidal-lib-action').forEach(btn => {
         const id = btn.getAttribute('data-tidal-id');
         if (id && isTidalAlbumInLibrary(id)) {
-          btn.className = 'btn-tidal-lib-action in-library';
-          btn.innerHTML = '✓ 已在曲庫';
+          syncTidalLibBtnState(btn, true);
         }
       });
 
@@ -24754,10 +24757,10 @@ function createTidalAlbumCard(alb) {
     <div class="album-meta">
       <div class="album-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
       <div class="album-artist">${escapeXml(alb.artist)}</div>
-      <div class="album-year">${[alb.year, alb.numberOfTracks ? `${alb.numberOfTracks} 首` : ''].filter(Boolean).join(' • ')}</div>
-    </div>
-    <div class="tidal-card-actions">
-      <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}">${getTidalLibBtnHtml(inLib)}</button>
+      <div class="tidal-card-footer">
+        <div class="album-year">${[alb.year, alb.numberOfTracks ? `${alb.numberOfTracks} 首` : ''].filter(Boolean).join(' • ')}</div>
+        <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}" title="${inLib ? '已在曲庫（點擊從曲庫移除）' : '加入曲庫'}" aria-label="${inLib ? '已在曲庫' : '加入曲庫'}">${getTidalLibBtnHtml(inLib)}</button>
+      </div>
     </div>
   `;
 
@@ -24778,13 +24781,11 @@ function createTidalAlbumCard(alb) {
       if (isTidalAlbumInLibrary(alb.tidalId)) {
         if (confirm(`確定要將《${alb.title}》從曲庫移除嗎？`)) {
           await removeTidalAlbumFromLibrary(alb.tidalId);
-          libBtn.innerHTML = getTidalLibBtnHtml(false);
-          libBtn.classList.remove('in-library');
+          syncTidalLibBtnState(libBtn, false);
         }
       } else {
         await addTidalAlbumToLibrary(alb.tidalId, alb);
-        libBtn.innerHTML = getTidalLibBtnHtml(true);
-        libBtn.classList.add('in-library');
+        syncTidalLibBtnState(libBtn, true);
       }
     });
   }
