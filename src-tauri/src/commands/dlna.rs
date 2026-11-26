@@ -592,7 +592,7 @@ pub async fn dlna_play_track(
             conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
             ultrasonic_filter: Some(ultrasonic_filter.clone()),
             dop: Some(false), // Native DSD (DSF), NOT DoP!
-            dither,
+            dither: dither.clone(),
         };
 
         let token_clone = stream_token.clone();
@@ -607,12 +607,39 @@ pub async fn dlna_play_track(
         }
     }
 
-    let app_clone = app.clone();
-    let app_clone2 = app.clone();
-    let app_clone3 = app.clone();
-    let dev_id_prog = device_id.clone();
-    let dev_id_end = device_id.clone();
-    let dev_id_gapless = device_id.clone();
+    let make_callbacks = |app_h: &AppHandle, dev_id: &str| {
+        let app_c1 = app_h.clone();
+        let app_c2 = app_h.clone();
+        let app_c3 = app_h.clone();
+        let id1 = dev_id.to_string();
+        let id2 = dev_id.to_string();
+        let id3 = dev_id.to_string();
+        let on_prog = move |pos: f64, dur: f64, state: &str| {
+            let _ = app_c1.emit("dlna:progress", serde_json::json!({
+                "deviceId": id1,
+                "currentSec": pos,
+                "positionSec": pos,
+                "durationSec": dur,
+                "maxSec": pos,
+                "relTime": format!("{:.1}", pos),
+                "trackDuration": format!("{:.1}", dur),
+                "state": state
+            }));
+        };
+        let on_end = move || {
+            let _ = app_c2.emit("dlna:trackEnded", serde_json::json!({
+                "deviceId": id2
+            }));
+        };
+        let on_gap = move || {
+            let _ = app_c3.emit("dlna:gaplessAdvanced", serde_json::json!({
+                "deviceId": id3
+            }));
+        };
+        (on_prog, on_end, on_gap)
+    };
+
+    let (on_prog, on_end, on_gap) = make_callbacks(&app, &device_id);
     let res = manager.play(
         &device_id,
         &stream_url,
@@ -624,28 +651,9 @@ pub async fn dlna_play_track(
         pcm_hz,
         duration_sec,
         start,
-        move |pos, dur, state| {
-            let _ = app_clone.emit("dlna:progress", serde_json::json!({
-                "deviceId": dev_id_prog,
-                "currentSec": pos,
-                "positionSec": pos,
-                "durationSec": dur,
-                "maxSec": pos,
-                "relTime": format!("{:.1}", pos),
-                "trackDuration": format!("{:.1}", dur),
-                "state": state
-            }));
-        },
-        move || {
-            let _ = app_clone2.emit("dlna:trackEnded", serde_json::json!({
-                "deviceId": dev_id_end
-            }));
-        },
-        move || {
-            let _ = app_clone3.emit("dlna:gaplessAdvanced", serde_json::json!({
-                "deviceId": dev_id_gapless
-            }));
-        },
+        on_prog,
+        on_end,
+        on_gap,
     ).await;
 
     match res {
@@ -654,13 +662,99 @@ pub async fn dlna_play_track(
             "ok": true,
             "token": stream_token
         })),
-        Err(e) => {
-            tracing::error!("DLNA play failed: {}", e);
+        Err(orig_err) => {
+            // Auto-fallback: if renderer rejected DSD or >48kHz PCM, downgrade cleanly to standard 24-bit WAV
+            let mut fallback_rates: Vec<u32> = Vec::new();
+            if is_dsd || pcm_hz.unwrap_or(0) > 96000 {
+                let safe_hi = if !is_dsd && track_sample_rate % 48000 == 0 { 96000 } else { 88200 };
+                fallback_rates.push(safe_hi);
+                fallback_rates.push(48000);
+            } else if pcm_hz.unwrap_or(0) > 48000 {
+                fallback_rates.push(48000);
+            }
+
+            if !fallback_rates.is_empty() && !file_path.is_empty() {
+                let err_reason = orig_err.to_string();
+                tracing::warn!(
+                    "DLNA play failed ({}) on {}; attempting automatic PCM downgrade: {:?}",
+                    err_reason, device_id, fallback_rates
+                );
+                for fb_rate in fallback_rates {
+                    let fb_token = format!(
+                        "{:x}{:04x}",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis(),
+                        TOKEN_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    );
+                    let fb_cover_url = format!("http://{}:39840/cover/{}/cover.jpg", local_ip, fb_token);
+                    roo_streamer::register_cover_for_token(
+                        &fb_token,
+                        if raw_cover.is_empty() { None } else { Some(raw_cover.to_string()) },
+                        Some(file_path.to_string()),
+                    );
+                    if let Some(old_tok) = manager.replace_device_token(&device_id, fb_token.clone()) {
+                        roo_streamer::cancel_progressive_stream(&old_tok);
+                    }
+
+                    let fb_opts = roo_streamer::DspStreamOptions {
+                        file_path: file_path.to_string(),
+                        start_sec: start,
+                        target_rate: fb_rate,
+                        dsd_mode: None,
+                        dsd_order,
+                        filter_phase: filter_phase.clone(),
+                        peq_json: if peq_json.is_empty() { None } else { Some(peq_json.clone()) },
+                        conv_json: if conv_json.is_empty() { None } else { Some(conv_json.clone()) },
+                        ultrasonic_filter: Some(ultrasonic_filter.clone()),
+                        dop: Some(false),
+                        dither: dither.clone(),
+                    };
+                    let fb_tok_clone = fb_token.clone();
+                    let fb_start = tokio::task::spawn_blocking(move || {
+                        roo_streamer::start_progressive_stream(&fb_opts, &fb_tok_clone)
+                    }).await.map_err(|e| e.to_string())?;
+
+                    if fb_start.is_err() {
+                        continue;
+                    }
+
+                    let fb_url = format!("http://{}:39840/stream/{}/audio.wav", local_ip, fb_token);
+                    let (fb_prog, fb_end, fb_gap) = make_callbacks(&app, &device_id);
+                    if manager.play(
+                        &device_id,
+                        &fb_url,
+                        title,
+                        artist,
+                        album,
+                        Some(&fb_cover_url),
+                        None,
+                        Some(fb_rate),
+                        duration_sec,
+                        start,
+                        fb_prog,
+                        fb_end,
+                        fb_gap,
+                    ).await.is_ok() {
+                        return Ok(serde_json::json!({
+                            "success": true,
+                            "ok": true,
+                            "token": fb_token,
+                            "fallback": true,
+                            "fallbackRate": fb_rate,
+                            "fallbackReason": err_reason
+                        }));
+                    }
+                }
+            }
+
+            tracing::error!("DLNA play failed: {}", orig_err);
             Ok(serde_json::json!({
                 "success": false,
                 "ok": false,
-                "error": e.to_string(),
-                "msg": e.to_string()
+                "error": orig_err.to_string(),
+                "msg": orig_err.to_string()
             }))
         }
     }

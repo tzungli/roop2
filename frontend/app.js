@@ -10302,7 +10302,9 @@ async function playCurrentTrack() {
             probeZoneVolumeCapability(state.activeDlnaDevice, { applyToActive: false, force: true });
           }
           const dur = track.duration || 0;
-          if (dspOptions && dspOptions.dsdMode) {
+          if (res && res.fallback) {
+            showToast(`🔄 ${state.activeDlnaDevice.name} 不支援原輸出格式，已自動降轉為 ${formatKhz(res.fallbackRate || 48000)} 24-bit PCM 串流`);
+          } else if (dspOptions && dspOptions.dsdMode) {
             showToast(`⚡ 正在以 1-bit ${dspOptions.dsdMode.toUpperCase()} 串流至 ${state.activeDlnaDevice.name}: ${track.title}`);
           } else if (track.filePath && /\.dsf$/i.test(track.filePath) && (!dspOptions || !dspOptions.enabled)) {
             showToast(`🎵 正在以 Native DSD 直通串流至 ${state.activeDlnaDevice.name}: ${track.title}`);
@@ -10516,12 +10518,16 @@ async function playCurrentTrack() {
     nativeAudio.src = mediaUrl;
     nativeAudio.play().then(() => {
       state.isPlaying = true;
-      btnPlayPause.textContent = '⏸';
+      updatePlayPauseBtnUI();
     }).catch(err => {
-      console.error('Audio play error:', err);
+      console.warn('Direct native audio play error, checking engine fallback:', err);
+      if (window.electronAPI && window.electronAPI.getSoxStreamUrl && track.filePath) {
+        playSoxTrack(track, 0, { fallbackFromNative: true });
+        return;
+      }
       playerArtist.textContent = `播放錯誤: ${err.message || '無法解碼音訊檔案'}`;
       state.isPlaying = false;
-      btnPlayPause.textContent = '▶';
+      updatePlayPauseBtnUI();
     });
   }
 
@@ -10637,7 +10643,7 @@ function formatKhz(rateHz) {
   return Number.isInteger(khz) ? `${khz}kHz` : `${khz.toFixed(1)}kHz`;
 }
 
-async function playSoxTrack(track, startSec = 0) {
+async function playSoxTrack(track, startSec = 0, opts = {}) {
   isCurrentSox = true;
   isCurrentDsd = false;
   currentSoxOffset = startSec;
@@ -10708,9 +10714,11 @@ async function playSoxTrack(track, startSec = 0) {
     nativeAudio.src = streamUrl;
     nativeAudio.play().then(() => {
       state.isPlaying = true;
-      btnPlayPause.textContent = '⏸';
+      updatePlayPauseBtnUI();
       const phaseText = filterLabel(filterPhase);
-      if (requestedDsd) {
+      if (opts && opts.fallbackFromNative) {
+        showToast(`🔄 瀏覽器不支援此格式，已自動改由引擎轉為 ${formatKhz(targetRate)} 24-bit PCM 播放`);
+      } else if (requestedDsd) {
         showToast(`本機輸出不支援原生 DSD 串流，已自動以 ${formatKhz(targetRate)} 24-bit PCM（${phaseText}）升頻播放`);
       } else if (isDsd) {
         const mhz = getDsdMhz(state.dsp.rateMode);
@@ -10719,22 +10727,35 @@ async function playSoxTrack(track, startSec = 0) {
         const proc = [];
         if (countActivePeqBands() > 0) proc.push(`PEQ ${countActivePeqBands()} 段`);
         if (buildConvPayload()) proc.push('卷積 IR');
-        showToast(`🎚️ 原生採樣率處理 (${formatKhz(targetRate)} 24-bit): ${proc.join(' + ')}`);
+        showToast(`🎚️ 原生採樣率處理 (${formatKhz(targetRate)} 24-bit): ${proc.length > 0 ? proc.join(' + ') : '24-bit WAV 直出'}`);
       } else {
         const trkFmt = getAudioFormatFromPath(track.filePath || track.fileName, track.formatName || 'PCM').toUpperCase();
         showToast(`🎛️ SoX 升頻: ${formatKhz(track.sampleRate || 44100)} ➔ ${formatKhz(targetRate)} (24-bit • ${phaseText} • ${trkFmt})`);
       }
     }).catch(err => {
       console.error('SoX play error:', err);
+      if (opts && opts.fallbackFromNative) {
+        isCurrentSox = false;
+        currentSoxOffset = 0;
+        state.isPlaying = false;
+        updatePlayPauseBtnUI();
+        playerArtist.textContent = `播放錯誤: ${err.message || '無法解碼音訊檔案'}`;
+        showToast('❌ 無法解碼或播放此音訊格式');
+        return;
+      }
       playerArtist.textContent = `SoX 播放異常，正在切換原生播放...`;
       isCurrentSox = false;
       currentSoxOffset = 0;
       nativeAudio.src = window.electronAPI ? window.electronAPI.getMediaUrl(track.filePath) : track.filePath;
       nativeAudio.play().then(() => {
         state.isPlaying = true;
-        btnPlayPause.textContent = '⏸';
+        updatePlayPauseBtnUI();
         playerArtist.textContent = `${track.artist || '未知藝術家'} — ${track.title || ''}`;
-      }).catch(e => console.error('Fallback error:', e));
+      }).catch(e => {
+        console.error('Fallback error:', e);
+        state.isPlaying = false;
+        updatePlayPauseBtnUI();
+      });
     });
   } catch (err) {
     console.error('getSoxStreamUrl error:', err);

@@ -617,6 +617,8 @@
     [/^(.+) 延伸精選$/, '$1 Extended Mix'],
     [/^(.+) 精選曲風$/, '$1 Genre Mix'],
     [/^由 rooPlayer 建立 • (\d+) 首$/, 'By rooPlayer • $1 tracks'],
+    [/^🔄 瀏覽器不支援此格式，已自動改由引擎轉為 (.+) 24-bit PCM 播放$/, '🔄 Format unsupported natively — auto-converted via engine to $1 24-bit PCM'],
+    [/^🔄 (.+) 不支援原輸出格式，已自動降轉為 (.+) 24-bit PCM 串流$/, '🔄 $1 rejected original format — auto-downgraded to $2 24-bit PCM'],
     [/^(.+) • (\d+) 首$/, '$1 • $2 tracks'],
     [/^同風格推薦 • (.+)$/, 'Similar Style • $1'],
     [/^延伸專輯 • (.+)$/, 'More from Artist • $1'],
