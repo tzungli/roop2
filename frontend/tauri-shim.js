@@ -371,7 +371,7 @@
     onExclusiveStatus: (callback) => listen('exclusive:status', callback),
 
     // App Metadata & Auto-Updater
-    getAppVersion: () => '0.2.3',
+    getAppVersion: () => '0.2.4',
     checkForUpdates: () => invoke('updater_check'),
     downloadAndInstallUpdate: (payload) => invoke('updater_download_and_install', payload),
     onUpdateProgress: (callback) => listen('updater:progress', callback),
