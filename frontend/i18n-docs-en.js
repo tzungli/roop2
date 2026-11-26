@@ -249,10 +249,10 @@
                 <br>• <strong>Third Line of Defense (Ultrasonic Protection Filter)</strong>: Applies a 2nd-order Butterworth low-pass filter to attenuate ultrasonic energy before analog amplification, protecting amplifiers and tweeters from RF intermodulation distortion (IMD) and overheating.
               </p>
 
-              <!-- Section 1: 7 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 7 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
+              <!-- Section 1: 8 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 8 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                Modeled after flagship high-end DSP architectures, combining four foundational orthogonal profiles (<strong>Frequency Roll-off</strong> &times; <strong>Phase Profile</strong>) with three reference long-tap linear-phase filters:
+                Modeled after flagship high-end DSP architectures, combining four foundational orthogonal profiles (<strong>Frequency Roll-off</strong> &times; <strong>Phase Profile</strong>) with four reference long-tap linear-phase filters:
                 <br>• <strong>Precise</strong>: Employs Kaiser window polyphase FIR (&beta; &approx; 14.47, A<sub>s</sub> &ge; 140 dB), flat passband (0~20kHz with 0.000 dB loss), and brickwall Nyquist attenuation.
                 <br>• <strong>Smooth</strong>: Employs Gaussian-window sinc slow roll-off FIR, beginning a gentle slope at 18kHz to eliminate digital glare, reducing time-domain ringing duration by &gt;55%.
                 <br>• <strong>Linear Phase</strong>: Symmetric impulse response with strictly constant group delay and <strong>absolute zero phase distortion</strong>.
@@ -260,6 +260,7 @@
                 <br>• <strong>Gauss Long</strong>: Inspired by HQPlayer <code>poly-sinc-gauss-long</code>; pure Gaussian window (&sigma; = 0.17L, edge attenuation &lt; -150 dB) with 449 input taps, dead-flat through 20 kHz, -166.6 dB at Nyquist, and ultra-smooth natural Gaussian ringing envelope.
                 <br>• <strong>Ext2 (Extended Brickwall)</strong>: Inspired by HQPlayer <code>poly-sinc-ext2</code>; 1,281 input-tap Kaiser brickwall (A<sub>s</sub> = 175 dB), flat passband extended to 20.8 kHz (0.000 dB) and -183.0 dB suppression right at Nyquist.
                 <br>• <strong>Sinc-M (Million-Tap FFT)</strong>: Inspired by HQPlayer <code>sinc-M</code> / Chord M-Scaler; <strong>Partitioned FFT Polyphase Convolution</strong> with stereo complex packing (L+iR, 2x throughput), 65,535 taps per phase (<strong>1,048,545 prototype taps</strong> at 16x), flat to 21.95 kHz, -205.3 dB first-image suppression at 22.15 kHz, 242.5 dB 1 kHz SNR, and 17.0 ms per stereo second at 4x (~59x real-time).
+                <br>• <strong>Sinc-L (2.1M-Tap Adaptive FFT)</strong>: Inspired by HQPlayer <code>sinc-L</code>; 262,144-pt <strong>Partitioned FFT Overlap-Save Polyphase Convolution</strong> with <strong>131,071 taps per phase</strong> (<code>131,070 &times; ratio + 1</code> total taps: <strong>524,281 taps</strong> at 4x, <strong>2,097,121 taps</strong> at 16x), dead-flat to <strong>22.00 kHz (0.0000 dB)</strong>, <strong>-209.97 dB</strong> mirror image rejection at 22.10 kHz, 238.17 dB 1 kHz SNR, and <strong>14.0 ms per stereo second at 4x (~71x real-time)</strong>.
               </p>
 
               <!-- Table 1-1: Frequency Response Attenuation Benchmark -->
@@ -332,7 +333,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">-192.71 dB (@23k)</td>
                       <td style="padding: 8px 10px; color: #34d399;">-213.26 dB</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
@@ -340,6 +341,15 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">&lt; -175 dB (-205.29 dB @22.15k)</td>
                       <td style="padding: 8px 10px; color: #34d399;">&lt; -205 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">&lt; -210 dB</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">Sinc-L 2.1M-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (0.0000dB @22.00k)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">&lt; -180 dB (-209.97 dB @22.10k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">&lt; -210 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">&lt; -215 dB</td>
                     </tr>
                   </tbody>
                 </table>
@@ -415,7 +425,7 @@
                       <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong></td>
                       <td style="padding: 8px 10px;"><strong>Ultra-Transparent Detail</strong>: Extended 20.8kHz flat passband, -183dB Nyquist rejection, crisp micro-detail.</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
                       <td style="padding: 8px 10px; font-weight: 600;">262,137 (4x)<br>1,048,545 (16x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -424,21 +434,33 @@
                       <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong><br>(242.48 dB SNR)</td>
                       <td style="padding: 8px 10px;"><strong>Million-Tap Spatial Precision</strong>: Flat to 21.95kHz, -205dB image cut at 22.15kHz, deep hall ambiance.</td>
                     </tr>
+                    <tr>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">Sinc-L 2.1M-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600;">524,281 (4x)<br>2,097,121 (16x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px; color: #34d399;">262k-pt FFT Zero-Shift<br>(14.0 ms / 1s stereo)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong><br>(238.17 dB SNR)</td>
+                      <td style="padding: 8px 10px;"><strong>2.1M-Tap Ultimate Brickwall</strong>: 131,070&times;ratio taps, flat to 22.00kHz, -210dB cut at 22.10kHz, holographic 3D stage.</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
 
-              <!-- Section 2: DSD 5th & 7th Order Modulators Benchmarks -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">2. DSD 5th-Order (CRFB) &amp; 7th-Order (CLANS) Modulator Benchmarks</h4>
+              <!-- Section 2: DSD 5th, 7th & ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs Modulators Benchmarks -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">2. DSD 5th/7th-Order &amp; ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs Modulator Benchmarks (DSD64 ~ DSD512)</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                rooPlayer features pure 64-bit floating-point Sigma-Delta modulators. Verified via 2.0s -6dBFS 1kHz sine stimulus with FFT spectral analysis and bit-level Hamming distance verification:
-                <br>• <strong>5th-Order (CRFB)</strong>: Cascade of Resonators, Feedback Form architecture. Golden audiophile balance with gentle noise rise and rich analog atmosphere.
-                <br>• <strong>7th-Order (CLANS)</strong>: Closed-Loop Asymptotic Noise Shaping. Features a noise shaping slope of <strong>52.6 dB/oct</strong> for pitch-black audible backgrounds.
+                rooPlayer features pure 64-bit floating-point Sigma-Delta modulators verified via coherent -6dBFS 1kHz sine 262,144-pt 7-term Blackman-Harris FFT spectral analysis and bit-level Hamming distance verification:
+                <br>• <strong>5th-Order (CRFB)</strong>: Cascade of Resonators, Feedback Form (H<sub>&infin;</sub> = 1.55). Gentle noise rise, rich analog atmosphere, and ultra-low CPU load (3.7x real-time at DSD512).
+                <br>• <strong>7th-Order (CLANS)</strong>: Closed-Loop Asymptotic Noise Shaping (H<sub>&infin;</sub> = 1.50). Features a steep noise shaping slope of <strong>52.6 dB/oct</strong> for pitch-black audible backgrounds.
+                <br>• <strong>ASDM5EC</strong>: High-gain 5th-order NTF (<strong>H<sub>&infin;</sub> = 1.88</strong>) with <strong>AVX2+FMA M=4 / L=32 in-register Trellis</strong>, cutting ultrasonic noise by <strong>-12.1 ~ -13.5 dB</strong> at 283.2 ms/s for DSD256 (3.5x) and 573.3 ms/s for DSD512 (1.74x).
+                <br>• <strong>ASDM7EC</strong>: High-gain 7th-order NTF (<strong>H<sub>&infin;</sub> = 1.78</strong>) with <strong>AVX2+FMA 4-wide M=4 / L=32 in-register Trellis</strong> and C<sup>1</sup> adaptive MSA soft-knee, boosting SNR to <strong>156.66 dB (DSD64), 201.77 dB (DSD128), 245.48 dB (DSD256), and 244.30 dB (DSD512)</strong>.
+                <br>• <strong>ASDM7EC-super 512+fs</strong>: Flagship dual-band asymmetric 7th-order Trellis tuned for <strong>DSD512+ (and DSD256)</strong> with <strong>9.5 kHz / 18.5 kHz audible notches + 38.0 kHz ultrasonic notch</strong>, achieving <strong>254.26 dB 0-20kHz SNR (+9.96 dB over ASDM7EC), -271.63 dB THD, and -222.68 dBFS 20-50kHz ultrasonic floor (-27.83 dB vs 7th-CLANS)</strong> at <strong>659.0 ms/s (1.52x real-time at DSD512)</strong> and 0.256 max state at 0 dBFS full scale.
               </p>
 
               <!-- Table 2-1: DSD 5th vs 7th Order Benchmark Table -->
               <div style="overflow-x: auto; margin-bottom: 16px;">
-                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">Table 2-1: DSD 5th vs 7th Order Objective Measurements (DSD64 / DSD128 / DSD256)</div>
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">Table 2-1: DSD 5th vs 7th Order &amp; EC Modulator Objective Measurements (DSD64 / DSD128 / DSD256 / DSD512)</div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
                   <thead>
                     <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-main);">
@@ -500,11 +522,24 @@
                       <td colspan="2" style="padding: 8px 10px; color: #34d399; font-weight: 600;">47.97% Bit Difference (96.64% Byte Difference)</td>
                       <td style="padding: 8px 10px;">High-density 1-bit stream with massive micro-harmonic information.</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px;">Ultrasonic Noise (20k - 50k)</td>
                       <td style="padding: 8px 10px; color: #34d399;">-118.60 dB</td>
-                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-120.21 dB</td>
-                      <td style="padding: 8px 10px;">Ultrasonic noise suppressed past -120 dB, extreme pitch-black noise floor.</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-120.21 dB (ASDM7EC-super: -172.95 dB)</td>
+                      <td style="padding: 8px 10px;">Ultrasonic noise suppressed past -120 dB (-172.95 dB with ASDM7EC-super).</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td rowspan="2" style="padding: 8px 10px; font-weight: 600; color: #34d399; vertical-align: top;">DSD512<br>(22.5792 MHz)</td>
+                      <td style="padding: 8px 10px;">Audio Band SNR (0 - 20k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">216.90 dB (ASDM5EC: 198.45 dB)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">244.30 dB ASDM7EC / 254.26 dB ASDM7EC-super</td>
+                      <td style="padding: 8px 10px;">254.26 dB SNR &amp; -271.63 dB THD at 1.52x real-time (659.0 ms/s).</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 10px;">Ultrasonic Noise (20k - 50k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-165.04 dB (ASDM5EC: -178.53 dB)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-194.85 dB (ASDM7EC: -213.17 / super: -222.68 dB)</td>
+                      <td style="padding: 8px 10px;">Ultrasonic band down to -222.68 dBFS, ideal for discrete 1-bit DSD DACs.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -662,6 +697,7 @@
                 <li><strong>Lush Audiophile Vocals &amp; Acoustic Strings</strong>: <code>Smooth, Linear Phase</code> &rarr; <code>5th-Order (CRFB)</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD128 / DSD256</code> &rarr; <code>30k</code>. Ringing duration shortened by &gt;75%, velvety smooth treble, lush natural overtones without high-frequency digital hardness.</li>
                 <li><strong>Classic Analog &amp; Vinyl Warmth</strong>: <code>Smooth, Minimum Phase</code> &rarr; <code>5th-Order (CRFB)</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD64 / DSD128</code> &rarr; <code>20k / 30k</code>. Zero pre-ringing plus minimal post-decay eliminates digital harshness, recreating the organic, fatigue-free warmth of vintage vinyl and classic SACDs.</li>
                 <li><strong>Pure Direct PCM Oversampling</strong>: <code>Precise, Linear Phase</code> &rarr; <code>4x Integer Rate (176.4k / 192k)</code> &rarr; <code>TPDF Dither</code> &rarr; <code>None / 30k</code>. Direct polyphase FIR upsampling passed directly to DAC chips, delivering open clarity and spacious imaging.</li>
+                <li><strong>HQPlayer Flagship Reference Synergy (Sinc-L + ASDM7EC-super 512+fs)</strong>: <code>Sinc-L, Linear Phase</code> &rarr; <code>ASDM7EC-super 512+fs</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD512 / DSD256</code> &rarr; <code>40k / 50k / None</code>. 262k-pt FFT 2.1M-tap brickwall (flat to 22.00kHz, -210dB image rejection) paired with dual-band 7th-order Trellis (254.26 dB SNR, -222.68 dBFS ultrasonic floor at DSD512) for holographic 3D soundstage depth.</li>
               </ul>
             </div>`,
   };

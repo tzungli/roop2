@@ -807,16 +807,18 @@ mod tests {
             (snr_db, thd_db, ultra_db)
         };
 
-        let modes: [(&str, u32, usize); 3] = [
+        let modes: [(&str, u32, usize); 4] = [
             ("DSD64", 2_822_400, 8),
             ("DSD128", 5_644_800, 16),
             ("DSD256", 11_289_600, 32),
+            ("DSD512", 22_579_200, 64),
         ];
-        let orders: [(&str, u8); 4] = [
+        let orders: [(&str, u8); 5] = [
             ("5th-CRFB", 5),
             ("ASDM5EC", 50),
             ("7th-CLANS", 7),
             ("ASDM7EC", 70),
+            ("ASDM7EC-super512+fs", 75),
         ];
 
         for &(mode_name, dsd_rate, stage2_ratio) in &modes {

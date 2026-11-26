@@ -145,43 +145,43 @@ pub fn get_ciff7_params_for_osr(ratio: f64) -> Ciff7Coeffs {
     }
 }
 
-/// High-H_inf (H_inf = 1.85) CIFF-5 NTF coefficients dedicated to ASDM5EC M-algorithm Trellis modulator.
-/// Greedy 1-bit quantizers diverge at this aggressive NTF, whereas a 16-step M=4 Trellis
-/// keeps it unconditionally stable even at 0 dBFS while lowering 0-20 kHz noise by ~14 dB.
+/// High-H_inf (H_inf = 1.88) CIFF-5 NTF coefficients dedicated to ASDM5EC M-algorithm Trellis modulator.
+/// Greedy 1-bit quantizers diverge at this aggressive NTF, whereas our 32-step M=4 AVX2 Trellis
+/// with dual-stage state energy regularization keeps it unconditionally stable even at 0 dBFS.
 pub fn get_asdm5ec_params_for_osr(ratio: f64) -> Ciff5Coeffs {
     if ratio >= 384.0 {
         // dsd512
         Ciff5Coeffs {
             g1: 2.245248e-5,
             g2: 1.695662e-4,
-            a: [1.415642, 1.406230, 1.248609, 1.021081, 0.975786],
+            a: [1.434143, 1.452935, 1.320624, 1.108829, 1.093854],
         }
     } else if ratio >= 192.0 {
         // dsd256
         Ciff5Coeffs {
             g1: 8.980970e-5,
             g2: 6.782604e-4,
-            a: [1.415672, 1.406184, 1.248261, 1.020642, 0.973850],
+            a: [1.434172, 1.452893, 1.320277, 1.108385, 1.091812],
         }
     } else if ratio >= 96.0 {
         // dsd128
         Ciff5Coeffs {
             g1: 3.592356e-4,
             g2: 2.712973e-3,
-            a: [1.415793, 1.406003, 1.246867, 1.018884, 0.966114],
+            a: [1.434289, 1.452725, 1.318891, 1.106610, 1.083653],
         }
     } else {
         // dsd64
         Ciff5Coeffs {
             g1: 1.436891e-3,
             g2: 1.085079e-2,
-            a: [1.416275, 1.405278, 1.241290, 1.011846, 0.935265],
+            a: [1.434756, 1.452053, 1.313343, 1.099502, 1.051106],
         }
     }
 }
 
-/// High-H_inf (H_inf = 1.75) CIFF-7 NTF coefficients dedicated to ASDM7EC M-algorithm Trellis modulator.
-/// Enables deep 7th-order noise shaping (~19 dB lower audio-band NTF floor than H_inf=1.50),
+/// High-H_inf (H_inf = 1.78) CIFF-7 NTF coefficients dedicated to ASDM7EC M-algorithm Trellis modulator.
+/// Enables deep 7th-order noise shaping (~21 dB lower audio-band NTF floor than H_inf=1.50),
 /// remaining rock-solid stable even at 0 dBFS full-scale input.
 pub fn get_asdm7ec_params_for_osr(ratio: f64) -> Ciff7Coeffs {
     if ratio >= 384.0 {
@@ -190,7 +190,7 @@ pub fn get_asdm7ec_params_for_osr(ratio: f64) -> Ciff7Coeffs {
             g1: 1.700599e-5,
             g2: 8.515906e-5,
             g3: 2.790184e-4,
-            a: [1.683694, 1.933359, 2.131761, 1.733882, 1.538879, 0.925548, 0.595212],
+            a: [1.710978, 2.011336, 2.278203, 1.907427, 1.745530, 1.084353, 0.722267],
         }
     } else if ratio >= 192.0 {
         // dsd256
@@ -198,7 +198,7 @@ pub fn get_asdm7ec_params_for_osr(ratio: f64) -> Ciff7Coeffs {
             g1: 6.802387e-5,
             g2: 3.406348e-4,
             g3: 1.116066e-3,
-            a: [1.683755, 1.933225, 2.130843, 1.732316, 1.535252, 0.922894, 0.589038],
+            a: [1.711037, 2.011212, 2.277294, 1.905833, 1.741688, 1.081467, 0.715273],
         }
     } else if ratio >= 96.0 {
         // dsd128
@@ -206,7 +206,7 @@ pub fn get_asdm7ec_params_for_osr(ratio: f64) -> Ciff7Coeffs {
             g1: 2.720941e-4,
             g2: 1.362516e-3,
             g3: 4.464138e-3,
-            a: [1.684000, 1.932691, 2.127167, 1.726050, 1.520760, 0.912299, 0.564496],
+            a: [1.711274, 2.010715, 2.273657, 1.899451, 1.726334, 1.069939, 0.687462],
         }
     } else {
         // dsd64
@@ -214,7 +214,7 @@ pub fn get_asdm7ec_params_for_osr(ratio: f64) -> Ciff7Coeffs {
             g1: 1.088354e-3,
             g2: 5.449693e-3,
             g3: 1.785456e-2,
-            a: [1.684980, 1.930559, 2.112441, 1.700949, 1.463033, 0.870259, 0.468778],
+            a: [1.712221, 2.008736, 2.259085, 1.873889, 1.665155, 1.024164, 0.578791],
         }
     }
 }
@@ -1216,12 +1216,9 @@ fn trellis_step5(beam: &mut [TrellisPath5; EC_BEAM_WIDTH], u: f64, dither: f64, 
         let s5 = path.s5 * 0.999999 + c5 * s4;
         let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + dither;
 
-        let pen = if s5.abs() > 3.5 {
-            let ex = s5.abs() - 3.5;
-            0.5 * ex * ex
-        } else {
-            0.0
-        };
+        let ex4 = (s4.abs() - 1.35).max(0.0);
+        let ex5 = (s5.abs() - 1.35).max(0.0);
+        let pen = 2.0 * (ex4 * ex4 + ex5 * ex5);
 
         let e_pos = sigma - 1.0;
         let e_neg = sigma + 1.0;
@@ -1677,6 +1674,14 @@ const Y_MASK_LUT: [[f64; 4]; 16] = [
 ];
 
 #[cfg(target_arch = "x86_64")]
+const Y_BIT_LUT: [[i64; 4]; 16] = [
+    [0, 0, 0, 0], [1, 0, 0, 0], [0, 1, 0, 0], [1, 1, 0, 0],
+    [0, 0, 1, 0], [1, 0, 1, 0], [0, 1, 1, 0], [1, 1, 1, 0],
+    [0, 0, 0, 1], [1, 0, 0, 1], [0, 1, 0, 1], [1, 1, 0, 1],
+    [0, 0, 1, 1], [1, 0, 1, 1], [0, 1, 1, 1], [1, 1, 1, 1],
+];
+
+#[cfg(target_arch = "x86_64")]
 #[inline(always)]
 fn cmp_swap_u64(a: &mut u64, b: &mut u64) {
     let x = *a;
@@ -1773,7 +1778,12 @@ unsafe fn modulate_channel5_ec_avx2(
         beam[2].cost.min(1e20),
         beam[3].cost.min(1e20),
     );
-    let mut bits = [beam[0].bits, beam[1].bits, beam[2].bits, beam[3].bits];
+    let mut vbits = _mm256_setr_epi64x(
+        beam[0].bits as i64,
+        beam[1].bits as i64,
+        beam[2].bits as i64,
+        beam[3].bits as i64,
+    );
 
     let vleak = _mm256_set1_pd(0.999999);
     let vc1 = _mm256_set1_pd(CIFFR_5_C[0]);
@@ -1790,13 +1800,13 @@ unsafe fn modulate_channel5_ec_avx2(
     let va5 = _mm256_set1_pd(p.a[4]);
     let vone = _mm256_set1_pd(1.0);
     let vzero = _mm256_setzero_pd();
-    let vhalf = _mm256_set1_pd(0.5);
-    let vthresh = _mm256_set1_pd(3.5);
+    let vpen_w = _mm256_set1_pd(2.0);
+    let vthresh = _mm256_set1_pd(1.35);
+    let vprune_cost = _mm256_set1_pd(1e20);
     let vsign_mask = _mm256_set1_pd(-0.0);
     let vclamp_pos = _mm256_set1_pd(clamp);
     let vclamp_neg = _mm256_set1_pd(-clamp);
 
-    let mut c_all = [0.0f64; 8];
     let mut pos_bits = [0u32; 4];
     let mut neg_bits = [0u32; 4];
 
@@ -1821,31 +1831,37 @@ unsafe fn modulate_channel5_ec_avx2(
                 ditherer.next_dither(dither_type)
             };
 
+            // Precompute leaked states & resonator feedback bases off the critical serial chain
             let vu = _mm256_set1_pd(u);
-            let ns1 = _mm256_fmadd_pd(vs1, vleak, _mm256_mul_pd(vc1, _mm256_sub_pd(vu, vy)));
-            let ns2 = _mm256_fnmadd_pd(vg1, vs3, _mm256_fmadd_pd(vs2, vleak, _mm256_mul_pd(vc2, ns1)));
-            let ns3 = _mm256_fmadd_pd(vs3, vleak, _mm256_mul_pd(vc3, ns2));
-            let ns4 = _mm256_fnmadd_pd(vg2, vs5, _mm256_fmadd_pd(vs4, vleak, _mm256_mul_pd(vc4, ns3)));
-            let ns5 = _mm256_fmadd_pd(vs5, vleak, _mm256_mul_pd(vc5, ns4));
+            let s1_base = _mm256_mul_pd(vs1, vleak);
+            let s2_base = _mm256_fnmadd_pd(vg1, vs3, _mm256_mul_pd(vs2, vleak));
+            let s3_base = _mm256_mul_pd(vs3, vleak);
+            let s4_base = _mm256_fnmadd_pd(vg2, vs5, _mm256_mul_pd(vs4, vleak));
+            let s5_base = _mm256_mul_pd(vs5, vleak);
 
-            let mut sigma = _mm256_set1_pd(u + dither);
-            sigma = _mm256_fmadd_pd(va1, ns1, sigma);
-            sigma = _mm256_fmadd_pd(va2, ns2, sigma);
-            sigma = _mm256_fmadd_pd(va3, ns3, sigma);
-            sigma = _mm256_fmadd_pd(va4, ns4, sigma);
-            sigma = _mm256_fmadd_pd(va5, ns5, sigma);
+            // Single-FMA serial integrator update chain
+            let ns1 = _mm256_fmadd_pd(vc1, _mm256_sub_pd(vu, vy), s1_base);
+            let ns2 = _mm256_fmadd_pd(vc2, ns1, s2_base);
+            let ns3 = _mm256_fmadd_pd(vc3, ns2, s3_base);
+            let ns4 = _mm256_fmadd_pd(vc4, ns3, s4_base);
+            let ns5 = _mm256_fmadd_pd(vc5, ns4, s5_base);
 
-            let abs_s5 = _mm256_andnot_pd(vsign_mask, ns5);
-            let ex = _mm256_max_pd(_mm256_sub_pd(abs_s5, vthresh), vzero);
-            let base = _mm256_fmadd_pd(vhalf, _mm256_mul_pd(ex, ex), vcost);
+            // Dual-tree parallel FMA accumulation for sigma
+            let sig_a = _mm256_fmadd_pd(va3, ns3, _mm256_fmadd_pd(va1, ns1, _mm256_set1_pd(u + dither)));
+            let sig_b = _mm256_fmadd_pd(va4, ns4, _mm256_mul_pd(va2, ns2));
+            let sigma = _mm256_fmadd_pd(va5, ns5, _mm256_add_pd(sig_a, sig_b));
+
+            // Dual-stage adaptive state energy barrier (s4, s5 > 1.35)
+            let ex4 = _mm256_max_pd(_mm256_sub_pd(_mm256_andnot_pd(vsign_mask, ns4), vthresh), vzero);
+            let ex5 = _mm256_max_pd(_mm256_sub_pd(_mm256_andnot_pd(vsign_mask, ns5), vthresh), vzero);
+            let ex_sq = _mm256_fmadd_pd(ex4, ex4, _mm256_mul_pd(ex5, ex5));
+            let base = _mm256_fmadd_pd(vpen_w, ex_sq, vcost);
 
             let e_pos = _mm256_sub_pd(sigma, vone);
             let e_neg = _mm256_add_pd(sigma, vone);
             let vc_pos = _mm256_fmadd_pd(e_pos, e_pos, base);
             let vc_neg = _mm256_fmadd_pd(e_neg, e_neg, base);
 
-            _mm256_storeu_pd(c_all.as_mut_ptr(), vc_pos);
-            _mm256_storeu_pd(c_all.as_mut_ptr().add(4), vc_neg);
             _mm_storeu_si128(pos_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_pos)));
             _mm_storeu_si128(neg_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_neg)));
 
@@ -1874,21 +1890,22 @@ unsafe fn modulate_channel5_ec_avx2(
             let y_mask = b0 | (b1 << 1) | (b2 << 2) | (b3 << 3);
             vy = _mm256_loadu_pd(Y_MASK_LUT[y_mask].as_ptr());
 
-            let nb0 = (bits[p0] << 1) | (b0 as u64);
-            let nb1 = (bits[p1] << 1) | (b1 as u64);
-            let nb2 = (bits[p2] << 1) | (b2 as u64);
-            let nb3 = (bits[p3] << 1) | (b3 as u64);
-            bits = [nb0, nb1, nb2, nb3];
+            let vcp_perm = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(vc_pos), vperm));
+            let vcn_perm = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(vc_neg), vperm));
+            let vcost_sel = _mm256_blendv_pd(vcp_perm, vcn_perm, vy);
 
-            let out_bit = ((nb0 >> (EC_TRACEBACK - 1)) & 1) as u8;
+            // In-register YMM 64-bit path history shift & branchless ancestor pruning
+            let vbits_perm = _mm256_permutevar8x32_epi32(vbits, vperm);
+            let vnew_bits = _mm256_loadu_si256(Y_BIT_LUT[y_mask].as_ptr() as *const __m256i);
+            vbits = _mm256_or_si256(_mm256_add_epi64(vbits_perm, vbits_perm), vnew_bits);
+
+            let vanc_sign = _mm256_castsi256_pd(_mm256_slli_epi64(vbits, (64 - EC_TRACEBACK) as i32));
+            let out_bit = (_mm256_movemask_pd(vanc_sign) & 1) as u8;
             byte_val |= out_bit << bit;
 
-            // Ancestor pruning: penalize any lane whose bit at EC_TRACEBACK-1 disagrees with out_bit
-            let c0 = c_all[w[0]];
-            let c1 = if (((nb1 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[1]] };
-            let c2 = if (((nb2 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[2]] };
-            let c3 = if (((nb3 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[3]] };
-            vcost = _mm256_setr_pd(c0, c1, c2, c3);
+            let vanc0 = _mm256_permute4x64_pd(vanc_sign, 0x00);
+            let vprune_mask = _mm256_xor_pd(vanc_sign, vanc0);
+            vcost = _mm256_blendv_pd(vcost_sel, vprune_cost, vprune_mask);
         }
 
         // Per-byte cost re-zeroing (clamped >= 0.0 for monotonic f32 bit sorting) and rare stability clamp
@@ -1917,7 +1934,7 @@ unsafe fn modulate_channel5_ec_avx2(
 
     let mut a1 = [0.0f64; 4]; let mut a2 = [0.0f64; 4]; let mut a3 = [0.0f64; 4];
     let mut a4 = [0.0f64; 4]; let mut a5 = [0.0f64; 4];
-    let mut ay = [0.0f64; 4]; let mut ac = [0.0f64; 4];
+    let mut ay = [0.0f64; 4]; let mut ac = [0.0f64; 4]; let mut ab = [0u64; 4];
     _mm256_storeu_pd(a1.as_mut_ptr(), vs1);
     _mm256_storeu_pd(a2.as_mut_ptr(), vs2);
     _mm256_storeu_pd(a3.as_mut_ptr(), vs3);
@@ -1925,12 +1942,13 @@ unsafe fn modulate_channel5_ec_avx2(
     _mm256_storeu_pd(a5.as_mut_ptr(), vs5);
     _mm256_storeu_pd(ay.as_mut_ptr(), vy);
     _mm256_storeu_pd(ac.as_mut_ptr(), vcost);
+    _mm256_storeu_si256(ab.as_mut_ptr() as *mut __m256i, vbits);
     for k in 0..4 {
         beam[k] = TrellisPath5 {
             s1: a1[k], s2: a2[k], s3: a3[k], s4: a4[k], s5: a5[k],
             y: ay[k],
             cost: if ac[k] >= 1e19 { 1e30 } else { ac[k] },
-            bits: bits[k],
+            bits: ab[k],
         };
     }
 }
@@ -1981,7 +1999,12 @@ unsafe fn modulate_channel7_ec_avx2(
         beam[2].cost.min(1e20),
         beam[3].cost.min(1e20),
     );
-    let mut bits = [beam[0].bits, beam[1].bits, beam[2].bits, beam[3].bits];
+    let mut vbits = _mm256_setr_epi64x(
+        beam[0].bits as i64,
+        beam[1].bits as i64,
+        beam[2].bits as i64,
+        beam[3].bits as i64,
+    );
 
     let vleak = _mm256_set1_pd(0.999999);
     let vc1 = _mm256_set1_pd(CIFFR_7_C[0]);
@@ -2105,19 +2128,17 @@ unsafe fn modulate_channel7_ec_avx2(
             let vcn_perm = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(vc_neg), vperm));
             let vcost_sel = _mm256_blendv_pd(vcp_perm, vcn_perm, vy);
 
-            let nb0 = (bits[p0] << 1) | (b0 as u64);
-            let nb1 = (bits[p1] << 1) | (b1 as u64);
-            let nb2 = (bits[p2] << 1) | (b2 as u64);
-            let nb3 = (bits[p3] << 1) | (b3 as u64);
-            bits = [nb0, nb1, nb2, nb3];
+            // In-register YMM 64-bit path history shift & branchless ancestor pruning
+            let vbits_perm = _mm256_permutevar8x32_epi32(vbits, vperm);
+            let vnew_bits = _mm256_loadu_si256(Y_BIT_LUT[y_mask].as_ptr() as *const __m256i);
+            vbits = _mm256_or_si256(_mm256_add_epi64(vbits_perm, vbits_perm), vnew_bits);
 
-            let out_bit = ((nb0 >> (EC_TRACEBACK - 1)) & 1) as u8;
+            let vanc_sign = _mm256_castsi256_pd(_mm256_slli_epi64(vbits, (64 - EC_TRACEBACK) as i32));
+            let out_bit = (_mm256_movemask_pd(vanc_sign) & 1) as u8;
             byte_val |= out_bit << bit;
 
-            let m1 = if (((nb1 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { -1i64 } else { 0 };
-            let m2 = if (((nb2 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { -1i64 } else { 0 };
-            let m3 = if (((nb3 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { -1i64 } else { 0 };
-            let vprune_mask = _mm256_castsi256_pd(_mm256_setr_epi64x(0, m1, m2, m3));
+            let vanc0 = _mm256_permute4x64_pd(vanc_sign, 0x00);
+            let vprune_mask = _mm256_xor_pd(vanc_sign, vanc0);
             vcost = _mm256_blendv_pd(vcost_sel, vprune_cost, vprune_mask);
         }
 
@@ -2148,7 +2169,7 @@ unsafe fn modulate_channel7_ec_avx2(
 
     let mut a1 = [0.0f64; 4]; let mut a2 = [0.0f64; 4]; let mut a3 = [0.0f64; 4];
     let mut a4 = [0.0f64; 4]; let mut a5 = [0.0f64; 4]; let mut a6 = [0.0f64; 4];
-    let mut a7 = [0.0f64; 4]; let mut ay = [0.0f64; 4]; let mut ac = [0.0f64; 4];
+    let mut a7 = [0.0f64; 4]; let mut ay = [0.0f64; 4]; let mut ac = [0.0f64; 4]; let mut ab = [0u64; 4];
     _mm256_storeu_pd(a1.as_mut_ptr(), vs1);
     _mm256_storeu_pd(a2.as_mut_ptr(), vs2);
     _mm256_storeu_pd(a3.as_mut_ptr(), vs3);
@@ -2158,13 +2179,14 @@ unsafe fn modulate_channel7_ec_avx2(
     _mm256_storeu_pd(a7.as_mut_ptr(), vs7);
     _mm256_storeu_pd(ay.as_mut_ptr(), vy);
     _mm256_storeu_pd(ac.as_mut_ptr(), vcost);
+    _mm256_storeu_si256(ab.as_mut_ptr() as *mut __m256i, vbits);
     for k in 0..4 {
         beam[k] = TrellisPath7 {
             s1: a1[k], s2: a2[k], s3: a3[k], s4: a4[k],
             s5: a5[k], s6: a6[k], s7: a7[k],
             y: ay[k],
             cost: if ac[k] >= 1e19 { 1e30 } else { ac[k] },
-            bits: bits[k],
+            bits: ab[k],
         };
     }
 }
