@@ -5301,9 +5301,7 @@ function renderRooRecommendedGenres() {
 
     card.onclick = () => {
       state.activeGenreFilter = entry.genre;
-      const navAlbums = document.querySelector('[data-view="albums"]');
-      if (navAlbums) navAlbums.click();
-      else navigateTo('albums');
+      navigateTo('albums');
       renderAlbums();
       showToast(`已篩選「${zhLabel}」風格專輯`);
     };
@@ -7263,8 +7261,7 @@ function renderGenres() {
     // Card click: Navigate to Albums view and filter by this genre accurately
     card.addEventListener('click', () => {
       state.activeGenreFilter = genreName;
-      const navAlbums = document.querySelector('[data-view="albums"]');
-      if (navAlbums) navAlbums.click();
+      navigateTo('albums');
       renderAlbums();
       showToast(`已篩選「${info.zhName || genreName}」風格專輯`);
     });
@@ -18420,6 +18417,10 @@ function setupNavigation() {
       item.classList.add('active');
 
       const viewId = item.getAttribute('data-view');
+      if (viewId === 'albums' && state.activeGenreFilter) {
+        state.activeGenreFilter = null;
+        viewDirtyState.albums = true;
+      }
       navigateTo(viewId);
     });
   });
@@ -18481,6 +18482,9 @@ function setupNavigation() {
       filterPills.forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
       state.activeFilter = pill.getAttribute('data-filter');
+      if (state.activeFilter === 'all' && state.activeGenreFilter) {
+        state.activeGenreFilter = null;
+      }
       renderAlbums();
     });
   });
