@@ -3740,16 +3740,28 @@ function renderRooRecentActivity(activeTab = 'added', page = 0) {
 let dailyPickCandidates = [];
 let dailyPickIndex = 0;
 
+function formatRoonChineseDate(dateObj = new Date()) {
+  const zhMonths = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+  const day = dateObj.getDate();
+  const suffix = (day % 10 === 1 && day !== 11) ? 'ST'
+    : (day % 10 === 2 && day !== 12) ? 'ND'
+    : (day % 10 === 3 && day !== 13) ? 'RD' : 'TH';
+  return `${zhMonths[dateObj.getMonth()]} ${day}${suffix} 日`;
+}
+
 function renderDailyPickCard(entry) {
   const seedArtistEl = document.getElementById('dailyPickArtistSeed');
   const albumArtistEl = document.getElementById('dailyPickAlbumArtist');
   const daysAgoEl = document.getElementById('dailyPickDaysAgo');
-  const badgeEl = document.getElementById('dailyPickBadge');
   const coverImg = document.getElementById('dailyPickCoverImg');
+  const backdropEl = document.getElementById('dailyPickBackdrop');
+  const avatarImg = document.getElementById('dailyPickArtistAvatar');
+  const avatarPh = document.getElementById('dailyPickAvatarPlaceholder');
   const heroBox = document.getElementById('dailyPickHeroBox');
 
   const pick = entry.pickAlbum;
   const seedArtist = entry.seedArtist || pick.artist || '精選藝術家';
+  const coverUrl = formatCoverSrc(pick.cover) || createSvgCover(pick.title, pick.artist);
 
   if (seedArtistEl) seedArtistEl.textContent = seedArtist;
   if (albumArtistEl) albumArtistEl.textContent = `${pick.title || '精選專輯'} - ${pick.artist || seedArtist}`;
@@ -3757,10 +3769,37 @@ function renderDailyPickCard(entry) {
     const yr = pick.year && String(pick.year).trim();
     daysAgoEl.textContent = yr ? `${yr} 年發行` : '精選推薦作品';
   }
-  if (badgeEl) badgeEl.textContent = pick.artist || seedArtist;
   if (coverImg) {
-    coverImg.src = formatCoverSrc(pick.cover) || createSvgCover(pick.title, pick.artist);
+    coverImg.src = coverUrl;
   }
+  if (backdropEl) {
+    backdropEl.style.backgroundImage = coverUrl ? `url("${coverUrl}")` : 'none';
+  }
+
+  // Populate circular seed-artist avatar (immediate album cover fallback, upgraded to real artist portrait)
+  if (avatarImg && avatarPh) {
+    const seedAlb = (state.albums || []).find(a => a && a.cover && String(a.artist || '').toLowerCase() === seedArtist.toLowerCase());
+    const fallbackAvatar = seedAlb ? formatCoverSrc(seedAlb.cover) : coverUrl;
+    if (fallbackAvatar) {
+      avatarImg.src = fallbackAvatar;
+      avatarImg.style.display = 'block';
+      avatarPh.style.display = 'none';
+    } else {
+      avatarImg.style.display = 'none';
+      avatarPh.style.display = 'flex';
+    }
+    if (typeof resolveArtistOnlinePortrait === 'function' && seedArtist) {
+      const targetSeed = seedArtist;
+      resolveArtistOnlinePortrait(targetSeed).then(portraitUrl => {
+        if (portraitUrl && seedArtistEl && seedArtistEl.textContent === targetSeed) {
+          avatarImg.src = portraitUrl;
+          avatarImg.style.display = 'block';
+          avatarPh.style.display = 'none';
+        }
+      }).catch(() => {});
+    }
+  }
+
   if (heroBox) {
     heroBox.onclick = () => openAlbumDetail(pick);
   }
@@ -3791,8 +3830,7 @@ function renderDailyPickCard(entry) {
 function renderRooDailyPick() {
   const dateEl = document.getElementById('dailyPickDateLabel');
   if (dateEl) {
-    const now = new Date();
-    dateEl.textContent = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`;
+    dateEl.textContent = formatRoonChineseDate(new Date());
   }
 
   const recent5 = getRecentlyPlayedAlbums(5);

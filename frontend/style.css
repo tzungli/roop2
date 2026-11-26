@@ -719,149 +719,235 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 500;
 }
 
-/* 1.3 Daily Pick (3D Stacked Hero) */
+/* 1.3 Daily Pick (Roon-exact Royal Blue Framed Banner) */
 .roo-daily-pick-section {
   margin-bottom: 36px;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(15, 42, 98, 0.24);
 }
 
-.roo-section-subhead {
+.roo-daily-pick-section .roo-section-subhead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  background: #1b427e;
+  padding: 10px 18px;
+  margin-bottom: 0;
 }
 
 .roo-context-user {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .roo-mini-avatar {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   object-fit: cover;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
 }
 
 .roo-avatar-placeholder {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
+  flex-shrink: 0;
 }
 
-.roo-context-text {
-  font-size: 12.5px;
-  color: var(--text-sub);
+.roo-context-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
 }
 
-.roo-context-text strong {
-  color: var(--text-main);
+.roo-context-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 400;
+}
+
+.roo-context-artist {
+  font-size: 13px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.roo-daily-pick-section .roo-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roo-daily-pick-section .roo-nav-arrow-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.roo-daily-pick-section .roo-nav-arrow-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.38);
+  transform: scale(1.06);
+}
+
+.roo-daily-pick-frame {
+  background: #4285ec;
+  padding: 12px;
 }
 
 .roo-daily-pick-hero {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
-  border-radius: 8px;
-  padding: 30px 34px;
+  justify-content: flex-start;
+  background: linear-gradient(95deg, #275eb3 0%, #3771c8 52%, #4a82d6 100%);
+  border-radius: 0;
+  height: 310px;
+  padding: 28px 36px;
   color: #ffffff;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(29, 78, 216, 0.25);
   cursor: pointer;
 }
 
+.roo-pick-backdrop {
+  position: absolute;
+  top: -12%;
+  right: 0;
+  width: 62%;
+  height: 124%;
+  background-size: cover;
+  background-position: center;
+  filter: grayscale(100%) contrast(1.18) blur(10px);
+  opacity: 0.26;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 28%, rgba(0, 0, 0, 0.95) 65%, rgba(0, 0, 0, 0.45) 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 28%, rgba(0, 0, 0, 0.95) 65%, rgba(0, 0, 0, 0.45) 100%);
+}
+
 .roo-pick-left {
-  flex: 1;
+  flex: 0 1 34%;
   min-width: 0;
-  z-index: 2;
+  z-index: 3;
 }
 
 .roo-pick-date {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: rgba(255, 255, 255, 0.85);
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 12px;
 }
 
 .roo-pick-title {
-  font-size: 34px;
-  font-weight: 800;
+  font-size: 44px;
+  font-weight: 700;
   color: #ffffff;
-  letter-spacing: -0.5px;
-  margin: 0 0 10px 0;
+  letter-spacing: 0.02em;
+  margin: 0 0 20px 0;
   line-height: 1.1;
 }
 
 .roo-pick-album {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ffffff;
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.94);
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .roo-pick-days {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.roo-pick-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
 }
 
 .stacked-covers-wrap {
   position: relative;
-  width: 150px;
-  height: 150px;
-  margin-right: 20px;
+  width: 214px;
+  height: 214px;
+  margin: 0;
   flex-shrink: 0;
 }
 
 .stacked-cover {
   position: absolute;
-  width: 125px;
-  height: 125px;
-  border-radius: 6px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
   background-size: cover;
   background-position: center;
 }
 
 .stacked-cover.cover-back {
-  top: -12px;
-  right: -12px;
-  transform: rotate(8deg);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  inset: -12px;
+  width: auto;
+  height: auto;
+  transform: rotate(4.2deg);
+  background: rgba(96, 160, 255, 0.34);
+  box-shadow: none;
+  border: none;
 }
 
 .stacked-cover.cover-mid {
-  top: -4px;
-  right: -4px;
-  transform: rotate(4deg);
-  background: rgba(255, 255, 255, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  inset: -8px;
+  width: auto;
+  height: auto;
+  transform: rotate(-3.2deg);
+  background: rgba(74, 140, 245, 0.42);
+  box-shadow: none;
+  border: none;
 }
 
 .stacked-cover.cover-front {
-  top: 6px;
-  right: 6px;
-  transform: rotate(-2deg);
-  background: #000;
+  inset: 0;
+  transform: none;
+  background: #163a75;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 5px solid #2b62c4;
+  box-shadow: 0 12px 32px rgba(10, 32, 82, 0.34);
+  transition: transform 0.25s ease;
+}
+
+.roo-daily-pick-hero:hover .stacked-cover.cover-front {
+  transform: scale(1.025);
 }
 
 .stacked-cover.cover-front img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .stacked-cover-badge {
@@ -1766,19 +1852,16 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 18px;
   }
   .roo-daily-pick-hero {
-    padding: 22px 24px;
+    height: 240px;
+    padding: 20px 22px;
   }
   .roo-pick-title {
-    font-size: 28px;
+    font-size: 32px;
   }
   .stacked-covers-wrap {
-    width: 120px;
-    height: 120px;
-    margin-right: 10px;
-  }
-  .stacked-cover {
-    width: 100px;
-    height: 100px;
+    width: 156px;
+    height: 156px;
+    margin: 0;
   }
   .roo-daily-mixes-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

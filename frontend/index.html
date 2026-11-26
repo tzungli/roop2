@@ -380,34 +380,40 @@
           </div>
         </div>
 
-        <!-- 1.3 每日精選 Daily Pick (因為你曾播放 + 3D疊層傾斜封面) -->
+        <!-- 1.3 每日精選 Daily Pick (Roon 風格：深藍頂部列 + 亮藍外框 + 中央疊層方框封面 + 右側虛化剪影) -->
         <div class="roo-daily-pick-section">
           <div class="roo-section-subhead">
             <div class="roo-context-user">
               <img src="" id="dailyPickArtistAvatar" class="roo-mini-avatar" alt="Artist" style="display:none;">
-              <span class="roo-avatar-placeholder ui-svg-icon" id="dailyPickAvatarPlaceholder"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></span>
-              <span class="roo-context-text">因為你曾播放 <strong id="dailyPickArtistSeed">陳鈺華</strong></span>
+              <span class="roo-avatar-placeholder ui-svg-icon" id="dailyPickAvatarPlaceholder"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg></span>
+              <div class="roo-context-stack">
+                <span class="roo-context-label">因為你曾播放</span>
+                <strong class="roo-context-artist" id="dailyPickArtistSeed">陳鈺華</strong>
+              </div>
             </div>
             <div class="roo-banner-actions">
-              <button class="roo-nav-arrow-btn" id="btnDailyPickPrev" title="上一精選">❮</button>
-              <button class="roo-nav-arrow-btn" id="btnDailyPickNext" title="下一精選">❯</button>
+              <button class="roo-nav-arrow-btn" id="btnDailyPickPrev" title="上一精選">‹</button>
+              <button class="roo-nav-arrow-btn" id="btnDailyPickNext" title="下一精選">›</button>
             </div>
           </div>
 
-          <div class="roo-daily-pick-hero" id="dailyPickHeroBox">
-            <div class="roo-pick-left">
-              <div class="roo-pick-date" id="dailyPickDateLabel">十一月 22ND 日</div>
-              <h2 class="roo-pick-title">每日精選</h2>
-              <div class="roo-pick-album" id="dailyPickAlbumArtist">Reborn - 陳鈺華</div>
-              <div class="roo-pick-days" id="dailyPickDaysAgo">在 19 天前發行</div>
-            </div>
-            <div class="roo-pick-right">
-              <div class="stacked-covers-wrap" id="dailyPickStackedCovers">
-                <div class="stacked-cover cover-back"></div>
-                <div class="stacked-cover cover-mid"></div>
-                <div class="stacked-cover cover-front">
-                  <img id="dailyPickCoverImg" src="" alt="Album Cover">
-                  <div class="stacked-cover-badge" id="dailyPickBadge">陳鈺華</div>
+          <div class="roo-daily-pick-frame">
+            <div class="roo-daily-pick-hero" id="dailyPickHeroBox">
+              <div class="roo-pick-backdrop" id="dailyPickBackdrop"></div>
+              <div class="roo-pick-left">
+                <div class="roo-pick-date" id="dailyPickDateLabel">十一月 26TH 日</div>
+                <h2 class="roo-pick-title">每日精選</h2>
+                <div class="roo-pick-album" id="dailyPickAlbumArtist">Reborn - 陳鈺華</div>
+                <div class="roo-pick-days" id="dailyPickDaysAgo">在 19 天前發行</div>
+              </div>
+              <div class="roo-pick-center">
+                <div class="stacked-covers-wrap" id="dailyPickStackedCovers">
+                  <div class="stacked-cover cover-back"></div>
+                  <div class="stacked-cover cover-mid"></div>
+                  <div class="stacked-cover cover-front">
+                    <img id="dailyPickCoverImg" src="" alt="Album Cover">
+                    <div class="stacked-cover-badge" id="dailyPickBadge" style="display:none;"></div>
+                  </div>
                 </div>
               </div>
             </div>
