@@ -14587,3 +14587,193 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   flex-wrap: wrap;
   padding-top: 4px;
 }
+
+/* =========================================================================
+   Roon-style Music Genres Mosaic View (4-column alternating wide tiles)
+   ========================================================================= */
+.roon-genres-header {
+  margin-bottom: 16px;
+}
+
+.roon-genre-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.roon-genre-sort-select {
+  appearance: auto;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 8px 4px 2px;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.roon-genre-sort-select:hover,
+.roon-genre-sort-select:focus {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-color);
+  outline: none;
+}
+
+[data-theme="light"] .roon-genre-sort-select:hover,
+[data-theme="light"] .roon-genre-sort-select:focus {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.roon-genre-sort-select option {
+  background: var(--bg-panel);
+  color: var(--text-main);
+}
+
+.roon-genre-header-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.roon-genre-mosaic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding-bottom: 36px;
+}
+
+.roon-genre-tile {
+  position: relative;
+  height: 224px;
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  background: linear-gradient(135deg, #252730 0%, #15171d 100%);
+  user-select: none;
+}
+
+[data-theme="light"] .roon-genre-tile {
+  background: linear-gradient(135deg, #525766 0%, #2d313c 100%);
+}
+
+.roon-genre-tile.is-wide {
+  grid-column: span 2;
+}
+
+.roon-genre-tile.is-empty {
+  opacity: 0.72;
+}
+
+.roon-genre-tile-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+  filter: grayscale(88%) contrast(1.05) brightness(0.76);
+  transform: scale(1.005);
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease;
+}
+
+.roon-genre-tile:hover .roon-genre-tile-bg {
+  transform: scale(1.045);
+  filter: grayscale(18%) contrast(1.04) brightness(0.92);
+}
+
+.roon-genre-tile-placeholder {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.45));
+}
+
+.roon-genre-tile-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.22) 55%, rgba(0, 0, 0, 0.64) 100%);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.roon-genre-tile:hover .roon-genre-tile-scrim {
+  opacity: 0.85;
+}
+
+.roon-genre-tile-label {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 26px;
+  text-align: center;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+.roon-genre-tile-meta {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 8px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.roon-genre-tile:hover .roon-genre-tile-meta {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.roon-genre-tile-play {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(15, 17, 23, 0.68);
+  color: #ffffff;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.roon-genre-tile:hover .roon-genre-tile-play {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.roon-genre-tile-play:hover {
+  background: var(--accent-purple);
+  border-color: var(--accent-purple);
+}
+
+@media (max-width: 960px) {
+  .roon-genre-mosaic-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .roon-genre-tile {
+    height: 190px;
+  }
+}

@@ -132,7 +132,7 @@
               <circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"></circle>
             </svg>
           </span>
-          <span class="nav-label" data-i18n-en="Genres">曲風流派</span>
+          <span class="nav-label" data-i18n-en="Genres">音樂類型</span>
           <span class="badge" id="genreCountBadge">0</span>
         </button>
         <button class="nav-item" data-view="history">
@@ -1013,7 +1013,7 @@
               <span class="section-count-badge" id="recommendCountBadge">0 張推薦</span>
             </div>
             <p class="section-desc" id="recommendDesc" style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
-              依同藝術家、相同曲目收錄、曲風（<span id="recommendGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）與相近曲風、發行廠牌、製作或作曲、年代與音質規格綜合判斷；關聯不足者不顯示，卡片標示原因，滑過可看完整依據。
+              依同藝術家、相同曲目收錄、音樂類型（<span id="recommendGenreTag" style="color: var(--accent-purple); font-weight: 600;">Genre</span>）與相近音樂類型、發行廠牌、製作或作曲、年代與音質規格綜合判斷；關聯不足者不顯示，卡片標示原因，滑過可看完整依據。
             </p>
             <div class="album-grid recommend-album-grid" id="albumRecommendationsGrid">
               <!-- Injected via JS -->
@@ -1289,23 +1289,22 @@
         </div>
       </section>
 
-      <!-- 5. GENRES VIEW -->
+      <!-- 5. GENRES VIEW (Roon-style Mosaic) -->
       <section id="viewGenres" class="content-view">
-        <div class="view-header">
+        <div class="view-header roon-genres-header">
           <div>
-            <h1 class="page-title">曲風流派</h1>
-            <p class="page-subtitle" id="genresHeaderCount">共 0 個音樂曲風與流派，以專輯風格探索您的發燒音樂庫</p>
-          </div>
-          <div class="cover-size-control" id="genreSizeControl">
-            <span class="size-control-label">封面尺寸：</span>
-            <div class="pill-group size-pill-group" id="genreSizePills">
-              <button class="pill size-pill active" data-genre-size="small" title="小尺寸封面 (預設)">小</button>
-              <button class="pill size-pill" data-genre-size="medium" title="中尺寸封面">中</button>
-              <button class="pill size-pill" data-genre-size="large" title="大尺寸封面">大</button>
+            <h1 class="page-title">音樂類型</h1>
+            <div class="roon-genre-sort-row">
+              <select id="genreSortSelect" class="roon-genre-sort-select" aria-label="音樂類型排序">
+                <option value="albums">依專輯數量排序</option>
+                <option value="tracks">依曲目數量排序</option>
+                <option value="name">依名稱排序</option>
+              </select>
+              <span class="roon-genre-header-count" id="genresHeaderCount"></span>
             </div>
           </div>
         </div>
-        <div class="genre-grid genre-size-small" id="genresGrid">
+        <div class="roon-genre-mosaic-grid" id="genresGrid">
           <!-- Injected via JS -->
         </div>
       </section>
@@ -1642,7 +1641,7 @@
                 <div class="kkbox-section-title-wrap">
                   <div>
                     <h2>精選推薦</h2>
-                    <span class="kkbox-sub-desc">官方主題選品、情境音樂與曲風合輯</span>
+                    <span class="kkbox-sub-desc">官方主題選品、情境音樂與類型合輯</span>
                   </div>
                   <div class="kkbox-pane-actions">
                     <button class="btn btn-sm btn-secondary" id="btnRefreshFeatured">重新整理</button>

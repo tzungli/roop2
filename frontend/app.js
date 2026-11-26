@@ -2257,12 +2257,8 @@ function rebuildLibraryCollections() {
   const artistMap = new Map();
   const genreSet = new Set();
 
-  // Curated pillar genres always present
-  const CURATED_PILLARS = [
-    'Classical', 'Jazz', 'Rock', 'Pop', 'Electronic',
-    'Soul / R&B', 'Blues', 'Folk', 'Soundtrack', 'Metal',
-    'Hip Hop', 'Ambient', 'Vocal', 'Audiophile'
-  ];
+  // Curated pillar genres always present (Roon 21 Music Genres)
+  const CURATED_PILLARS = CANONICAL_GENRES.slice();
   CURATED_PILLARS.forEach(p => genreSet.add(p));
 
   state.tracks.forEach(t => {
@@ -4250,7 +4246,7 @@ function renderNewReleases(tab = 'albums', page = 0) {
     if (featArtistEl) featArtistEl.textContent = '探索音樂庫';
     if (featTitleEl) featTitleEl.textContent = '尚無可推薦作品';
     if (featDateEl) featDateEl.textContent = '';
-    if (featDescEl) featDescEl.textContent = '匯入本機音樂或連線 TIDAL 後，系統將自動為您發掘曲庫中較少聆聽的歌手、專輯與曲風。';
+    if (featDescEl) featDescEl.textContent = '匯入本機音樂或連線 TIDAL 後，系統將自動為您發掘曲庫中較少聆聽的歌手、專輯與音樂類型。';
   }
 
   const compactGrid = document.getElementById('newReleasesCompactGrid');
@@ -5446,7 +5442,7 @@ function renderRooRecommendedArtistsWithCues(page = 0) {
       const liveArt = allArtists.find(art => norm(art.name) === ak);
       const cue = primarySeedName
         ? `與 ${primarySeedName} 同屬「${gLabel}」風格`
-        : `依您偏好的「${gLabel}」曲風推薦`;
+        : `依您偏好的「${gLabel}」音樂類型推薦`;
       recommendations.push({
         name: ma.name,
         cue,
@@ -5868,7 +5864,7 @@ function renderAlbums() {
       bannerBox.innerHTML = `
         <div class="genre-filter-banner">
           <div class="genre-filter-text">
-            <span>🏷️ 目前篩選曲風：</span>
+            <span>🏷️ 目前篩選音樂類型：</span>
             <span class="genre-filter-badge">${genreInfo.zhName || state.activeGenreFilter}</span>
             <span style="color: var(--text-muted); font-size: 12px;">(共 ${filtered.length} 張專輯)</span>
           </div>
@@ -7092,57 +7088,31 @@ function setupResizableTables() {
   setupResizableTable('detailTracklistTable', 'album_detail_tracks_v2');
 }
 
-// Minimalist Vector Genre Cover & Metadata Registry
+// Roon 21 Music Genres Metadata Registry
 function getGenreIllustrationInfo(genreName) {
-  const g = (genreName || '').toLowerCase().trim();
-
-  if (/classi|orchestr|symphon|baroque|opera|chamber|philharmonic|concerto|piano|beethoven|bach|mozart|chopin|古典|交響|協奏|獨奏/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_classical.svg', zhName: '古典樂派 • 交響協奏', badge: 'CLASSICAL' };
-  }
-  if (/jazz|fusion|swing|bop|bebop|big band|dixieland|smooth jazz|爵士/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_jazz.svg', zhName: '爵士樂 • 即興搖擺', badge: 'JAZZ' };
-  }
-  if (/metal|heavy metal|thrash|death metal|black metal|doom|hard rock|重金屬|金屬/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_metal.svg', zhName: '重金屬 • 狂野搖滾', badge: 'METAL' };
-  }
-  if (/rock|alternative|indie rock|punk|grunge|psychedelic|prog rock|搖滾|朋克/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_rock.svg', zhName: '搖滾樂 • 經典吉他', badge: 'ROCK' };
-  }
-  if (/electr|edm|techno|house|trance|synth|ambient electro|idm|dance|disco|club|電子|電音/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_electronic.svg', zhName: '電子音樂 • 合成器浪潮', badge: 'ELECTRONIC' };
-  }
-  if (/soul|motown|r&b|rnb|funk|gospel|neo-soul|節奏藍調|靈魂樂/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_soul.svg', zhName: '靈魂樂 • 節奏藍調 R&B', badge: 'SOUL / R&B' };
-  }
-  if (/blues|delta blues|chicago blues|country blues|藍調/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_blues.svg', zhName: '經典藍調 • 靈魂之聲', badge: 'BLUES' };
-  }
-  if (/folk|acoustic|bluegrass|celtic|americana|singer|songwriter|民謠|不插電/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_folk.svg', zhName: '民謠音樂 • 原聲不插電', badge: 'FOLK' };
-  }
-  if (/country|western|nashville|鄉村/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_country.svg', zhName: '鄉村音樂 • 原野之聲', badge: 'COUNTRY' };
-  }
-  if (/hip hop|hip-hop|rap|trap|boom bap|r&b rap|嘻哈|饒舌/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_hiphop.svg', zhName: '嘻哈饒舌 • 節拍韻律', badge: 'HIP HOP' };
-  }
-  if (/soundtrack|score|ost|film|movie|theme|cinematic|game|原聲|配樂|影視/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_soundtrack.svg', zhName: '影視配樂 • 史詩原聲', badge: 'SOUNDTRACK' };
-  }
-  if (/ambient|new age|chill|meditation|downtempo|drone|relax|氛圍|新世紀/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_ambient.svg', zhName: '氛圍音樂 • 心靈冥想', badge: 'AMBIENT' };
-  }
-  if (/vocal|chanson|acapella|ballad|人聲/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_vocal.svg', zhName: '發燒人聲 • 錄音室母帶', badge: 'VOCAL' };
-  }
-  if (/audiophile|hi-end|hifi|burmester|b&w|示範片|展cd|音響展|發燒/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_audiophile.svg', zhName: '發燒示範 • 母帶鑑聽', badge: 'AUDIOPHILE' };
-  }
-  if (/pop|cantopop|mandopop|k-pop|j-pop|indie pop|流行|華語流行/i.test(g)) {
-    return { imageSrc: 'assets/genres/genre_pop.svg', zhName: '流行音樂 • 現代旋律', badge: 'POP' };
-  }
-
-  return { imageSrc: 'assets/genres/genre_default.svg', zhName: '音樂流派風格', badge: 'GENRE' };
+  const canon = canonicalizeGenre(genreName);
+  const zhName = (typeof getRoonGenreZhName === 'function') ? getRoonGenreZhName(canon) : canon;
+  const badge = String(canon || 'GENRE').toUpperCase();
+  const svgMap = {
+    'Classical': 'assets/genres/genre_classical.svg',
+    'Jazz': 'assets/genres/genre_jazz.svg',
+    'Pop/Rock': 'assets/genres/genre_pop.svg',
+    'Electronic': 'assets/genres/genre_electronic.svg',
+    'R&B': 'assets/genres/genre_soul.svg',
+    'Blues': 'assets/genres/genre_blues.svg',
+    'Folk': 'assets/genres/genre_folk.svg',
+    'Country': 'assets/genres/genre_country.svg',
+    'Rap': 'assets/genres/genre_hiphop.svg',
+    'Stage & Screen': 'assets/genres/genre_soundtrack.svg',
+    'New Age': 'assets/genres/genre_ambient.svg',
+    'Vocal': 'assets/genres/genre_vocal.svg',
+    'Easy Listening': 'assets/genres/genre_audiophile.svg'
+  };
+  return {
+    imageSrc: svgMap[canon] || 'assets/genres/genre_default.svg',
+    zhName,
+    badge
+  };
 }
 
 // Cached single-pass genre buckets (invalidated when libraryCollectionVersion changes)
@@ -7222,72 +7192,126 @@ function buildGenreBuckets() {
   return _genreBucketsCache;
 }
 
-// Render Genres (Album-style presentation with minimalist vector covers)
+// Render Genres (Roon-style 4-column alternating mosaic with real album cover backgrounds)
+let genreCoverPickSession = new Map();
+
 function renderGenres() {
   if (!genresGrid) return;
   genresGrid.innerHTML = '';
-  // 封面尺寸（小/中/大）是個人在這頁的偏好，重新渲染後要照原樣套回去
-  applyGenreSize(state.genreCardSize || 'small');
 
   const headerCount = document.getElementById('genresHeaderCount');
-  const { genreList, tracksByGenre, albumsByGenre } = buildGenreBuckets();
+  const sortSelect = document.getElementById('genreSortSelect');
+  if (sortSelect && !sortSelect.dataset.bound) {
+    sortSelect.dataset.bound = '1';
+    sortSelect.value = state.genreSortBy || 'albums';
+    sortSelect.addEventListener('change', () => {
+      state.genreSortBy = sortSelect.value;
+      renderGenres();
+    });
+  }
 
+  const { genreList, tracksByGenre, albumsByGenre } = buildGenreBuckets();
+  const sortMode = state.genreSortBy || 'albums';
+  const roonOrderIndex = new Map(CANONICAL_GENRES.map((g, i) => [g, i]));
+
+  const sortedGenres = genreList.slice().sort((a, b) => {
+    const aAlbs = (albumsByGenre.get(a) || []).length;
+    const bAlbs = (albumsByGenre.get(b) || []).length;
+    const aTrks = (tracksByGenre.get(a) || []).length;
+    const bTrks = (tracksByGenre.get(b) || []).length;
+    if (sortMode === 'name') {
+      return getGenreIllustrationInfo(a).zhName.localeCompare(getGenreIllustrationInfo(b).zhName, 'zh-Hant');
+    }
+    if (sortMode === 'tracks') {
+      if (bTrks !== aTrks) return bTrks - aTrks;
+      if (bAlbs !== aAlbs) return bAlbs - aAlbs;
+    } else {
+      if (bAlbs !== aAlbs) return bAlbs - aAlbs;
+      if (bTrks !== aTrks) return bTrks - aTrks;
+    }
+    return (roonOrderIndex.get(a) ?? 99) - (roonOrderIndex.get(b) ?? 99);
+  });
+
+  const nonEmptyCount = sortedGenres.filter(g => (albumsByGenre.get(g) || []).length > 0).length;
   if (headerCount) {
-    headerCount.textContent = `共 ${genreList.length} 個音樂風格與流派，以專輯風格探索您的發燒音樂庫`;
+    headerCount.textContent = `共 ${sortedGenres.length} 種音樂類型（${nonEmptyCount} 類有收藏專輯）`;
   }
 
   const genreBadge = document.getElementById('genreCountBadge');
-  if (genreBadge) genreBadge.textContent = genreList.length;
+  if (genreBadge) genreBadge.textContent = nonEmptyCount || sortedGenres.length;
 
   const frag = document.createDocumentFragment();
-  genreList.forEach(genreName => {
-    const card = document.createElement('div');
-    card.className = 'album-card genre-album-card';
-
+  sortedGenres.forEach((genreName, idx) => {
     const info = getGenreIllustrationInfo(genreName);
     const matchingTracks = tracksByGenre.get(genreName) || [];
     const matchingAlbums = albumsByGenre.get(genreName) || [];
-
     const trackCount = matchingTracks.length;
     const albumCount = matchingAlbums.length;
 
-    card.innerHTML = `
-      <div class="album-art-wrap">
-        <img src="${info.imageSrc}" class="album-art-img" alt="${escapeXml(genreName)}" decoding="async">
-        <span class="album-quality-tag tag-genre">${info.badge}</span>
-        <button class="card-play-btn" title="播放「${escapeXml(genreName)}」曲風電台">▶</button>
-      </div>
-      <div class="album-meta">
-        <div class="album-title" title="${escapeXml(genreName)}">${escapeXml(genreName)}</div>
-        <div class="album-artist">${escapeXml(info.zhName)}</div>
-        <div class="album-year">${albumCount} 張專輯 • ${trackCount} 首曲目</div>
-      </div>
+    // Roon 9-tile repeating mosaic pattern: [wide, 1, 1] / [1, wide, 1] / [1, 1, wide]
+    const posInBlock = idx % 9;
+    const isWide = (posInBlock === 0 || posInBlock === 4 || posInBlock === 8);
+
+    // Pick a random album with a cover from THIS genre (cached per session so re-sorts don't flicker)
+    const albumsWithCover = matchingAlbums.filter(a => a && a.cover && !String(a.cover).startsWith('data:image/svg'));
+    const fallbackPool = matchingAlbums.filter(a => a && a.cover);
+    const coverPool = albumsWithCover.length > 0 ? albumsWithCover : fallbackPool;
+    let chosenCover = '';
+    let chosenTitle = '';
+    if (coverPool.length > 0) {
+      let cached = genreCoverPickSession.get(genreName);
+      if (!cached || !coverPool.some(a => a.cover === cached.cover)) {
+        const pick = coverPool[Math.floor(Math.random() * coverPool.length)];
+        cached = { cover: pick.cover, title: pick.title || '', artist: pick.artist || '' };
+        genreCoverPickSession.set(genreName, cached);
+      }
+      chosenCover = formatCoverSrc(cached.cover) || '';
+      chosenTitle = cached.title ? `${cached.title}${cached.artist ? ' — ' + cached.artist : ''}` : '';
+    }
+
+    const tile = document.createElement('div');
+    tile.className = `roon-genre-tile${isWide ? ' is-wide' : ''}${albumCount === 0 ? ' is-empty' : ''}`;
+    tile.title = chosenTitle
+      ? `${info.zhName}（${albumCount} 張專輯 • ${trackCount} 首曲目）\n封面：${chosenTitle}`
+      : `${info.zhName}（${albumCount} 張專輯 • ${trackCount} 首曲目）`;
+
+    tile.innerHTML = `
+      ${chosenCover
+        ? `<img class="roon-genre-tile-bg" src="${escapeXml(chosenCover)}" alt="${escapeXml(info.zhName)}" loading="lazy" decoding="async">`
+        : `<div class="roon-genre-tile-placeholder"></div>`}
+      <div class="roon-genre-tile-scrim"></div>
+      <div class="roon-genre-tile-label">${escapeXml(info.zhName)}</div>
+      <div class="roon-genre-tile-meta">${albumCount} 張專輯</div>
+      ${trackCount > 0 ? `<button type="button" class="roon-genre-tile-play" title="播放「${escapeXml(info.zhName)}」電台">▶</button>` : ''}
     `;
 
-    // Play genre button
-    const playBtn = card.querySelector('.card-play-btn');
+    const bgImg = tile.querySelector('.roon-genre-tile-bg');
+    if (bgImg) {
+      bgImg.onerror = () => {
+        bgImg.onerror = null;
+        bgImg.style.display = 'none';
+      };
+    }
+
+    const playBtn = tile.querySelector('.roon-genre-tile-play');
     if (playBtn) {
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (matchingTracks.length > 0) {
-          showToast(`正在播放「${genreName}」曲風電台 (${matchingTracks.length} 首)`);
-          playTrackList(matchingTracks, 0);
-        } else {
-          showToast(`音樂庫中尚未加入「${genreName}」風格的歌曲檔案`);
-        }
+        showToast(`正在播放「${info.zhName}」電台 (${matchingTracks.length} 首)`);
+        playTrackList(matchingTracks, 0);
       });
     }
 
-    // Card click: Navigate to Albums view and filter by this genre accurately
-    card.addEventListener('click', () => {
+    tile.addEventListener('click', () => {
       state.activeGenreFilter = genreName;
       navigateTo('albums');
       renderAlbums();
-      showToast(`已篩選「${info.zhName || genreName}」風格專輯`);
+      showToast(`已篩選「${info.zhName}」音樂類型專輯`);
     });
 
-    frag.appendChild(card);
+    frag.appendChild(tile);
   });
+
   genresGrid.appendChild(frag);
 }
 
@@ -8329,7 +8353,7 @@ async function fetchAlbumBio(album) {
 
     const factLines = [];
     if (mergedTags.length > 0) {
-      factLines.push(`曲風標籤：${mergedTags.join('、')}`);
+      factLines.push(`音樂類型標籤：${mergedTags.join('、')}`);
     }
     if (trackCount > 0) {
       const sampleList = (album.tracks || []).slice(0, 3).map(t => `《${t.title}》`).join('、');
@@ -9094,22 +9118,29 @@ function createRecommendAlbumCard(alb, reason, detail) {
 // 低於 RECOMMEND_MIN_SCORE 的候選不顯示，避免「湊數」的推薦；每張卡片列出實際命中的訊號。
 const RECOMMEND_MIN_SCORE = 40;
 
-// 曲風之間的合理關聯（同一個音樂語境，例如 Jazz ↔ Blues / Soul）
+// 音樂類型之間的合理關聯（Roon 21 大類型）
 const GENRE_AFFINITY = {
-  'Jazz': ['Blues', 'Soul / R&B', 'Vocal', 'Soundtrack', 'Hip Hop'],
-  'Blues': ['Jazz', 'Rock', 'Soul / R&B', 'Folk'],
-  'Classical': ['Soundtrack', 'Ambient', 'Vocal'],
-  'Soundtrack': ['Classical', 'Ambient', 'Electronic'],
-  'Electronic': ['Ambient', 'Soundtrack', 'Pop'],
-  'Ambient': ['Electronic', 'Classical', 'Soundtrack'],
-  'Rock': ['Metal', 'Blues', 'Folk', 'Pop'],
-  'Metal': ['Rock'],
-  'Folk': ['Blues', 'Vocal', 'Rock'],
-  'Vocal': ['Jazz', 'Pop', 'Soul / R&B'],
-  'Pop': ['Vocal', 'Electronic', 'Soul / R&B'],
-  'Soul / R&B': ['Jazz', 'Pop', 'Blues', 'Hip Hop'],
-  'Hip Hop': ['Soul / R&B', 'Electronic', 'Jazz'],
-  'Audiophile': ['Jazz', 'Classical', 'Electronic', 'Rock']
+  'Jazz': ['Blues', 'R&B', 'Vocal', 'Easy Listening', 'Stage & Screen', 'Latin'],
+  'Blues': ['Jazz', 'Pop/Rock', 'R&B', 'Folk', 'Country'],
+  'Classical': ['Stage & Screen', 'New Age', 'Vocal', 'Easy Listening', 'Avant-Garde'],
+  'Stage & Screen': ['Classical', 'New Age', 'Electronic', 'Vocal', 'Pop/Rock'],
+  'Electronic': ['New Age', 'Pop/Rock', 'Stage & Screen', 'Avant-Garde', 'Rap'],
+  'New Age': ['Electronic', 'Classical', 'Easy Listening', 'Stage & Screen', 'International'],
+  'Pop/Rock': ['Blues', 'Folk', 'Vocal', 'R&B', 'Electronic', 'Country'],
+  'Folk': ['Country', 'Blues', 'Vocal', 'Pop/Rock', 'International'],
+  'Country': ['Folk', 'Blues', 'Pop/Rock'],
+  'Vocal': ['Jazz', 'Pop/Rock', 'Easy Listening', 'R&B', 'Classical'],
+  'R&B': ['Jazz', 'Pop/Rock', 'Blues', 'Rap', 'Vocal'],
+  'Rap': ['R&B', 'Electronic', 'Pop/Rock'],
+  'International': ['Folk', 'Latin', 'New Age', 'Vocal', 'Reggae'],
+  'Latin': ['Jazz', 'International', 'Pop/Rock', 'Vocal'],
+  'Easy Listening': ['Vocal', 'Jazz', 'New Age', 'Classical'],
+  'Holiday': ['Vocal', 'Classical', 'Easy Listening', 'Pop/Rock'],
+  "Children's": ['Stage & Screen', 'Pop/Rock', 'Folk'],
+  'Avant-Garde': ['Classical', 'Jazz', 'Electronic'],
+  'Religious': ['Classical', 'Vocal', 'R&B'],
+  'Reggae': ['R&B', 'International', 'Pop/Rock'],
+  'Comedy/Spoken': ['Stage & Screen']
 };
 
 // 各曲風對發行年份差距的容忍度（年）：生命週期短的曲風要求較近的時代
@@ -15520,7 +15551,7 @@ async function renderNowPlayingAlbumInfo(track, foundAlbum) {
   const yearVal = (foundAlbum && (foundAlbum.year || (foundAlbum.date ? String(foundAlbum.date).slice(0, 4) : ''))) || track.year || '';
   if (yearVal) chips.push(`發行年份：${yearVal}`);
   const genreVal = (foundAlbum && foundAlbum.genre) || track.genre || '';
-  if (genreVal && genreVal !== 'Various') chips.push(`曲風：${genreVal}`);
+  if (genreVal && genreVal !== 'Various') chips.push(`音樂類型：${getGenreIllustrationInfo(genreVal).zhName || genreVal}`);
   const labelVal = (foundAlbum && foundAlbum.label) || track.label || '';
   if (labelVal) chips.push(`廠牌：${labelVal}`);
   const trackCount = (foundAlbum && Array.isArray(foundAlbum.tracks))
