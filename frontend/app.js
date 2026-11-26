@@ -348,6 +348,191 @@ function formatCoverSrc(src, size = 360) {
   return clean.startsWith('/') ? 'file://' + clean : 'file:///' + clean;
 }
 
+const albumAccentColorCache = new Map();
+let currentAlbumAccentRgb = null;
+let albumAccentUpdateToken = 0;
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h, s, l];
+}
+
+function hslToRgb(h, s, l) {
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+}
+
+function applyAlbumAccentRgb(rgb) {
+  const rootStyle = document.documentElement.style;
+  if (!rgb) {
+    rootStyle.removeProperty('--album-accent');
+    rootStyle.removeProperty('--album-accent-hover');
+    rootStyle.removeProperty('--album-accent-glow');
+    rootStyle.removeProperty('--album-accent-fg');
+    return;
+  }
+  const isLightTheme = document.documentElement.getAttribute('data-theme') === 'light';
+  const [h, rawS, rawL] = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  // Preserve muted/sepia/monochrome album tones without forcing artificial saturation
+  const s = rawS < 0.08 ? Math.min(rawS, 0.1) : Math.min(0.84, Math.max(0.32, rawS * 1.12));
+  const l = isLightTheme
+    ? Math.min(0.46, Math.max(0.28, rawL * 0.88))
+    : Math.min(0.76, Math.max(0.56, rawL * 1.18));
+  const hoverL = isLightTheme ? Math.max(0.20, l - 0.08) : Math.min(0.86, l + 0.08);
+
+  const mainRgb = hslToRgb(h, s, l);
+  const hoverRgb = hslToRgb(h, s, hoverL);
+  const relLum = (0.2126 * mainRgb.r + 0.7152 * mainRgb.g + 0.0722 * mainRgb.b) / 255;
+  const fgColor = relLum > 0.56 ? '#0f172a' : '#ffffff';
+
+  rootStyle.setProperty('--album-accent', `rgb(${mainRgb.r}, ${mainRgb.g}, ${mainRgb.b})`);
+  rootStyle.setProperty('--album-accent-hover', `rgb(${hoverRgb.r}, ${hoverRgb.g}, ${hoverRgb.b})`);
+  rootStyle.setProperty('--album-accent-glow', `rgba(${mainRgb.r}, ${mainRgb.g}, ${mainRgb.b}, 0.36)`);
+  rootStyle.setProperty('--album-accent-fg', fgColor);
+}
+
+function buildSampleableCoverUrl(imgSrc) {
+  if (!imgSrc) return '';
+  if (imgSrc.startsWith('http://127.0.0.1:39840/cover') || imgSrc.startsWith('http://localhost:39840/cover')) {
+    return imgSrc.includes('size=')
+      ? imgSrc.replace(/size=\d+/, 'size=64')
+      : imgSrc + (imgSrc.includes('?') ? '&' : '?') + 'size=64';
+  }
+  if (/^https?:\/\//i.test(imgSrc)) {
+    return `http://127.0.0.1:39840/cover?url=${encodeURIComponent(imgSrc)}&size=64`;
+  }
+  return imgSrc;
+}
+
+function sampleImageToAccentRgb(urlToLoad) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    if (/^https?:/i.test(urlToLoad)) img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const size = 24;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        const buckets = new Array(12).fill(null).map(() => ({ weight: 0, r: 0, g: 0, b: 0 }));
+        let fallbackWeight = 0, fbR = 0, fbG = 0, fbB = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const a = data[i + 3];
+          if (a < 128) continue;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const [h, s, l] = rgbToHsl(r, g, b);
+          if (l < 0.04 || l > 0.95) continue;
+
+          const midTone = 1 - Math.abs(l - 0.50) * 1.2;
+          const w = Math.max(0.05, (s * 2.2 + 0.15) * Math.max(0.15, midTone));
+          fallbackWeight += w; fbR += r * w; fbG += g * w; fbB += b * w;
+
+          if (s >= 0.08) {
+            const bi = Math.min(11, Math.floor(h * 12));
+            buckets[bi].weight += w;
+            buckets[bi].r += r * w;
+            buckets[bi].g += g * w;
+            buckets[bi].b += b * w;
+          }
+        }
+
+        let best = null;
+        for (const b of buckets) {
+          if (b.weight > 0 && (!best || b.weight > best.weight)) best = b;
+        }
+        if (best && best.weight > 0) {
+          resolve({
+            r: Math.round(best.r / best.weight),
+            g: Math.round(best.g / best.weight),
+            b: Math.round(best.b / best.weight)
+          });
+        } else if (fallbackWeight > 0) {
+          resolve({
+            r: Math.round(fbR / fallbackWeight),
+            g: Math.round(fbG / fallbackWeight),
+            b: Math.round(fbB / fallbackWeight)
+          });
+        } else {
+          resolve(null);
+        }
+      } catch (_) {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = urlToLoad;
+  });
+}
+
+async function extractDominantColorFromImage(imgSrc) {
+  const sampleUrl = buildSampleableCoverUrl(imgSrc);
+  const rgb = await sampleImageToAccentRgb(sampleUrl);
+  if (rgb || sampleUrl === imgSrc) return rgb;
+  return sampleImageToAccentRgb(imgSrc);
+}
+
+async function updateAlbumAccentFromCover(coverSrc) {
+  const token = ++albumAccentUpdateToken;
+  if (!coverSrc || coverSrc.startsWith('data:image/svg+xml') || /(?:^|\/)icon\.png(?:$|\?)/i.test(coverSrc)) {
+    currentAlbumAccentRgb = null;
+    applyAlbumAccentRgb(null);
+    return;
+  }
+  if (albumAccentColorCache.has(coverSrc)) {
+    const cached = albumAccentColorCache.get(coverSrc);
+    currentAlbumAccentRgb = cached;
+    applyAlbumAccentRgb(cached);
+    return;
+  }
+  const rgb = await extractDominantColorFromImage(coverSrc);
+  if (token !== albumAccentUpdateToken) return;
+  if (rgb) albumAccentColorCache.set(coverSrc, rgb);
+  currentAlbumAccentRgb = rgb;
+  applyAlbumAccentRgb(rgb);
+}
+
+if (typeof MutationObserver !== 'undefined' && document.documentElement) {
+  new MutationObserver(() => {
+    applyAlbumAccentRgb(currentAlbumAccentRgb);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
 function escapeXml(unsafe) {
   if (unsafe === null || unsafe === undefined) return '';
   return String(unsafe).replace(/[<>&'"]/g, c => {
@@ -561,8 +746,14 @@ const genresGrid = document.getElementById('genresGrid');
 
 // Player DOM
 const playerCoverImg = document.getElementById('playerCoverImg');
-if (playerCoverImg && (!playerCoverImg.getAttribute('src') || playerCoverImg.getAttribute('src') === '')) {
-  playerCoverImg.src = 'icon.png';
+if (playerCoverImg) {
+  if (!playerCoverImg.getAttribute('src') || playerCoverImg.getAttribute('src') === '') {
+    playerCoverImg.src = 'icon.png';
+  }
+  playerCoverImg.addEventListener('load', () => {
+    const loadedSrc = playerCoverImg.currentSrc || playerCoverImg.getAttribute('src') || '';
+    updateAlbumAccentFromCover(loadedSrc);
+  });
 }
 const playerTitle = document.getElementById('playerTitle');
 const playerArtist = document.getElementById('playerArtist');
@@ -793,6 +984,9 @@ async function initApp() {
 
     // Startup default: show the last played track in the player bar (display only, not playing)
     restoreLastPlayedTrack();
+    if (playerCoverImg && playerCoverImg.complete && playerCoverImg.naturalWidth > 0) {
+      updateAlbumAccentFromCover(playerCoverImg.currentSrc || playerCoverImg.getAttribute('src') || '');
+    }
     console.log(`[Startup] last-played restore: queue=${state.queue.length} index=${state.currentTrackIndex} history=${getPlaybackHistory().length} tidalLoggedIn=${!!(window.tidalService && window.tidalService.isLoggedIn)}`);
 
     // Set initial default volume
@@ -1240,7 +1434,8 @@ function showRestoredTrack(track, queue, index) {
 
   playerTitle.textContent = track.title;
   playerArtist.textContent = `${track.artist} — ${track.title}`;
-  const formattedPlayerCover = formatCoverSrc(track.cover);
+  const foundAlbum = findAlbumForTrack(track);
+  const formattedPlayerCover = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : ''));
   const defaultPlayerCover = formattedPlayerCover ? '' : createSvgCover(track.album || '', track.artist || '', '#27272a', '#09090b');
   playerCoverImg.src = formattedPlayerCover || defaultPlayerCover;
   if (typeof updateAlbumAccentFromCover === 'function') {
@@ -14500,171 +14695,6 @@ const CTRL_PAUSE_SVG = `<svg class="ctrl-svg-pause" width="18" height="18" viewB
 
 const NP_PLAY_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none; margin-left:2px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
 const NP_PAUSE_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none;"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
-
-const albumAccentColorCache = new Map();
-let currentAlbumAccentRgb = null;
-let albumAccentUpdateToken = 0;
-
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
-  const l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  return [h, s, l];
-}
-
-function hslToRgb(h, s, l) {
-  const hue2rgb = (p, q, t) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  let r, g, b;
-  if (s === 0) {
-    r = g = b = l;
-  } else {
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
-  }
-  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
-}
-
-function applyAlbumAccentRgb(rgb) {
-  const rootStyle = document.documentElement.style;
-  if (!rgb) {
-    rootStyle.removeProperty('--album-accent');
-    rootStyle.removeProperty('--album-accent-hover');
-    rootStyle.removeProperty('--album-accent-glow');
-    rootStyle.removeProperty('--album-accent-fg');
-    return;
-  }
-  const isLightTheme = document.documentElement.getAttribute('data-theme') === 'light';
-  const [h, rawS, rawL] = rgbToHsl(rgb.r, rgb.g, rgb.b);
-  // Keep low-saturation grayscale covers subtly tinted rather than washed-out neon
-  const s = rawS < 0.14 ? rawS : Math.min(0.86, Math.max(0.45, rawS * 1.12));
-  const l = isLightTheme
-    ? Math.min(0.48, Math.max(0.32, rawL * 0.85))
-    : Math.min(0.76, Math.max(0.58, rawL * 1.18));
-  const hoverL = isLightTheme ? Math.max(0.24, l - 0.08) : Math.min(0.86, l + 0.08);
-
-  const mainRgb = hslToRgb(h, s, l);
-  const hoverRgb = hslToRgb(h, s, hoverL);
-  const relLum = (0.2126 * mainRgb.r + 0.7152 * mainRgb.g + 0.0722 * mainRgb.b) / 255;
-  const fgColor = relLum > 0.56 ? '#0f172a' : '#ffffff';
-
-  rootStyle.setProperty('--album-accent', `rgb(${mainRgb.r}, ${mainRgb.g}, ${mainRgb.b})`);
-  rootStyle.setProperty('--album-accent-hover', `rgb(${hoverRgb.r}, ${hoverRgb.g}, ${hoverRgb.b})`);
-  rootStyle.setProperty('--album-accent-glow', `rgba(${mainRgb.r}, ${mainRgb.g}, ${mainRgb.b}, 0.36)`);
-  rootStyle.setProperty('--album-accent-fg', fgColor);
-}
-
-function extractDominantColorFromImage(imgSrc) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    if (/^https?:/i.test(imgSrc)) img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const size = 24;
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) { resolve(null); return; }
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-
-        const buckets = new Array(12).fill(null).map(() => ({ weight: 0, r: 0, g: 0, b: 0 }));
-        let fallbackWeight = 0, fbR = 0, fbG = 0, fbB = 0;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const a = data[i + 3];
-          if (a < 128) continue;
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const [h, s, l] = rgbToHsl(r, g, b);
-          if (l < 0.08 || l > 0.93) continue;
-
-          const midTone = 1 - Math.abs(l - 0.52) * 1.4;
-          const w = Math.max(0.05, (s * 2.4 + 0.15) * Math.max(0.15, midTone));
-          fallbackWeight += w; fbR += r * w; fbG += g * w; fbB += b * w;
-
-          if (s >= 0.16) {
-            const bi = Math.min(11, Math.floor(h * 12));
-            buckets[bi].weight += w;
-            buckets[bi].r += r * w;
-            buckets[bi].g += g * w;
-            buckets[bi].b += b * w;
-          }
-        }
-
-        let best = null;
-        for (const b of buckets) {
-          if (b.weight > 0 && (!best || b.weight > best.weight)) best = b;
-        }
-        if (best && best.weight > 0) {
-          resolve({
-            r: Math.round(best.r / best.weight),
-            g: Math.round(best.g / best.weight),
-            b: Math.round(best.b / best.weight)
-          });
-        } else if (fallbackWeight > 0) {
-          resolve({
-            r: Math.round(fbR / fallbackWeight),
-            g: Math.round(fbG / fallbackWeight),
-            b: Math.round(fbB / fallbackWeight)
-          });
-        } else {
-          resolve(null);
-        }
-      } catch (_) {
-        resolve(null);
-      }
-    };
-    img.onerror = () => resolve(null);
-    img.src = imgSrc;
-  });
-}
-
-async function updateAlbumAccentFromCover(coverSrc) {
-  const token = ++albumAccentUpdateToken;
-  if (!coverSrc || coverSrc.startsWith('data:image/svg+xml')) {
-    currentAlbumAccentRgb = null;
-    applyAlbumAccentRgb(null);
-    return;
-  }
-  if (albumAccentColorCache.has(coverSrc)) {
-    const cached = albumAccentColorCache.get(coverSrc);
-    currentAlbumAccentRgb = cached;
-    applyAlbumAccentRgb(cached);
-    return;
-  }
-  const rgb = await extractDominantColorFromImage(coverSrc);
-  if (token !== albumAccentUpdateToken) return;
-  if (rgb) albumAccentColorCache.set(coverSrc, rgb);
-  currentAlbumAccentRgb = rgb;
-  applyAlbumAccentRgb(rgb);
-}
-
-if (typeof MutationObserver !== 'undefined' && document.documentElement) {
-  new MutationObserver(() => {
-    applyAlbumAccentRgb(currentAlbumAccentRgb);
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-}
 
 function updatePlayPauseBtnUI() {
   if (document.body) {
