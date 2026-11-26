@@ -7661,7 +7661,7 @@ async function resolveAlbumReviewData(album) {
 
       if (!rawBioText) {
         const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTitle + ' (album)')}`;
-        const dirRes = await fetch(directUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.2' } });
+        const dirRes = await fetch(directUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
         if (dirRes.ok) {
           const sumData = await dirRes.json();
           if (sumData.extract && sumData.type !== 'disambiguation' && isGenuineAlbumWikiArticle(sumData.title || (cleanTitle + ' (album)'), sumData.extract, cleanTitle, cleanArtist)) {
@@ -14535,7 +14535,7 @@ async function fetchLyricsOnline(title, artist, album, duration) {
       });
       if (cleanAlb) params.set('album_name', cleanAlb);
       const getUrl = `https://lrclib.net/api/get?${params.toString()}`;
-      const res = await fetch(getUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.2' } });
+      const res = await fetch(getUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
       if (res.ok) {
         const hit = await res.json();
         if (hit && !hit.instrumental && (hit.syncedLyrics || hit.plainLyrics)) {
@@ -14557,7 +14557,7 @@ async function fetchLyricsOnline(title, artist, album, duration) {
     if (cleanArt) params.set('artist_name', cleanArt);
     if (cleanAlb) params.set('album_name', cleanAlb);
     const url = `https://lrclib.net/api/search?${params.toString()}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.2' } });
+    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
     if (res.ok) {
       const hits = await res.json();
       const best = pickBestLrclibHit(hits);
@@ -14577,7 +14577,7 @@ async function fetchLyricsOnline(title, artist, album, duration) {
   try {
     const q = (cleanArt ? cleanArt + ' ' : '') + cleanTitle;
     const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.2' } });
+    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
     if (res.ok) {
       const hits = await res.json();
       const best = pickBestLrclibHit(hits);
