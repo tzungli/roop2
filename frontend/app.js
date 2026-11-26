@@ -1243,6 +1243,9 @@ function showRestoredTrack(track, queue, index) {
   const formattedPlayerCover = formatCoverSrc(track.cover);
   const defaultPlayerCover = formattedPlayerCover ? '' : createSvgCover(track.album || '', track.artist || '', '#27272a', '#09090b');
   playerCoverImg.src = formattedPlayerCover || defaultPlayerCover;
+  if (typeof updateAlbumAccentFromCover === 'function') {
+    updateAlbumAccentFromCover(formattedPlayerCover || '');
+  }
   playerCoverImg.onerror = () => {
     playerCoverImg.onerror = null;
     playerCoverImg.src = defaultPlayerCover || createSvgCover(track.album || '', track.artist || '', '#27272a', '#09090b');
@@ -10153,7 +10156,11 @@ async function playCurrentTrack() {
   playerTitle.textContent = track.title;
   playerArtist.textContent = `${track.artist} — ${track.title}`;
   const defaultPlayerCover = createSvgCover(track.album, track.artist, '#27272a', '#09090b');
-  playerCoverImg.src = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null)) || defaultPlayerCover;
+  const resolvedPlayerCover = formatCoverSrc(track.cover || (foundAlbum ? foundAlbum.cover : null));
+  playerCoverImg.src = resolvedPlayerCover || defaultPlayerCover;
+  if (typeof updateAlbumAccentFromCover === 'function') {
+    updateAlbumAccentFromCover(resolvedPlayerCover || '');
+  }
   playerCoverImg.onerror = () => {
     playerCoverImg.onerror = null;
     playerCoverImg.src = defaultPlayerCover;
@@ -14473,7 +14480,175 @@ const CTRL_PAUSE_SVG = `<svg class="ctrl-svg-pause" width="18" height="18" viewB
 const NP_PLAY_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none; margin-left:2px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
 const NP_PAUSE_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none;"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
 
+const albumAccentColorCache = new Map();
+let currentAlbumAccentRgb = null;
+let albumAccentUpdateToken = 0;
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h, s, l];
+}
+
+function hslToRgb(h, s, l) {
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+}
+
+function applyAlbumAccentRgb(rgb) {
+  const rootStyle = document.documentElement.style;
+  if (!rgb) {
+    rootStyle.removeProperty('--album-accent');
+    rootStyle.removeProperty('--album-accent-hover');
+    rootStyle.removeProperty('--album-accent-glow');
+    rootStyle.removeProperty('--album-accent-fg');
+    return;
+  }
+  const isLightTheme = document.documentElement.getAttribute('data-theme') === 'light';
+  const [h, rawS, rawL] = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  // Keep low-saturation grayscale covers subtly tinted rather than washed-out neon
+  const s = rawS < 0.14 ? rawS : Math.min(0.86, Math.max(0.45, rawS * 1.12));
+  const l = isLightTheme
+    ? Math.min(0.48, Math.max(0.32, rawL * 0.85))
+    : Math.min(0.76, Math.max(0.58, rawL * 1.18));
+  const hoverL = isLightTheme ? Math.max(0.24, l - 0.08) : Math.min(0.86, l + 0.08);
+
+  const mainRgb = hslToRgb(h, s, l);
+  const hoverRgb = hslToRgb(h, s, hoverL);
+  const relLum = (0.2126 * mainRgb.r + 0.7152 * mainRgb.g + 0.0722 * mainRgb.b) / 255;
+  const fgColor = relLum > 0.56 ? '#0f172a' : '#ffffff';
+
+  rootStyle.setProperty('--album-accent', `rgb(${mainRgb.r}, ${mainRgb.g}, ${mainRgb.b})`);
+  rootStyle.setProperty('--album-accent-hover', `rgb(${hoverRgb.r}, ${hoverRgb.g}, ${hoverRgb.b})`);
+  rootStyle.setProperty('--album-accent-glow', `rgba(${mainRgb.r}, ${mainRgb.g}, ${mainRgb.b}, 0.36)`);
+  rootStyle.setProperty('--album-accent-fg', fgColor);
+}
+
+function extractDominantColorFromImage(imgSrc) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    if (/^https?:/i.test(imgSrc)) img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const size = 24;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        const buckets = new Array(12).fill(null).map(() => ({ weight: 0, r: 0, g: 0, b: 0 }));
+        let fallbackWeight = 0, fbR = 0, fbG = 0, fbB = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const a = data[i + 3];
+          if (a < 128) continue;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const [h, s, l] = rgbToHsl(r, g, b);
+          if (l < 0.08 || l > 0.93) continue;
+
+          const midTone = 1 - Math.abs(l - 0.52) * 1.4;
+          const w = Math.max(0.05, (s * 2.4 + 0.15) * Math.max(0.15, midTone));
+          fallbackWeight += w; fbR += r * w; fbG += g * w; fbB += b * w;
+
+          if (s >= 0.16) {
+            const bi = Math.min(11, Math.floor(h * 12));
+            buckets[bi].weight += w;
+            buckets[bi].r += r * w;
+            buckets[bi].g += g * w;
+            buckets[bi].b += b * w;
+          }
+        }
+
+        let best = null;
+        for (const b of buckets) {
+          if (b.weight > 0 && (!best || b.weight > best.weight)) best = b;
+        }
+        if (best && best.weight > 0) {
+          resolve({
+            r: Math.round(best.r / best.weight),
+            g: Math.round(best.g / best.weight),
+            b: Math.round(best.b / best.weight)
+          });
+        } else if (fallbackWeight > 0) {
+          resolve({
+            r: Math.round(fbR / fallbackWeight),
+            g: Math.round(fbG / fallbackWeight),
+            b: Math.round(fbB / fallbackWeight)
+          });
+        } else {
+          resolve(null);
+        }
+      } catch (_) {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = imgSrc;
+  });
+}
+
+async function updateAlbumAccentFromCover(coverSrc) {
+  const token = ++albumAccentUpdateToken;
+  if (!coverSrc || coverSrc.startsWith('data:image/svg+xml')) {
+    currentAlbumAccentRgb = null;
+    applyAlbumAccentRgb(null);
+    return;
+  }
+  if (albumAccentColorCache.has(coverSrc)) {
+    const cached = albumAccentColorCache.get(coverSrc);
+    currentAlbumAccentRgb = cached;
+    applyAlbumAccentRgb(cached);
+    return;
+  }
+  const rgb = await extractDominantColorFromImage(coverSrc);
+  if (token !== albumAccentUpdateToken) return;
+  if (rgb) albumAccentColorCache.set(coverSrc, rgb);
+  currentAlbumAccentRgb = rgb;
+  applyAlbumAccentRgb(rgb);
+}
+
+if (typeof MutationObserver !== 'undefined' && document.documentElement) {
+  new MutationObserver(() => {
+    applyAlbumAccentRgb(currentAlbumAccentRgb);
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
 function updatePlayPauseBtnUI() {
+  if (document.body) {
+    document.body.classList.toggle('is-music-playing', !!state.isPlaying);
+  }
   if (btnPlayPause) btnPlayPause.innerHTML = state.isPlaying ? CTRL_PAUSE_SVG : CTRL_PLAY_SVG;
   const npBtn = document.getElementById('btnNowPlayingPlayPause');
   if (npBtn) npBtn.innerHTML = state.isPlaying ? NP_PAUSE_SVG : NP_PLAY_SVG;
@@ -21261,7 +21436,11 @@ function syncPlayerBarForActiveZone() {
     if (typeof playerCoverImg !== 'undefined' && playerCoverImg) {
       const foundAlb = typeof findAlbumForTrack === 'function' ? findAlbumForTrack(track) : null;
       const defaultPlayerCover = createSvgCover(track.album, track.artist, '#27272a', '#09090b');
-      playerCoverImg.src = formatCoverSrc(track.cover || (foundAlb ? foundAlb.cover : null)) || defaultPlayerCover;
+      const resolvedZoneCover = formatCoverSrc(track.cover || (foundAlb ? foundAlb.cover : null));
+      playerCoverImg.src = resolvedZoneCover || defaultPlayerCover;
+      if (typeof updateAlbumAccentFromCover === 'function') {
+        updateAlbumAccentFromCover(resolvedZoneCover || '');
+      }
       playerCoverImg.onerror = () => {
         playerCoverImg.onerror = null;
         playerCoverImg.src = defaultPlayerCover;
@@ -21281,6 +21460,7 @@ function syncPlayerBarForActiveZone() {
     playerArtist.textContent = state.activeAudioZone === 'local'
       ? 'System Output 待命中'
       : `${(state.activeDlnaDevice && state.activeDlnaDevice.name) || 'DLNA 裝置'} 待命中`;
+    if (typeof updateAlbumAccentFromCover === 'function') updateAlbumAccentFromCover('');
     if (scrubberFill) scrubberFill.style.width = '0%';
     if (currentTimeLabel) currentTimeLabel.textContent = '0:00';
     if (totalTimeLabel) totalTimeLabel.textContent = '0:00';
