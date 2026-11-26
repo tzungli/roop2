@@ -106,6 +106,22 @@
       </svg>`
     },
     {
+      id: 'nad_m33',
+      label: 'NAD M33 Masters',
+      match: /\b(nad\s*m(?:33|66|10)\w*|m33)\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="7.5" width="36" height="17" rx="1.6" fill="currentColor" fill-opacity="0.05"/>
+        <rect x="5.5" y="9" width="33" height="14" rx="1" fill="currentColor" fill-opacity="0.04"/>
+        <rect x="9" y="10.5" width="18" height="11" rx="1" fill="currentColor" fill-opacity="0.09"/>
+        <path d="M 11.5 18 A 4.2 4.2 0 0 1 18.5 18" stroke-width="0.8" opacity="0.6"/>
+        <line x1="15" y1="18.6" x2="16.8" y2="14.4" stroke-width="0.85"/>
+        <circle cx="7.2" cy="19.8" r="0.8" fill="currentColor" stroke="none" opacity="0.7"/>
+        <circle cx="33" cy="16" r="3.4" fill="currentColor" fill-opacity="0.1"/>
+        <line x1="7.5" y1="24.5" x2="7.5" y2="26.2" stroke-width="1.5"/>
+        <line x1="36.5" y1="24.5" x2="36.5" y2="26.2" stroke-width="1.5"/>
+      </svg>`
+    },
+    {
       id: 'bluesound_node',
       label: 'Bluesound / NAD BluOS',
       match: /\b(bluesound|bluos|powernode|node\s*(?:icon|x|2i?|n\d+)?|nad\s*(?:m10|m33|m66|c\s*\d+))\b/i,
@@ -156,6 +172,38 @@
       </svg>`
     },
     {
+      id: 'nagra_streamer',
+      label: 'Nagra Streamer',
+      match: /\bnagra\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="10,12 34,12 36,15 8,15" fill="currentColor" fill-opacity="0.08"/>
+        <rect x="8" y="15" width="28" height="9" rx="0.9" fill="currentColor" fill-opacity="0.05"/>
+        <circle cx="22" cy="19.5" r="1.1" fill="currentColor" stroke="none" opacity="0.85"/>
+        <line x1="11" y1="24" x2="11" y2="25.2" stroke-width="1.3"/>
+        <line x1="33" y1="24" x2="33" y2="25.2" stroke-width="1.3"/>
+      </svg>`
+    },
+    {
+      id: 'mbl_c41',
+      label: 'MBL C41 Cadenza',
+      match: /\b(mbl\s*c41|mbl\s*c\d+|mbl)\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="7.5" width="37" height="17" rx="1.2" fill="currentColor" fill-opacity="0.06"/>
+        <line x1="6.5" y1="7.5" x2="6.5" y2="24.5" stroke-width="0.85" opacity="0.45"/>
+        <line x1="37.5" y1="7.5" x2="37.5" y2="24.5" stroke-width="0.85" opacity="0.45"/>
+        <rect x="13" y="10.2" width="14" height="7" rx="0.8" fill="currentColor" fill-opacity="0.1"/>
+        <circle cx="9.8" cy="13.7" r="0.8" fill="currentColor" stroke="none" opacity="0.75"/>
+        <circle cx="9.8" cy="17.8" r="0.8" fill="currentColor" stroke="none" opacity="0.75"/>
+        <circle cx="15" cy="20.4" r="0.75" fill="currentColor" stroke="none" opacity="0.7"/>
+        <circle cx="18" cy="20.4" r="0.75" fill="currentColor" stroke="none" opacity="0.7"/>
+        <circle cx="21" cy="20.4" r="0.75" fill="currentColor" stroke="none" opacity="0.7"/>
+        <circle cx="24" cy="20.4" r="0.75" fill="currentColor" stroke="none" opacity="0.7"/>
+        <circle cx="32.5" cy="16" r="3.4" fill="currentColor" fill-opacity="0.1"/>
+        <line x1="7" y1="24.5" x2="7" y2="26.2" stroke-width="1.5"/>
+        <line x1="37" y1="24.5" x2="37" y2="26.2" stroke-width="1.5"/>
+      </svg>`
+    },
+    {
       id: 'marantz',
       label: 'Marantz Hi-Fi',
       match: /\bmarantz\b/i,
@@ -196,6 +244,41 @@
         <circle cx="17.2" cy="23.2" r="1.4" stroke-width="0.95"/>
         <circle cx="21.5" cy="23.2" r="1" fill="currentColor" stroke="none" opacity="0.75"/>
         <circle cx="26.2" cy="23.2" r="2.2" fill="currentColor" fill-opacity="0.08"/>
+      </svg>`
+    },
+    {
+      id: 'esoteric_n01xd',
+      label: 'ESOTERIC N-01XD',
+      match: /\b(esoteric|n-?01xd\w*|n-?05xd\w*|n-?03t\w*)\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="7" width="37" height="18" rx="1.4" fill="currentColor" fill-opacity="0.05"/>
+        <path d="M 3.5 11.5 Q 22 9.5 40.5 11.5" stroke-width="0.8" opacity="0.45"/>
+        <path d="M 3.5 20.5 Q 22 22.5 40.5 20.5" stroke-width="0.8" opacity="0.45"/>
+        <rect x="13" y="12.5" width="16" height="7" rx="0.8" fill="currentColor" fill-opacity="0.1"/>
+        <circle cx="8" cy="16" r="1.4"/>
+        <circle cx="35" cy="16" r="2.8" fill="currentColor" fill-opacity="0.09"/>
+        <line x1="7.5" y1="25" x2="7.5" y2="26.8" stroke-width="1.6"/>
+        <line x1="22" y1="25" x2="22" y2="26.8" stroke-width="1.6"/>
+        <line x1="36.5" y1="25" x2="36.5" y2="26.8" stroke-width="1.6"/>
+      </svg>`
+    },
+    {
+      id: 'teac_ud701n',
+      label: 'TEAC UD-701N',
+      match: /\b(teac|ud-?701n|nt-?505\w*|ud-?505\w*|vrds-?701\w*)\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="8" width="37" height="16" rx="1.1" fill="currentColor" fill-opacity="0.05"/>
+        <line x1="5.5" y1="8" x2="5.5" y2="24" stroke-width="0.85" opacity="0.5"/>
+        <line x1="38.5" y1="8" x2="38.5" y2="24" stroke-width="0.85" opacity="0.5"/>
+        <line x1="8" y1="13" x2="8" y2="17" stroke-width="1.5"/>
+        <circle cx="8" cy="19.5" r="0.8" fill="currentColor" stroke="none" opacity="0.7"/>
+        <circle cx="11.5" cy="17.8" r="1.5" stroke-width="0.9"/>
+        <circle cx="14.8" cy="17.8" r="0.9" fill="currentColor" stroke="none" opacity="0.75"/>
+        <rect x="17.5" y="10.8" width="11" height="5.5" rx="0.7" fill="currentColor" fill-opacity="0.1"/>
+        <circle cx="29.8" cy="18.2" r="2" fill="currentColor" fill-opacity="0.08"/>
+        <circle cx="35.2" cy="16.2" r="3" fill="currentColor" fill-opacity="0.1"/>
+        <line x1="7" y1="24" x2="7" y2="25.6" stroke-width="1.5"/>
+        <line x1="37" y1="24" x2="37" y2="25.6" stroke-width="1.5"/>
       </svg>`
     },
     {
