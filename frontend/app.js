@@ -2003,7 +2003,7 @@ function toggleArtistFavorite(artistName, triggerBtn = null) {
   if (triggerBtn) {
     triggerBtn.classList.toggle('active', nowFav);
     if (triggerBtn.id === 'btnFavArtistDetail') {
-      triggerBtn.innerHTML = getStarSvg(nowFav, 18);
+      triggerBtn.innerHTML = getStarSvg(nowFav, 14);
       triggerBtn.title = nowFav ? '取消最愛藝術家' : '加入最愛藝術家';
     } else {
       const labelSpan = triggerBtn.querySelector('span');
@@ -2167,7 +2167,7 @@ function syncAllFavoriteUIs() {
     if (btnFavArtist) {
       const isFav = isArtistFavorite(state.currentArtistDetail);
       btnFavArtist.classList.toggle('active', isFav);
-      btnFavArtist.innerHTML = getStarSvg(isFav, 18);
+      btnFavArtist.innerHTML = getStarSvg(isFav, 14);
       btnFavArtist.title = isFav ? '取消最愛藝術家' : '加入最愛藝術家';
     }
   }
@@ -6207,17 +6207,33 @@ async function openArtistDetail(artistName) {
   const localTracks = state.tracks.filter(t => t.artist.toLowerCase() === artistName.toLowerCase());
 
 
-  // Reset Hero Banner Backdrop & Avatar
+  // Reset Hero Banner Backdrop & Avatar (immediately preview local album cover while resolving real portrait)
   const heroBackdrop = document.getElementById('artistHeroBackdrop');
-  if (heroBackdrop) {
-    heroBackdrop.style.backgroundImage = 'none';
-    heroBackdrop.style.opacity = '0';
-  }
   const avatarImg = document.getElementById('artistDetailAvatar');
   const avatarPlaceholder = document.getElementById('artistDetailAvatarPlaceholder');
-  avatarImg.style.display = 'none';
-  avatarPlaceholder.style.display = 'flex';
-  avatarPlaceholder.textContent = artistName.charAt(0).toUpperCase();
+  const firstLocalCover = localAlbums.find(a => a && a.cover && !String(a.cover).startsWith('data:image/svg'))?.cover
+    || localAlbums.find(a => a && a.cover)?.cover
+    || '';
+  const localCoverSrc = firstLocalCover ? formatCoverSrc(firstLocalCover) : '';
+
+  if (heroBackdrop) {
+    if (localCoverSrc) {
+      heroBackdrop.style.backgroundImage = `url("${localCoverSrc}")`;
+      heroBackdrop.style.opacity = '0.55';
+    } else {
+      heroBackdrop.style.backgroundImage = 'none';
+      heroBackdrop.style.opacity = '0';
+    }
+  }
+  if (localCoverSrc) {
+    avatarImg.src = localCoverSrc;
+    avatarImg.style.display = 'block';
+    avatarPlaceholder.style.display = 'none';
+  } else {
+    avatarImg.style.display = 'none';
+    avatarPlaceholder.style.display = 'flex';
+    avatarPlaceholder.textContent = artistName.charAt(0).toUpperCase();
+  }
 
   // Set Hero information
   document.getElementById('artistDetailName').textContent = artistName;
@@ -6258,7 +6274,7 @@ async function openArtistDetail(artistName) {
   if (btnFavArtist) {
     const isFav = isArtistFavorite(artistName);
     btnFavArtist.classList.toggle('active', isFav);
-    btnFavArtist.innerHTML = getStarSvg(isFav, 18);
+    btnFavArtist.innerHTML = getStarSvg(isFav, 14);
     btnFavArtist.title = isFav ? '取消最愛藝術家' : '加入最愛藝術家';
     btnFavArtist.onclick = (e) => {
       e.stopPropagation();
@@ -6342,7 +6358,108 @@ async function translateTextToZhTw(text, sourceLang = 'auto') {
   return text;
 }
 
-// 2-1. Fetch Biography & Photos from Wikipedia REST API with Auto Traditional Chinese Translation
+function extractArtistNameVariants(artistName) {
+  const raw = String(artistName || '').trim();
+  if (!raw) return [];
+  const out = [];
+  const add = (s) => {
+    const clean = String(s || '').trim();
+    if (clean && !out.some(x => x.toLowerCase() === clean.toLowerCase())) out.push(clean);
+  };
+  // Strip parenthetical alias e.g. "孫燕姿 (Yanzi Sun)" -> "孫燕姿" and "Yanzi Sun"
+  const noParens = raw.replace(/\s*[\(\[（【][^)\]）】]*[\)\]）】]/g, ' ').replace(/\s+/g, ' ').trim();
+  add(noParens);
+  const parenMatches = raw.match(/[\(\[（【]([^)\]）】]+)[\)\]）】]/g) || [];
+  for (const m of parenMatches) {
+    add(m.slice(1, -1));
+  }
+  // Split bilingual CJK + Latin names e.g. "Natural Q 自然捲"
+  const cjkPart = (noParens.match(/[\u3040-\u30ff\u3400-\u9fff]+/g) || []).join(' ').trim();
+  const latinPart = noParens.replace(/[\u3040-\u30ff\u3400-\u9fff]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (cjkPart && latinPart) {
+    add(cjkPart);
+    add(latinPart);
+  }
+  add(raw);
+  return out;
+}
+
+const artistPortraitCache = new Map();
+
+async function resolveArtistOnlinePortrait(artistName, variants) {
+  const cacheKey = String(artistName || '').toLowerCase().trim();
+  if (artistPortraitCache.has(cacheKey)) return artistPortraitCache.get(cacheKey);
+
+  const list = (variants && variants.length) ? variants : extractArtistNameVariants(artistName);
+  let foundUrl = '';
+
+  // 1. TIDAL Artist Portrait (highest quality official press photo)
+  if (!foundUrl && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.searchArtist === 'function') {
+    for (const q of list.slice(0, 2)) {
+      try {
+        const hit = await window.tidalService.searchArtist(q);
+        const pic = hit && (hit.picture || hit.image || hit.cover);
+        if (pic && typeof pic === 'string' && !pic.startsWith('data:image/svg')) {
+          foundUrl = pic;
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // 2. NetEase Cloud Music Artist Portrait (strongest for Mandarin / Asian artists, CORS-free via native HTTP)
+  if (!foundUrl && typeof nativeFetchJson === 'function') {
+    const neteaseHeaders = {
+      'Referer': 'https://music.163.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+    };
+    const primary = list[0] || artistName;
+    const primaryCn = (typeof convertToSimplifiedForSearch === 'function' && /[\u4e00-\u9fff]/.test(primary))
+      ? await convertToSimplifiedForSearch(primary)
+      : primary;
+    const neQueries = Array.from(new Set([primaryCn, primary, list[1]].filter(Boolean)));
+    for (const q of neQueries) {
+      try {
+        const data = await nativeFetchJson(
+          `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=100&offset=0&limit=5`,
+          neteaseHeaders,
+          7000
+        );
+        const artists = data?.result?.artists || [];
+        const match = artists.find(a => {
+          const names = [a.name, ...(Array.isArray(a.alias) ? a.alias : []), ...(Array.isArray(a.transNames) ? a.transNames : [])].filter(Boolean).join(' ');
+          return artistNameMatches(names, primary, primaryCn);
+        }) || artists[0];
+        const rawPic = match && (match.img1v1Url || match.picUrl);
+        if (rawPic && !String(rawPic).includes('5639395138885805')) {
+          foundUrl = String(rawPic).replace(/^http:\/\//i, 'https://') + '?param=640y640';
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // 3. Deezer Public Artist API (fast, no API key, huge global + Asian catalog)
+  if (!foundUrl && typeof nativeFetchJson === 'function') {
+    for (const q of list.slice(0, 2)) {
+      try {
+        const data = await nativeFetchJson(`https://api.deezer.com/search/artist?q=${encodeURIComponent(q)}&limit=5`, {}, 7000);
+        const items = data?.data || [];
+        const match = items.find(a => artistNameMatches(a.name, q)) || items[0];
+        const pic = match && (match.picture_xl || match.picture_big || match.picture_medium);
+        if (pic && !String(pic).includes('/images/artist//')) {
+          foundUrl = pic;
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (foundUrl) artistPortraitCache.set(cacheKey, foundUrl);
+  return foundUrl;
+}
+
+// 2-1. Fetch Biography & Photos (TIDAL -> NetEase -> Deezer -> Wikipedia -> Local Album Cover)
 async function fetchArtistBio(artistName, localAlbums = []) {
   const loadingEl = document.getElementById('bioLoading');
   const textEl = document.getElementById('artistBioText');
@@ -6354,10 +6471,16 @@ async function fetchArtistBio(artistName, localAlbums = []) {
   const heroBackdrop = document.getElementById('artistHeroBackdrop');
 
   loadingEl.style.display = 'flex';
-  loadingEl.innerHTML = '<span class="spinner"></span> 正在連線至維基百科音樂資料庫並自動翻譯為繁體中文...';
+  loadingEl.innerHTML = '<span class="spinner"></span> 正在搜尋藝術家照片與背景簡介...';
   textEl.style.display = 'none';
   btnWiki.style.display = 'none';
   if (btnToggleBioLang) btnToggleBioLang.style.display = 'none';
+
+  const nameVariants = extractArtistNameVariants(artistName);
+  const firstLocalCover = localAlbums.find(a => a && a.cover && !String(a.cover).startsWith('data:image/svg'))?.cover
+    || localAlbums.find(a => a && a.cover)?.cover
+    || '';
+  const localCoverSrc = firstLocalCover ? formatCoverSrc(firstLocalCover) : '';
 
   let rawBioText = '';
   let wikiPageUrl = '';
@@ -6374,46 +6497,56 @@ async function fetchArtistBio(artistName, localAlbums = []) {
     originalImageUrl = cached.originalImageUrl;
     isFromEnWiki = cached.isFromEnWiki;
   } else {
+    // Run online artist portrait search (TIDAL -> NetEase -> Deezer) in parallel with Wikipedia lookup
+    const portraitPromise = resolveArtistOnlinePortrait(artistName, nameVariants).catch(() => '');
+
     try {
-      // 1. Try Chinese Wikipedia first (with Accept-Language for Traditional Chinese)
-      const zhUrl = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(artistName)}`;
-      let res = await fetch(zhUrl, {
-        headers: {
-          'User-Agent': 'rooPlayer/1.0',
-          'Accept-Language': 'zh-tw,zh-hant;q=0.9'
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.extract && data.type !== 'disambiguation') {
+      // 1. Try Chinese Wikipedia with cleaned name variants (e.g. "孫燕姿" instead of "孫燕姿 (Yanzi Sun)")
+      for (const variant of nameVariants) {
+        const zhUrl = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(variant)}`;
+        const data = typeof nativeFetchJson === 'function'
+          ? await nativeFetchJson(zhUrl, { 'User-Agent': 'rooPlayer/0.2.4', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' }, 7500)
+          : await fetch(zhUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.4', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' } }).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (data && data.extract && data.type !== 'disambiguation') {
           rawBioText = data.extract;
-          wikiPageUrl = data.content_urls?.desktop?.page || `https://zh.wikipedia.org/wiki/${encodeURIComponent(artistName)}`;
+          wikiPageUrl = data.content_urls?.desktop?.page || `https://zh.wikipedia.org/wiki/${encodeURIComponent(variant)}`;
           if (data.originalimage?.source) originalImageUrl = data.originalimage.source;
           if (data.thumbnail?.source) avatarUrl = data.thumbnail.source;
+          break;
         }
       }
 
-      // 2. Fallback to English Wikipedia if no Chinese extract or missing images
+      // 2. Fallback to English Wikipedia with cleaned variants
       if (!rawBioText || (!originalImageUrl && !avatarUrl)) {
-        const enUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(artistName)}`;
-        res = await fetch(enUrl, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.extract && data.type !== 'disambiguation') {
+        for (const variant of nameVariants) {
+          const enUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(variant)}`;
+          const data = typeof nativeFetchJson === 'function'
+            ? await nativeFetchJson(enUrl, { 'User-Agent': 'rooPlayer/0.2.4' }, 7500)
+            : await fetch(enUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.4' } }).then(r => r.ok ? r.json() : null).catch(() => null);
+          if (data && data.extract && data.type !== 'disambiguation') {
             if (!rawBioText) {
               rawBioText = data.extract;
               isFromEnWiki = true;
             }
-            if (!wikiPageUrl) wikiPageUrl = data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(artistName)}`;
+            if (!wikiPageUrl) wikiPageUrl = data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(variant)}`;
             if (data.originalimage?.source && !originalImageUrl) originalImageUrl = data.originalimage.source;
             if (data.thumbnail?.source && !avatarUrl) avatarUrl = data.thumbnail.source;
+            break;
           }
         }
       }
     } catch (err) {
       console.warn('Wikipedia API fetch error:', err);
     }
+
+    const onlinePortrait = await portraitPromise;
+    if (onlinePortrait) {
+      avatarUrl = onlinePortrait;
+      if (!originalImageUrl) originalImageUrl = onlinePortrait;
+    }
   }
+
+  if (state.currentArtistDetail !== artistName) return;
 
   // Auto-translate to Traditional Chinese if we got a bio
   let translatedBioText = rawBioText;
@@ -6484,24 +6617,27 @@ async function fetchArtistBio(artistName, localAlbums = []) {
     if (btnToggleBioLang) btnToggleBioLang.style.display = 'none';
   }
 
-  // Set Avatar and Banner Backdrop Image
-  const finalBannerUrl = originalImageUrl || avatarUrl;
-  if (finalBannerUrl) {
-    avatarImg.src = avatarUrl || finalBannerUrl;
+  // Set Avatar and Banner Backdrop Image (TIDAL / Online Portrait -> Local Album Cover -> Placeholder)
+  const finalAvatarUrl = avatarUrl || originalImageUrl || localCoverSrc;
+  const finalBannerUrl = originalImageUrl || avatarUrl || localCoverSrc;
+  if (finalAvatarUrl) {
+    avatarImg.onerror = () => {
+      avatarImg.onerror = null;
+      if (localCoverSrc && avatarImg.src !== localCoverSrc) {
+        avatarImg.src = localCoverSrc;
+      } else {
+        avatarImg.style.display = 'none';
+        avatarPlaceholder.style.display = 'flex';
+        avatarPlaceholder.textContent = artistName.charAt(0).toUpperCase();
+      }
+    };
+    avatarImg.src = finalAvatarUrl;
     avatarImg.style.display = 'block';
     avatarPlaceholder.style.display = 'none';
-
-    if (heroBackdrop) {
-      heroBackdrop.style.backgroundImage = `url("${finalBannerUrl}")`;
-      heroBackdrop.style.opacity = '1';
-    }
-  } else {
-    // If no artist image found online, fallback to first local album cover as banner backdrop
-    const firstLocalCover = localAlbums.find(a => a.cover)?.cover;
-    if (firstLocalCover && heroBackdrop) {
-      heroBackdrop.style.backgroundImage = `url("${formatCoverSrc(firstLocalCover)}")`;
-      heroBackdrop.style.opacity = '0.65';
-    }
+  }
+  if (finalBannerUrl && heroBackdrop) {
+    heroBackdrop.style.backgroundImage = `url("${finalBannerUrl}")`;
+    heroBackdrop.style.opacity = (originalImageUrl || avatarUrl) ? '1' : '0.65';
   }
 }
 
