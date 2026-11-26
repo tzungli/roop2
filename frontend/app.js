@@ -6813,9 +6813,7 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
               libBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 if (isTidalAlbumInLibrary(alb.tidalId)) {
-                  if (confirm(`確定要將《${alb.title}》從曲庫移除嗎？`)) {
-                    await removeTidalAlbumFromLibrary(alb.tidalId);
-                  }
+                  await removeTidalAlbumFromLibrary(alb.tidalId);
                 } else {
                   await addTidalAlbumToLibrary(alb.tidalId, alb);
                 }
@@ -8927,9 +8925,7 @@ function createLabelTidalCard(alb) {
     libBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (isTidalAlbumInLibrary(alb.tidalId)) {
-        if (confirm(`確定要將《${alb.title}》從曲庫移除嗎？`)) {
-          await removeTidalAlbumFromLibrary(alb.tidalId);
-        }
+        await removeTidalAlbumFromLibrary(alb.tidalId);
       } else {
         await addTidalAlbumToLibrary(alb.tidalId, alb);
       }
@@ -10704,10 +10700,8 @@ function updateAlbumDetailLibraryButton(album) {
       btn.innerHTML = `<svg class="lib-toggle-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><polyline points="20 6 9 17 4 12"/></svg>`;
       btn.title = '已在曲庫（點擊從曲庫移除）';
       btn.onclick = async () => {
-        if (confirm(`確定要將《${album.title}》從您的音樂庫中移除嗎？`)) {
-          await removeTidalAlbumFromLibrary(album.tidalId);
-          updateAlbumDetailLibraryButton(album);
-        }
+        await removeTidalAlbumFromLibrary(album.tidalId);
+        updateAlbumDetailLibraryButton(album);
       };
     } else {
       btn.className = 'btn btn-secondary not-in-library';
@@ -24779,10 +24773,8 @@ function createTidalAlbumCard(alb) {
     libBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (isTidalAlbumInLibrary(alb.tidalId)) {
-        if (confirm(`確定要將《${alb.title}》從曲庫移除嗎？`)) {
-          await removeTidalAlbumFromLibrary(alb.tidalId);
-          syncTidalLibBtnState(libBtn, false);
-        }
+        await removeTidalAlbumFromLibrary(alb.tidalId);
+        syncTidalLibBtnState(libBtn, false);
       } else {
         await addTidalAlbumToLibrary(alb.tidalId, alb);
         syncTidalLibBtnState(libBtn, true);
