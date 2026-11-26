@@ -529,6 +529,120 @@ mod tests {
     }
 
     #[test]
+    fn test_asdm7ec_super512_benchmark() {
+        use rustfft::{num_complex::Complex, FftPlanner};
+
+        let src_rate = 352_800.0;
+        let in_len = 352_800usize + 64;
+        let fft_n = 262_144usize;
+        let mut planner = FftPlanner::<f64>::new();
+        let fft = planner.plan_fft_forward(fft_n);
+
+        let mut win = vec![0.0f64; fft_n];
+        let mut win_sum = 0.0;
+        for i in 0..fft_n {
+            let p = 2.0 * std::f64::consts::PI * i as f64 / fft_n as f64;
+            let w = 0.27105140069342
+                - 0.43329793923448 * p.cos()
+                + 0.21812299954311 * (2.0 * p).cos()
+                - 0.06592544638803 * (3.0 * p).cos()
+                + 0.01081174209837 * (4.0 * p).cos()
+                - 0.00077658482522 * (5.0 * p).cos()
+                + 0.00001388721735 * (6.0 * p).cos();
+            win[i] = w;
+            win_sum += w;
+        }
+
+        let analyze = |bits_l: &[u8], dsd_rate: f64, tone_hz: f64| -> (f64, f64) {
+            let skip_bytes = ((dsd_rate * 0.05 / 8.0) as usize).min(bits_l.len().saturating_sub(fft_n / 8 + 1));
+            let mut buf = vec![Complex::new(0.0, 0.0); fft_n];
+            for k in 0..fft_n {
+                let b_idx = skip_bytes + (k >> 3);
+                let bit = (bits_l[b_idx] >> (k & 7)) & 1;
+                buf[k].re = (if bit == 1 { 1.0 } else { -1.0 }) * win[k];
+            }
+            fft.process(&mut buf);
+
+            let bin_hz = dsd_rate / fft_n as f64;
+            let f1_bin = (tone_hz / bin_hz).round() as usize;
+            let bin_20k = (20_000.0 / bin_hz).floor() as usize;
+            let bin_50k = (50_000.0 / bin_hz).floor() as usize;
+            let scale2 = 4.0 / (win_sum * win_sum);
+
+            let mut sig_pow = 0.0;
+            let mut noise_pow = 0.0;
+            let mut ultra_pow = 0.0;
+            for k in 8..=bin_50k.min(fft_n / 2 - 1) {
+                let p = (buf[k].re * buf[k].re + buf[k].im * buf[k].im) * scale2;
+                if k >= f1_bin.saturating_sub(8) && k <= f1_bin + 8 {
+                    sig_pow += p;
+                } else if k <= bin_20k {
+                    noise_pow += p;
+                } else {
+                    ultra_pow += p;
+                }
+            }
+            let snr_db = 10.0 * (sig_pow / noise_pow.max(1e-30)).log10();
+            let ultra_db = 10.0 * ultra_pow.max(1e-30).log10();
+            (snr_db, ultra_db)
+        };
+
+        for &(mode_name, dsd_rate, stage2_ratio) in &[
+            ("DSD256", 11_289_600u32, 32usize),
+            ("DSD512", 22_579_200u32, 64usize),
+        ] {
+            let bin_hz = dsd_rate as f64 / fft_n as f64;
+            let tone_hz = (1000.0 / bin_hz).round() * bin_hz;
+            let pcm: Vec<f64> = (0..in_len)
+                .map(|i| 0.5 * (2.0 * std::f64::consts::PI * tone_hz * i as f64 / src_rate).sin())
+                .collect();
+            let num_blocks = (dsd_rate as usize + DSD_SAMPLES_PER_BLOCK - 1) / DSD_SAMPLES_PER_BLOCK;
+            let inv_ratio = 1.0 / stage2_ratio as f64;
+
+            for &(name, ord) in &[("ASDM7EC", 70u8), ("ASDM7EC-super512+fs", 75u8)] {
+                let mut m = DsdModulator::new(ord, "precise-linear", DitherType::Gauss, None);
+                m.set_dsd_rate(dsd_rate);
+                let mut out = vec![0u8; num_blocks * 2 * DSD_BLOCK_SIZE];
+                let t0 = std::time::Instant::now();
+                m.run_blocks(&pcm, &pcm, in_len, 0, num_blocks, inv_ratio, &mut out);
+                let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+                let mut l_bytes = Vec::with_capacity(num_blocks * DSD_BLOCK_SIZE);
+                for b in 0..num_blocks {
+                    let off = b * 2 * DSD_BLOCK_SIZE;
+                    l_bytes.extend_from_slice(&out[off..off + DSD_BLOCK_SIZE]);
+                }
+                let (snr_db, ultra_db) = analyze(&l_bytes, dsd_rate as f64, tone_hz);
+                let max_state = [m.s1_l, m.s2_l, m.s3_l, m.s4_l, m.s5_l, m.s6_l, m.s7_l]
+                    .iter()
+                    .map(|v| v.abs())
+                    .fold(0.0f64, f64::max);
+                println!(
+                    "{} {}: 1s={:.1}ms, 0-20k SNR={:.2}dB, 20-50k ultra={:.2}dBFS, max_state={:.3}",
+                    mode_name, name, elapsed_ms, snr_db, ultra_db, max_state
+                );
+                assert!(snr_db > 150.0, "{} {} SNR too low: {:.2}", mode_name, name, snr_db);
+                assert!(max_state.is_finite() && max_state < 5.5, "{} {} unstable state: {}", mode_name, name, max_state);
+            }
+        }
+
+        // -3 dBFS PCM (HQPlayer DSD max headroom / +0.1 dB SACD) stability stress test at DSD512
+        let pcm_headroom: Vec<f64> = (0..in_len)
+            .map(|i| 0.707 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / src_rate).sin())
+            .collect();
+        let mut m_fs = DsdModulator::new(75, "precise-linear", DitherType::Gauss, None);
+        m_fs.set_dsd_rate(22_579_200);
+        let mut out_fs = vec![0u8; 200 * 2 * DSD_BLOCK_SIZE];
+        m_fs.run_blocks(&pcm_headroom, &pcm_headroom, in_len, 0, 200, 1.0 / 64.0, &mut out_fs);
+        let max_fs = [m_fs.s1_l, m_fs.s2_l, m_fs.s3_l, m_fs.s4_l, m_fs.s5_l, m_fs.s6_l, m_fs.s7_l]
+            .iter()
+            .map(|v| v.abs())
+            .fold(0.0f64, f64::max);
+        println!("DSD512 ASDM7EC-super512+fs -3dBFS stress max_state={:.3}", max_fs);
+        assert!(max_fs.is_finite() && max_fs < 4.5, "-3dBFS stress unstable: {}", max_fs);
+    }
+
+    #[test]
     fn test_sinc_l_fft_accuracy_and_speed() {
         let src_rate = 44100.0;
         let fs_out = 176400.0;
