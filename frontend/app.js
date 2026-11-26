@@ -7455,6 +7455,246 @@ function cleanWikipediaAlbumExtract(rawText, maxChars = 2200) {
   return text;
 }
 
+function normalizeAlbumMatch(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)|\[[^\]]*\]|【[^】]*】|（[^）]*）/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanAlbumTitleForSearch(title) {
+  return String(title || '')
+    .replace(/\s*[\(\[【（](?:deluxe|remaster(?:ed)?|anniversary|special edition|expanded|live|mono|stereo|hi-res|24bit|dsd|sacd|disc\s*\d+|cd\s*\d+)[^)\]】）]*[\)\]】）]/gi, '')
+    .replace(/\s*-\s*(?:deluxe|remastered|ep|single)\b.*$/i, '')
+    .trim();
+}
+
+function albumTitleMatches(candTitle, targetTitle) {
+  const c = normalizeAlbumMatch(candTitle);
+  const t = normalizeAlbumMatch(targetTitle);
+  if (!c || !t) return false;
+  if (c === t) return true;
+  if (c.includes(t) || t.includes(c)) {
+    const ratio = Math.min(c.length, t.length) / Math.max(c.length, t.length);
+    return ratio >= 0.45;
+  }
+  return false;
+}
+
+function artistNameMatches(candArtist, targetArtist) {
+  const c = normalizeAlbumMatch(candArtist);
+  const t = normalizeAlbumMatch(targetArtist);
+  if (!t || t === 'various artists' || t === '群星') return true;
+  if (!c) return false;
+  const tPrimary = normalizeAlbumMatch(String(targetArtist || '').split(/[,;&\/、]|feat\.?|ft\.?/i)[0]);
+  return c === t || c.includes(t) || t.includes(c) || (tPrimary && (c.includes(tPrimary) || tPrimary.includes(c)));
+}
+
+function isGenuineAlbumWikiArticle(pageTitle, extractText, albumTitle, artistName) {
+  const pNorm = normalizeAlbumMatch(pageTitle);
+  const aNorm = normalizeAlbumMatch(albumTitle);
+  const artNorm = normalizeAlbumMatch(artistName);
+  const head = String(extractText || '').slice(0, 450);
+  const headLower = head.toLowerCase();
+
+  // Reject exact artist biography pages when album title differs from artist name
+  if (artNorm && pNorm === artNorm && aNorm !== artNorm) return false;
+
+  const pageHasAlbumTag = /\((?:.*album.*|.*ep.*|.*soundtrack.*|.*record.*)\)|（.*專輯.*）|專輯$/i.test(String(pageTitle || ''));
+  const titleMatchesAlbum = aNorm && (pNorm === aNorm || pNorm.includes(aNorm) || aNorm.includes(pNorm));
+  if (!titleMatchesAlbum && !pageHasAlbumTag) return false;
+
+  const hasBioLead = /(出生於|生於\d|男歌手|女歌手|創作歌手|樂團成員|音樂家，|is a (?:chinese|taiwanese|japanese|korean|american|british|hong kong|canadian) .*?(?:singer|musician|band|rapper|composer|pianist|violinist|cellist)|was born (?:on|in))/i.test(head);
+  const hasAlbumSignals = /(專輯|唱片|迷你專輯|精選輯|原聲帶|個人第.+張|發行日期|共收錄|studio album|debut album|live album|compilation album|soundtrack album|extended play|released on|recorded in)/i.test(headLower);
+
+  if (hasBioLead && !hasAlbumSignals) return false;
+  return hasAlbumSignals || pageHasAlbumTag;
+}
+
+async function resolveAlbumReviewData(album) {
+  if (!album || !album.title) return null;
+  const cacheKey = `${album.title}___${album.artist || ''}`;
+  if (albumBioCache.has(cacheKey)) {
+    return albumBioCache.get(cacheKey);
+  }
+
+  const cleanTitle = cleanAlbumTitleForSearch(album.title) || String(album.title).trim();
+  const cleanArtist = String(album.artist || '').trim();
+  let rawBioText = '';
+  let isFromEnWiki = false;
+  let sourceLabel = '';
+
+  // 1. TIDAL / TiVo Professional Album Review (strongest for Western / Jazz / Classical)
+  if (!rawBioText && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getAlbumReview === 'function') {
+    try {
+      let targetTidalId = album.isTidal ? (album.tidalId || album.id) : null;
+      if (!targetTidalId) {
+        const candidates = await window.tidalService.searchAlbumVersions(cleanTitle, cleanArtist);
+        const match = (candidates || []).find(a =>
+          albumTitleMatches(a.title, cleanTitle) && artistNameMatches(a.artist, cleanArtist)
+        );
+        if (match) targetTidalId = match.tidalId || match.id;
+      }
+      if (targetTidalId) {
+        const rev = await window.tidalService.getAlbumReview(targetTidalId);
+        if (rev && rev.text && rev.text.length >= 45) {
+          rawBioText = rev.text;
+          isFromEnWiki = true; // Written in English -> benefit from zh-TW translation + toggle
+          sourceLabel = 'TIDAL / TiVo 專業樂評';
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. NetEase Cloud Music Official Album Description (strongest for Mandarin / Asian / Audiophile vocals)
+  if (!rawBioText) {
+    try {
+      const q = cleanArtist && !isUnknownArtist(cleanArtist) ? `${cleanTitle} ${cleanArtist}` : cleanTitle;
+      const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(q)}&type=10&offset=0&limit=6`;
+      const sRes = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        const albumsList = sData.result?.albums || [];
+        const best = albumsList.find(a => {
+          const artStr = (a.artist && a.artist.name) || (Array.isArray(a.artists) ? a.artists.map(x => x.name).join(' ') : '');
+          return albumTitleMatches(a.name, cleanTitle) && artistNameMatches(artStr, cleanArtist);
+        });
+        if (best && best.id) {
+          const albRes = await fetch(`https://music.163.com/api/album/${best.id}`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          if (albRes.ok) {
+            const albData = await albRes.json();
+            const desc = String(albData.album?.description || '').trim();
+            if (desc.length >= 35) {
+              rawBioText = desc;
+              isFromEnWiki = false;
+              sourceLabel = '唱片官方專輯簡介';
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. TheAudioDB Album Database (dedicated album descriptions, never artist bios)
+  if (!rawBioText && cleanArtist && !isUnknownArtist(cleanArtist)) {
+    try {
+      const tadbUrl = `https://www.theaudiodb.com/api/v1/json/2/searchalbum.php?s=${encodeURIComponent(cleanArtist)}&a=${encodeURIComponent(cleanTitle)}`;
+      const res = await fetch(tadbUrl);
+      if (res.ok) {
+        const data = await res.json();
+        const hit = (data.album || []).find(a => albumTitleMatches(a.strAlbum, cleanTitle));
+        if (hit) {
+          const zhDesc = String(hit.strDescriptionZH || hit.strDescriptionCN || '').trim();
+          const enDesc = String(hit.strDescriptionEN || '').trim();
+          if (zhDesc.length >= 40) {
+            rawBioText = zhDesc;
+            isFromEnWiki = false;
+            sourceLabel = 'TheAudioDB 專輯資料庫';
+          } else if (enDesc.length >= 40) {
+            rawBioText = enDesc;
+            isFromEnWiki = true;
+            sourceLabel = 'TheAudioDB 專輯資料庫';
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 4. Strictly Validated Wikipedia Fallback (Top-5 candidates with anti-artist-biography guard)
+  if (!rawBioText) {
+    try {
+      const zhSearchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(cleanTitle + ' 專輯 ' + cleanArtist)}&format=json&origin=*`;
+      const zhRes = await fetch(zhSearchUrl);
+      if (zhRes.ok) {
+        const data = await zhRes.json();
+        const hits = (data.query?.search || []).slice(0, 5);
+        for (const h of hits) {
+          const hitTitle = h.title || '';
+          if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
+            continue;
+          }
+          const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
+          const extRes = await fetch(zhExtractUrl);
+          if (!extRes.ok) continue;
+          const extData = await extRes.json();
+          const pages = extData.query?.pages;
+          const raw = pages ? Object.values(pages)[0]?.extract : '';
+          const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+          if (cleaned && cleaned.length >= 80 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist)) {
+            rawBioText = cleaned;
+            isFromEnWiki = false;
+            sourceLabel = '維基百科專輯資料庫';
+            break;
+          }
+        }
+      }
+
+      if (!rawBioText) {
+        const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(cleanTitle + ' ' + cleanArtist + ' album')}&format=json&origin=*`;
+        const enRes = await fetch(enSearchUrl);
+        if (enRes.ok) {
+          const data = await enRes.json();
+          const hits = (data.query?.search || []).slice(0, 5);
+          for (const h of hits) {
+            const hitTitle = h.title || '';
+            if (cleanArtist && normalizeAlbumMatch(hitTitle) === normalizeAlbumMatch(cleanArtist) && normalizeAlbumMatch(cleanTitle) !== normalizeAlbumMatch(cleanArtist)) {
+              continue;
+            }
+            const enExtractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hitTitle)}&format=json&origin=*`;
+            const extRes = await fetch(enExtractUrl);
+            if (!extRes.ok) continue;
+            const extData = await extRes.json();
+            const pages = extData.query?.pages;
+            const raw = pages ? Object.values(pages)[0]?.extract : '';
+            const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
+            if (cleaned && cleaned.length >= 80 && isGenuineAlbumWikiArticle(hitTitle, cleaned, cleanTitle, cleanArtist)) {
+              rawBioText = cleaned;
+              isFromEnWiki = true;
+              sourceLabel = '維基百科專輯資料庫';
+              break;
+            }
+          }
+        }
+      }
+
+      if (!rawBioText) {
+        const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTitle + ' (album)')}`;
+        const dirRes = await fetch(directUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.2' } });
+        if (dirRes.ok) {
+          const sumData = await dirRes.json();
+          if (sumData.extract && sumData.type !== 'disambiguation' && isGenuineAlbumWikiArticle(sumData.title || (cleanTitle + ' (album)'), sumData.extract, cleanTitle, cleanArtist)) {
+            rawBioText = sumData.extract;
+            isFromEnWiki = true;
+            sourceLabel = '維基百科專輯資料庫';
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Wikipedia album summary fetch error:', err);
+    }
+  }
+
+  if (!rawBioText) return null;
+
+  let translatedBioText = rawBioText;
+  try {
+    translatedBioText = await translateTextToZhTw(rawBioText);
+  } catch (_) {
+    translatedBioText = rawBioText;
+  }
+
+  const entry = {
+    originalText: rawBioText,
+    translatedText: translatedBioText,
+    isFromEnWiki,
+    sourceLabel: sourceLabel || '線上專輯資料庫'
+  };
+  albumBioCache.set(cacheKey, entry);
+  return entry;
+}
+
 async function fetchAlbumBio(album) {
   const loadingEl = document.getElementById('albumBioLoading');
   const textEl = document.getElementById('albumBioText');
@@ -7468,123 +7708,10 @@ async function fetchAlbumBio(album) {
   textEl.style.display = 'none';
   if (btnToggleBioLang) btnToggleBioLang.style.display = 'none';
 
-  const cacheKey = `${album.title}___${album.artist}`;
-  let rawBioText = '';
-  let isFromEnWiki = false;
-
-  if (albumBioCache.has(cacheKey)) {
-    const cached = albumBioCache.get(cacheKey);
-    rawBioText = cached.originalText;
-    isFromEnWiki = cached.isFromEnWiki;
-  } else {
-    try {
-      // 1. Try Wikipedia search in Chinese
-      const zhSearchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(album.title + ' ' + album.artist)}&format=json&origin=*`;
-      let res = await fetch(zhSearchUrl);
-      if (res.ok) {
-        const data = await res.json();
-        const hit = data.query?.search?.[0]?.title;
-        if (hit) {
-          // Fetch full extract for rich narrative details (request zh-tw Traditional Chinese variant)
-          const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
-          const extRes = await fetch(zhExtractUrl);
-          if (extRes.ok) {
-            const extData = await extRes.json();
-            const pages = extData.query?.pages;
-            const raw = pages ? Object.values(pages)[0]?.extract : '';
-            if (raw) {
-              const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
-              if (cleaned && cleaned.length >= 80) {
-                rawBioText = cleaned;
-              }
-            }
-          }
-          if (!rawBioText) {
-            const zhSummaryUrl = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit)}`;
-            const sumRes = await fetch(zhSummaryUrl, {
-              headers: {
-                'User-Agent': 'rooPlayer/1.0',
-                'Accept-Language': 'zh-tw,zh-hant;q=0.9'
-              }
-            });
-            if (sumRes.ok) {
-              const sumData = await sumRes.json();
-              if (sumData.extract && sumData.type !== 'disambiguation') {
-                rawBioText = sumData.extract;
-              }
-            }
-          }
-        }
-      }
-
-      // 2. If no Chinese summary or too brief, try English Wikipedia Search
-      if (!rawBioText) {
-        const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(album.title + ' ' + album.artist + ' album')}&format=json&origin=*`;
-        res = await fetch(enSearchUrl);
-        if (res.ok) {
-          const data = await res.json();
-          const hit = data.query?.search?.[0]?.title;
-          if (hit) {
-            const enExtractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
-            const extRes = await fetch(enExtractUrl);
-            if (extRes.ok) {
-              const extData = await extRes.json();
-              const pages = extData.query?.pages;
-              const raw = pages ? Object.values(pages)[0]?.extract : '';
-              if (raw) {
-                const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
-                if (cleaned && cleaned.length >= 80) {
-                  rawBioText = cleaned;
-                  isFromEnWiki = true;
-                }
-              }
-            }
-            if (!rawBioText) {
-              const enSummaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit)}`;
-              const sumRes = await fetch(enSummaryUrl, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-              if (sumRes.ok) {
-                const sumData = await sumRes.json();
-                if (sumData.extract && sumData.type !== 'disambiguation') {
-                  rawBioText = sumData.extract;
-                  isFromEnWiki = true;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // 3. Direct page summary fallback
-      if (!rawBioText) {
-        const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(album.title + ' (album)')}`;
-        const dirRes = await fetch(directUrl, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-        if (dirRes.ok) {
-          const sumData = await dirRes.json();
-          if (sumData.extract && sumData.type !== 'disambiguation') {
-            rawBioText = sumData.extract;
-            isFromEnWiki = true;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Wikipedia album summary fetch error:', err);
-    }
-  }
-
-  // Auto-translate to Traditional Chinese if we got a bio from the web
-  let translatedBioText = rawBioText;
-  if (rawBioText) {
-    if (albumBioCache.has(cacheKey) && albumBioCache.get(cacheKey).translatedText) {
-      translatedBioText = albumBioCache.get(cacheKey).translatedText;
-    } else {
-      translatedBioText = await translateTextToZhTw(rawBioText);
-      albumBioCache.set(cacheKey, {
-        originalText: rawBioText,
-        translatedText: translatedBioText,
-        isFromEnWiki
-      });
-    }
-  }
+  const resolved = await resolveAlbumReviewData(album);
+  const rawBioText = resolved ? resolved.originalText : '';
+  const translatedBioText = resolved ? (resolved.translatedText || resolved.originalText) : '';
+  const sourceLabel = (resolved && resolved.sourceLabel) || '維基百科專輯資料庫';
 
   loadingEl.style.display = 'none';
 
@@ -7600,9 +7727,7 @@ async function fetchAlbumBio(album) {
 
     const hasTranslationDiff = (translatedBioText.trim() !== rawBioText.trim());
     if (hasTranslationDiff) {
-      sourceBadge.textContent = isFromEnWiki
-        ? '資料來源：維基百科音樂資料庫 (深度介紹 / 自動翻譯為繁體中文)'
-        : '資料來源：中文維基百科音樂資料庫 (深度介紹 / 繁體中文)';
+      sourceBadge.textContent = `資料來源：${sourceLabel} (自動翻譯為繁體中文)`;
       if (btnToggleBioLang) {
         btnToggleBioLang.style.display = 'inline-flex';
         btnToggleBioLang.textContent = '檢視原文';
@@ -7620,7 +7745,7 @@ async function fetchAlbumBio(album) {
         };
       }
     } else {
-      sourceBadge.textContent = '資料來源：中文維基百科 (繁體中文)';
+      sourceBadge.textContent = `資料來源：${sourceLabel} (繁體中文)`;
       if (btnToggleBioLang) btnToggleBioLang.style.display = 'none';
     }
   } else {
@@ -14801,87 +14926,13 @@ function renderNpInfoParagraphs(bioEl, text) {
 
 async function fetchAlbumBioTextForNowPlaying(albumObj) {
   if (!albumObj || !albumObj.title) return '';
-  const cacheKey = `${albumObj.title}___${albumObj.artist || ''}`;
-  if (albumBioCache.has(cacheKey)) {
-    const cached = albumBioCache.get(cacheKey);
-    const preferEn = (localStorage.getItem('rooplayer_language') === 'en');
-    if (preferEn && cached.isFromEnWiki && cached.originalText) {
-      return cached.originalText;
-    }
-    return cached.translatedText || cached.originalText || '';
-  }
-
-  let rawBioText = '';
-  let isFromEnWiki = false;
-  const qTitle = albumObj.title || '';
-  const qArtist = albumObj.artist || '';
-
-  try {
-    const zhSearchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(qTitle + ' ' + qArtist)}&format=json&origin=*`;
-    let res = await fetch(zhSearchUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const hit = data.query?.search?.[0]?.title;
-      if (hit) {
-        const zhExtractUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&variant=zh-tw&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
-        const extRes = await fetch(zhExtractUrl);
-        if (extRes.ok) {
-          const extData = await extRes.json();
-          const pages = extData.query?.pages;
-          const raw = pages ? Object.values(pages)[0]?.extract : '';
-          if (raw) {
-            const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
-            if (cleaned && cleaned.length >= 80) rawBioText = cleaned;
-          }
-        }
-      }
-    }
-
-    if (!rawBioText) {
-      const enSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(qTitle + ' ' + qArtist + ' album')}&format=json&origin=*`;
-      res = await fetch(enSearchUrl);
-      if (res.ok) {
-        const data = await res.json();
-        const hit = data.query?.search?.[0]?.title;
-        if (hit) {
-          const enExtractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&redirects=1&titles=${encodeURIComponent(hit)}&format=json&origin=*`;
-          const extRes = await fetch(enExtractUrl);
-          if (extRes.ok) {
-            const extData = await extRes.json();
-            const pages = extData.query?.pages;
-            const raw = pages ? Object.values(pages)[0]?.extract : '';
-            if (raw) {
-              const cleaned = cleanWikipediaAlbumExtract(raw, 2200);
-              if (cleaned && cleaned.length >= 80) {
-                rawBioText = cleaned;
-                isFromEnWiki = true;
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('NowPlaying album bio fetch error:', err);
-  }
-
-  if (!rawBioText) return '';
-
-  let translatedBioText = rawBioText;
+  const resolved = await resolveAlbumReviewData(albumObj);
+  if (!resolved) return '';
   const preferEn = (localStorage.getItem('rooplayer_language') === 'en');
-  if (!preferEn || !isFromEnWiki) {
-    try {
-      translatedBioText = await translateTextToZhTw(rawBioText);
-    } catch (e) {
-      translatedBioText = rawBioText;
-    }
+  if (preferEn && resolved.isFromEnWiki && resolved.originalText) {
+    return resolved.originalText;
   }
-  albumBioCache.set(cacheKey, {
-    originalText: rawBioText,
-    translatedText: translatedBioText,
-    isFromEnWiki
-  });
-  return (preferEn && isFromEnWiki) ? rawBioText : translatedBioText;
+  return resolved.translatedText || resolved.originalText || '';
 }
 
 async function renderNowPlayingAlbumInfo(track, foundAlbum) {

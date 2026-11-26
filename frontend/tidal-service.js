@@ -309,6 +309,31 @@ class TidalService {
     };
   }
 
+  async getAlbumReview(albumId) {
+    const cleanId = String(albumId || '').replace(/^tidal_/, '').trim();
+    if (!cleanId) return null;
+    try {
+      const res = await this.api(`/albums/${cleanId}/review`);
+      if (!res || (!res.text && !res.summary)) return null;
+      const cleanMarkup = (raw) => String(raw || '')
+        .replace(/\[wimpLink[^\]]*\]/gi, '')
+        .replace(/\[\/wimpLink\]/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      const text = cleanMarkup(res.text || res.summary || '');
+      if (text.length < 40) return null;
+      return {
+        text,
+        summary: cleanMarkup(res.summary || ''),
+        source: res.source || 'TiVo / TIDAL'
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
   async getArtist(artistId) {
     const artist = await this.api(`/artists/${artistId}`);
     const albums = await this.getArtistAlbums(artistId, 50);
