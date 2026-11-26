@@ -1431,6 +1431,9 @@ function restoreLastPlayedTrack() {
 function showRestoredTrack(track, queue, index) {
   state.queue = [...queue];
   state.currentTrackIndex = index;
+  if (state.queue[index]) {
+    state.queue[index]._restoredSession = true;
+  }
 
   playerTitle.textContent = track.title;
   playerArtist.textContent = `${track.artist} — ${track.title}`;
@@ -15315,7 +15318,15 @@ function togglePlayPause() {
       exclusiveEndedFired = false;
       try { window.electronAPI.exclusiveResume(); } catch (err) {}
     } else {
-      nativeAudio.play();
+      const hasLoadedSrc = !!(nativeAudio.getAttribute('src') && nativeAudio.src !== window.location.href);
+      if (!hasLoadedSrc) {
+        playCurrentTrack();
+        return;
+      }
+      nativeAudio.play().catch((err) => {
+        console.warn('Resume failed, restarting current track:', err);
+        playCurrentTrack();
+      });
     }
     state.isPlaying = true;
     updatePlayPauseBtnUI();
