@@ -979,8 +979,31 @@ async function initApp() {
   setTimeout(triggerShowWindow, 150);
 
   try {
+    const preMigrationGenres = (state.tracks || []).map(t => (t && t.genre) || '');
     rebuildLibraryCollections();
     renderAll();
+
+    // One-time silent background migration: persist Roon 21 Music Genres for existing users
+    const GENRE_SCHEMA_VERSION = 'roon_21_v1';
+    try {
+      const migratedVer = localStorage.getItem('roo_genre_schema_version');
+      const hasGenreDiff = state.tracks.length > 0 && state.tracks.some((t, i) => ((t && t.genre) || '') !== preMigrationGenres[i]);
+      if (state.tracks.length > 0 && (migratedVer !== GENRE_SCHEMA_VERSION || hasGenreDiff)) {
+        setTimeout(async () => {
+          try {
+            if (window.electronAPI && typeof window.electronAPI.saveLibraryTracks === 'function') {
+              await window.electronAPI.saveLibraryTracks(state.tracks);
+              localStorage.setItem('roo_genre_schema_version', GENRE_SCHEMA_VERSION);
+              console.log(`[Migration] Persisted Roon 21 Music Genres for ${state.tracks.length} tracks (${GENRE_SCHEMA_VERSION})`);
+            }
+          } catch (migErr) {
+            console.warn('[Migration] Failed to persist migrated genres:', migErr);
+          }
+        }, 1600);
+      } else if (state.tracks.length === 0 && migratedVer !== GENRE_SCHEMA_VERSION) {
+        localStorage.setItem('roo_genre_schema_version', GENRE_SCHEMA_VERSION);
+      }
+    } catch (_) {}
 
     // Startup default: show the last played track in the player bar (display only, not playing)
     restoreLastPlayedTrack();
