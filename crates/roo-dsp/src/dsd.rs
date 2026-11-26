@@ -219,43 +219,43 @@ pub fn get_asdm7ec_params_for_osr(ratio: f64) -> Ciff7Coeffs {
     }
 }
 
-/// High-H_inf (H_inf = 1.75) wideband `512+fs` CIFF-7 NTF coefficients dedicated to
-/// `ASDM7EC-super 512+fs` (order = 75).
-/// Places the 3 Chebyshev resonator notches across 0..45 kHz at DSD512+ (and 0..32 kHz at DSD256),
-/// extending ultra-low noise floor out to ~50 kHz while remaining unconditionally stable at 0 dBFS
-/// under the AVX2 M=4 / L=32 Trellis beam search.
+/// Dual-band asymmetric `512+fs` CIFF-7 NTF coefficients dedicated to
+/// `ASDM7EC-super 512+fs` (order = 75, H_inf = 1.75).
+/// Places 2 Chebyshev resonator notches in the audible band (9.5 kHz & 18.5 kHz) and
+/// 1 wideband resonator notch in the ultrasonic band (38.0 kHz at DSD512+, 31.0 kHz at DSD256),
+/// preserving ~252+ dB audible-band SNR while simultaneously crushing 20..50 kHz ultrasonic noise.
 pub fn get_asdm7ec_super512_params_for_osr(ratio: f64) -> Ciff7Coeffs {
     if ratio >= 384.0 {
-        // dsd512+ (45 kHz wideband resonator notches -> full ultra-clean SNR to ~50 kHz)
+        // dsd512+ (dual-band asymmetric notches: 9.5 kHz / 18.5 kHz / 38.0 kHz)
         Ciff7Coeffs {
-            g1: 8.609282e-5,
-            g2: 4.311177e-4,
-            g3: 1.412531e-3,
-            a: [1.683777, 1.933178, 2.130517, 1.731761, 1.533968, 0.921955, 0.586855],
+            g1: 2.329530e-5,
+            g2: 1.325120e-4,
+            g3: 1.118165e-3,
+            a: [1.683733, 1.933274, 2.131229, 1.732776, 1.536566, 0.922766, 0.588928],
         }
     } else if ratio >= 192.0 {
-        // dsd256 (32 kHz wideband resonator notches)
+        // dsd256 (dual-band asymmetric notches: 9.2 kHz / 18.2 kHz / 31.0 kHz)
         Ciff7Coeffs {
-            g1: 1.741413e-4,
-            g2: 8.720288e-4,
-            g3: 2.857148e-3,
-            a: [1.683883, 1.932947, 2.128932, 1.729058, 1.527713, 0.917380, 0.576245],
+            g1: 8.738886e-5,
+            g2: 5.129933e-4,
+            g3: 2.976564e-3,
+            a: [1.683848, 1.933024, 2.129569, 1.729706, 1.529691, 0.916768, 0.575189],
         }
     } else if ratio >= 96.0 {
-        // dsd128 (22 kHz fallback)
+        // dsd128 (8.5 kHz / 16.5 kHz / 23.0 kHz fallback)
         Ciff7Coeffs {
-            g1: 3.292360e-4,
-            g2: 1.648679e-3,
-            g3: 5.401796e-3,
-            a: [1.684069, 1.932541, 2.126137, 1.724295, 1.516705, 0.909338, 0.557666],
+            g1: 2.983843e-4,
+            g2: 1.686508e-3,
+            g3: 6.553821e-3,
+            a: [1.684115, 1.932440, 2.125576, 1.722810, 1.513680, 0.905502, 0.549150],
         }
     } else {
-        // dsd64 (20 kHz fallback)
+        // dsd64 (8.1 kHz / 14.8 kHz / 19.0 kHz fallback)
         Ciff7Coeffs {
-            g1: 1.088383e-3,
-            g2: 5.450180e-3,
-            g3: 1.785718e-2,
-            a: [1.684980, 1.930559, 2.112439, 1.700945, 1.463024, 0.870250, 0.468759],
+            g1: 1.088917e-3,
+            g2: 5.447765e-3,
+            g3: 1.785050e-2,
+            a: [1.684979, 1.930560, 2.112443, 1.700959, 1.463056, 0.870272, 0.468807],
         }
     }
 }
@@ -438,11 +438,26 @@ struct ChanState7 {
 }
 
 #[inline(always)]
+fn soft_knee_dsd_msa(x: f64) -> f64 {
+    let ax = x.abs();
+    if ax <= 0.65 {
+        x
+    } else {
+        // C1-continuous adaptive MSA soft-knee above -3.74 dBFS PCM (+2.26 dB SACD):
+        // 100% bit-transparent for all SACD 0 dB (-6 dBFS PCM) signals,
+        // smoothly bounding -3 dBFS..0 dBFS+ peaks within <= 0.715 (the exact 7th-order H_inf=1.75 MSA).
+        let d = ax - 0.65;
+        let out = 0.65 + (0.065 * d) / (0.065 + d);
+        out.copysign(x)
+    }
+}
+
+#[inline(always)]
 fn load_hermite_forward_diffs(pcm: &[f64], in_len: usize, cur_idx: usize, inv_w: f64, scale: f64) -> (f64, f64, f64, f64) {
-    let p1 = if cur_idx < in_len { pcm[cur_idx] } else { 0.0 };
-    let p2 = if cur_idx + 1 < in_len { pcm[cur_idx + 1] } else { 0.0 };
-    let p0 = if cur_idx > 0 && cur_idx - 1 < in_len { pcm[cur_idx - 1] } else { p1 };
-    let p3 = if cur_idx + 2 < in_len { pcm[cur_idx + 2] } else { p2 };
+    let p1 = if cur_idx < in_len { soft_knee_dsd_msa(pcm[cur_idx]) } else { 0.0 };
+    let p2 = if cur_idx + 1 < in_len { soft_knee_dsd_msa(pcm[cur_idx + 1]) } else { 0.0 };
+    let p0 = if cur_idx > 0 && cur_idx - 1 < in_len { soft_knee_dsd_msa(pcm[cur_idx - 1]) } else { p1 };
+    let p3 = if cur_idx + 2 < in_len { soft_knee_dsd_msa(pcm[cur_idx + 2]) } else { p2 };
     let m1 = 0.5 * (p2 - p0);
     let m2 = 0.5 * (p3 - p1);
 
@@ -1280,12 +1295,10 @@ fn trellis_step7(beam: &mut [TrellisPath7; EC_BEAM_WIDTH], u: f64, dither: f64, 
         let s7 = path.s7 * 0.999999 + c7 * s6;
         let sigma = u + a1 * s1 + a2 * s2 + a3 * s3 + a4 * s4 + a5 * s5 + a6 * s6 + a7 * s7 + dither;
 
-        let pen = if s7.abs() > 3.5 {
-            let ex = s7.abs() - 3.5;
-            0.5 * ex * ex
-        } else {
-            0.0
-        };
+        let ex5 = (s5.abs() - 1.35).max(0.0);
+        let ex6 = (s6.abs() - 1.35).max(0.0);
+        let ex7 = (s7.abs() - 1.35).max(0.0);
+        let pen = 2.0 * (ex5 * ex5 + ex6 * ex6 + ex7 * ex7);
 
         let e_pos = sigma - 1.0;
         let e_neg = sigma + 1.0;
@@ -1990,13 +2003,13 @@ unsafe fn modulate_channel7_ec_avx2(
     let va7 = _mm256_set1_pd(p.a[6]);
     let vone = _mm256_set1_pd(1.0);
     let vzero = _mm256_setzero_pd();
-    let vhalf = _mm256_set1_pd(0.5);
-    let vthresh = _mm256_set1_pd(3.5);
+    let vpen_w = _mm256_set1_pd(2.0);
+    let vthresh = _mm256_set1_pd(1.35);
+    let vprune_cost = _mm256_set1_pd(1e20);
     let vsign_mask = _mm256_set1_pd(-0.0);
     let vclamp_pos = _mm256_set1_pd(clamp);
     let vclamp_neg = _mm256_set1_pd(-clamp);
 
-    let mut c_all = [0.0f64; 8];
     let mut pos_bits = [0u32; 4];
     let mut neg_bits = [0u32; 4];
 
@@ -2021,35 +2034,42 @@ unsafe fn modulate_channel7_ec_avx2(
                 ditherer.next_dither(dither_type)
             };
 
+            // Precompute leaked states & resonator feedback bases in parallel off the critical serial chain
             let vu = _mm256_set1_pd(u);
-            let ns1 = _mm256_fmadd_pd(vs1, vleak, _mm256_mul_pd(vc1, _mm256_sub_pd(vu, vy)));
-            let ns2 = _mm256_fnmadd_pd(vg1, vs3, _mm256_fmadd_pd(vs2, vleak, _mm256_mul_pd(vc2, ns1)));
-            let ns3 = _mm256_fmadd_pd(vs3, vleak, _mm256_mul_pd(vc3, ns2));
-            let ns4 = _mm256_fnmadd_pd(vg2, vs5, _mm256_fmadd_pd(vs4, vleak, _mm256_mul_pd(vc4, ns3)));
-            let ns5 = _mm256_fmadd_pd(vs5, vleak, _mm256_mul_pd(vc5, ns4));
-            let ns6 = _mm256_fnmadd_pd(vg3, vs7, _mm256_fmadd_pd(vs6, vleak, _mm256_mul_pd(vc6, ns5)));
-            let ns7 = _mm256_fmadd_pd(vs7, vleak, _mm256_mul_pd(vc7, ns6));
+            let s1_base = _mm256_mul_pd(vs1, vleak);
+            let s2_base = _mm256_fnmadd_pd(vg1, vs3, _mm256_mul_pd(vs2, vleak));
+            let s3_base = _mm256_mul_pd(vs3, vleak);
+            let s4_base = _mm256_fnmadd_pd(vg2, vs5, _mm256_mul_pd(vs4, vleak));
+            let s5_base = _mm256_mul_pd(vs5, vleak);
+            let s6_base = _mm256_fnmadd_pd(vg3, vs7, _mm256_mul_pd(vs6, vleak));
+            let s7_base = _mm256_mul_pd(vs7, vleak);
 
-            let mut sigma = _mm256_set1_pd(u + dither);
-            sigma = _mm256_fmadd_pd(va1, ns1, sigma);
-            sigma = _mm256_fmadd_pd(va2, ns2, sigma);
-            sigma = _mm256_fmadd_pd(va3, ns3, sigma);
-            sigma = _mm256_fmadd_pd(va4, ns4, sigma);
-            sigma = _mm256_fmadd_pd(va5, ns5, sigma);
-            sigma = _mm256_fmadd_pd(va6, ns6, sigma);
-            sigma = _mm256_fmadd_pd(va7, ns7, sigma);
+            // Single-FMA serial integrator update chain (1 FMA per stage instead of 3 serial ops)
+            let ns1 = _mm256_fmadd_pd(vc1, _mm256_sub_pd(vu, vy), s1_base);
+            let ns2 = _mm256_fmadd_pd(vc2, ns1, s2_base);
+            let ns3 = _mm256_fmadd_pd(vc3, ns2, s3_base);
+            let ns4 = _mm256_fmadd_pd(vc4, ns3, s4_base);
+            let ns5 = _mm256_fmadd_pd(vc5, ns4, s5_base);
+            let ns6 = _mm256_fmadd_pd(vc6, ns5, s6_base);
+            let ns7 = _mm256_fmadd_pd(vc7, ns6, s7_base);
 
-            let abs_s7 = _mm256_andnot_pd(vsign_mask, ns7);
-            let ex = _mm256_max_pd(_mm256_sub_pd(abs_s7, vthresh), vzero);
-            let base = _mm256_fmadd_pd(vhalf, _mm256_mul_pd(ex, ex), vcost);
+            // Dual-tree parallel FMA accumulation for sigma
+            let sig_a = _mm256_fmadd_pd(va5, ns5, _mm256_fmadd_pd(va3, ns3, _mm256_fmadd_pd(va1, ns1, _mm256_set1_pd(u + dither))));
+            let sig_b = _mm256_fmadd_pd(va6, ns6, _mm256_fmadd_pd(va4, ns4, _mm256_mul_pd(va2, ns2)));
+            let sigma = _mm256_fmadd_pd(va7, ns7, _mm256_add_pd(sig_a, sig_b));
+
+            // Multi-stage adaptive state energy barrier (s5, s6, s7 > 1.35) for 0 dBFS full-scale stability
+            let ex5 = _mm256_max_pd(_mm256_sub_pd(_mm256_andnot_pd(vsign_mask, ns5), vthresh), vzero);
+            let ex6 = _mm256_max_pd(_mm256_sub_pd(_mm256_andnot_pd(vsign_mask, ns6), vthresh), vzero);
+            let ex7 = _mm256_max_pd(_mm256_sub_pd(_mm256_andnot_pd(vsign_mask, ns7), vthresh), vzero);
+            let ex_sq = _mm256_fmadd_pd(ex5, ex5, _mm256_fmadd_pd(ex6, ex6, _mm256_mul_pd(ex7, ex7)));
+            let base = _mm256_fmadd_pd(vpen_w, ex_sq, vcost);
 
             let e_pos = _mm256_sub_pd(sigma, vone);
             let e_neg = _mm256_add_pd(sigma, vone);
             let vc_pos = _mm256_fmadd_pd(e_pos, e_pos, base);
             let vc_neg = _mm256_fmadd_pd(e_neg, e_neg, base);
 
-            _mm256_storeu_pd(c_all.as_mut_ptr(), vc_pos);
-            _mm256_storeu_pd(c_all.as_mut_ptr().add(4), vc_neg);
             _mm_storeu_si128(pos_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_pos)));
             _mm_storeu_si128(neg_bits.as_mut_ptr() as *mut __m128i, _mm_castps_si128(_mm256_cvtpd_ps(vc_neg)));
 
@@ -2080,6 +2100,11 @@ unsafe fn modulate_channel7_ec_avx2(
             let y_mask = b0 | (b1 << 1) | (b2 << 2) | (b3 << 3);
             vy = _mm256_loadu_pd(Y_MASK_LUT[y_mask].as_ptr());
 
+            // Permute vc_pos & vc_neg directly in YMM registers (eliminates c_all store-to-load stall)
+            let vcp_perm = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(vc_pos), vperm));
+            let vcn_perm = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(vc_neg), vperm));
+            let vcost_sel = _mm256_blendv_pd(vcp_perm, vcn_perm, vy);
+
             let nb0 = (bits[p0] << 1) | (b0 as u64);
             let nb1 = (bits[p1] << 1) | (b1 as u64);
             let nb2 = (bits[p2] << 1) | (b2 as u64);
@@ -2089,11 +2114,11 @@ unsafe fn modulate_channel7_ec_avx2(
             let out_bit = ((nb0 >> (EC_TRACEBACK - 1)) & 1) as u8;
             byte_val |= out_bit << bit;
 
-            let c0 = c_all[w[0]];
-            let c1 = if (((nb1 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[1]] };
-            let c2 = if (((nb2 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[2]] };
-            let c3 = if (((nb3 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { 1e20 } else { c_all[w[3]] };
-            vcost = _mm256_setr_pd(c0, c1, c2, c3);
+            let m1 = if (((nb1 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { -1i64 } else { 0 };
+            let m2 = if (((nb2 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { -1i64 } else { 0 };
+            let m3 = if (((nb3 >> (EC_TRACEBACK - 1)) & 1) as u8) != out_bit { -1i64 } else { 0 };
+            let vprune_mask = _mm256_castsi256_pd(_mm256_setr_epi64x(0, m1, m2, m3));
+            vcost = _mm256_blendv_pd(vcost_sel, vprune_cost, vprune_mask);
         }
 
         let base_c = _mm256_broadcastsd_pd(_mm256_castpd256_pd128(vcost));

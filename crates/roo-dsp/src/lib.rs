@@ -626,20 +626,22 @@ mod tests {
             }
         }
 
-        // -3 dBFS PCM (HQPlayer DSD max headroom / +0.1 dB SACD) stability stress test at DSD512
-        let pcm_headroom: Vec<f64> = (0..in_len)
-            .map(|i| 0.707 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / src_rate).sin())
-            .collect();
-        let mut m_fs = DsdModulator::new(75, "precise-linear", DitherType::Gauss, None);
-        m_fs.set_dsd_rate(22_579_200);
-        let mut out_fs = vec![0u8; 200 * 2 * DSD_BLOCK_SIZE];
-        m_fs.run_blocks(&pcm_headroom, &pcm_headroom, in_len, 0, 200, 1.0 / 64.0, &mut out_fs);
-        let max_fs = [m_fs.s1_l, m_fs.s2_l, m_fs.s3_l, m_fs.s4_l, m_fs.s5_l, m_fs.s6_l, m_fs.s7_l]
-            .iter()
-            .map(|v| v.abs())
-            .fold(0.0f64, f64::max);
-        println!("DSD512 ASDM7EC-super512+fs -3dBFS stress max_state={:.3}", max_fs);
-        assert!(max_fs.is_finite() && max_fs < 4.5, "-3dBFS stress unstable: {}", max_fs);
+        // -3 dBFS PCM (+0.1 dB SACD) and 0 dBFS PCM (0.99 full-scale) stability stress tests at DSD512
+        for &(label, amp_stress) in &[("-3dBFS", 0.707f64), ("0dBFS", 0.99f64)] {
+            let pcm_stress: Vec<f64> = (0..in_len)
+                .map(|i| amp_stress * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / src_rate).sin())
+                .collect();
+            let mut m_fs = DsdModulator::new(75, "precise-linear", DitherType::Gauss, None);
+            m_fs.set_dsd_rate(22_579_200);
+            let mut out_fs = vec![0u8; 200 * 2 * DSD_BLOCK_SIZE];
+            m_fs.run_blocks(&pcm_stress, &pcm_stress, in_len, 0, 200, 1.0 / 64.0, &mut out_fs);
+            let max_fs = [m_fs.s1_l, m_fs.s2_l, m_fs.s3_l, m_fs.s4_l, m_fs.s5_l, m_fs.s6_l, m_fs.s7_l]
+                .iter()
+                .map(|v| v.abs())
+                .fold(0.0f64, f64::max);
+            println!("DSD512 ASDM7EC-super512+fs {} stress max_state={:.3}", label, max_fs);
+            assert!(max_fs.is_finite() && max_fs < 4.5, "{} stress unstable: {}", label, max_fs);
+        }
     }
 
     #[test]
