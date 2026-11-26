@@ -5502,15 +5502,6 @@ body.table-col-resizing * {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
 }
 
-@keyframes squigglyWaveFlow {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-28px);
-  }
-}
-
 .scrubber-bar,
 .now-playing-scrubber {
   flex: 1;
@@ -5532,7 +5523,7 @@ body.table-col-resizing * {
   flex-shrink: 0;
   background: transparent;
   overflow: hidden;
-  transition: width 0.12s linear;
+  transition: width 0.25s linear;
 }
 
 .scrubber-fill::before,
@@ -5542,7 +5533,7 @@ body.table-col-resizing * {
   left: 0;
   top: 50%;
   width: 100%;
-  height: 3px;
+  height: 2.5px;
   transform: translateY(-50%);
   border-radius: 2px;
   background-color: var(--album-accent);
@@ -5553,41 +5544,45 @@ body.is-music-playing .scrubber-fill::before,
 body.is-music-playing .now-playing-scrubber-fill::before {
   top: 0;
   height: 14px;
-  width: calc(100% + 28px);
+  width: 100%;
   transform: none;
   border-radius: 0;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M 0 7 C 7 1.6, 7 1.6, 14 7 C 21 12.4, 21 12.4, 28 7' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M 0 7 C 7 1.6, 7 1.6, 14 7 C 21 12.4, 21 12.4, 28 7' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='14' viewBox='0 0 24 14'%3E%3Cpath d='M 0 7 C 6 4.4, 6 4.4, 12 7 C 18 9.6, 18 9.6, 24 7' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='14' viewBox='0 0 24 14'%3E%3Cpath d='M 0 7 C 6 4.4, 6 4.4, 12 7 C 18 9.6, 18 9.6, 24 7' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
   -webkit-mask-repeat: repeat-x;
   mask-repeat: repeat-x;
-  -webkit-mask-size: 28px 14px;
-  mask-size: 28px 14px;
-  animation: squigglyWaveFlow 1.15s linear infinite;
+  -webkit-mask-size: 24px 14px;
+  mask-size: 24px 14px;
+  -webkit-mask-position: left center;
+  mask-position: left center;
 }
 
 .scrubber-handle,
 .scrubber-pill-thumb {
   position: relative;
-  width: 4px;
-  height: 13px;
-  border-radius: 999px;
+  width: 0;
+  height: 8px;
+  margin: 0;
+  border-radius: 50%;
   background-color: var(--album-accent);
-  margin-left: -1px;
-  margin-right: 3px;
   flex-shrink: 0;
+  opacity: 0;
   box-shadow: 0 0 6px var(--album-accent-glow);
-  transition: transform 0.15s ease, background-color 0.45s ease;
+  transition: opacity 0.15s ease, width 0.15s ease, margin 0.15s ease, background-color 0.45s ease;
 }
 
 .scrubber-bar:hover .scrubber-handle,
 .now-playing-scrubber:hover .scrubber-pill-thumb {
-  transform: scaleY(1.2) scaleX(1.15);
+  width: 8px;
+  margin-left: -3px;
+  opacity: 1;
 }
 
 .scrubber-rest {
   flex: 1;
   min-width: 0;
-  height: 2.5px;
+  height: 2px;
+  margin-left: 4px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.22);
   position: relative;
