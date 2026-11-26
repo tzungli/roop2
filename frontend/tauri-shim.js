@@ -352,6 +352,7 @@
     stopDlna: (deviceId) => invoke('dlna_stop', { deviceId }),
     seekDlna: (deviceId, seconds) => invoke('dlna_seek', { deviceId, seconds }),
     setDlnaVolume: (deviceId, volume) => invoke('dlna_set_volume', { deviceId, volume }),
+    getDlnaVolume: (deviceId) => invoke('dlna_get_volume', { deviceId }),
     onDlnaDevicesChanged: (callback) => listen('dlna:devicesChanged', callback),
     onDlnaProgress: (callback) => listen('dlna:progress', callback),
     onDlnaTrackEnded: (callback) => listen('dlna:trackEnded', callback),

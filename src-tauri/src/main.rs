@@ -330,6 +330,7 @@ async fn main() {
             dlna_stop,
             dlna_seek,
             dlna_set_volume,
+            dlna_get_volume,
             dlna_fake_renderer_actions,
             // Library & Samba commands
             dialog_select_folder,

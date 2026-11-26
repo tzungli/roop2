@@ -40,6 +40,7 @@ pub struct AirPlayManager {
     devices: Arc<RwLock<Vec<AirPlayDevice>>>,
     sessions: Arc<RwLock<HashMap<String, Arc<RaopControlHandle>>>>,
     volumes: Arc<RwLock<HashMap<String, u32>>>,
+    volume_caps: Arc<RwLock<HashMap<String, bool>>>,
 }
 
 impl Default for AirPlayManager {
@@ -54,6 +55,7 @@ impl AirPlayManager {
             devices: Arc::new(RwLock::new(Vec::new())),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             volumes: Arc::new(RwLock::new(HashMap::new())),
+            volume_caps: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -132,10 +134,23 @@ impl AirPlayManager {
             .insert(device_id.to_string(), clamped);
         if let Some(handle) = self.sessions.read().unwrap().get(device_id).cloned() {
             if let Ok(mut rtsp) = handle.rtsp.lock() {
-                let _ = rtsp.set_volume(clamped);
+                if let Ok(supported) = rtsp.set_volume(clamped) {
+                    handle.volume_verified.store(true, Ordering::Release);
+                    handle.volume_supported.store(supported, Ordering::Release);
+                    self.volume_caps
+                        .write()
+                        .unwrap()
+                        .insert(device_id.to_string(), supported);
+                }
             }
         }
         Ok(())
+    }
+
+    pub fn get_volume_status(&self, device_id: &str) -> (Option<bool>, Option<u32>) {
+        let verified = self.volume_caps.read().unwrap().get(device_id).copied();
+        let vol = self.volumes.read().unwrap().get(device_id).copied();
+        (verified, vol)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -284,6 +299,14 @@ impl AirPlayManager {
             on_progress,
             on_ended,
         )?;
+
+        if handle.volume_verified.load(Ordering::Acquire) {
+            let sup = handle.volume_supported.load(Ordering::Acquire);
+            self.volume_caps
+                .write()
+                .unwrap()
+                .insert(device_id.to_string(), sup);
+        }
 
         self.sessions
             .write()

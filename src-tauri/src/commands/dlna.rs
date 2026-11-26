@@ -872,6 +872,41 @@ pub async fn dlna_set_volume(
 }
 
 #[tauri::command]
+pub async fn dlna_get_volume(
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    device_id: String,
+) -> Result<serde_json::Value, String> {
+    if device_id.starts_with("airplay:") {
+        let (verified_opt, vol_opt) = airplay.get_volume_status(&device_id);
+        return Ok(serde_json::json!({
+            "protocol": "airplay",
+            "supported": verified_opt.unwrap_or(true),
+            "verified": verified_opt.is_some(),
+            "syncable": false,
+            "volume": vol_opt
+        }));
+    }
+    match manager.get_volume(&device_id).await {
+        Ok(vol) => Ok(serde_json::json!({
+            "protocol": "dlna",
+            "supported": true,
+            "verified": true,
+            "syncable": true,
+            "volume": vol
+        })),
+        Err(e) => Ok(serde_json::json!({
+            "protocol": "dlna",
+            "supported": false,
+            "verified": true,
+            "syncable": false,
+            "volume": serde_json::Value::Null,
+            "reason": e.to_string()
+        })),
+    }
+}
+
+#[tauri::command]
 pub async fn dlna_fake_renderer_actions() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "ok": true }))
 }

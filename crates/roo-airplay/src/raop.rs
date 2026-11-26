@@ -179,17 +179,17 @@ impl RtspClient {
         Ok((status_code, headers))
     }
 
-    pub fn set_volume(&mut self, pct: u32) -> Result<()> {
+    pub fn set_volume(&mut self, pct: u32) -> Result<bool> {
         let db = volume_pct_to_airplay_db(pct);
         let body = format!("volume: {:.6}\r\n", db);
         let uri = self.rtsp_uri.clone();
-        let _ = self.request(
+        let (status, _) = self.request(
             "SET_PARAMETER",
             &uri,
             &[],
             Some(("text/parameters", body.as_bytes())),
         )?;
-        Ok(())
+        Ok(status < 400)
     }
 
     pub fn set_metadata(&mut self, rtptime: u32, title: &str, artist: &str, album: &str) -> Result<()> {
@@ -249,6 +249,8 @@ pub struct RaopControlHandle {
     pub seek_requested: Arc<AtomicBool>,
     pub current_seq: Arc<AtomicU32>,
     pub current_rtptime: Arc<AtomicU32>,
+    pub volume_verified: Arc<AtomicBool>,
+    pub volume_supported: Arc<AtomicBool>,
 }
 
 /// Start an active RAOP streaming session to `(ip, port)` for the provided 44.1kHz stereo `i16` PCM buffer.
@@ -338,7 +340,10 @@ pub fn start_raop_stream(
     }
 
     // 5. Apply initial volume & track metadata
-    let _ = rtsp.set_volume(initial_volume_pct);
+    let (vol_verified, vol_supported) = match rtsp.set_volume(initial_volume_pct) {
+        Ok(ok) => (true, ok),
+        Err(_) => (false, false),
+    };
     let total_frames = left_i16.len().min(right_i16.len());
     let duration_sec = total_frames as f64 / RAOP_SAMPLE_RATE as f64;
     let _ = rtsp.set_metadata(init_rtptime, &title, &artist, &album);
@@ -350,6 +355,8 @@ pub fn start_raop_stream(
     let seek_requested = Arc::new(AtomicBool::new(false));
     let current_seq = Arc::new(AtomicU32::new(init_seq as u32));
     let current_rtptime = Arc::new(AtomicU32::new(init_rtptime));
+    let volume_verified = Arc::new(AtomicBool::new(vol_verified));
+    let volume_supported = Arc::new(AtomicBool::new(vol_supported));
     let rtsp_arc = Arc::new(Mutex::new(rtsp));
 
     let handle = Arc::new(RaopControlHandle {
@@ -360,6 +367,8 @@ pub fn start_raop_stream(
         seek_requested: seek_requested.clone(),
         current_seq: current_seq.clone(),
         current_rtptime: current_rtptime.clone(),
+        volume_verified: volume_verified.clone(),
+        volume_supported: volume_supported.clone(),
     });
 
     // Shared 256-slot packet history ring for RTP retransmit requests

@@ -394,6 +394,53 @@ impl UpnpController {
         self.soap_action(control_url, &format!("{}#SetVolume", st), &body).await
     }
 
+    pub async fn get_volume(&self, control_url: &str, service_type: &str) -> Result<u32> {
+        if control_url.trim().is_empty() {
+            bail!("RenderingControl URL unavailable");
+        }
+        let st = if service_type.trim().is_empty() {
+            "urn:schemas-upnp-org:service:RenderingControl:1"
+        } else {
+            service_type.trim()
+        };
+
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+            <s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\
+            <s:Body>\
+            <u:GetVolume xmlns:u=\"{}\">\
+            <InstanceID>0</InstanceID>\
+            <Channel>Master</Channel>\
+            </u:GetVolume>\
+            </s:Body>\
+            </s:Envelope>",
+            st
+        );
+
+        let resp = self.client.post(control_url)
+            .header("SOAPAction", format!("\"{}#GetVolume\"", st))
+            .header("Content-Type", "text/xml; charset=\"utf-8\"")
+            .header("User-Agent", "rooPlayer/0.2.2 UPnP/1.0 DLNADOC/1.50")
+            .body(body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_txt = resp.text().await.unwrap_or_default();
+            bail!("GetVolume failed [{}]: {}", status, err_txt);
+        }
+
+        let txt = resp.text().await?;
+        let raw_vol = extract_xml_value(&txt, "CurrentVolume")
+            .ok_or_else(|| anyhow::anyhow!("Missing CurrentVolume in response"))?;
+        let parsed: u32 = raw_vol
+            .trim()
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Invalid CurrentVolume '{}': {}", raw_vol, e))?;
+        Ok(parsed.clamp(0, 100))
+    }
+
     pub async fn get_position_info(&self, control_url: &str, service_type: &str) -> Result<(f64, f64)> {
         let (pos, dur, _) = self.get_position_info_full(control_url, service_type).await?;
         Ok((pos, dur))

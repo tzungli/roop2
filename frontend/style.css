@@ -14263,6 +14263,52 @@ body.table-col-resizing * {
   flex-shrink: 0;
 }
 
+.roon-zone-vol-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.roon-zone-vol-pill.vol-sync {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.roon-zone-vol-pill.vol-fixed {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.26);
+}
+
+.roon-zone-vol-pill.vol-pending {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="light"] .roon-zone-vol-pill.vol-sync {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+[data-theme="light"] .roon-zone-vol-pill.vol-fixed {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
+[data-theme="light"] .roon-zone-vol-pill.vol-pending {
+  color: #64748b;
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
 .roon-zone-track-line {
   display: flex;
   align-items: center;

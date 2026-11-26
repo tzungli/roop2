@@ -429,6 +429,11 @@ impl DlnaManager {
         self.controller.set_volume(&dev.rendering_control_url, &dev.rendering_control_service_type, volume).await
     }
 
+    pub async fn get_volume(&self, device_id: &str) -> Result<u32> {
+        let dev = self.get_device_by_id(device_id)?;
+        self.controller.get_volume(&dev.rendering_control_url, &dev.rendering_control_service_type).await
+    }
+
     fn get_device_by_id(&self, device_id: &str) -> Result<DlnaDevice> {
         let devs = self.devices.read().unwrap();
         devs.iter()

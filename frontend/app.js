@@ -10291,6 +10291,9 @@ async function playCurrentTrack() {
           clearDlnaPrepareUi();
           state.isPlaying = true;
           updatePlayPauseBtnUI();
+          if (typeof probeZoneVolumeCapability === 'function' && state.activeDlnaDevice) {
+            probeZoneVolumeCapability(state.activeDlnaDevice, { applyToActive: false, force: true });
+          }
           const dur = track.duration || 0;
           if (dspOptions && dspOptions.dsdMode) {
             showToast(`⚡ 正在以 1-bit ${dspOptions.dsdMode.toUpperCase()} 串流至 ${state.activeDlnaDevice.name}: ${track.title}`);
@@ -15508,10 +15511,43 @@ scrubberBar.addEventListener('click', (e) => {
 // Line Out：輸出音量鎖定為最大（100%）；鎖定期間音量滑桿與靜音按鈕停用。
 let lastVolume = 1; // 解除靜音時回復的音量（預設最大）
 let lineOutRestoreVolume = null; // 解除 Line Out 時回復的音量
+let lastUserVolumeWriteMs = 0;
+
+function applySyncedVolumeFromDevice(volPct) {
+  if (typeof volPct !== 'number' || !Number.isFinite(volPct)) return;
+  if (state.lineOut) return;
+  if (Date.now() - lastUserVolumeWriteMs < 1500) return;
+
+  const vol100 = Math.max(0, Math.min(100, Math.round(volPct)));
+  const v = vol100 / 100;
+  if (Math.round((state.volume || 0) * 100) === vol100) return;
+
+  if (v > 0) lastVolume = v;
+  state.volume = v;
+  const activeZ = state.activeAudioZone || 'local';
+  if (typeof saveZoneVolume === 'function') saveZoneVolume(activeZ, v);
+  if (state.zones && state.zones[activeZ]) state.zones[activeZ].volume = v;
+
+  const currentVolumeNumber = document.getElementById('currentVolumeNumber');
+  const popoverVolumeNumber = document.getElementById('popoverVolumeNumber');
+  const bottomVolSvg = document.getElementById('bottomVolSvg');
+  const btnVolumeIcon = document.getElementById('btnVolumeIcon');
+
+  if (popoverVolumeNumber) popoverVolumeNumber.textContent = vol100;
+  if (currentVolumeNumber) currentVolumeNumber.textContent = v === 0 ? '0' : vol100;
+  if (volumeSlider) {
+    if (parseFloat(volumeSlider.value) !== v) volumeSlider.value = v;
+    volumeSlider.style.setProperty('--vol-percent', `${vol100}%`);
+  }
+  const isMuted = v === 0;
+  if (btnVolumeIcon) btnVolumeIcon.classList.toggle('muted', isMuted);
+  if (bottomVolSvg) bottomVolSvg.classList.toggle('muted', isMuted);
+}
 
 function applyVolume(v) {
   if (v > 0) lastVolume = v;
   state.volume = v;
+  lastUserVolumeWriteMs = Date.now();
   const activeZ = state.activeAudioZone || 'local';
   if (activeZ === 'local') {
     nativeAudio.volume = v;
@@ -15553,8 +15589,33 @@ function applyVolume(v) {
   if (bottomVolSvg) bottomVolSvg.classList.toggle('muted', isMuted);
 
   if (state.activeAudioZone !== 'local' && state.activeDlnaDevice) {
+    const devId = state.activeDlnaDevice.id;
+    const devProto = state.activeDlnaDevice.protocol || (String(devId).startsWith('airplay:') ? 'airplay' : 'dlna');
     if (window.electronAPI && window.electronAPI.setDlnaVolume) {
-      window.electronAPI.setDlnaVolume(state.activeDlnaDevice.id, state.lineOut ? 100 : vol100);
+      window.electronAPI.setDlnaVolume(devId, state.lineOut ? 100 : vol100)
+        .then(() => {
+          if (devProto === 'airplay' && window.electronAPI.getDlnaVolume) {
+            window.electronAPI.getDlnaVolume(devId).then((cap) => {
+              if (cap && typeof zoneVolumeCaps !== 'undefined') {
+                zoneVolumeCaps.set(devId, { ...cap, checkedAt: Date.now() });
+                if (typeof refreshZoneCardVolumeBadge === 'function') refreshZoneCardVolumeBadge(devId, true);
+              }
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {
+          if (devProto === 'dlna' && typeof zoneVolumeCaps !== 'undefined') {
+            zoneVolumeCaps.set(devId, {
+              protocol: 'dlna',
+              supported: false,
+              verified: true,
+              syncable: false,
+              volume: null,
+              checkedAt: Date.now()
+            });
+            if (typeof refreshZoneCardVolumeBadge === 'function') refreshZoneCardVolumeBadge(devId, false);
+          }
+        });
     }
   }
 }
@@ -20921,10 +20982,109 @@ function setZoneInlineVolume(zoneId, pct) {
   }
 }
 
+const zoneVolumeCaps = new Map();
+const zoneVolumeProbing = new Set();
+let dlnaVolumeSyncTimer = null;
+
+function formatZoneVolumeBadge(zoneId, isAirPlayZone) {
+  if (!zoneId || zoneId === 'local') return null;
+  const cap = zoneVolumeCaps.get(zoneId);
+  if (isAirPlayZone) {
+    if (cap && cap.verified) {
+      return cap.supported
+        ? { text: '🔊 軟體音量', cls: 'vol-sync', title: '已確認支援 AirPlay 軟體音量控制' }
+        : { text: '🔇 固定音量', cls: 'vol-fixed', title: '裝置不支援 AirPlay 音量控制' };
+    }
+    return { text: '🔊 播放時控制', cls: 'vol-pending', title: 'AirPlay 支援播放中軟體音量控制（開播後驗證）' };
+  }
+  if (!cap) {
+    return { text: '⏳ 偵測音量', cls: 'vol-pending', title: '正在探測音量控制支援度...' };
+  }
+  if (cap.supported) {
+    const volSuffix = typeof cap.volume === 'number' ? ` (${cap.volume}%)` : '';
+    return { text: `🔊 音量同步${volSuffix}`, cls: 'vol-sync', title: '支援 UPnP 雙向音量同步' };
+  }
+  return { text: '🔇 固定音量', cls: 'vol-fixed', title: '不支援軟體音量控制（固定電平輸出）' };
+}
+
+function refreshZoneCardVolumeBadge(zoneId, isAirPlayZone) {
+  const card = document.querySelector(`#roonZoneList .roon-zone-card[data-device-id="${CSS.escape(zoneId)}"]`);
+  if (!card) return;
+  const pill = card.querySelector('.roon-zone-vol-pill');
+  if (!pill) return;
+  const meta = formatZoneVolumeBadge(zoneId, isAirPlayZone);
+  if (!meta) return;
+  pill.textContent = meta.text;
+  pill.className = `roon-zone-vol-pill ${meta.cls}`;
+  pill.title = meta.title;
+}
+
+async function probeZoneVolumeCapability(dev, { applyToActive = false, force = false } = {}) {
+  if (!dev || !dev.id || dev.isLocal) return null;
+  if (!window.electronAPI || !window.electronAPI.getDlnaVolume) return null;
+
+  const isAirPlayZone = dev.protocol === 'airplay' || String(dev.id).startsWith('airplay:');
+  const cached = zoneVolumeCaps.get(dev.id);
+  if (!force && cached && (Date.now() - (cached.checkedAt || 0) < 15000)) {
+    if (applyToActive && !isAirPlayZone && cached.supported && typeof cached.volume === 'number') {
+      applySyncedVolumeFromDevice(cached.volume);
+    }
+    return cached;
+  }
+
+  if (zoneVolumeProbing.has(dev.id) && !force) return cached || null;
+  zoneVolumeProbing.add(dev.id);
+
+  try {
+    const res = await window.electronAPI.getDlnaVolume(dev.id);
+    if (res) {
+      const cap = { ...res, checkedAt: Date.now() };
+      zoneVolumeCaps.set(dev.id, cap);
+      refreshZoneCardVolumeBadge(dev.id, isAirPlayZone);
+      if (applyToActive && state.activeAudioZone === dev.id && !isAirPlayZone && cap.supported && typeof cap.volume === 'number') {
+        applySyncedVolumeFromDevice(cap.volume);
+      }
+      return cap;
+    }
+  } catch (_) {}
+  finally {
+    zoneVolumeProbing.delete(dev.id);
+  }
+  return null;
+}
+
+function stopDlnaVolumeSyncLoop() {
+  if (dlnaVolumeSyncTimer) {
+    clearInterval(dlnaVolumeSyncTimer);
+    dlnaVolumeSyncTimer = null;
+  }
+}
+
+function startDlnaVolumeSyncLoop(dev) {
+  stopDlnaVolumeSyncLoop();
+  if (!dev || !dev.id) return;
+  const isAirPlayZone = dev.protocol === 'airplay' || String(dev.id).startsWith('airplay:');
+  if (isAirPlayZone) return;
+
+  dlnaVolumeSyncTimer = setInterval(async () => {
+    if (!state.activeDlnaDevice || state.activeAudioZone !== dev.id) {
+      stopDlnaVolumeSyncLoop();
+      return;
+    }
+    const existing = zoneVolumeCaps.get(dev.id);
+    if (existing && existing.verified && !existing.supported) {
+      stopDlnaVolumeSyncLoop();
+      return;
+    }
+    await probeZoneVolumeCapability(dev, { applyToActive: true, force: true });
+  }, 2500);
+}
+
 function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSelect }) {
   const info = getZoneLiveInfo(zoneId);
   const isAirPlayZone = iconKind === 'airplay' || String(zoneId || '').startsWith('airplay:');
   const dspTag = formatZoneDspSummary(info.dsp, zoneId === 'local', isAirPlayZone);
+  const volBadge = formatZoneVolumeBadge(zoneId, isAirPlayZone);
   const hasTrack = !!info.track;
 
   const card = document.createElement('div');
@@ -20954,6 +21114,7 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
         <div class="roon-zone-title-line">
           <span class="roon-zone-name">${escapeXml(name)}</span>
           <span class="roon-zone-dsp-pill">${escapeXml(dspTag)}</span>
+          ${volBadge ? `<span class="roon-zone-vol-pill ${volBadge.cls}" title="${escapeXml(volBadge.title)}">${escapeXml(volBadge.text)}</span>` : ''}
         </div>
         ${hasTrack ? `
           <div class="roon-zone-track-line">
@@ -21014,6 +21175,7 @@ function renderAudioDevicesList() {
       isActive: isDevActive,
       onSelect: () => switchAudioZone(dev),
     }));
+    probeZoneVolumeCapability(dev, { applyToActive: isDevActive });
   });
 
   // 2. Local System Output row
@@ -21304,6 +21466,7 @@ async function switchAudioZone(target) {
       if (signalOutputDesc) signalOutputDesc.textContent = '輸出至本機預設音訊裝置';
 
       restoreZoneSnapshot('local', null);
+      stopDlnaVolumeSyncLoop();
       renderAudioDevicesList();
       showToast('🔊 已切換控制區域：System Output（其他裝置保持獨立播放）');
     }
@@ -21338,11 +21501,14 @@ async function switchAudioZone(target) {
         }
       }
 
-      const isFirstDlnaVisit = !(state.zones && state.zones[dev.id]);
       restoreZoneSnapshot(dev.id, dev);
-      if (isFirstDlnaVisit && window.electronAPI && window.electronAPI.setDlnaVolume) {
-        const volPct = Math.round((state.lineOut ? 1 : state.volume) * 100);
-        window.electronAPI.setDlnaVolume(dev.id, volPct).catch(() => {});
+      if (isAirPlayDev) {
+        stopDlnaVolumeSyncLoop();
+        probeZoneVolumeCapability(dev, { applyToActive: false, force: true });
+      } else {
+        // Read & sync hardware volume from UPnP renderer instead of overwriting it blindly
+        probeZoneVolumeCapability(dev, { applyToActive: true, force: true });
+        startDlnaVolumeSyncLoop(dev);
       }
       renderAudioDevicesList();
       showToast(`📡 已切換控制區域：${dev.name}（其他裝置保持獨立播放）`);
