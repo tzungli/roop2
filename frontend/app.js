@@ -10847,8 +10847,9 @@ function openAlbumDetail(album) {
 
 function closeAlbumDetail() {
   if (state.historyIndex > 0) {
+    saveCurrentViewScrollPosition();
     state.historyIndex--;
-    applyView(state.history[state.historyIndex], false);
+    applyView(state.history[state.historyIndex], true, { restoreScroll: true });
   } else {
     navigateTo('albums');
   }
@@ -18455,8 +18456,9 @@ function setupNavigation() {
   if (btnNavBack) {
     btnNavBack.addEventListener('click', () => {
       if (state.historyIndex > 0) {
+        saveCurrentViewScrollPosition();
         state.historyIndex--;
-        applyView(state.history[state.historyIndex], false);
+        applyView(state.history[state.historyIndex], true, { restoreScroll: true });
       }
     });
   }
@@ -18465,8 +18467,9 @@ function setupNavigation() {
   if (btnNavForward) {
     btnNavForward.addEventListener('click', () => {
       if (state.historyIndex < state.history.length - 1) {
+        saveCurrentViewScrollPosition();
         state.historyIndex++;
-        applyView(state.history[state.historyIndex], false);
+        applyView(state.history[state.historyIndex], true, { restoreScroll: true });
       }
     });
   }
@@ -18510,15 +18513,36 @@ function updateHistoryNavState() {
   }
 }
 
-function navigateTo(viewId) {
-  if (state.currentView !== viewId) {
-    state.history.push(viewId);
-    state.historyIndex = state.history.length - 1;
+const viewScrollPositions = new Map();
+const historyScrollPositions = [];
+
+function saveCurrentViewScrollPosition() {
+  const mainContentEl = document.getElementById('mainContent');
+  if (!mainContentEl) return;
+  const top = mainContentEl.scrollTop || 0;
+  if (state.currentView) {
+    viewScrollPositions.set(state.currentView, top);
   }
-  applyView(viewId, true);
+  if (typeof state.historyIndex === 'number' && state.historyIndex >= 0) {
+    historyScrollPositions[state.historyIndex] = top;
+  }
 }
 
-function applyView(viewId, updateNav = true) {
+function navigateTo(viewId) {
+  if (state.currentView !== viewId) {
+    saveCurrentViewScrollPosition();
+    if (state.historyIndex < state.history.length - 1) {
+      state.history = state.history.slice(0, state.historyIndex + 1);
+      historyScrollPositions.length = state.history.length;
+    }
+    state.history.push(viewId);
+    state.historyIndex = state.history.length - 1;
+    historyScrollPositions[state.historyIndex] = 0;
+  }
+  applyView(viewId, true, { restoreScroll: false });
+}
+
+function applyView(viewId, updateNav = true, options = {}) {
   state.currentView = viewId;
   document.querySelectorAll('.content-view').forEach(view => {
     view.classList.remove('active');
@@ -18536,9 +18560,30 @@ function applyView(viewId, updateNav = true) {
   renderViewIfNeeded(viewId);
 
   if (updateNav) {
-    document.querySelectorAll('.nav-item').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-view') === viewId);
-    });
+    const hasMatchingNav = Boolean(document.querySelector(`.nav-item[data-view="${viewId}"]`));
+    if (hasMatchingNav) {
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-view') === viewId);
+      });
+    }
+  }
+
+  const mainContentEl = document.getElementById('mainContent');
+  if (mainContentEl) {
+    if (options && options.restoreScroll) {
+      const savedByHistory = historyScrollPositions[state.historyIndex];
+      const savedTop = (typeof savedByHistory === 'number')
+        ? savedByHistory
+        : (viewScrollPositions.get(viewId) || 0);
+      mainContentEl.scrollTop = savedTop;
+      requestAnimationFrame(() => {
+        if (state.currentView === viewId) {
+          mainContentEl.scrollTop = savedTop;
+        }
+      });
+    } else if (viewId === 'albumDetail') {
+      mainContentEl.scrollTop = 0;
+    }
   }
 
   updateHistoryNavState();
