@@ -639,6 +639,7 @@
     [/^資料來源：MusicBrainz 專輯典藏註記 \((.+?)\)$/, 'Source: MusicBrainz Annotation'],
     [/^資料來源：維基百科專輯資料庫 \(MusicBrainz 精準關聯\) \((.+?)\)$/, 'Source: Wikipedia (via MusicBrainz)'],
     [/^資料來源：唱片官方專輯簡介 \((.+?)\)$/, 'Source: Official Album Notes'],
+    [/^資料來源：豆瓣音樂專輯簡介 \((.+?)\)$/, 'Source: Douban Music Album Notes'],
     [/^資料來源：百度百科專輯資料庫 \((.+?)\)$/, 'Source: Baidu Baike Album Database'],
     [/^資料來源：TheAudioDB 專輯資料庫 \((.+?)\)$/, 'Source: TheAudioDB Album Database'],
     [/^資料來源：維基百科專輯資料庫 \((.+?)\)$/, 'Source: Wikipedia Album Database'],

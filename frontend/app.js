@@ -6250,38 +6250,55 @@ let currentArtistBioState = {
   isShowingOriginal: false
 };
 
-async function translateTextToZhTw(text) {
+async function translateTextToZhTw(text, sourceLang = 'auto') {
   if (!text || !text.trim()) return '';
   try {
-    if (window.electronAPI && window.electronAPI.translateToZhTw) {
+    if (sourceLang === 'auto' && window.electronAPI && window.electronAPI.translateToZhTw) {
       const translated = await window.electronAPI.translateToZhTw(text);
       if (translated) return translated;
     }
 
+    const sl = sourceLang || 'auto';
     const translateChunk = async (chunk) => {
       const trimmed = chunk.trim();
       if (!trimmed) return '';
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-TW&dt=t&q=${encodeURIComponent(trimmed)}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data[0] && Array.isArray(data[0])) {
-          return data[0].map(s => (s && s[0]) ? s[0] : '').join('').trim();
-        }
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=zh-TW&dt=t&q=${encodeURIComponent(trimmed)}`;
+      let data = null;
+      if (typeof nativeFetchJson === 'function') {
+        data = await nativeFetchJson(url, {}, 8000);
+      }
+      if (!data) {
+        const res = await fetch(url);
+        if (res.ok) data = await res.json();
+      }
+      if (data && data[0] && Array.isArray(data[0])) {
+        return data[0].map(s => (s && s[0]) ? s[0] : '').join('').trim();
       }
       return trimmed;
     };
 
-    if (text.includes('\n\n')) {
-      const paragraphs = text.split('\n\n').filter(p => p.trim());
-      const results = [];
-      for (const p of paragraphs) {
-        results.push(await translateChunk(p));
+    const rawParagraphs = text.replace(/\r\n/g, '\n').split(/\n{2,}/).filter(p => p.trim());
+    const results = [];
+    for (const para of rawParagraphs) {
+      if (para.length <= 1200) {
+        results.push(await translateChunk(para));
+      } else {
+        const lines = para.split('\n').filter(l => l.trim());
+        const lineResults = [];
+        let buf = '';
+        for (const line of lines) {
+          if ((buf.length + line.length + 1) > 1200 && buf) {
+            lineResults.push(await translateChunk(buf));
+            buf = line;
+          } else {
+            buf = buf ? `${buf}\n${line}` : line;
+          }
+        }
+        if (buf) lineResults.push(await translateChunk(buf));
+        results.push(lineResults.join('\n'));
       }
-      return results.join('\n\n');
     }
-
-    return await translateChunk(text);
+    if (results.length > 0) return results.join('\n\n');
   } catch (err) {
     console.warn('Translate to zh-TW error:', err);
   }
@@ -7700,6 +7717,7 @@ async function resolveAlbumReviewData(album) {
   let rawBioText = '';
   let isFromEnWiki = false;
   let sourceLabel = '';
+  let sourceLang = 'auto';
 
   // 1. TIDAL / TiVo Professional Album Review (strongest for Western / Jazz / Classical)
   if (!rawBioText && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getAlbumReview === 'function') {
@@ -7798,8 +7816,82 @@ async function resolveAlbumReviewData(album) {
         if (desc.length >= 35) {
           rawBioText = desc;
           isFromEnWiki = !/[\u4e00-\u9fff]/.test(desc);
+          sourceLang = /[\u4e00-\u9fff]/.test(desc) ? 'zh-CN' : 'auto';
           sourceLabel = '唱片官方專輯簡介';
           break;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2.5 Douban Music Official Album Notes (Simplified Chinese query + strict music target + zh-CN -> zh-TW)
+  if (!rawBioText && hasCjk) {
+    try {
+      const doubanHeaders = {
+        'Referer': 'https://m.douban.com/search/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+      };
+      const dbQueries = Array.from(new Set([
+        cleanArtistCn ? `${cleanTitleCn} ${cleanArtistCn}` : '',
+        cleanTitleCn,
+        cleanTitle
+      ].filter(Boolean)));
+      const albumYearStr = album.year ? String(album.year).slice(0, 4) : '';
+      let matchedDouban = null;
+
+      for (const dq of dbQueries) {
+        const searchUrl = `https://m.douban.com/rexxar/api/v2/search?q=${encodeURIComponent(dq)}&type=music&count=6`;
+        const sData = await nativeFetchJson(searchUrl, doubanHeaders, 8000);
+        const items = (sData?.subjects?.items || []).filter(it => it && it.target_type === 'music' && it.target && it.target.id);
+        const exactArtistHit = items.find(it =>
+          albumTitleMatches(it.target.title, cleanTitle, cleanTitleCn) &&
+          artistNameMatches(it.target.card_subtitle || '', cleanArtist, cleanArtistCn)
+        );
+        if (exactArtistHit) {
+          matchedDouban = exactArtistHit.target;
+          break;
+        }
+        const artistIsLatinOrEmpty = !cleanArtist || !/[\u4e00-\u9fff]/.test(cleanArtist);
+        if (artistIsLatinOrEmpty) {
+          const titleOnlyHit = items.find(it => {
+            const tNorm = normalizeAlbumMatch(it.target.title);
+            const titleExact = tNorm === normalizeAlbumMatch(cleanTitle) || tNorm === normalizeAlbumMatch(cleanTitleCn);
+            if (!titleExact) return false;
+            return !albumYearStr || String(it.target.card_subtitle || '').includes(albumYearStr);
+          }) || items.find(it => {
+            const tNorm = normalizeAlbumMatch(it.target.title);
+            return tNorm === normalizeAlbumMatch(cleanTitle) || tNorm === normalizeAlbumMatch(cleanTitleCn);
+          });
+          if (titleOnlyHit) {
+            matchedDouban = titleOnlyHit.target;
+            break;
+          }
+        }
+      }
+
+      if (matchedDouban && matchedDouban.id) {
+        const dd = await nativeFetchJson(
+          `https://m.douban.com/rexxar/api/v2/music/${matchedDouban.id}`,
+          { ...doubanHeaders, 'Referer': `https://m.douban.com/music/subject/${matchedDouban.id}/` },
+          8000
+        );
+        if (dd) {
+          if (Array.isArray(dd.pubdate) && dd.pubdate[0] && !onlineMeta.releaseDate) {
+            onlineMeta.releaseDate = String(dd.pubdate[0]).trim();
+          }
+          if (Array.isArray(dd.publishers) && dd.publishers[0] && !onlineMeta.label) {
+            onlineMeta.label = String(dd.publishers[0]).trim();
+          }
+          if (Array.isArray(dd.genres) && dd.genres.length > 0) {
+            mergeOnlineMetaTags(onlineMeta, dd.genres);
+          }
+          const introClean = trimReviewLength(String(dd.intro || '').replace(/\uFFFD/g, ''), 2400);
+          if (introClean.length >= 35) {
+            rawBioText = introClean;
+            isFromEnWiki = !/[\u4e00-\u9fff]/.test(introClean);
+            sourceLang = /[\u4e00-\u9fff]/.test(introClean) ? 'zh-CN' : 'auto';
+            sourceLabel = '豆瓣音樂專輯簡介';
+          }
         }
       }
     } catch (_) {}
@@ -7929,23 +8021,36 @@ async function resolveAlbumReviewData(album) {
     }
   }
 
-  // 5. Baidu Baike OpenAPI (Mandarin / Asian fallback with strict album-entity validation)
+  // 5. Baidu Baike OpenAPI (Mandarin / Asian fallback with T/S Chinese query + strict album-entity validation)
   if (!rawBioText && hasCjk) {
     try {
-      const bkKey = cleanTitleCn || cleanTitle;
-      const baikeUrl = `https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=${encodeURIComponent(bkKey)}&bk_length=800`;
-      const bd = await nativeFetchJson(baikeUrl, {}, 7500);
-      if (bd && bd.abstract) {
+      const bkKeys = Array.from(new Set([cleanTitleCn, cleanTitle].filter(Boolean)));
+      for (const bkKey of bkKeys) {
+        const baikeUrl = `https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=${encodeURIComponent(bkKey)}&bk_length=800`;
+        const bd = await nativeFetchJson(baikeUrl, {}, 7500);
+        if (!bd || !bd.abstract) continue;
         const combined = `${bd.desc || ''} ${bd.abstract || ''}`;
         const isAlbumEntity = /(专辑|唱片|大碟|单曲|原声|精选|录音室)/.test(combined);
         const artistOk = artistNameMatches(combined, cleanArtist, cleanArtistCn)
           || (!/[\u4e00-\u9fff]/.test(cleanArtist) && /(发行专辑|音乐专辑)/.test(bd.desc || ''));
         if (isAlbumEntity && artistOk) {
+          if (Array.isArray(bd.card)) {
+            for (const item of bd.card) {
+              const k = String(item.name || '');
+              const val = Array.isArray(item.value) ? stripHtmlToPlainText(item.value.join('、')) : '';
+              if (!val) continue;
+              if (/发行时间|发行日期/.test(k) && !onlineMeta.releaseDate) onlineMeta.releaseDate = val;
+              else if (/发行公司|唱片公司|出版公司/.test(k) && !onlineMeta.label) onlineMeta.label = val;
+              else if (/音乐风格|专辑风格|曲风/.test(k)) mergeOnlineMetaTags(onlineMeta, val.split(/[、,，\/]/));
+            }
+          }
           const cleaned = stripHtmlToPlainText(bd.abstract);
           if (cleaned.length >= 45) {
             rawBioText = cleaned;
             isFromEnWiki = false;
+            sourceLang = 'zh-CN';
             sourceLabel = '百度百科專輯資料庫';
+            break;
           }
         }
       }
@@ -8078,7 +8183,7 @@ async function resolveAlbumReviewData(album) {
 
   let translatedBioText = rawBioText;
   try {
-    translatedBioText = await translateTextToZhTw(rawBioText);
+    translatedBioText = await translateTextToZhTw(rawBioText, sourceLang);
   } catch (_) {
     translatedBioText = rawBioText;
   }
