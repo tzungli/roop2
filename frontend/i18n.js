@@ -363,6 +363,7 @@
     '不支援軟體音量控制（固定電平輸出）': 'Software volume control unsupported (fixed-level output)',
     '已確認支援 AirPlay 軟體音量控制': 'AirPlay software volume control verified',
     '裝置不支援 AirPlay 音量控制': 'Device does not support AirPlay volume control',
+    '裝置不支援 AirPlay 音量控制（固定音量）': 'Device does not support AirPlay volume control (fixed volume)',
     'AirPlay 支援播放中軟體音量控制（開播後驗證）': 'AirPlay supports volume control during playback (verified on play)',
     '正在探測音量控制支援度...': 'Probing volume control support...',
 
@@ -607,6 +608,7 @@
     [/^已加入 (\d+) 首曲目$/, '$1 tracks added'],
     [/^(\d+) 首已加入$/, '$1 tracks added'],
     [/^🔊 音量同步 \((\d+)%\)$/, '🔊 Volume Sync ($1%)'],
+    [/^支援 UPnP 雙向音量同步 \((\d+)%\)$/, 'Supports UPnP two-way volume sync ($1%)'],
     [/^找到 (\d+) 筆$/, 'Found $1 results'],
     [/^(\d+) 筆相符$/, '$1 matches'],
     [/^(\d+) 筆結果$/, '$1 results'],

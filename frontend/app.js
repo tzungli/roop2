@@ -21274,25 +21274,32 @@ const zoneVolumeCaps = new Map();
 const zoneVolumeProbing = new Set();
 let dlnaVolumeSyncTimer = null;
 
+const ZONE_VOL_ICONS = {
+  sync: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`,
+  fixed: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="10 6 5.5 9.5 2 9.5 2 14.5 5.5 14.5 10 18 10 6"/><rect x="14" y="11" width="8" height="6" rx="1.5"/><path d="M16 11V9a2 2 0 0 1 4 0v2"/></svg>`,
+  onPlay: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="10 6 5.5 9.5 2 9.5 2 14.5 5.5 14.5 10 18 10 6"/><polygon points="15 8.5 21.5 12 15 15.5 15 8.5" fill="currentColor" stroke="none"/></svg>`,
+  probing: `<svg class="vol-spin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`
+};
+
 function formatZoneVolumeBadge(zoneId, isAirPlayZone) {
   if (!zoneId || zoneId === 'local') return null;
   const cap = zoneVolumeCaps.get(zoneId);
   if (isAirPlayZone) {
     if (cap && cap.verified) {
       return cap.supported
-        ? { text: '🔊 軟體音量', cls: 'vol-sync', title: '已確認支援 AirPlay 軟體音量控制' }
-        : { text: '🔇 固定音量', cls: 'vol-fixed', title: '裝置不支援 AirPlay 音量控制' };
+        ? { svg: ZONE_VOL_ICONS.sync, cls: 'vol-sync', title: '已確認支援 AirPlay 軟體音量控制' }
+        : { svg: ZONE_VOL_ICONS.fixed, cls: 'vol-fixed', title: '裝置不支援 AirPlay 音量控制（固定音量）' };
     }
-    return { text: '🔊 播放時控制', cls: 'vol-pending', title: 'AirPlay 支援播放中軟體音量控制（開播後驗證）' };
+    return { svg: ZONE_VOL_ICONS.onPlay, cls: 'vol-pending', title: 'AirPlay 支援播放中軟體音量控制（開播後驗證）' };
   }
   if (!cap) {
-    return { text: '⏳ 偵測音量', cls: 'vol-pending', title: '正在探測音量控制支援度...' };
+    return { svg: ZONE_VOL_ICONS.probing, cls: 'vol-pending', title: '正在探測音量控制支援度...' };
   }
   if (cap.supported) {
     const volSuffix = typeof cap.volume === 'number' ? ` (${cap.volume}%)` : '';
-    return { text: `🔊 音量同步${volSuffix}`, cls: 'vol-sync', title: '支援 UPnP 雙向音量同步' };
+    return { svg: ZONE_VOL_ICONS.sync, cls: 'vol-sync', title: `支援 UPnP 雙向音量同步${volSuffix}` };
   }
-  return { text: '🔇 固定音量', cls: 'vol-fixed', title: '不支援軟體音量控制（固定電平輸出）' };
+  return { svg: ZONE_VOL_ICONS.fixed, cls: 'vol-fixed', title: '不支援軟體音量控制（固定電平輸出）' };
 }
 
 function refreshZoneCardVolumeBadge(zoneId, isAirPlayZone) {
@@ -21302,9 +21309,10 @@ function refreshZoneCardVolumeBadge(zoneId, isAirPlayZone) {
   if (!pill) return;
   const meta = formatZoneVolumeBadge(zoneId, isAirPlayZone);
   if (!meta) return;
-  pill.textContent = meta.text;
+  pill.innerHTML = meta.svg;
   pill.className = `roon-zone-vol-pill ${meta.cls}`;
   pill.title = meta.title;
+  pill.setAttribute('aria-label', meta.title);
 }
 
 async function probeZoneVolumeCapability(dev, { applyToActive = false, force = false } = {}) {
@@ -21402,7 +21410,7 @@ function buildZoneCardElement({ zoneId, name, iconKind, tooltip, isActive, onSel
         <div class="roon-zone-title-line">
           <span class="roon-zone-name">${escapeXml(name)}</span>
           <span class="roon-zone-dsp-pill">${escapeXml(dspTag)}</span>
-          ${volBadge ? `<span class="roon-zone-vol-pill ${volBadge.cls}" title="${escapeXml(volBadge.title)}">${escapeXml(volBadge.text)}</span>` : ''}
+          ${volBadge ? `<span class="roon-zone-vol-pill ${volBadge.cls}" title="${escapeXml(volBadge.title)}" aria-label="${escapeXml(volBadge.title)}">${volBadge.svg}</span>` : ''}
         </div>
         ${hasTrack ? `
           <div class="roon-zone-track-line">
