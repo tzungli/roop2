@@ -2275,8 +2275,12 @@ function rebuildLibraryCollections() {
       }
     }
 
+    // Preserve original file tag before canonicalization so future rule improvements never lose it
+    if (t.genre && !t.rawGenre) {
+      t.rawGenre = t.genre;
+    }
     // Canonicalize track genre
-    t.genre = canonicalizeGenre(t.genre, t);
+    t.genre = canonicalizeGenre(t.rawGenre || t.genre, t);
 
     // Albums grouping
     const albumKey = t.isTidal 
@@ -2370,7 +2374,23 @@ function rebuildLibraryCollections() {
       const childWithCover = alb.tracks.find(tr => tr.cover);
       if (childWithCover) alb.cover = formatCoverSrc(childWithCover.cover);
     }
-    alb.genre = canonicalizeGenre(alb.genre, alb);
+    // Majority vote across all tracks in the album (prevents a single mis-tagged track 1 from hijacking the album)
+    const genreVotes = new Map();
+    for (const tr of alb.tracks) {
+      if (tr && tr.genre) {
+        genreVotes.set(tr.genre, (genreVotes.get(tr.genre) || 0) + 1);
+      }
+    }
+    let majorityGenre = alb.genre;
+    let bestCount = -1;
+    for (const [gName, cnt] of genreVotes.entries()) {
+      if (cnt > bestCount) {
+        bestCount = cnt;
+        majorityGenre = gName;
+      }
+    }
+    alb.genre = canonicalizeGenre(majorityGenre, { album: alb.title, artist: alb.artist, title: alb.title });
+    alb.tracks.forEach(tr => { tr.genre = alb.genre; });
     genreSet.add(alb.genre);
     alb.tracks.sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0));
   });
