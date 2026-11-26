@@ -263,6 +263,22 @@
       </svg>`
     },
     {
+      id: 'dynaudio_music',
+      label: 'Dynaudio Music 7',
+      match: /\b(dynaudio|music\s*[1357])\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="7,9 35.5,7.5 41.5,14.5 38,24 5.5,24 2.5,15.5" fill="currentColor" fill-opacity="0.06"/>
+        <polyline points="7,9 14.5,15.5 5.5,24" stroke-width="0.85" opacity="0.55"/>
+        <polyline points="35.5,7.5 30,15.5 38,24" stroke-width="0.85" opacity="0.55"/>
+        <line x1="14.5" y1="15.5" x2="30" y2="15.5" stroke-width="0.85" opacity="0.45"/>
+        <line x1="9.5" y1="8.8" x2="33" y2="7.7" stroke-width="1.65"/>
+        <circle cx="19" cy="11.8" r="0.65" fill="currentColor" stroke="none" opacity="0.75"/>
+        <circle cx="22" cy="11.7" r="0.65" fill="currentColor" stroke="none" opacity="0.75"/>
+        <circle cx="25" cy="11.6" r="0.65" fill="currentColor" stroke="none" opacity="0.75"/>
+        <line x1="10" y1="25.5" x2="34" y2="25.5" stroke-width="1.1" opacity="0.5"/>
+      </svg>`
+    },
+    {
       id: 'sonos_era',
       label: 'Sonos Wireless Speaker',
       match: /\b(sonos|era\s*100|era\s*300|play:\d|sonos\s*(?:one|five|arc|beam|port|amp))\b/i,
