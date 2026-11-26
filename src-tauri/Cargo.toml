@@ -21,6 +21,7 @@ urlencoding = "2.1"
 rfd = "0.14"
 open = "5.3"
 dirs = "5.0"
+sha2 = "0.10"
 
 roo-dsp = { path = "../crates/roo-dsp" }
 roo-decoder = { path = "../crates/roo-decoder" }

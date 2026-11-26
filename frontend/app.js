@@ -24470,6 +24470,171 @@ function updateTidalUIStatus() {
   else if (mq.addListener) mq.addListener(onViewportChange);
 })();
 
+// ================= Auto-Updater (GitHub Releases + SHA-256 Verification) =================
+(function initAutoUpdater() {
+  const SKIPPED_VER_KEY = 'rooplayer_skipped_update_ver';
+  const btnCheck = document.getElementById('btnCheckUpdates');
+  const statusEl = document.getElementById('aboutUpdateStatus');
+  const modal = document.getElementById('updateAvailableModal');
+  const curVerEl = document.getElementById('updateCurrentVerLabel');
+  const latestVerEl = document.getElementById('updateLatestVerLabel');
+  const sizeEl = document.getElementById('updateAssetSizeLabel');
+  const notesEl = document.getElementById('updateReleaseNotes');
+  const progWrap = document.getElementById('updateProgressWrap');
+  const progFill = document.getElementById('updateProgressFill');
+  const progLabel = document.getElementById('updateProgressLabel');
+  const btnClose = document.getElementById('btnCloseUpdateModal');
+  const btnLater = document.getElementById('btnUpdateLater');
+  const btnSkip = document.getElementById('btnUpdateSkipVersion');
+  const btnGithub = document.getElementById('btnUpdateOpenGithub');
+  const btnInstall = document.getElementById('btnUpdateInstallNow');
+
+  let latestUpdateInfo = null;
+  let isChecking = false;
+  let isDownloading = false;
+
+  const formatMb = (bytes) => {
+    const n = Number(bytes) || 0;
+    return n > 0 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : '';
+  };
+
+  function closeModal() {
+    if (isDownloading) return;
+    if (modal) modal.style.display = 'none';
+  }
+
+  function openUpdateModal(info) {
+    if (!modal || !info) return;
+    latestUpdateInfo = info;
+    if (curVerEl) curVerEl.textContent = `v${info.currentVersion}`;
+    if (latestVerEl) latestVerEl.textContent = `v${info.latestVersion}`;
+    if (sizeEl) sizeEl.textContent = info.assetSize ? `(${formatMb(info.assetSize)})` : '';
+    if (notesEl) notesEl.textContent = (info.releaseNotes || '').trim() || `新版本 v${info.latestVersion} 已發佈，包含最新功能與錯誤修正。`;
+    if (progWrap) progWrap.style.display = 'none';
+    if (progFill) progFill.style.width = '0%';
+    if (btnInstall) {
+      btnInstall.disabled = !info.assetUrl;
+      btnInstall.style.display = info.assetUrl ? 'inline-flex' : 'none';
+    }
+    if (btnLater) btnLater.disabled = false;
+    if (btnSkip) btnSkip.disabled = false;
+    modal.style.display = 'flex';
+  }
+
+  async function runUpdateCheck(manual = false) {
+    if (isChecking || !window.electronAPI || typeof window.electronAPI.checkForUpdates !== 'function') return;
+    isChecking = true;
+    if (manual) {
+      if (btnCheck) btnCheck.disabled = true;
+      if (statusEl) statusEl.textContent = '正在檢查更新...';
+    }
+    try {
+      const info = await window.electronAPI.checkForUpdates();
+      if (!info) return;
+
+      if (info.isStoreManaged) {
+        if (btnCheck) btnCheck.style.display = 'none';
+        if (statusEl) statusEl.textContent = '由 Microsoft Store 自動管理更新';
+        return;
+      }
+
+      if (info.updateAvailable) {
+        if (statusEl) statusEl.textContent = `發現新版本 v${info.latestVersion}`;
+        let skipped = '';
+        try { skipped = localStorage.getItem(SKIPPED_VER_KEY) || ''; } catch (_) {}
+        if (manual || skipped !== info.latestVersion) {
+          openUpdateModal(info);
+        }
+      } else {
+        if (statusEl) statusEl.textContent = `目前已是最新版本 (v${info.currentVersion})`;
+        if (manual) showToast(`✅ 目前已是最新版本 (v${info.currentVersion})`);
+      }
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : String(err || '檢查更新失敗');
+      if (statusEl) statusEl.textContent = '';
+      if (manual) showToast(`❌ 檢查更新失敗：${msg}`);
+    } finally {
+      isChecking = false;
+      if (btnCheck) btnCheck.disabled = false;
+    }
+  }
+
+  if (btnCheck) {
+    btnCheck.addEventListener('click', () => runUpdateCheck(true));
+  }
+  if (btnClose) btnClose.addEventListener('click', closeModal);
+  if (btnLater) btnLater.addEventListener('click', closeModal);
+  if (btnSkip) {
+    btnSkip.addEventListener('click', () => {
+      if (latestUpdateInfo && latestUpdateInfo.latestVersion) {
+        try { localStorage.setItem(SKIPPED_VER_KEY, latestUpdateInfo.latestVersion); } catch (_) {}
+      }
+      closeModal();
+    });
+  }
+  if (btnGithub) {
+    btnGithub.addEventListener('click', () => {
+      const url = (latestUpdateInfo && latestUpdateInfo.releaseUrl) || 'https://github.com/tzungli/roop2/releases/latest';
+      if (window.electronAPI && window.electronAPI.openExternal) {
+        window.electronAPI.openExternal(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    });
+  }
+
+  if (window.electronAPI && typeof window.electronAPI.onUpdateProgress === 'function') {
+    window.electronAPI.onUpdateProgress((p) => {
+      if (!p || !progWrap) return;
+      progWrap.style.display = 'flex';
+      const pct = Math.max(0, Math.min(100, Number(p.percent) || 0));
+      if (progFill) progFill.style.width = `${pct}%`;
+      if (progLabel) {
+        if (p.stage === 'verifying') {
+          progLabel.textContent = '正在驗證 SHA-256 校驗碼...';
+        } else if (p.stage === 'launching') {
+          progLabel.textContent = '驗證通過，正在啟動安裝程式...';
+        } else {
+          const dlTxt = p.total > 0 ? `${formatMb(p.downloaded)} / ${formatMb(p.total)}` : formatMb(p.downloaded);
+          progLabel.textContent = `下載中 ${pct}%${dlTxt ? ` (${dlTxt})` : ''}`;
+        }
+      }
+    });
+  }
+
+  if (btnInstall) {
+    btnInstall.addEventListener('click', async () => {
+      if (isDownloading || !latestUpdateInfo || !latestUpdateInfo.assetUrl) return;
+      isDownloading = true;
+      btnInstall.disabled = true;
+      if (btnLater) btnLater.disabled = true;
+      if (btnSkip) btnSkip.disabled = true;
+      if (progWrap) progWrap.style.display = 'flex';
+      if (progFill) progFill.style.width = '2%';
+      if (progLabel) progLabel.textContent = '準備下載更新...';
+
+      try {
+        await window.electronAPI.downloadAndInstallUpdate({
+          assetUrl: latestUpdateInfo.assetUrl,
+          assetName: latestUpdateInfo.assetName || 'rooPlayer-setup.exe',
+          checksumsUrl: latestUpdateInfo.checksumsUrl || null
+        });
+      } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err || '下載失敗');
+        showToast(`❌ 更新失敗：${msg}`);
+        if (progLabel) progLabel.textContent = `更新失敗：${msg}`;
+        isDownloading = false;
+        btnInstall.disabled = false;
+        if (btnLater) btnLater.disabled = false;
+        if (btnSkip) btnSkip.disabled = false;
+      }
+    });
+  }
+
+  // Silent non-blocking check 4.5s after launch
+  setTimeout(() => runUpdateCheck(false), 4500);
+})();
+
 // Start application
 if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', initApp);

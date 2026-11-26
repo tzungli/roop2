@@ -2014,6 +2014,10 @@
                 </div>
               </div>
             </div>
+            <div class="about-update-box" id="aboutUpdateBox">
+              <button type="button" class="btn btn-sm btn-secondary" id="btnCheckUpdates">🔄 檢查更新</button>
+              <span class="about-update-status" id="aboutUpdateStatus"></span>
+            </div>
           </div>
 
           <!-- Quick Navigation Tabs / Index -->
@@ -3559,6 +3563,39 @@
             </svg>
             <span id="npBottomZoneName">System Output</span>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-Update Available Modal (GitHub Releases + SHA-256) -->
+  <div id="updateAvailableModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content update-modal-card">
+      <div class="update-modal-header">
+        <div>
+          <h3 class="update-modal-title">✨ 發現新版本 rooPlayer</h3>
+          <div class="update-version-row">
+            <span class="update-ver-pill old" id="updateCurrentVerLabel">v0.2.3</span>
+            <span class="update-ver-arrow">➔</span>
+            <span class="update-ver-pill new" id="updateLatestVerLabel">v0.2.4</span>
+            <span class="update-size-label" id="updateAssetSizeLabel"></span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseUpdateModal" title="關閉">✕</button>
+      </div>
+      <div class="update-notes-box" id="updateReleaseNotes"></div>
+      <div class="update-progress-wrap" id="updateProgressWrap" style="display: none;">
+        <div class="update-progress-bar">
+          <div class="update-progress-fill" id="updateProgressFill" style="width: 0%;"></div>
+        </div>
+        <div class="update-progress-label" id="updateProgressLabel">準備下載更新...</div>
+      </div>
+      <div class="update-modal-actions">
+        <button type="button" class="btn btn-sm btn-secondary" id="btnUpdateSkipVersion">略過此版本</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button type="button" class="btn btn-sm btn-secondary" id="btnUpdateOpenGithub">前往 GitHub</button>
+          <button type="button" class="btn btn-sm btn-secondary" id="btnUpdateLater">稍後再說</button>
+          <button type="button" class="btn btn-sm btn-primary" id="btnUpdateInstallNow">立即下載並安裝</button>
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ use commands::exclusive::*;
 use commands::http::*;
 use commands::library::*;
 use commands::tidal::*;
+use commands::updater::*;
 use commands::window::*;
 
 use roo_dlna::DlnaManager;
@@ -360,6 +361,9 @@ async fn main() {
             tidal_api,
             tidal_get_stream_url,
             tidal_cache_track,
+            // Auto-updater commands (GitHub Releases + SHA-256 verification)
+            updater_check,
+            updater_download_and_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running rooPlayer application");

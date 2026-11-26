@@ -370,8 +370,11 @@
     exclusiveState: () => invoke('exclusive_state'),
     onExclusiveStatus: (callback) => listen('exclusive:status', callback),
 
-    // App Metadata
-    getAppVersion: () => '0.1.0',
+    // App Metadata & Auto-Updater
+    getAppVersion: () => '0.2.3',
+    checkForUpdates: () => invoke('updater_check'),
+    downloadAndInstallUpdate: (payload) => invoke('updater_download_and_install', payload),
+    onUpdateProgress: (callback) => listen('updater:progress', callback),
 
     // Media file URL helper
     getMediaUrl: (absolutePath) => {
