@@ -122,6 +122,13 @@ impl FilterRegistry {
                 dsd_safe: true,
             },
             FilterDescriptor {
+                id: "sinc-l".to_string(),
+                label: "sinc-L，線性相位".to_string(),
+                sound: "仿 HQPlayer sinc-L：FFT 分段多相卷積 131,070×倍率超長階磚牆（16x 達 210 萬階），22.02kHz 零衰減、奈奎斯特 -180dB 垂直截止，極致音場深度與空間解析".to_string(),
+                kind: "fir".to_string(),
+                dsd_safe: true,
+            },
+            FilterDescriptor {
                 id: "smooth-linear".to_string(),
                 label: "平滑，線性相位".to_string(),
                 sound: "高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢".to_string(),
@@ -142,7 +149,7 @@ impl FilterRegistry {
     }
 
     pub fn list(&self) -> Vec<FilterDescriptor> {
-        const CORE_ORDER: [&str; 7] = [
+        const CORE_ORDER: [&str; 8] = [
             "precise-linear",
             "precise-min",
             "smooth-linear",
@@ -150,6 +157,7 @@ impl FilterRegistry {
             "gauss-long",
             "poly-ext2",
             "sinc-m",
+            "sinc-l",
         ];
         let map = self.plugins.read().unwrap();
         let mut items: Vec<FilterDescriptor> = map.values().cloned().collect();
@@ -173,6 +181,7 @@ impl FilterRegistry {
             "gauss-long" | "poly-sinc-gauss-long" => Some(build_hq_poly_sinc_gauss_long_filter(fs_out, src_rate)),
             "poly-ext2" | "hqp-ps-ext2" => Some(build_poly_ext2_filter(fs_out, src_rate)),
             "sinc-m" | "sinc-M" | "hqp-sinc-m" => Some(build_poly_ext2_filter(fs_out, src_rate)),
+            "sinc-l" | "sinc-L" | "hqp-sinc-l" => Some(build_poly_ext2_filter(fs_out, src_rate)),
             "smooth-linear" => Some(build_smooth_linear_filter(fs_out, src_rate)),
             "smooth-min" => Some(build_smooth_min_filter(fs_out, src_rate)),
             // 舊版過渡別名相容

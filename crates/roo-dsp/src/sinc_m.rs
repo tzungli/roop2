@@ -4,7 +4,7 @@ use rustfft::{num_complex::Complex, Fft, FftPlanner};
 
 use crate::fir::{bessel_i0, build_precise_linear_filter, fir_sample, FirFilter};
 
-/// Half-length of each polyphase branch in input-rate samples.
+/// Half-length of each polyphase branch in input-rate samples for `sinc-M`.
 /// Total taps per phase = 2 * 32767 + 1 = 65,535.
 /// At 16x oversampling (e.g. 44.1k -> 705.6k), total prototype length = 1,048,545 (~1 Million taps).
 pub const SINC_M_HALF_IN: i32 = 32767;
@@ -14,6 +14,72 @@ pub const SINC_M_FFT_SIZE: usize = 131072; // 2 * SINC_M_BLOCK_IN > (T - 1) + B
 const SINC_M_AS_DB: f64 = 175.0;
 const SINC_M_FC_RATIO: f64 = 0.4994; // 22,023.5 Hz at 44.1 kHz (flat to 22.00 kHz, < -175 dB at 22.05 kHz)
 
+/// Half-length of each polyphase branch in input-rate samples for `sinc-L`.
+/// Total taps per phase = 2 * 65535 + 1 = 131,071 (matching HQPlayer `131,070 × ratio`).
+/// At 16x oversampling (e.g. 44.1k -> 705.6k), total prototype length = 2,097,121 (~2.1 Million taps).
+pub const SINC_L_HALF_IN: i32 = 65535;
+pub const SINC_L_TAPS_PER_PHASE: usize = (2 * SINC_L_HALF_IN + 1) as usize;
+pub const SINC_L_BLOCK_IN: usize = 131072;
+pub const SINC_L_FFT_SIZE: usize = 262144; // 2 * SINC_L_BLOCK_IN > (T - 1) + B
+const SINC_L_AS_DB: f64 = 180.0;
+const SINC_L_FC_RATIO: f64 = 0.4997; // 22,036.8 Hz at 44.1 kHz (flat to 22.02 kHz, < -180 dB at 22.05 kHz)
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SincLongPreset {
+    SincM,
+    SincL,
+}
+
+impl SincLongPreset {
+    #[inline]
+    pub fn half_in(self) -> i32 {
+        match self {
+            Self::SincM => SINC_M_HALF_IN,
+            Self::SincL => SINC_L_HALF_IN,
+        }
+    }
+
+    #[inline]
+    pub fn taps_per_phase(self) -> usize {
+        match self {
+            Self::SincM => SINC_M_TAPS_PER_PHASE,
+            Self::SincL => SINC_L_TAPS_PER_PHASE,
+        }
+    }
+
+    #[inline]
+    pub fn block_in(self) -> usize {
+        match self {
+            Self::SincM => SINC_M_BLOCK_IN,
+            Self::SincL => SINC_L_BLOCK_IN,
+        }
+    }
+
+    #[inline]
+    pub fn fft_size(self) -> usize {
+        match self {
+            Self::SincM => SINC_M_FFT_SIZE,
+            Self::SincL => SINC_L_FFT_SIZE,
+        }
+    }
+
+    #[inline]
+    pub fn as_db(self) -> f64 {
+        match self {
+            Self::SincM => SINC_M_AS_DB,
+            Self::SincL => SINC_L_AS_DB,
+        }
+    }
+
+    #[inline]
+    pub fn fc_ratio(self) -> f64 {
+        match self {
+            Self::SincM => SINC_M_FC_RATIO,
+            Self::SincL => SINC_L_FC_RATIO,
+        }
+    }
+}
+
 struct CachedFftBlock {
     block_idx: usize,
     src_ptr: usize,
@@ -22,10 +88,13 @@ struct CachedFftBlock {
     out_r: Vec<f64>,
 }
 
-/// Exact integer-ratio Partitioned FFT Overlap-Save Polyphase Sinc-M Resampler.
+/// Exact integer-ratio Partitioned FFT Overlap-Save Polyphase Sinc-M / Sinc-L Resampler.
 /// Packs stereo L/R into a single complex FFT (`L + i*R`) for 2x throughput.
 pub struct SincMIntegerStage {
     p: usize,
+    half_in: i32,
+    block_in: usize,
+    fft_size: usize,
     phase_spectra: Vec<Vec<Complex<f64>>>,
     fft_fwd: Arc<dyn Fft<f64>>,
     fft_inv: Arc<dyn Fft<f64>>,
@@ -34,16 +103,27 @@ pub struct SincMIntegerStage {
 
 impl SincMIntegerStage {
     pub fn new(p: usize) -> Self {
+        Self::new_with_preset(p, SincLongPreset::SincM)
+    }
+
+    pub fn new_with_preset(p: usize, preset: SincLongPreset) -> Self {
         assert!(p >= 2 && p <= 32, "SincMIntegerStage requires integer ratio 2..=32, got {}", p);
 
-        let mut planner = FftPlanner::<f64>::new();
-        let fft_fwd = planner.plan_fft_forward(SINC_M_FFT_SIZE);
-        let fft_inv = planner.plan_fft_inverse(SINC_M_FFT_SIZE);
+        let half_in = preset.half_in();
+        let taps_per_phase = preset.taps_per_phase();
+        let block_in = preset.block_in();
+        let fft_size = preset.fft_size();
+        let as_db = preset.as_db();
+        let fc_ratio = preset.fc_ratio();
 
-        let beta = 0.1102 * (SINC_M_AS_DB - 8.7);
+        let mut planner = FftPlanner::<f64>::new();
+        let fft_fwd = planner.plan_fft_forward(fft_size);
+        let fft_inv = planner.plan_fft_inverse(fft_size);
+
+        let beta = 0.1102 * (as_db - 8.7);
         let i0_beta = bessel_i0(beta);
-        let l = SINC_M_HALF_IN as f64 * p as f64;
-        let inv_fft_n = 1.0 / SINC_M_FFT_SIZE as f64;
+        let l = half_in as f64 * p as f64;
+        let inv_fft_n = 1.0 / fft_size as f64;
 
         let num_workers = std::thread::available_parallelism()
             .map(|n| n.get())
@@ -63,20 +143,20 @@ impl SincMIntegerStage {
                 let phi_end = (phi_start + chunk_size).min(p);
                 let fft_fwd_ref = &fft_fwd;
                 handles.push(s.spawn(move || {
-                    let mut taps = vec![0.0f64; SINC_M_TAPS_PER_PHASE];
+                    let mut taps = vec![0.0f64; taps_per_phase];
                     let mut scratch = vec![Complex::new(0.0, 0.0); scratch_len];
                     let mut local = Vec::with_capacity(phi_end - phi_start);
                     for phi in phi_start..phi_end {
                         let mut sum = 0.0f64;
-                        for r in 0..SINC_M_TAPS_PER_PHASE {
-                            let k = r as i32 - SINC_M_HALF_IN;
+                        for r in 0..taps_per_phase {
+                            let k = r as i32 - half_in;
                             let t = (k * p as i32 + phi as i32) as f64;
                             let u = t / l;
                             if u.abs() < 1.0 {
-                                let x = 2.0 * SINC_M_FC_RATIO * t / p as f64;
+                                let x = 2.0 * fc_ratio * t / p as f64;
                                 let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
                                 let w = bessel_i0(beta * (1.0 - u * u).max(0.0).sqrt()) / i0_beta;
-                                let v = (2.0 * SINC_M_FC_RATIO) * sinc * w;
+                                let v = (2.0 * fc_ratio) * sinc * w;
                                 taps[r] = v;
                                 sum += v;
                             } else {
@@ -86,8 +166,8 @@ impl SincMIntegerStage {
 
                         // Normalize each phase to exact unity DC gain and fold 1/N IFFT scaling into H_phi
                         let scale = if sum.abs() > 1e-12 { inv_fft_n / sum } else { inv_fft_n };
-                        let mut spec = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
-                        for r in 0..SINC_M_TAPS_PER_PHASE {
+                        let mut spec = vec![Complex::new(0.0, 0.0); fft_size];
+                        for r in 0..taps_per_phase {
                             spec[r].re = taps[r] * scale;
                         }
                         fft_fwd_ref.process_with_scratch(&mut spec, &mut scratch);
@@ -105,6 +185,9 @@ impl SincMIntegerStage {
 
         Self {
             p,
+            half_in,
+            block_in,
+            fft_size,
             phase_spectra,
             fft_fwd,
             fft_inv,
@@ -117,17 +200,20 @@ impl SincMIntegerStage {
     }
 
     pub fn total_taps(&self) -> usize {
-        2 * (SINC_M_HALF_IN as usize * self.p) + 1
+        2 * (self.half_in as usize * self.p) + 1
     }
 
     fn compute_block(&self, left: &[f64], right: &[f64], block_idx: usize) -> (Vec<f64>, Vec<f64>) {
         let in_len = left.len().min(right.len());
-        let n0 = block_idx * SINC_M_BLOCK_IN;
+        let n0 = block_idx * self.block_in;
+        let fft_size = self.fft_size;
+        let block_in = self.block_in;
+        let half_in = self.half_in;
 
         // Pack L + i*R into a single complex input buffer for 2x FFT efficiency
-        let mut x_buf = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
-        for j in 0..SINC_M_FFT_SIZE {
-            let src_i = n0 as isize - SINC_M_HALF_IN as isize + j as isize;
+        let mut x_buf = vec![Complex::new(0.0, 0.0); fft_size];
+        for j in 0..fft_size {
+            let src_i = n0 as isize - half_in as isize + j as isize;
             if src_i >= 0 && (src_i as usize) < in_len {
                 let idx = src_i as usize;
                 x_buf[j] = Complex::new(left[idx], right[idx]);
@@ -136,7 +222,7 @@ impl SincMIntegerStage {
         self.fft_fwd.process(&mut x_buf);
 
         let p = self.p;
-        let valid_offset = 2 * SINC_M_HALF_IN as usize;
+        let valid_offset = 2 * half_in as usize;
         let num_workers = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4)
@@ -159,16 +245,16 @@ impl SincMIntegerStage {
                 }
                 let phi_end = (phi_start + chunk_size).min(p);
                 handles.push(s.spawn(move || {
-                    let mut work = vec![Complex::new(0.0, 0.0); SINC_M_FFT_SIZE];
+                    let mut work = vec![Complex::new(0.0, 0.0); fft_size];
                     let mut scratch = vec![Complex::new(0.0, 0.0); inv_scratch_len];
                     let mut local = Vec::with_capacity(phi_end - phi_start);
                     for phi in phi_start..phi_end {
                         let h_spec = &spectra_ref[phi];
-                        for i in 0..SINC_M_FFT_SIZE {
+                        for i in 0..fft_size {
                             work[i] = x_ref[i] * h_spec[i];
                         }
                         fft_inv_ref.process_with_scratch(&mut work, &mut scratch);
-                        local.push((phi, work[valid_offset..valid_offset + SINC_M_BLOCK_IN].to_vec()));
+                        local.push((phi, work[valid_offset..valid_offset + block_in].to_vec()));
                     }
                     local
                 }));
@@ -182,10 +268,10 @@ impl SincMIntegerStage {
         });
 
         // Cache-friendly sequential interleave into stereo output arrays
-        let out_block_len = SINC_M_BLOCK_IN * p;
+        let out_block_len = block_in * p;
         let mut out_l = vec![0.0f64; out_block_len];
         let mut out_r = vec![0.0f64; out_block_len];
-        for d in 0..SINC_M_BLOCK_IN {
+        for d in 0..block_in {
             let base = d * p;
             for phi in 0..p {
                 let c = phase_outputs[phi][d];
@@ -212,7 +298,7 @@ impl SincMIntegerStage {
 
         let mut res_l = vec![0.0f64; count];
         let mut res_r = vec![0.0f64; count];
-        let block_out_len = SINC_M_BLOCK_IN * self.p;
+        let block_out_len = self.block_in * self.p;
         let src_ptr = left.as_ptr() as usize;
         let src_len = left.len().min(right.len());
 
@@ -275,8 +361,13 @@ pub struct SincMFftResampler {
 }
 
 impl SincMFftResampler {
-    /// Returns `Some(SincMFftResampler)` for upsampling (`fs_out > src_rate`), or `None` for 1:1 / downsampling.
+    /// Returns `Some(SincMFftResampler)` for `sinc-M` upsampling (`fs_out > src_rate`), or `None` for 1:1 / downsampling.
     pub fn new(fs_out: f64, src_rate: f64) -> Option<Self> {
+        Self::new_with_preset(fs_out, src_rate, SincLongPreset::SincM)
+    }
+
+    /// Returns `Some(SincMFftResampler)` for the requested `SincLongPreset` (`SincM` or `SincL`).
+    pub fn new_with_preset(fs_out: f64, src_rate: f64, preset: SincLongPreset) -> Option<Self> {
         if fs_out <= src_rate * 1.0001 {
             return None;
         }
@@ -290,12 +381,12 @@ impl SincMFftResampler {
                 fs_out,
                 src_rate,
                 ratio,
-                stage1: SincMIntegerStage::new(p),
+                stage1: SincMIntegerStage::new_with_preset(p, preset),
                 stage2_fir: None,
                 stage2_ratio: 1.0,
             })
         } else {
-            // Non-integer upsampling: 4x sinc-M brickwall stage1 + precise fractional stage2
+            // Non-integer upsampling: 4x sinc-M / sinc-L brickwall stage1 + precise fractional stage2
             let p1 = 4usize;
             let s1_rate = src_rate * p1 as f64;
             let stage2_fir = build_precise_linear_filter(fs_out, s1_rate);
@@ -303,7 +394,7 @@ impl SincMFftResampler {
                 fs_out,
                 src_rate,
                 ratio,
-                stage1: SincMIntegerStage::new(p1),
+                stage1: SincMIntegerStage::new_with_preset(p1, preset),
                 stage2_fir: Some(stage2_fir),
                 stage2_ratio: fs_out / s1_rate,
             })
@@ -413,4 +504,22 @@ fn fir_sample_at_pos(pcm: &[f64], in_len: usize, t_in: f64, ratio: f64, gf: &Fir
 #[inline]
 pub fn is_sinc_m_phase(phase_id: &str) -> bool {
     matches!(phase_id, "sinc-m" | "sinc-M" | "hqp-sinc-m")
+}
+
+/// Check whether a filter phase ID selects the Partitioned FFT `sinc-L` engine.
+#[inline]
+pub fn is_sinc_l_phase(phase_id: &str) -> bool {
+    matches!(phase_id, "sinc-l" | "sinc-L" | "hqp-sinc-l")
+}
+
+/// Resolve the Partitioned FFT long-sinc preset for a filter phase ID, if applicable.
+#[inline]
+pub fn sinc_long_preset_for_phase(phase_id: &str) -> Option<SincLongPreset> {
+    if is_sinc_l_phase(phase_id) {
+        Some(SincLongPreset::SincL)
+    } else if is_sinc_m_phase(phase_id) {
+        Some(SincLongPreset::SincM)
+    } else {
+        None
+    }
 }

@@ -139,8 +139,8 @@ enum StageResampler {
 
 impl StageResampler {
     fn build(fs_out: f64, src_rate: f64, phase_id: &str) -> Option<Self> {
-        if roo_dsp::is_sinc_m_phase(phase_id) {
-            if let Some(fft_resampler) = roo_dsp::SincMFftResampler::new(fs_out, src_rate) {
+        if let Some(preset) = roo_dsp::sinc_long_preset_for_phase(phase_id) {
+            if let Some(fft_resampler) = roo_dsp::SincMFftResampler::new_with_preset(fs_out, src_rate, preset) {
                 return Some(Self::SincM(fft_resampler));
             }
         }
