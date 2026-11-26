@@ -6605,7 +6605,7 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
 
             let statusText = '';
             if (inLib) {
-              statusText = '<span style="color:#00e5ff;font-weight:700;">✓ 已在曲庫</span>';
+              statusText = '<span class="tidal-accent-text">✓ 已在曲庫</span>';
             } else if (hasLocal) {
               statusText = '<span style="color:#a1a1aa;">📁 本機已有</span>';
             }
@@ -6684,7 +6684,7 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
       <span class="platform-tag apple">Apple Music</span>
       <span class="platform-tag spotify">Spotify</span>
     `;
-    if (descEl) descEl.innerHTML = '比對線上音樂資料庫，為您挖掘該歌手尚未收藏的經典專輯。 <a href="#" id="linkLoginTidalFromArtist" style="color:#00e5ff;margin-left:8px;font-weight:bold;text-decoration:underline;cursor:pointer;">💎 登入 TIDAL 一鍵串流與收錄</a>';
+    if (descEl) descEl.innerHTML = '比對線上音樂資料庫，為您挖掘該歌手尚未收藏的經典專輯。 <a href="#" id="linkLoginTidalFromArtist" class="tidal-accent-text" style="margin-left:8px;text-decoration:underline;cursor:pointer;">💎 登入 TIDAL 一鍵串流與收錄</a>';
     setTimeout(() => {
       const link = document.getElementById('linkLoginTidalFromArtist');
       if (link) {
@@ -8736,7 +8736,7 @@ function createLabelTidalCard(alb) {
     <div class="album-meta">
       <div class="album-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
       <div class="album-artist">${escapeXml(alb.artist)}</div>
-      <div class="album-year">${alb.year ? alb.year + ' • ' : ''}${alb.numberOfTracks ? alb.numberOfTracks + ' 首 • ' : ''}${inLib ? '<span style="color:#00e5ff;font-weight:700;">✓ 已在曲庫</span>' : (labelName ? escapeXml(labelName) : '')}</div>
+      <div class="album-year">${alb.year ? alb.year + ' • ' : ''}${alb.numberOfTracks ? alb.numberOfTracks + ' 首 • ' : ''}${inLib ? '<span class="tidal-accent-text">✓ 已在曲庫</span>' : (labelName ? escapeXml(labelName) : '')}</div>
     </div>
     <div class="tidal-card-actions">
       <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}">${inLib ? '✓ 已在曲庫' : '➕ 加入曲庫'}</button>
@@ -9120,7 +9120,7 @@ function createRecommendAlbumCard(alb, reason, detail) {
     <div class="recommend-artist" title="${escapeXml(alb.artist)}">${escapeXml(alb.artist)}</div>
     <div class="recommend-meta">
       <span>${alb.year || alb.genre || ''}</span>
-      <span class="format-chip" style="font-size: 9px; padding: 1px 5px; ${alb.isTidal ? 'background: rgba(0, 229, 255, 0.12); color: #00e5ff; border-color: rgba(0, 229, 255, 0.3);' : ''}">${specLabel}</span>
+      <span class="format-chip${alb.isTidal ? ' tidal' : ''}" style="font-size: 9px; padding: 1px 5px;">${specLabel}</span>
     </div>
   `;
 
@@ -24573,7 +24573,7 @@ function createTidalAlbumCard(alb) {
     <div class="album-meta">
       <div class="album-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
       <div class="album-artist">${escapeXml(alb.artist)}</div>
-      <div class="album-year">${alb.year ? alb.year + ' • ' : ''}${alb.numberOfTracks ? alb.numberOfTracks + ' 首 • ' : ''}${inLib ? '<span style="color:#00e5ff;font-weight:700;">✓ 已在曲庫</span>' : ''}</div>
+      <div class="album-year">${alb.year ? alb.year + ' • ' : ''}${alb.numberOfTracks ? alb.numberOfTracks + ' 首 • ' : ''}${inLib ? '<span class="tidal-accent-text">✓ 已在曲庫</span>' : ''}</div>
     </div>
     <div class="tidal-card-actions">
       <button class="btn-tidal-lib-action ${inLib ? 'in-library' : ''}" data-tidal-id="${alb.tidalId}">${inLib ? '✓ 已在曲庫' : '➕ 加入曲庫'}</button>

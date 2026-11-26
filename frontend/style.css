@@ -14783,3 +14783,27 @@ body.is-music-playing .now-playing-scrubber-fill::before {
     height: 190px;
   }
 }
+
+/* High-contrast theme-aware TIDAL chip & accent text (Dark & Light modes) */
+.format-chip.tidal {
+  background: rgba(0, 229, 255, 0.12);
+  color: #00e5ff;
+  border-color: rgba(0, 229, 255, 0.32);
+  font-weight: 700;
+}
+
+[data-theme="light"] .format-chip.tidal {
+  background: rgba(8, 145, 178, 0.12);
+  color: #0e7490;
+  border-color: rgba(8, 145, 178, 0.4);
+  font-weight: 700;
+}
+
+.tidal-accent-text {
+  color: #00e5ff;
+  font-weight: 700;
+}
+
+[data-theme="light"] .tidal-accent-text {
+  color: #0e7490;
+}
