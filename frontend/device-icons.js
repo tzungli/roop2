@@ -199,6 +199,27 @@
       </svg>`
     },
     {
+      id: 'yamaha_rn803',
+      label: 'Yamaha R-N803',
+      match: /\b(r-?n803d?|r-?n800a?|r-?n1000a?|r-?n602|r-?n600a?|r-?n500|r-?n303d?)\b/i,
+      svg: (w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="7" width="37" height="18" rx="1.2" fill="currentColor" fill-opacity="0.05"/>
+        <rect x="11.5" y="9.5" width="18" height="4.8" rx="0.7" fill="currentColor" fill-opacity="0.1"/>
+        <line x1="14" y1="11.9" x2="27" y2="11.9" stroke-width="0.85" opacity="0.7"/>
+        <circle cx="6.8" cy="11.5" r="1.2"/>
+        <circle cx="6.8" cy="19.8" r="1.1" fill="currentColor" stroke="none" opacity="0.7"/>
+        <rect x="11.5" y="17.6" width="1.7" height="4.3" rx="0.7" fill="currentColor" fill-opacity="0.14"/>
+        <rect x="15.1" y="17.6" width="1.7" height="4.3" rx="0.7" fill="currentColor" fill-opacity="0.14"/>
+        <rect x="18.7" y="17.6" width="1.7" height="4.3" rx="0.7" fill="currentColor" fill-opacity="0.14"/>
+        <rect x="22.3" y="17.6" width="1.7" height="4.3" rx="0.7" fill="currentColor" fill-opacity="0.14"/>
+        <circle cx="28.6" cy="19.6" r="1.9" fill="currentColor" fill-opacity="0.08"/>
+        <circle cx="35.6" cy="17.2" r="3.3" fill="currentColor" fill-opacity="0.1"/>
+        <line x1="35.6" y1="17.2" x2="37.4" y2="15.3" stroke-width="0.95"/>
+        <line x1="6.8" y1="25" x2="6.8" y2="26.5" stroke-width="1.5"/>
+        <line x1="37.2" y1="25" x2="37.2" y2="26.5" stroke-width="1.5"/>
+      </svg>`
+    },
+    {
       id: 'av_receiver',
       label: 'Hi-Fi Network Receiver',
       match: /\b(denon|heos|yamaha|musiccast|onkyo|pioneer|integra|arcam|rotel|sony|teac|esoteric|luxman|accuphase|simaudio|moon)\b/i,
