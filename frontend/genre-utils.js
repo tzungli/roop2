@@ -52,6 +52,54 @@ const ROON_GENRE_ZH_MAP = {
   'Comedy/Spoken': '喜劇 / 口說藝術'
 };
 
+const ROON_GENRE_DESCRIPTIONS = {
+  'Pop/Rock': '流行與搖滾是最具包容力且不斷演化的當代音樂語彙。從早期融合鄉村與藍調的能量、直率反叛與洗腦旋律出發，隨著時代推演，這個龐大譜系涵蓋了經典搖滾的吉他張力、披頭四式的精緻和聲、華語與日韓流行的細膩抒情，乃至於獨立搖滾、英倫搖滾與重金屬的前衛探索，既重視精雕細琢的歌曲工藝，也持續拓展當代聲響的邊界。',
+  'Classical': '古典樂橫跨巴洛克、古典主義、浪漫派至現代室內樂與交響巨作，以嚴謹的曲式結構、豐富的配器層次與極致動態對比著稱。無論是獨奏鋼琴與弦樂四重奏的細膩呼吸，或是百人管弦樂團在音樂廳中綻放的龐大音場與自然殘響，皆是檢驗音響系統解析力、定位感與微動態重現能力的終極試金石。',
+  'Jazz': '爵士樂誕生於即興創作、搖擺律動與藍調音階的交會之中，從紐奧良傳統爵士、搖擺大樂團、咆勃與酷派爵士，一路演化至融合爵士與巴薩諾瓦。薩克斯風、小號、鋼琴與低音提琴之間的即時對話，講究空間感、演奏者的細微觸鍵與現場互動火花，帶來自由而迷人的聆聽體驗。',
+  'R&B': '節奏藍調與靈魂樂以飽滿的低頻律動、富有感染力的轉音唱腔與深沉的情感張力為核心。從摩城黃金年代與經典靈魂樂，到當代新靈魂與放克律動，音樂中流露著人聲的溫潤質感與絲滑節奏，讓每一段旋律都充滿律動感與親密氛圍。',
+  'Stage & Screen': '舞台與影視配樂集結了電影原聲帶、百老匯音樂劇、動畫配樂與遊戲交響樂。作曲家運用主題動機、管弦編制與當代電子聲景，將畫面情緒與敘事張力化為純粹的聽覺體驗，兼具宏大戲劇張力與令人難忘的旋律記憶。',
+  'International': '國際與世界音樂匯聚了來自全球各地的傳統樂器、地方音階與民族唱腔，從日本演歌、凱爾特民謠、法國香頌、葡萄牙法朵，到中式古箏、二胡、琵琶與非洲鼓樂，展現不同文化土壤孕育出的獨特音色與生命力。',
+  'Vocal': '發燒人聲與聲樂作品將焦點完全凝聚於歌者的嗓音表情、氣息細節與咬字質感。搭配精簡而通透的伴奏編制，無論是經典爵士標準曲、無伴奏合唱或高解析發燒錄音，都能展現如臨現場般的口型結像與溫潤中頻密度。',
+  'Country': '鄉村音樂源自美國南方與阿帕拉契山脈的民間敘事傳統，以木吉他、班卓琴、踏板電吉他與小提琴交織出質樸溫暖的聲響。真摯直白的生活故事與親切流暢的旋律線，讓鄉村音樂始終保有歷久彌新的情感共鳴。',
+  'Folk': '民謠與創作歌手作品強調原聲樂器的自然質地與詩意詞作，從傳統歌謠到當代獨立民謠，以最純粹的吉他指彈、口琴與誠摯嗓音直擊人心，呈現克制而深沉的敘事魅力。',
+  'Latin': '拉丁音樂融合了加勒比海、中南美洲與伊比利半島的多元節奏基因，涵蓋騷莎、探戈、佛朗明哥、森巴與波麗露。熱情的切分節奏、尼龍弦吉他與豐富打擊樂器，勾勒出鮮明立體的色彩與律動能量。',
+  'Blues': '藍調是現代流行、搖滾與爵士樂的共同根源，以十二小節和聲進行、滑棒吉他與充滿滄桑張力的唱腔，傾訴生命中的憂鬱、韌性與渴望。無論是原聲三角洲藍調或芝加哥電吉他藍調，都蘊含直達靈魂的真實情感。',
+  'New Age': '新世紀與氛圍音樂以寬廣空靈的音場、柔和合成器鋪陳與自然原聲樂器交織出寧靜冥想的聽覺空間，淡化強烈節拍束縛，適合深度放鬆、專注思考或深夜靜心聆聽。',
+  'Easy Listening': '輕音樂與發燒示範作品以舒緩流暢的器樂演奏、精緻錄音工藝與寬鬆自然的音色平衡見長，涵蓋經典沙龍音樂、抒情器樂改編與各大發燒廠牌的試音名盤，耐聽而不具壓迫感。',
+  'Holiday': '節日音樂收錄了聖誕頌歌、冬季爵士、新年維也納音樂會與各類節慶經典改編，以溫暖歡愉的管弦、合唱與原聲編制，為重要節日營造充滿儀式感與團聚氛圍的配樂。',
+  'Electronic': '電子音樂以合成器、取樣器與數位訊號塑形打造無窮的聲響可能，涵蓋浩室、鐵克諾、迷幻電音、緩拍、合成波與舞曲。精準的低頻脈衝與立體聲場設計，展現前衛而富有未來感的聽覺美學。',
+  "Children's": '兒童音樂包含經典兒歌、童謠、搖籃曲與寓教於樂的親子故事配樂，以明亮純真的旋律與溫柔編曲陪伴成長時光。',
+  'Rap': '饒舌與嘻哈音樂以節奏鮮明的取樣節拍、紮實低頻與充滿韻腳張力的說唱敘事為核心，從黃金年代 Boom Bap 到當代多元流派，展現強烈的街頭文化脈動與語言節奏藝術。',
+  'Avant-Garde': '前衛與實驗音樂勇於打破傳統調性、節奏與樂器框架，涵蓋極簡主義、自由爵士、具象音樂與跨界聲響藝術，為追求新鮮感與深度探索的樂迷開啟截然不同的聆聽維度。',
+  'Religious': '宗教與聖樂作品橫跨葛利果聖歌、巴洛克彌撒曲、福音合唱、頌歌與東方禪樂佛曲，以莊嚴純淨的和聲與空間殘響，帶來撫慰心靈的沉靜力量。',
+  'Reggae': '雷鬼音樂誕生於牙買加，以標誌性的反拍吉他切音、深沉彈性的貝斯線與從容搖曳的律動聞名，延伸出 Dub、Ska 等風格，傳遞陽光、自由與和平的音樂精神。',
+  'Comedy/Spoken': '喜劇與口說藝術涵蓋脫口秀、相聲、詩詞朗誦與有聲書作品，聚焦於語調節奏、現場互動與文字表現力，帶來音樂之外的純粹語言魅力。'
+};
+
+const ROON_GENRE_QUERY_TERMS = {
+  'Pop/Rock': 'Pop Rock',
+  'Classical': 'Classical Orchestra Symphony',
+  'Jazz': 'Jazz Blue Note',
+  'R&B': 'R&B Soul',
+  'Stage & Screen': 'Soundtrack Film Score',
+  'International': 'World Music International',
+  'Vocal': 'Vocal Jazz Audiophile',
+  'Country': 'Country Music',
+  'Folk': 'Folk Acoustic Singer Songwriter',
+  'Latin': 'Latin Jazz Tango',
+  'Blues': 'Blues Guitar',
+  'New Age': 'New Age Ambient',
+  'Easy Listening': 'Easy Listening Instrumental',
+  'Holiday': 'Christmas Holiday',
+  'Electronic': 'Electronic Ambient',
+  "Children's": 'Children Music Lullaby',
+  'Rap': 'Hip Hop Rap',
+  'Avant-Garde': 'Avant-Garde Experimental',
+  'Religious': 'Gospel Sacred Choral',
+  'Reggae': 'Reggae Dub',
+  'Comedy/Spoken': 'Spoken Word Comedy'
+};
+
 const CANONICAL_GENRE_SET = new Set(CANONICAL_GENRES.map(g => g.toLowerCase()));
 
 // Legacy genre names from older rooPlayer builds that should be re-evaluated cleanly
@@ -247,15 +295,28 @@ function getRoonGenreZhName(genreName) {
   return ROON_GENRE_ZH_MAP[canon] || genreName;
 }
 
+function getRoonGenreDescription(genreName) {
+  const canon = canonicalizeGenre(genreName);
+  return ROON_GENRE_DESCRIPTIONS[canon] || ROON_GENRE_DESCRIPTIONS['Pop/Rock'];
+}
+
+function getRoonGenreQueryTerm(genreName) {
+  const canon = canonicalizeGenre(genreName);
+  return ROON_GENRE_QUERY_TERMS[canon] || canon || 'Music';
+}
+
 // Renderer (classic script tag) exposure
 if (typeof window !== 'undefined') {
   window.CANONICAL_GENRES = CANONICAL_GENRES;
   window.ROON_GENRE_ZH_MAP = ROON_GENRE_ZH_MAP;
+  window.ROON_GENRE_DESCRIPTIONS = ROON_GENRE_DESCRIPTIONS;
   window.canonicalizeGenre = canonicalizeGenre;
   window.getRoonGenreZhName = getRoonGenreZhName;
+  window.getRoonGenreDescription = getRoonGenreDescription;
+  window.getRoonGenreQueryTerm = getRoonGenreQueryTerm;
 }
 
 // Node.js (main process / CLI scripts) exposure
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { CANONICAL_GENRES, ROON_GENRE_ZH_MAP, canonicalizeGenre, getRoonGenreZhName };
+  module.exports = { CANONICAL_GENRES, ROON_GENRE_ZH_MAP, ROON_GENRE_DESCRIPTIONS, canonicalizeGenre, getRoonGenreZhName, getRoonGenreDescription, getRoonGenreQueryTerm };
 }

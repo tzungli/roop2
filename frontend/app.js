@@ -5657,10 +5657,7 @@ function renderRooRecommendedGenres() {
     `;
 
     card.onclick = () => {
-      state.activeGenreFilter = entry.genre;
-      navigateTo('albums');
-      renderAlbums();
-      showToast(`已篩選「${zhLabel}」風格專輯`);
+      openGenreDetail(entry.genre);
     };
     grid.appendChild(card);
   });
@@ -7776,16 +7773,683 @@ function renderGenres() {
     }
 
     tile.addEventListener('click', () => {
-      state.activeGenreFilter = genreName;
-      navigateTo('albums');
-      renderAlbums();
-      showToast(`已篩選「${info.zhName}」音樂類型專輯`);
+      openGenreDetail(genreName);
     });
 
     frag.appendChild(tile);
   });
 
   genresGrid.appendChild(frag);
+}
+
+// =========================================================================
+// Roon-Style Genre Detail Landing Page (viewGenreDetail)
+// =========================================================================
+const _genreDiscoveryCache = new Map();
+let genreDetailState = {
+  genre: 'Pop/Rock',
+  zhName: '流行 / 搖滾',
+  albums: [],
+  tracks: [],
+  artists: [],
+  newReleases: [],
+  recommended: [],
+  albumsPage: 0,
+  artistsPage: 0,
+  newPage: 0,
+  recPage: 0,
+  sessionId: 0
+};
+let _rgdEventsBound = false;
+
+function formatRgdAlbumSpecLine(alb) {
+  const parts = [];
+  const fmt = (alb.formatName || (alb.isTidal ? 'FLAC' : 'PCM')).toUpperCase();
+  const sr = alb.sampleRate ? (alb.sampleRate >= 1000 ? `${(alb.sampleRate / 1000).toFixed(alb.sampleRate % 1000 === 0 ? 0 : 1)}kHz` : `${alb.sampleRate}Hz`) : '';
+  const bits = alb.bitsPerSample ? `${alb.bitsPerSample}bit` : '';
+  if (fmt === 'DSF' || fmt === 'DFF') {
+    parts.push(fmt);
+    if (alb.sampleRate >= 22579200) parts.push('DSD512');
+    else if (alb.sampleRate >= 11289600) parts.push('DSD256');
+    else if (alb.sampleRate >= 5644800) parts.push('DSD128');
+    else parts.push('DSD64');
+  } else {
+    parts.push([fmt, bits && sr ? `${bits}-${sr}` : (sr || bits)].filter(Boolean).join(' '));
+  }
+  const cnt = (alb.tracks && alb.tracks.length) || 0;
+  if (cnt > 0) parts.push(`♪ ${cnt}`);
+  return parts.filter(Boolean).join(' | ');
+}
+
+function formatRgdReleaseDate(rawDate) {
+  if (!rawDate) return '';
+  const s = String(rawDate).trim();
+  const m = s.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (m) {
+    const y = m[1];
+    const mo = parseInt(m[2], 10);
+    const d = m[3] ? parseInt(m[3], 10) : 0;
+    return d > 0 ? `${d} ${mo}月 ${y}` : `${mo}月 ${y}`;
+  }
+  const yOnly = s.match(/(\d{4})/);
+  return yOnly ? `${yOnly[1]} 年` : s;
+}
+
+async function openRgdExternalAlbum(item) {
+  if (!item) return;
+  // 1. Check if matching album already exists in local/TIDAL library
+  const localHit = state.albums.find(a =>
+    albumTitleMatches(a.title, item.title) &&
+    (!item.artist || artistNameMatches(a.artist, item.artist))
+  );
+  if (localHit) {
+    openAlbumDetail(localHit);
+    return;
+  }
+  // 2. If it's a TIDAL album and TIDAL is logged in, fetch full tracks and open Album Detail
+  if (item.source === 'tidal' && item.tidalId && window.tidalService && window.tidalService.isLoggedIn) {
+    try {
+      showToast(`正在載入 TIDAL 專輯「${item.title}」...`);
+      const res = await window.tidalService.getAlbum(item.tidalId);
+      if (res && res.album) {
+        const albObj = {
+          ...res.album,
+          isTidal: true,
+          tidalId: res.album.tidalId || item.tidalId,
+          genre: genreDetailState.genre,
+          tracks: (res.tracks || []).map(tr => ({
+            ...tr,
+            isTidal: true,
+            tidalAlbumId: res.album.tidalId || item.tidalId,
+            genre: genreDetailState.genre
+          }))
+        };
+        openAlbumDetail(albObj);
+        return;
+      }
+    } catch (err) {
+      console.warn('[GenreDetail] Failed to open TIDAL album:', err);
+    }
+  }
+  // 3. Fallback: if TIDAL is logged in, search TIDAL for this album
+  if (window.tidalService && window.tidalService.isLoggedIn) {
+    try {
+      showToast(`正在於 TIDAL 搜尋「${item.title}」...`);
+      const q = [item.title, item.artist].filter(Boolean).join(' ');
+      const res = await window.tidalService.search(q, 5);
+      const hit = (res && res.albums || []).find(a => albumTitleMatches(a.title, item.title)) || (res && res.albums && res.albums[0]);
+      if (hit && hit.id) {
+        const full = await window.tidalService.getAlbum(hit.id);
+        if (full && full.album) {
+          openAlbumDetail({
+            ...full.album,
+            isTidal: true,
+            tidalId: full.album.tidalId || hit.id,
+            genre: genreDetailState.genre,
+            tracks: (full.tracks || []).map(tr => ({
+              ...tr,
+              isTidal: true,
+              tidalAlbumId: full.album.tidalId || hit.id,
+              genre: genreDetailState.genre
+            }))
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+  showToast(`「${item.title}」尚未匯入音樂資料庫`);
+}
+
+function renderRgdLibAlbums() {
+  const grid = document.getElementById('rgdLibAlbumsGrid');
+  const prevBtn = document.getElementById('btnRgdAlbumsPrev');
+  const nextBtn = document.getElementById('btnRgdAlbumsNext');
+  if (!grid) return;
+
+  const pageSize = 5;
+  const total = genreDetailState.albums.length;
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  genreDetailState.albumsPage = Math.min(genreDetailState.albumsPage, maxPage);
+
+  if (prevBtn) prevBtn.disabled = genreDetailState.albumsPage <= 0;
+  if (nextBtn) nextBtn.disabled = genreDetailState.albumsPage >= maxPage;
+
+  if (total === 0) {
+    grid.innerHTML = `<div class="rgd-empty-hint">目前資料庫中尚無「${escapeXml(genreDetailState.zhName)}」專輯</div>`;
+    return;
+  }
+
+  const start = genreDetailState.albumsPage * pageSize;
+  const slice = genreDetailState.albums.slice(start, start + pageSize);
+  const frag = document.createDocumentFragment();
+
+  slice.forEach(alb => {
+    const card = document.createElement('div');
+    card.className = 'rgd-album-card';
+    const fallbackCov = createSvgCover(alb.title, alb.artist, '#1e293b', '#0f172a');
+    const coverSrc = alb.cover ? formatCoverSrc(alb.cover) : fallbackCov;
+    const specLine = formatRgdAlbumSpecLine(alb);
+
+    card.innerHTML = `
+      <div class="rgd-album-cover-wrap">
+        <img class="rgd-album-cover" src="${escapeXml(coverSrc)}" alt="${escapeXml(alb.title)}" loading="lazy">
+        <span class="rgd-lib-check" title="已收錄於資料庫">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+      </div>
+      <div class="rgd-album-title" title="${escapeXml(alb.title)}">${escapeXml(alb.title)}</div>
+      <div class="rgd-album-artist" title="${escapeXml(alb.artist)}">${escapeXml(alb.artist)}</div>
+      <div class="rgd-album-spec">${escapeXml(specLine)}</div>
+    `;
+
+    const img = card.querySelector('.rgd-album-cover');
+    if (img) {
+      img.onerror = () => {
+        img.onerror = null;
+        img.src = fallbackCov;
+      };
+    }
+
+    card.addEventListener('click', () => openAlbumDetail(alb));
+    frag.appendChild(card);
+  });
+
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+}
+
+function renderRgdLibArtists() {
+  const grid = document.getElementById('rgdLibArtistsGrid');
+  const prevBtn = document.getElementById('btnRgdArtistsPrev');
+  const nextBtn = document.getElementById('btnRgdArtistsNext');
+  if (!grid) return;
+
+  const pageSize = 5;
+  const total = genreDetailState.artists.length;
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  genreDetailState.artistsPage = Math.min(genreDetailState.artistsPage, maxPage);
+
+  if (prevBtn) prevBtn.disabled = genreDetailState.artistsPage <= 0;
+  if (nextBtn) nextBtn.disabled = genreDetailState.artistsPage >= maxPage;
+
+  if (total === 0) {
+    grid.innerHTML = `<div class="rgd-empty-hint">目前資料庫中尚無「${escapeXml(genreDetailState.zhName)}」藝術家</div>`;
+    return;
+  }
+
+  const start = genreDetailState.artistsPage * pageSize;
+  const slice = genreDetailState.artists.slice(start, start + pageSize);
+  const frag = document.createDocumentFragment();
+
+  slice.forEach(art => {
+    const card = document.createElement('div');
+    card.className = 'rgd-artist-card';
+    const immediateSrc = getImmediateArtistAvatarSrc(art.name, null) || art.fallbackCover || '';
+    const initial = (art.name || '?').trim().charAt(0).toUpperCase();
+
+    card.innerHTML = `
+      <div class="rgd-artist-circle">
+        ${immediateSrc
+          ? `<img class="rgd-artist-img" src="${escapeXml(immediateSrc)}" alt="${escapeXml(art.name)}" loading="lazy">`
+          : `<span class="rgd-artist-initial">${escapeXml(initial)}</span>`}
+      </div>
+      <div class="rgd-artist-name" title="${escapeXml(art.name)}">${escapeXml(art.name)}</div>
+    `;
+
+    const circle = card.querySelector('.rgd-artist-circle');
+    let imgEl = card.querySelector('.rgd-artist-img');
+    if (imgEl) {
+      imgEl.onerror = () => {
+        imgEl.onerror = null;
+        if (art.fallbackCover && imgEl.src !== art.fallbackCover) {
+          imgEl.src = art.fallbackCover;
+        } else {
+          circle.innerHTML = `<span class="rgd-artist-initial">${escapeXml(initial)}</span>`;
+        }
+      };
+    }
+
+    // Hydrate real artist portrait in background
+    fetchArtistPortraitOnline(art.name).then(url => {
+      if (!url || !card.isConnected) return;
+      if (circle) {
+        circle.innerHTML = `<img class="rgd-artist-img" src="${escapeXml(url)}" alt="${escapeXml(art.name)}">`;
+      }
+    }).catch(() => {});
+
+    card.addEventListener('click', () => openArtistDetail(art.name));
+    frag.appendChild(card);
+  });
+
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+}
+
+function renderRgdNewReleases() {
+  const grid = document.getElementById('rgdNewReleasesGrid');
+  const prevBtn = document.getElementById('btnRgdNewPrev');
+  const nextBtn = document.getElementById('btnRgdNewNext');
+  if (!grid) return;
+
+  const pageSize = 6;
+  const list = genreDetailState.newReleases || [];
+  const total = list.length;
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  genreDetailState.newPage = Math.min(genreDetailState.newPage, maxPage);
+
+  if (prevBtn) prevBtn.disabled = genreDetailState.newPage <= 0;
+  if (nextBtn) nextBtn.disabled = genreDetailState.newPage >= maxPage;
+
+  if (total === 0) {
+    grid.innerHTML = `<div class="rgd-empty-hint">正在探索「${escapeXml(genreDetailState.zhName)}」最新推薦作品...</div>`;
+    return;
+  }
+
+  const start = genreDetailState.newPage * pageSize;
+  const slice = list.slice(start, start + pageSize);
+  const frag = document.createDocumentFragment();
+
+  const tidalBadgeSvg = `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><polygon points="6 7 9 10 6 13 3 10"/><polygon points="12 7 15 10 12 13 9 10"/><polygon points="18 7 21 10 18 13 15 10"/><polygon points="12 13 15 16 12 19 9 16"/></svg>`;
+  const discBadgeSvg = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>`;
+
+  slice.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'rgd-new-card';
+    const fallbackCov = createSvgCover(item.title, item.artist, '#1e293b', '#0f172a');
+    const coverSrc = item.cover || fallbackCov;
+    const dateLabel = formatRgdReleaseDate(item.releaseDate || item.year);
+
+    card.innerHTML = `
+      <div class="rgd-new-meta">
+        <div class="rgd-new-artist" title="${escapeXml(item.artist)}">${escapeXml(item.artist)}</div>
+        <div class="rgd-new-title" title="${escapeXml(item.title)}">${escapeXml(item.title)}</div>
+        ${dateLabel ? `<div class="rgd-new-date">${escapeXml(dateLabel)}</div>` : ''}
+        <div class="rgd-new-source" title="${item.source === 'tidal' ? 'TIDAL' : '線上曲庫'}">
+          ${item.source === 'tidal' ? tidalBadgeSvg : discBadgeSvg}
+        </div>
+      </div>
+      <img class="rgd-new-cover" src="${escapeXml(coverSrc)}" alt="${escapeXml(item.title)}" loading="lazy">
+    `;
+
+    const img = card.querySelector('.rgd-new-cover');
+    if (img) {
+      img.onerror = () => {
+        img.onerror = null;
+        img.src = fallbackCov;
+      };
+    }
+
+    card.addEventListener('click', () => openRgdExternalAlbum(item));
+    frag.appendChild(card);
+  });
+
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+}
+
+function renderRgdRecommended() {
+  const grid = document.getElementById('rgdRecommendedGrid');
+  const prevBtn = document.getElementById('btnRgdRecPrev');
+  const nextBtn = document.getElementById('btnRgdRecNext');
+  if (!grid) return;
+
+  const pageSize = 5;
+  const list = genreDetailState.recommended || [];
+  const total = list.length;
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  genreDetailState.recPage = Math.min(genreDetailState.recPage, maxPage);
+
+  if (prevBtn) prevBtn.disabled = genreDetailState.recPage <= 0;
+  if (nextBtn) nextBtn.disabled = genreDetailState.recPage >= maxPage;
+
+  if (total === 0) {
+    grid.innerHTML = `<div class="rgd-rec-empty">正在載入「${escapeXml(genreDetailState.zhName)}」推薦專輯...</div>`;
+    return;
+  }
+
+  const start = genreDetailState.recPage * pageSize;
+  const slice = list.slice(start, start + pageSize);
+  const frag = document.createDocumentFragment();
+
+  const tidalBadgeSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><polygon points="6 7 9 10 6 13 3 10"/><polygon points="12 7 15 10 12 13 9 10"/><polygon points="18 7 21 10 18 13 15 10"/><polygon points="12 13 15 16 12 19 9 16"/></svg>`;
+  const checkBadgeSvg = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+  slice.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'rgd-rec-card';
+    card.title = `${item.title} — ${item.artist}`;
+    const fallbackCov = createSvgCover(item.title, item.artist, '#1e293b', '#0f172a');
+    const coverSrc = item.cover || fallbackCov;
+
+    card.innerHTML = `
+      <div class="rgd-rec-cover-wrap">
+        <img class="rgd-rec-cover" src="${escapeXml(coverSrc)}" alt="${escapeXml(item.title)}" loading="lazy">
+        <span class="rgd-rec-badge">${item.source === 'tidal' ? tidalBadgeSvg : checkBadgeSvg}</span>
+      </div>
+      <div class="rgd-rec-album-title">${escapeXml(item.title)}</div>
+      <div class="rgd-rec-album-artist">${escapeXml(item.artist)}</div>
+    `;
+
+    const img = card.querySelector('.rgd-rec-cover');
+    if (img) {
+      img.onerror = () => {
+        img.onerror = null;
+        img.src = fallbackCov;
+      };
+    }
+
+    card.addEventListener('click', () => openRgdExternalAlbum(item));
+    frag.appendChild(card);
+  });
+
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+}
+
+async function fetchRgdOnlineDiscovery(canonGenre, sessionId) {
+  const cached = _genreDiscoveryCache.get(canonGenre);
+  if (cached && (Date.now() - cached.ts < 15 * 60 * 1000)) {
+    if (genreDetailState.sessionId !== sessionId) return;
+    genreDetailState.newReleases = cached.newReleases;
+    genreDetailState.recommended = cached.recommended;
+    renderRgdNewReleases();
+    renderRgdRecommended();
+    return;
+  }
+
+  const queryTerm = (typeof getRoonGenreQueryTerm === 'function')
+    ? getRoonGenreQueryTerm(canonGenre)
+    : canonGenre;
+  const collected = [];
+  const seen = new Set();
+  const pushItem = (it) => {
+    if (!it || !it.title) return;
+    const k = `${String(it.title).toLowerCase().trim()}___${String(it.artist || '').toLowerCase().trim()}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    collected.push(it);
+  };
+
+  // 1. Query TIDAL if logged in
+  if (window.tidalService && window.tidalService.isLoggedIn) {
+    try {
+      const res = await window.tidalService.search(queryTerm, 24);
+      const rawAlbums = (res && res.albums) || [];
+      rawAlbums.forEach(raw => {
+        const norm = window.tidalService.normalizeAlbum(raw);
+        if (norm && norm.title && norm.cover) {
+          pushItem({
+            title: norm.title,
+            artist: norm.artist,
+            cover: norm.cover,
+            releaseDate: norm.releaseDate || String(norm.year || ''),
+            year: norm.year,
+            tidalId: norm.tidalId || raw.id,
+            source: 'tidal'
+          });
+        }
+      });
+    } catch (_) {}
+  }
+
+  // 2. Complement / fallback with iTunes Search API (always works without login)
+  if (collected.length < 18) {
+    try {
+      const twUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=album&country=tw&limit=24`;
+      const data = await nativeFetchJson(twUrl, {}, 7000);
+      const results = (data && data.results) || [];
+      results.forEach(r => {
+        if (!r || !r.collectionName) return;
+        const cov = (r.artworkUrl100 || '').replace(/100x100bb/i, '600x600bb');
+        pushItem({
+          title: r.collectionName,
+          artist: r.artistName || 'Unknown Artist',
+          cover: cov,
+          releaseDate: r.releaseDate ? String(r.releaseDate).slice(0, 10) : '',
+          year: r.releaseDate ? String(r.releaseDate).slice(0, 4) : '',
+          source: 'itunes'
+        });
+      });
+    } catch (_) {}
+  }
+
+  // 3. Sort newest first for "New Releases", and pick distinct classics/highlights for "Recommended Albums"
+  const byDate = collected.slice().sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')));
+  const newReleases = byDate.slice(0, 18);
+
+  const newKeys = new Set(newReleases.slice(0, 6).map(x => `${x.title.toLowerCase()}___${x.artist.toLowerCase()}`));
+  const recPool = collected.filter(x => !newKeys.has(`${x.title.toLowerCase()}___${x.artist.toLowerCase()}`));
+  const recommended = (recPool.length >= 5 ? recPool : collected).slice(0, 15);
+
+  // If offline and nothing came back, fall back to local library albums of this genre
+  const fallbackLocal = genreDetailState.albums.slice(0, 10).map(a => ({
+    title: a.title,
+    artist: a.artist,
+    cover: a.cover ? formatCoverSrc(a.cover) : '',
+    releaseDate: a.date || String(a.year || ''),
+    year: a.year,
+    source: a.isTidal ? 'tidal' : 'local',
+    tidalId: a.tidalId || null
+  }));
+
+  const finalNew = newReleases.length ? newReleases : fallbackLocal;
+  const finalRec = recommended.length ? recommended : fallbackLocal;
+
+  _genreDiscoveryCache.set(canonGenre, {
+    newReleases: finalNew,
+    recommended: finalRec,
+    ts: Date.now()
+  });
+
+  if (genreDetailState.sessionId !== sessionId) return;
+  genreDetailState.newReleases = finalNew;
+  genreDetailState.recommended = finalRec;
+  renderRgdNewReleases();
+  renderRgdRecommended();
+}
+
+function bindGenreDetailEventsOnce() {
+  if (_rgdEventsBound) return;
+  _rgdEventsBound = true;
+
+  const btnPlay = document.getElementById('btnRgdPlayNow');
+  const btnCaret = document.getElementById('btnRgdPlayMenu');
+  const dropdown = document.getElementById('rgdPlayDropdown');
+  const btnMore = document.getElementById('btnRgdMore');
+  const btnBioToggle = document.getElementById('btnRgdBioToggle');
+  const bioText = document.getElementById('rgdBioText');
+
+  if (btnPlay) {
+    btnPlay.addEventListener('click', () => {
+      if (!genreDetailState.tracks.length) {
+        showToast(`「${genreDetailState.zhName}」目前尚無可播放曲目`);
+        return;
+      }
+      playTrackList(genreDetailState.tracks, 0);
+      showToast(`▶ 正在播放「${genreDetailState.zhName}」(${genreDetailState.tracks.length} 首)`);
+    });
+  }
+
+  if (btnCaret && dropdown) {
+    btnCaret.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = dropdown.style.display === 'block';
+      dropdown.style.display = open ? 'none' : 'block';
+    });
+    dropdown.querySelectorAll('.rgd-dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.style.display = 'none';
+        const act = item.getAttribute('data-rgd-action');
+        if (!genreDetailState.tracks.length) {
+          showToast(`「${genreDetailState.zhName}」目前尚無可播放曲目`);
+          return;
+        }
+        if (act === 'play') {
+          setShuffleState(false);
+          playTrackList(genreDetailState.tracks, 0);
+        } else if (act === 'shuffle') {
+          setShuffleState(true);
+          const r = Math.floor(Math.random() * genreDetailState.tracks.length);
+          playTrackList(genreDetailState.tracks, r);
+          showToast(`🔀 隨機播放「${genreDetailState.zhName}」(${genreDetailState.tracks.length} 首)`);
+        } else if (act === 'queue') {
+          state.queue = state.queue.concat(genreDetailState.tracks);
+          if (typeof renderQueue === 'function') renderQueue();
+          showToast(`➕ 已將 ${genreDetailState.tracks.length} 首曲目加入待播清單`);
+        }
+      });
+    });
+    document.addEventListener('click', () => {
+      if (dropdown.style.display === 'block') dropdown.style.display = 'none';
+    });
+  }
+
+  const openFilteredAlbums = () => {
+    state.activeGenreFilter = genreDetailState.genre;
+    navigateTo('albums');
+    renderAlbums();
+  };
+
+  if (btnMore) btnMore.addEventListener('click', openFilteredAlbums);
+  const btnAlbumsMore = document.getElementById('btnRgdAlbumsMore');
+  if (btnAlbumsMore) btnAlbumsMore.addEventListener('click', openFilteredAlbums);
+
+  const btnArtistsMore = document.getElementById('btnRgdArtistsMore');
+  if (btnArtistsMore) {
+    btnArtistsMore.addEventListener('click', () => {
+      navigateTo('artists');
+      renderArtists();
+    });
+  }
+
+  if (btnBioToggle && bioText) {
+    btnBioToggle.addEventListener('click', () => {
+      const clamped = bioText.classList.toggle('is-clamped');
+      btnBioToggle.classList.toggle('is-expanded', !clamped);
+    });
+  }
+
+  const bindPager = (prevId, nextId, pageKey, renderFn) => {
+    const p = document.getElementById(prevId);
+    const n = document.getElementById(nextId);
+    if (p) p.addEventListener('click', () => {
+      if (genreDetailState[pageKey] > 0) {
+        genreDetailState[pageKey]--;
+        renderFn();
+      }
+    });
+    if (n) n.addEventListener('click', () => {
+      genreDetailState[pageKey]++;
+      renderFn();
+    });
+  };
+
+  bindPager('btnRgdAlbumsPrev', 'btnRgdAlbumsNext', 'albumsPage', renderRgdLibAlbums);
+  bindPager('btnRgdArtistsPrev', 'btnRgdArtistsNext', 'artistsPage', renderRgdLibArtists);
+  bindPager('btnRgdNewPrev', 'btnRgdNewNext', 'newPage', renderRgdNewReleases);
+  bindPager('btnRgdRecPrev', 'btnRgdRecNext', 'recPage', renderRgdRecommended);
+}
+
+function openGenreDetail(genreName) {
+  bindGenreDetailEventsOnce();
+  const canon = canonicalizeGenre(genreName || 'Pop/Rock');
+  const zhName = (typeof getRoonGenreZhName === 'function') ? getRoonGenreZhName(canon) : canon;
+  const sessionId = ++genreDetailState.sessionId;
+
+  const { tracksByGenre, albumsByGenre } = buildGenreBuckets();
+  const matchingTracks = (tracksByGenre.get(canon) || []).slice();
+  const matchingAlbums = (albumsByGenre.get(canon) || []).slice().sort((a, b) => {
+    const pa = (typeof getAlbumPlayCount === 'function') ? getAlbumPlayCount(a) : 0;
+    const pb = (typeof getAlbumPlayCount === 'function') ? getAlbumPlayCount(b) : 0;
+    if (pb !== pa) return pb - pa;
+    return (b.addedAt || 0) - (a.addedAt || 0);
+  });
+
+  // Aggregate unique artists in this genre sorted by track/album count
+  const artistAgg = new Map();
+  matchingAlbums.forEach(alb => {
+    const name = String(alb.artist || '').trim();
+    if (!name || isUnknownArtist(name) || name.toLowerCase() === 'various artists') return;
+    const key = name.toLowerCase();
+    if (!artistAgg.has(key)) {
+      artistAgg.set(key, {
+        name,
+        albumCount: 0,
+        trackCount: 0,
+        fallbackCover: alb.cover ? formatCoverSrc(alb.cover) : ''
+      });
+    }
+    const entry = artistAgg.get(key);
+    entry.albumCount++;
+    entry.trackCount += (alb.tracks ? alb.tracks.length : 0);
+    if (!entry.fallbackCover && alb.cover) entry.fallbackCover = formatCoverSrc(alb.cover);
+  });
+  const matchingArtists = Array.from(artistAgg.values()).sort((a, b) => {
+    if (b.albumCount !== a.albumCount) return b.albumCount - a.albumCount;
+    return b.trackCount - a.trackCount;
+  });
+
+  genreDetailState = {
+    genre: canon,
+    zhName,
+    albums: matchingAlbums,
+    tracks: matchingTracks,
+    artists: matchingArtists,
+    newReleases: [],
+    recommended: [],
+    albumsPage: 0,
+    artistsPage: 0,
+    newPage: 0,
+    recPage: 0,
+    sessionId
+  };
+
+  // Populate Hero title, subtitle, bio
+  const titleEl = document.getElementById('rgdTitle');
+  const subEl = document.getElementById('rgdSubtitle');
+  const bioEl = document.getElementById('rgdBioText');
+  const bioToggle = document.getElementById('btnRgdBioToggle');
+  const newHead = document.getElementById('rgdNewReleasesHeading');
+  const heroBg = document.getElementById('rgdHeroBg');
+
+  if (titleEl) titleEl.textContent = zhName;
+  if (subEl) subEl.textContent = canon;
+  if (newHead) newHead.textContent = `為 ${zhName} 粉絲推薦的新作品`;
+  if (bioEl) {
+    bioEl.textContent = (typeof getRoonGenreDescription === 'function')
+      ? getRoonGenreDescription(canon)
+      : '';
+    bioEl.classList.add('is-clamped');
+  }
+  if (bioToggle) bioToggle.classList.remove('is-expanded');
+
+  // Set immediate Hero background from featured artist cached portrait or album cover, then hydrate real portrait
+  const leadArtist = matchingArtists[0] || null;
+  const immediateHero = (leadArtist && getImmediateArtistAvatarSrc(leadArtist.name, null))
+    || (matchingAlbums.find(a => a.cover && !String(a.cover).startsWith('data:image/svg'))?.cover ? formatCoverSrc(matchingAlbums.find(a => a.cover && !String(a.cover).startsWith('data:image/svg')).cover) : '');
+  if (heroBg) {
+    heroBg.style.backgroundImage = immediateHero ? `url("${immediateHero}")` : 'none';
+  }
+  if (leadArtist) {
+    fetchArtistPortraitOnline(leadArtist.name).then(url => {
+      if (url && genreDetailState.sessionId === sessionId && heroBg) {
+        heroBg.style.backgroundImage = `url("${url}")`;
+      }
+    }).catch(() => {});
+  }
+
+  renderRgdLibAlbums();
+  renderRgdLibArtists();
+  renderRgdNewReleases();
+  renderRgdRecommended();
+
+  navigateTo('genreDetail');
+  const mainContentEl = document.getElementById('mainContent');
+  if (mainContentEl) mainContentEl.scrollTop = 0;
+
+  fetchRgdOnlineDiscovery(canon, sessionId);
 }
 
 // 判斷是否為區域網路 SAMBA / NAS / UNC 路徑
@@ -19120,7 +19784,7 @@ function applyView(viewId, updateNav = true, options = {}) {
           mainContentEl.scrollTop = savedTop;
         }
       });
-    } else if (viewId === 'albumDetail') {
+    } else if (viewId === 'albumDetail' || viewId === 'genreDetail') {
       mainContentEl.scrollTop = 0;
     }
   }

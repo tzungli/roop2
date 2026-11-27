@@ -1315,6 +1315,98 @@
         </div>
       </section>
 
+      <!-- 5B. GENRE DETAIL VIEW (Roon-style Genre Landing Page) -->
+      <section id="viewGenreDetail" class="content-view">
+        <div class="rgd-page">
+          <!-- Hero Banner -->
+          <div class="rgd-hero" id="rgdHero">
+            <div class="rgd-hero-bg" id="rgdHeroBg"></div>
+            <div class="rgd-hero-scrim"></div>
+            <div class="rgd-hero-content">
+              <h1 class="rgd-title" id="rgdTitle">流行 / 搖滾</h1>
+              <div class="rgd-subtitle" id="rgdSubtitle">Pop/Rock</div>
+              <div class="rgd-actions">
+                <div class="rgd-play-split">
+                  <button type="button" class="rgd-play-main" id="btnRgdPlayNow">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <span>立刻播放</span>
+                  </button>
+                  <button type="button" class="rgd-play-caret" id="btnRgdPlayMenu" title="更多播放選項" aria-label="更多播放選項">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div class="rgd-dropdown" id="rgdPlayDropdown" style="display: none;">
+                    <button type="button" class="rgd-dropdown-item" data-rgd-action="play">▶ 順序播放全部曲目</button>
+                    <button type="button" class="rgd-dropdown-item" data-rgd-action="shuffle">🔀 隨機播放此音樂類型</button>
+                    <button type="button" class="rgd-dropdown-item" data-rgd-action="queue">➕ 加入待播清單</button>
+                  </div>
+                </div>
+                <button type="button" class="rgd-more-btn" id="btnRgdMore" title="瀏覽全部專輯" aria-label="瀏覽全部專輯">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Editorial Genre Bio -->
+          <div class="rgd-bio-wrap" id="rgdBioWrap">
+            <p class="rgd-bio-text is-clamped" id="rgdBioText"></p>
+            <button type="button" class="rgd-bio-toggle" id="btnRgdBioToggle" title="展開或收合介紹" aria-label="展開或收合介紹">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+
+          <!-- 1. Albums in Your Library -->
+          <div class="rgd-section" id="rgdLibAlbumsSection">
+            <div class="rgd-section-head">
+              <h2 class="rgd-section-title">你音樂資料庫中的專輯</h2>
+              <div class="rgd-section-controls">
+                <button type="button" class="rgd-nav-btn" id="btnRgdAlbumsPrev" title="上一頁" aria-label="上一頁">‹</button>
+                <button type="button" class="rgd-nav-btn" id="btnRgdAlbumsNext" title="下一頁" aria-label="下一頁">›</button>
+                <button type="button" class="rgd-more-pill" id="btnRgdAlbumsMore">更多</button>
+              </div>
+            </div>
+            <div class="rgd-albums-row" id="rgdLibAlbumsGrid"></div>
+          </div>
+
+          <!-- 2. Artists in Your Library -->
+          <div class="rgd-section" id="rgdLibArtistsSection">
+            <div class="rgd-section-head">
+              <h2 class="rgd-section-title">你音樂資料庫中的藝術家</h2>
+              <div class="rgd-section-controls">
+                <button type="button" class="rgd-nav-btn" id="btnRgdArtistsPrev" title="上一頁" aria-label="上一頁">‹</button>
+                <button type="button" class="rgd-nav-btn" id="btnRgdArtistsNext" title="下一頁" aria-label="下一頁">›</button>
+                <button type="button" class="rgd-more-pill" id="btnRgdArtistsMore">更多</button>
+              </div>
+            </div>
+            <div class="rgd-artists-row" id="rgdLibArtistsGrid"></div>
+          </div>
+
+          <!-- 3. New Releases for Fans of {Genre} -->
+          <div class="rgd-section" id="rgdNewReleasesSection">
+            <div class="rgd-section-head">
+              <h2 class="rgd-section-title" id="rgdNewReleasesHeading">為 流行 / 搖滾 粉絲推薦的新作品</h2>
+              <div class="rgd-section-controls">
+                <button type="button" class="rgd-nav-btn" id="btnRgdNewPrev" title="上一頁" aria-label="上一頁">‹</button>
+                <button type="button" class="rgd-nav-btn" id="btnRgdNewNext" title="下一頁" aria-label="下一頁">›</button>
+              </div>
+            </div>
+            <div class="rgd-new-releases-grid" id="rgdNewReleasesGrid"></div>
+          </div>
+
+          <!-- 4. Recommended Albums (Roon Signature Cobalt-Blue Banner) -->
+          <div class="rgd-recommended-banner" id="rgdRecommendedSection">
+            <div class="rgd-section-head rgd-rec-head">
+              <h2 class="rgd-section-title rgd-rec-title">推薦專輯</h2>
+              <div class="rgd-section-controls">
+                <button type="button" class="rgd-nav-btn rgd-nav-btn-light" id="btnRgdRecPrev" title="上一頁" aria-label="上一頁">‹</button>
+                <button type="button" class="rgd-nav-btn rgd-nav-btn-light" id="btnRgdRecNext" title="下一頁" aria-label="下一頁">›</button>
+              </div>
+            </div>
+            <div class="rgd-rec-grid" id="rgdRecommendedGrid"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- 6. STORAGE VIEW -->
       <section id="viewStorage" class="content-view">
         <div class="view-header">

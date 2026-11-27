@@ -14578,6 +14578,673 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   border-color: rgba(124, 92, 255, 0.45);
 }
 
+/* =========================================================================
+   Roon-Style Genre Detail Landing Page (viewGenreDetail)
+   ========================================================================= */
+.rgd-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-bottom: 36px;
+}
+
+.rgd-hero {
+  position: relative;
+  height: 310px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(125deg, #2b2d3c 0%, #191b26 100%);
+  display: flex;
+  align-items: flex-end;
+}
+
+.rgd-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 22%;
+  background-repeat: no-repeat;
+  transform: scale(1.02);
+  transition: opacity 0.35s ease;
+}
+
+.rgd-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(18, 20, 28, 0.84) 0%,
+    rgba(18, 20, 28, 0.56) 44%,
+    rgba(18, 20, 28, 0.16) 76%,
+    rgba(18, 20, 28, 0.32) 100%
+  ),
+  linear-gradient(
+    180deg,
+    rgba(18, 20, 28, 0.1) 0%,
+    rgba(18, 20, 28, 0.45) 100%
+  );
+}
+
+.rgd-hero-content {
+  position: relative;
+  z-index: 2;
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 68%;
+}
+
+.rgd-title {
+  margin: 0;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1.12;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.38);
+}
+
+.rgd-subtitle {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  margin-bottom: 14px;
+}
+
+.rgd-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rgd-play-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 999px;
+  background: #6c63ff;
+  box-shadow: 0 6px 18px rgba(108, 99, 255, 0.36);
+}
+
+.rgd-play-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px 8px 18px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 999px 0 0 999px;
+  transition: background 0.16s ease;
+}
+
+.rgd-play-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  border-radius: 0 999px 999px 0;
+  transition: background 0.16s ease;
+}
+
+.rgd-play-main:hover,
+.rgd-play-caret:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.rgd-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 185px;
+  background: var(--bg-card, #1d202c);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+  z-index: 30;
+}
+
+.rgd-dropdown-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.rgd-dropdown-item:hover {
+  background: rgba(124, 92, 255, 0.14);
+  color: var(--accent-purple);
+}
+
+.rgd-more-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.rgd-more-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.72);
+}
+
+/* Editorial Genre Bio */
+.rgd-bio-wrap {
+  max-width: 920px;
+  margin: -6px auto 0;
+  width: 100%;
+  text-align: left;
+}
+
+.rgd-bio-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--text-sub);
+}
+
+.rgd-bio-text.is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rgd-bio-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px auto 0;
+  width: 32px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.16s ease;
+}
+
+.rgd-bio-toggle:hover {
+  color: var(--text-main);
+}
+
+.rgd-bio-toggle.is-expanded {
+  transform: rotate(180deg);
+}
+
+/* Section Headers */
+.rgd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rgd-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.rgd-section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.rgd-section-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rgd-nav-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rgd-nav-btn:hover:not(:disabled) {
+  background: rgba(124, 92, 255, 0.15);
+  border-color: rgba(124, 92, 255, 0.4);
+  color: var(--accent-purple);
+}
+
+.rgd-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.rgd-more-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rgd-more-pill:hover {
+  background: rgba(124, 92, 255, 0.15);
+  border-color: rgba(124, 92, 255, 0.4);
+  color: var(--accent-purple);
+}
+
+/* 1. Library Albums 5-col Row */
+.rgd-albums-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.rgd-album-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.rgd-album-cover-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.rgd-album-card:hover .rgd-album-cover-wrap {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+.rgd-album-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rgd-lib-check {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.rgd-album-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rgd-album-artist {
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rgd-album-spec {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 2. Library Artists 5-col Circular Row */
+.rgd-artists-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.rgd-artist-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.rgd-artist-circle {
+  width: 100%;
+  max-width: 168px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.22), rgba(56, 189, 248, 0.14));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rgd-artist-card:hover .rgd-artist-circle {
+  transform: scale(1.04);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+
+.rgd-artist-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  display: block;
+}
+
+.rgd-artist-initial {
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--accent-purple);
+}
+
+.rgd-artist-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: center;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 3. New Releases 3x2 Grid */
+.rgd-new-releases-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rgd-new-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  min-width: 0;
+}
+
+.rgd-new-card:hover {
+  background: rgba(124, 92, 255, 0.08);
+  border-color: rgba(124, 92, 255, 0.35);
+  transform: translateY(-2px);
+}
+
+.rgd-new-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rgd-new-artist {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rgd-new-title {
+  font-size: 13px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rgd-new-date {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.rgd-new-source {
+  margin-top: 2px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.rgd-new-cover {
+  width: 74px;
+  height: 74px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* 4. Recommended Albums (Roon Cobalt-Blue Banner) */
+.rgd-recommended-banner {
+  background: linear-gradient(135deg, #3b4cf0 0%, #4b5cff 100%);
+  border-radius: 8px;
+  padding: 20px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rgd-rec-head {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rgd-rec-title {
+  color: #ffffff;
+}
+
+.rgd-nav-btn-light {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.rgd-nav-btn-light:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+
+.rgd-rec-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rgd-rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.rgd-rec-cover-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.26);
+  transition: transform 0.18s ease;
+}
+
+.rgd-rec-card:hover .rgd-rec-cover-wrap {
+  transform: translateY(-3px);
+}
+
+.rgd-rec-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rgd-rec-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rgd-rec-album-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rgd-rec-album-artist {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rgd-empty-hint {
+  grid-column: 1 / -1;
+  padding: 20px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.rgd-rec-empty {
+  grid-column: 1 / -1;
+  padding: 20px 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* Light Theme Refinements */
+[data-theme="light"] .rgd-new-card {
+  background: #f5f6fa;
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .rgd-new-card:hover {
+  background: #eef0fb;
+  border-color: rgba(108, 99, 255, 0.3);
+}
+
+[data-theme="light"] .rgd-nav-btn,
+[data-theme="light"] .rgd-more-pill {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #334155;
+}
+
+[data-theme="light"] .rgd-dropdown {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+}
+
+@media (max-width: 1100px) {
+  .rgd-albums-row,
+  .rgd-artists-row,
+  .rgd-rec-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .rgd-new-releases-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .rgd-hero {
+    height: 240px;
+  }
+  .rgd-title {
+    font-size: 32px;
+  }
+  .rgd-albums-row,
+  .rgd-artists-row,
+  .rgd-rec-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .rgd-new-releases-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ============================================================
    Auto-Updater (GitHub Releases + SHA-256 Verification)
    ============================================================ */
