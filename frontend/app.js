@@ -7708,6 +7708,119 @@ function buildGenreBuckets() {
 // Render Genres (Roon-style 4-column alternating mosaic with real album cover backgrounds)
 let genreCoverPickSession = new Map();
 
+// Online cover cache for genres that have 0 local albums (TIDAL -> KKBOX -> iTunes web fallback)
+const GENRE_ONLINE_COVER_CACHE_KEY = 'rooplayer_genre_online_covers_v1';
+const GENRE_ONLINE_COVER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+let _genreOnlineCoverStore = null;
+const _genreOnlineCoverPending = new Map();
+
+function loadGenreOnlineCoverStore() {
+  if (_genreOnlineCoverStore) return _genreOnlineCoverStore;
+  try {
+    const raw = localStorage.getItem(GENRE_ONLINE_COVER_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    _genreOnlineCoverStore = (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (_) {
+    _genreOnlineCoverStore = {};
+  }
+  return _genreOnlineCoverStore;
+}
+
+function getCachedOnlineGenreCover(genreName) {
+  const canon = canonicalizeGenre(genreName || '');
+  if (!canon) return null;
+  const entry = loadGenreOnlineCoverStore()[canon];
+  if (!entry || !entry.url) return null;
+  if (entry.ts && (Date.now() - entry.ts > GENRE_ONLINE_COVER_TTL_MS)) return null;
+  return entry;
+}
+
+function setCachedOnlineGenreCover(genreName, url, title = '', source = '') {
+  const canon = canonicalizeGenre(genreName || '');
+  if (!canon || !url) return;
+  const store = loadGenreOnlineCoverStore();
+  store[canon] = { url, title, source, ts: Date.now() };
+  try {
+    localStorage.setItem(GENRE_ONLINE_COVER_CACHE_KEY, JSON.stringify(store));
+  } catch (_) {}
+}
+
+async function fetchOnlineGenreTileCover(genreName) {
+  const canon = canonicalizeGenre(genreName || '');
+  if (!canon) return null;
+  const cached = getCachedOnlineGenreCover(canon);
+  if (cached) return cached;
+  if (_genreOnlineCoverPending.has(canon)) return _genreOnlineCoverPending.get(canon);
+
+  const p = (async () => {
+    const queryTerm = (typeof getRoonGenreQueryTerm === 'function')
+      ? getRoonGenreQueryTerm(canon)
+      : canon;
+    const zhName = (typeof getRoonGenreZhName === 'function')
+      ? getRoonGenreZhName(canon)
+      : canon;
+
+    // 1. Try TIDAL
+    if (window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.search === 'function') {
+      try {
+        const res = await window.tidalService.search(queryTerm, 8);
+        const withCov = ((res && res.albums) || []).filter(a => a && a.cover);
+        if (withCov.length > 0) {
+          const pick = withCov[Math.floor(Math.random() * Math.min(withCov.length, 4))];
+          const title = pick.title ? `${pick.title}${pick.artist ? ' — ' + pick.artist : ''}` : '';
+          setCachedOnlineGenreCover(canon, pick.cover, title, 'tidal');
+          return { url: pick.cover, title, source: 'tidal' };
+        }
+      } catch (_) {}
+    }
+
+    // 2. Try KKBOX
+    if (window.kkboxService && typeof window.kkboxService.search === 'function' && (!window.kkboxService.isConfigured || window.kkboxService.isConfigured())) {
+      try {
+        const res = await window.kkboxService.search(zhName || queryTerm, ['album']);
+        const albums = (res && res.albums && res.albums.data) || (Array.isArray(res && res.albums) ? res.albums : []);
+        const withCov = albums.filter(a => a && ((Array.isArray(a.images) && a.images[0] && a.images[0].url) || a.cover));
+        if (withCov.length > 0) {
+          const pick = withCov[0];
+          const url = (Array.isArray(pick.images) && pick.images[0] && pick.images[0].url) || pick.cover;
+          const art = (pick.artist && pick.artist.name) || '';
+          const title = pick.name ? `${pick.name}${art ? ' — ' + art : ''}` : '';
+          setCachedOnlineGenreCover(canon, url, title, 'kkbox');
+          return { url, title, source: 'kkbox' };
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback: iTunes Search API (always works without login)
+    try {
+      const twUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=album&country=tw&limit=8`;
+      let data = await nativeFetchJson(twUrl, {}, 6500);
+      let results = ((data && data.results) || []).filter(r => r && r.artworkUrl100);
+      if (results.length === 0) {
+        const usUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=album&limit=8`;
+        data = await nativeFetchJson(usUrl, {}, 6500);
+        results = ((data && data.results) || []).filter(r => r && r.artworkUrl100);
+      }
+      if (results.length > 0) {
+        const pick = results[Math.floor(Math.random() * Math.min(results.length, 4))];
+        const url = String(pick.artworkUrl100).replace(/100x100bb/i, '600x600bb');
+        const title = pick.collectionName ? `${pick.collectionName}${pick.artistName ? ' — ' + pick.artistName : ''}` : '';
+        setCachedOnlineGenreCover(canon, url, title, 'itunes');
+        return { url, title, source: 'itunes' };
+      }
+    } catch (_) {}
+
+    return null;
+  })();
+
+  _genreOnlineCoverPending.set(canon, p);
+  try {
+    return await p;
+  } finally {
+    _genreOnlineCoverPending.delete(canon);
+  }
+}
+
 function renderGenres() {
   if (!genresGrid) return;
   genresGrid.innerHTML = '';
@@ -7771,6 +7884,7 @@ function renderGenres() {
     const coverPool = albumsWithCover.length > 0 ? albumsWithCover : fallbackPool;
     let chosenCover = '';
     let chosenTitle = '';
+    let needsOnlineCover = false;
     if (coverPool.length > 0) {
       let cached = genreCoverPickSession.get(genreName);
       if (!cached || !coverPool.some(a => a.cover === cached.cover)) {
@@ -7780,6 +7894,14 @@ function renderGenres() {
       }
       chosenCover = formatCoverSrc(cached.cover) || '';
       chosenTitle = cached.title ? `${cached.title}${cached.artist ? ' — ' + cached.artist : ''}` : '';
+    } else {
+      const onlineCached = getCachedOnlineGenreCover(genreName);
+      if (onlineCached && onlineCached.url) {
+        chosenCover = onlineCached.url;
+        chosenTitle = onlineCached.title || '';
+      } else {
+        needsOnlineCover = true;
+      }
     }
 
     const tile = document.createElement('div');
@@ -7804,6 +7926,29 @@ function renderGenres() {
         bgImg.onerror = null;
         bgImg.style.display = 'none';
       };
+    }
+
+    if (needsOnlineCover) {
+      fetchOnlineGenreTileCover(genreName).then(onlineRes => {
+        if (!onlineRes || !onlineRes.url || !tile.isConnected) return;
+        const ph = tile.querySelector('.roon-genre-tile-placeholder');
+        if (ph) {
+          const img = document.createElement('img');
+          img.className = 'roon-genre-tile-bg';
+          img.src = onlineRes.url;
+          img.alt = info.zhName;
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.onerror = () => {
+            img.onerror = null;
+            img.style.display = 'none';
+          };
+          ph.replaceWith(img);
+        }
+        if (onlineRes.title) {
+          tile.title = `${info.zhName}（${albumCount} 張專輯 • ${trackCount} 首曲目）\n封面：${onlineRes.title}`;
+        }
+      }).catch(() => {});
     }
 
     const playBtn = tile.querySelector('.roon-genre-tile-play');
@@ -8562,10 +8707,12 @@ function openGenreDetail(genreName) {
   }
   if (bioToggle) bioToggle.classList.remove('is-expanded');
 
-  // Set immediate Hero background from featured artist cached portrait or album cover, then hydrate real portrait
+  // Set immediate Hero background from featured artist cached portrait, album cover, or cached online genre cover
   const leadArtist = matchingArtists[0] || null;
+  const cachedOnlineHero = getCachedOnlineGenreCover(canon);
   const immediateHero = (leadArtist && getImmediateArtistAvatarSrc(leadArtist.name, null))
-    || (matchingAlbums.find(a => a.cover && !String(a.cover).startsWith('data:image/svg'))?.cover ? formatCoverSrc(matchingAlbums.find(a => a.cover && !String(a.cover).startsWith('data:image/svg')).cover) : '');
+    || (matchingAlbums.find(a => a.cover && !String(a.cover).startsWith('data:image/svg'))?.cover ? formatCoverSrc(matchingAlbums.find(a => a.cover && !String(a.cover).startsWith('data:image/svg')).cover) : '')
+    || (cachedOnlineHero ? cachedOnlineHero.url : '');
   if (heroBg) {
     heroBg.style.backgroundImage = immediateHero ? `url("${immediateHero}")` : 'none';
   }
@@ -8573,6 +8720,12 @@ function openGenreDetail(genreName) {
     fetchArtistPortraitOnline(leadArtist.name).then(url => {
       if (url && genreDetailState.sessionId === sessionId && heroBg) {
         heroBg.style.backgroundImage = `url("${url}")`;
+      }
+    }).catch(() => {});
+  } else if (!immediateHero) {
+    fetchOnlineGenreTileCover(canon).then(res => {
+      if (res && res.url && genreDetailState.sessionId === sessionId && heroBg) {
+        heroBg.style.backgroundImage = `url("${res.url}")`;
       }
     }).catch(() => {});
   }
