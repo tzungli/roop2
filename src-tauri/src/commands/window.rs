@@ -3,9 +3,39 @@ use tauri::{Emitter, State, Window};
 use roo_dlna::DlnaManager;
 
 static PENDING_MAXIMIZE: AtomicBool = AtomicBool::new(false);
+static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
+static FORCE_EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 pub fn mark_pending_maximize() {
     PENDING_MAXIMIZE.store(true, Ordering::SeqCst);
+}
+
+pub fn is_close_to_tray_enabled() -> bool {
+    CLOSE_TO_TRAY.load(Ordering::SeqCst)
+}
+
+pub fn set_close_to_tray_enabled(enabled: bool) {
+    CLOSE_TO_TRAY.store(enabled, Ordering::SeqCst);
+}
+
+pub fn is_force_exit_requested() -> bool {
+    FORCE_EXIT_REQUESTED.load(Ordering::SeqCst)
+}
+
+pub fn mark_force_exit_requested() {
+    FORCE_EXIT_REQUESTED.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+pub fn window_set_close_to_tray(enabled: bool) -> Result<bool, String> {
+    tracing::info!("Set close-to-tray enabled = {}", enabled);
+    set_close_to_tray_enabled(enabled);
+    Ok(enabled)
+}
+
+#[tauri::command]
+pub fn window_get_close_to_tray() -> Result<bool, String> {
+    Ok(is_close_to_tray_enabled())
 }
 
 #[tauri::command]
@@ -52,6 +82,11 @@ pub async fn window_show(window: Window) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn window_close(window: Window, dlna: State<'_, DlnaManager>) -> Result<(), String> {
+    if is_close_to_tray_enabled() && !is_force_exit_requested() {
+        tracing::info!("Close-to-tray enabled: hiding main window to system tray");
+        window.hide().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
     tracing::info!("Closing window — stopping active DLNA renderer & streams");
     // Stop DLNA renderer BEFORE cancelling HTTP streams so it receives Pause/Stop/ClearURI cleanly
     dlna.stop_active().await;

@@ -15259,6 +15259,422 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   }
 }
 
+/* =========================================================================
+   Top-Left Gear Button & Roon-Style Advanced Settings Page (viewSettings)
+   ========================================================================= */
+.brand-settings-btn {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  width: 28px;
+  height: 28px;
+  margin-left: 8px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.2s ease;
+}
+
+.brand-settings-btn:hover {
+  background: rgba(124, 92, 255, 0.14);
+  color: var(--accent-purple);
+  transform: rotate(22deg);
+}
+
+.brand-settings-btn.active {
+  background: rgba(124, 92, 255, 0.18);
+  border-color: rgba(124, 92, 255, 0.42);
+  color: var(--accent-purple);
+}
+
+.roo-settings-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 32px;
+  min-height: calc(100vh - 160px);
+  padding: 12px 16px 40px;
+  max-width: 1080px;
+}
+
+.roo-settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 20px;
+  border-right: 1px solid var(--border-color);
+}
+
+.roo-settings-nav-title {
+  margin: 0 0 18px 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.roo-settings-tab {
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.roo-settings-tab:hover {
+  background: rgba(124, 92, 255, 0.08);
+  color: var(--text-main);
+}
+
+.roo-settings-tab.active {
+  color: var(--accent-purple);
+  font-weight: 700;
+  background: rgba(124, 92, 255, 0.1);
+}
+
+.roo-settings-body {
+  min-width: 0;
+  max-width: 760px;
+}
+
+.roo-settings-panel {
+  display: none;
+}
+
+.roo-settings-panel.active {
+  display: block;
+}
+
+.roo-settings-section-heading {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.roo-settings-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.roo-settings-lead {
+  margin: 0 0 22px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
+
+.roo-settings-core-card {
+  padding: 18px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 28px;
+}
+
+.roo-settings-core-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.roo-settings-core-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.roo-settings-core-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.roo-settings-core-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.roo-settings-core-sub {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+.roo-settings-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 12px;
+}
+
+.roo-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roo-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.roo-settings-row-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.roo-settings-row-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.roo-settings-row-desc {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-sub);
+  margin-top: 4px;
+}
+
+/* Roon-style Purple Toggle Switch */
+.roo-switch-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.roo-switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.roo-switch-slider {
+  position: relative;
+  width: 38px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+  transition: background 0.18s ease;
+  display: inline-block;
+}
+
+.roo-switch-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s ease;
+}
+
+.roo-switch-input:checked + .roo-switch-slider {
+  background: #6c63ff;
+}
+
+.roo-switch-input:checked + .roo-switch-slider::after {
+  transform: translateX(18px);
+}
+
+.roo-switch-state {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-sub);
+  min-width: 40px;
+}
+
+.roo-settings-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.roo-settings-refresh-btn:hover:not(:disabled) {
+  border-color: rgba(124, 92, 255, 0.45);
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+}
+
+.roo-settings-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.roo-device-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roo-device-manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  transition: opacity 0.16s ease, border-color 0.16s ease;
+}
+
+.roo-device-manage-row.is-disabled {
+  opacity: 0.62;
+}
+
+.roo-device-manage-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.roo-device-manage-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(124, 92, 255, 0.1);
+  color: var(--accent-purple);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.roo-device-manage-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.roo-device-manage-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.roo-device-manage-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.roo-device-manage-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+  border: 1px solid rgba(124, 92, 255, 0.25);
+}
+
+.roo-device-manage-active-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.roo-device-manage-sub {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roo-settings-empty {
+  padding: 18px 16px;
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.roon-zone-empty-hint {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.roon-zone-empty-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 92, 255, 0.4);
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+[data-theme="light"] .roo-settings-core-card,
+[data-theme="light"] .roo-settings-row,
+[data-theme="light"] .roo-device-manage-row {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.09);
+}
+
+[data-theme="light"] .roo-settings-refresh-btn {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #1e293b;
+}
+
 /* ============================================================
    Auto-Updater (GitHub Releases + SHA-256 Verification)
    ============================================================ */

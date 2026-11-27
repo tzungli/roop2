@@ -5,6 +5,8 @@ mod commands;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tracing_subscriber::EnvFilter;
 
 use commands::audio::*;
@@ -151,6 +153,63 @@ async fn main() {
                 }
                 setup_restored_flag.store(true, std::sync::atomic::Ordering::SeqCst);
             }
+
+            // Build Windows System Tray icon (used when "Close to System Tray" is enabled)
+            let show_item = MenuItem::with_id(app, "tray_show", "顯示 rooPlayer", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "tray_quit", "結束 rooPlayer", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let mut tray_builder = TrayIconBuilder::with_id("main-tray")
+                .menu(&tray_menu)
+                .tooltip("rooPlayer")
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app_handle, event| {
+                    match event.id.as_ref() {
+                        "tray_show" => {
+                            if let Some(win) = app_handle.get_webview_window("main") {
+                                let _ = win.unminimize();
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                            }
+                        }
+                        "tray_quit" => {
+                            commands::window::mark_force_exit_requested();
+                            let h = app_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let dlna = h.state::<DlnaManager>();
+                                let airplay = h.state::<AirPlayManager>();
+                                airplay.stop_all();
+                                dlna.stop_active().await;
+                                roo_streamer::cancel_all_progressive_streams();
+                                h.exit(0);
+                            });
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    }
+                    | TrayIconEvent::DoubleClick {
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        let app_handle = tray.app_handle();
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.unminimize();
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+            let _ = tray_builder.build(app);
+
             let handle = app.handle().clone();
             let dlna_warm_handle = app.handle().clone();
             tokio::spawn(async move {
@@ -215,6 +274,13 @@ async fn main() {
                         if let Ok(json) = serde_json::to_string_pretty(&*guard) {
                             let _ = std::fs::write(&event_state_path, json);
                         }
+                    }
+                    if commands::window::is_close_to_tray_enabled()
+                        && !commands::window::is_force_exit_requested()
+                    {
+                        api.prevent_close();
+                        let _ = window.hide();
+                        return;
                     }
                     static SHUTDOWN_STOPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                     if !SHUTDOWN_STOPPED.swap(true, std::sync::atomic::Ordering::SeqCst) {
@@ -298,6 +364,8 @@ async fn main() {
             window_is_maximized,
             window_start_dragging,
             window_close,
+            window_set_close_to_tray,
+            window_get_close_to_tray,
             // Audio commands
             audio_get_dsd_stream_url,
             audio_get_sox_stream_url,

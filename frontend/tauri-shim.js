@@ -255,6 +255,8 @@
       }
       return await invoke('window_close');
     },
+    setCloseToTray: (enabled) => invoke('window_set_close_to_tray', { enabled: !!enabled }),
+    getCloseToTray: () => invoke('window_get_close_to_tray'),
     onMaximizedChange: (callback) => {
       listen('window:maximizedChange', callback);
     },

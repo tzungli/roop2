@@ -23,6 +23,12 @@
         <img src="icon.png" alt="rooPlayer" class="brand-app-icon">
         <span class="brand-text">rooPlayer</span>
       </div>
+      <button id="btnOpenSettings" class="brand-settings-btn" type="button" title="進階設定" aria-label="進階設定">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.2"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </div>
     
     <div class="titlebar-center">
@@ -2897,6 +2903,77 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- 13. ADVANCED SETTINGS VIEW (Roon-style Settings Page) -->
+      <section id="viewSettings" class="content-view">
+        <div class="roo-settings-layout">
+          <aside class="roo-settings-nav">
+            <h1 class="roo-settings-nav-title">設定</h1>
+            <button type="button" class="roo-settings-tab active" data-settings-tab="general">一般</button>
+            <button type="button" class="roo-settings-tab" data-settings-tab="audio">裝置管理</button>
+          </aside>
+
+          <div class="roo-settings-body">
+            <!-- Tab 1: General -->
+            <div class="roo-settings-panel active" id="settingsPanelGeneral">
+              <h2 class="roo-settings-section-heading">一般</h2>
+
+              <div class="roo-settings-core-card">
+                <div class="roo-settings-core-kicker">ROOPLAYER CORE</div>
+                <div class="roo-settings-core-row">
+                  <div class="roo-settings-core-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                      <line x1="8" y1="21" x2="16" y2="21"></line>
+                      <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                  </div>
+                  <div class="roo-settings-core-info">
+                    <div class="roo-settings-core-name">此 電腦</div>
+                    <div class="roo-settings-core-sub">本機 Hi-Res 音訊與多區域串流核心 • v0.2.4</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="roo-settings-group-title">系統與視窗行為</div>
+              <div class="roo-settings-list">
+                <div class="roo-settings-row">
+                  <div class="roo-settings-row-text">
+                    <div class="roo-settings-row-label">程式關閉至系統狀態列</div>
+                    <div class="roo-settings-row-desc">當按下右上方關閉 (✕) 按鈕時不結束程式，改為縮小至 Windows 系統狀態列繼續運作（可點擊系統列圖示還原，或右鍵選擇結束程式）。</div>
+                  </div>
+                  <label class="roo-switch-wrap">
+                    <input type="checkbox" id="toggleCloseToTray" class="roo-switch-input">
+                    <span class="roo-switch-slider"></span>
+                    <span class="roo-switch-state" id="toggleCloseToTrayLabel">否</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 2: Audio Device Management -->
+            <div class="roo-settings-panel" id="settingsPanelAudio">
+              <div class="roo-settings-head-row">
+                <h2 class="roo-settings-section-heading" style="margin: 0;">裝置管理</h2>
+                <button type="button" class="roo-settings-refresh-btn" id="btnSettingsRefreshDevices">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+                    <polyline points="21 3 21 9 15 9"></polyline>
+                  </svg>
+                  <span>重新搜尋裝置</span>
+                </button>
+              </div>
+              <p class="roo-settings-lead">啟用或停用本機與區網串流播放裝置。被停用的裝置將不會出現在右下角的可播放設備清單中。</p>
+
+              <div class="roo-settings-group-title">本機裝置</div>
+              <div class="roo-device-manage-list" id="settingsLocalDevicesList"></div>
+
+              <div class="roo-settings-group-title" style="margin-top: 24px;">網路串流裝置（DLNA / UPnP / AirPlay）</div>
+              <div class="roo-device-manage-list" id="settingsNetworkDevicesList"></div>
+            </div>
+          </div>
         </div>
       </section>
 

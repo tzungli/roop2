@@ -1023,6 +1023,7 @@ async function initApp() {
     // Initialize playback control button states
     updateShuffleUI();
     updateRepeatUI();
+    initAdvancedSettingsUI();
   } catch (err) {
     console.error('[Startup] Initialization error:', err);
   }
@@ -19863,6 +19864,10 @@ function applyView(viewId, updateNav = true, options = {}) {
         btn.classList.toggle('active', btn.getAttribute('data-view') === viewId);
       });
     }
+    const settingsBtn = document.getElementById('btnOpenSettings');
+    if (settingsBtn) {
+      settingsBtn.classList.toggle('active', viewId === 'settings');
+    }
   }
 
   const mainContentEl = document.getElementById('mainContent');
@@ -23461,13 +23466,240 @@ function buildZoneCardElement({ zoneId, name, iconKind, device, tooltip, isActiv
   return card;
 }
 
+// =========================================================================
+// Advanced Settings (Close to System Tray + Audio Device Enable/Disable)
+// =========================================================================
+const CLOSE_TO_TRAY_STORAGE_KEY = 'rooplayer_close_to_tray_v1';
+const DISABLED_AUDIO_DEVICES_KEY = 'rooplayer_disabled_audio_devices_v1';
+let _disabledAudioDevicesSet = null;
+let _settingsViewBound = false;
+
+function getCloseToTrayPref() {
+  try {
+    return localStorage.getItem(CLOSE_TO_TRAY_STORAGE_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function setCloseToTrayPref(enabled) {
+  const val = !!enabled;
+  try {
+    localStorage.setItem(CLOSE_TO_TRAY_STORAGE_KEY, val ? '1' : '0');
+  } catch (_) {}
+  if (window.electronAPI && typeof window.electronAPI.setCloseToTray === 'function') {
+    window.electronAPI.setCloseToTray(val).catch(() => {});
+  }
+  const cb = document.getElementById('toggleCloseToTray');
+  const lbl = document.getElementById('toggleCloseToTrayLabel');
+  if (cb) cb.checked = val;
+  if (lbl) lbl.textContent = val ? '是' : '否';
+}
+
+function loadDisabledAudioDevices() {
+  if (_disabledAudioDevicesSet) return _disabledAudioDevicesSet;
+  try {
+    const raw = localStorage.getItem(DISABLED_AUDIO_DEVICES_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    _disabledAudioDevicesSet = new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch (_) {
+    _disabledAudioDevicesSet = new Set();
+  }
+  return _disabledAudioDevicesSet;
+}
+
+function saveDisabledAudioDevices() {
+  if (!_disabledAudioDevicesSet) return;
+  try {
+    localStorage.setItem(DISABLED_AUDIO_DEVICES_KEY, JSON.stringify(Array.from(_disabledAudioDevicesSet)));
+  } catch (_) {}
+}
+
+function isAudioDeviceDisabled(deviceId) {
+  if (!deviceId) return false;
+  return loadDisabledAudioDevices().has(String(deviceId));
+}
+
+function setAudioDeviceDisabled(deviceId, disabled) {
+  if (!deviceId) return;
+  const idStr = String(deviceId);
+  const set = loadDisabledAudioDevices();
+  if (disabled) {
+    set.add(idStr);
+  } else {
+    set.delete(idStr);
+  }
+  saveDisabledAudioDevices();
+
+  // If the currently active device was disabled, fall back to another enabled device if available
+  if (disabled && state.activeAudioZone === idStr) {
+    const enabledDlna = (state.availableDevices || []).filter(
+      d => !d.isLocal && isAudioRendererDevice(d) && !isAudioDeviceDisabled(d.id)
+    );
+    if (idStr !== 'local' && !isAudioDeviceDisabled('local')) {
+      switchAudioZone('local');
+    } else if (enabledDlna.length > 0) {
+      switchAudioZone(enabledDlna[0]);
+    }
+  }
+
+  renderAudioDevicesList();
+  renderSettingsDevicesList();
+}
+
+function renderSettingsDevicesList() {
+  const localBox = document.getElementById('settingsLocalDevicesList');
+  const netBox = document.getElementById('settingsNetworkDevicesList');
+  if (!localBox || !netBox) return;
+
+  const buildRow = ({ id, name, subtitle, iconTarget, protocolTag }) => {
+    const disabled = isAudioDeviceDisabled(id);
+    const isActive = state.activeAudioZone === id && !disabled;
+    const row = document.createElement('div');
+    row.className = `roo-device-manage-row ${disabled ? 'is-disabled' : ''}`;
+    row.innerHTML = `
+      <div class="roo-device-manage-left">
+        <span class="roo-device-manage-icon">${getRoonDeviceIconSvg(iconTarget, false)}</span>
+        <div class="roo-device-manage-meta">
+          <div class="roo-device-manage-name-line">
+            <span class="roo-device-manage-name">${escapeXml(name)}</span>
+            ${protocolTag ? `<span class="roo-device-manage-tag">${escapeXml(protocolTag)}</span>` : ''}
+            ${isActive ? `<span class="roo-device-manage-active-pill">使用中</span>` : ''}
+          </div>
+          <div class="roo-device-manage-sub">${escapeXml(subtitle)}</div>
+        </div>
+      </div>
+      <div class="roo-device-manage-right">
+        <label class="roo-switch-wrap">
+          <input type="checkbox" class="roo-switch-input roo-device-toggle" ${disabled ? '' : 'checked'}>
+          <span class="roo-switch-slider"></span>
+          <span class="roo-switch-state">${disabled ? '已停用' : '已啟用'}</span>
+        </label>
+      </div>
+    `;
+    const toggle = row.querySelector('.roo-device-toggle');
+    if (toggle) {
+      toggle.addEventListener('change', () => {
+        const nextDisabled = !toggle.checked;
+        setAudioDeviceDisabled(id, nextDisabled);
+        showToast(nextDisabled ? `已停用裝置：${name}` : `已啟用裝置：${name}`);
+      });
+    }
+    return row;
+  };
+
+  localBox.innerHTML = '';
+  localBox.appendChild(buildRow({
+    id: 'local',
+    name: 'System Output',
+    subtitle: 'Windows WASAPI Exclusive / DirectSound 本機音訊輸出',
+    iconTarget: 'speaker',
+    protocolTag: '本機'
+  }));
+
+  const netDevices = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
+  netBox.innerHTML = '';
+  if (netDevices.length === 0) {
+    netBox.innerHTML = `<div class="roo-settings-empty">尚未搜尋到區網串流裝置，請點擊右上角「重新搜尋裝置」。</div>`;
+  } else {
+    netDevices.forEach(dev => {
+      const isAirPlay = dev.protocol === 'airplay' || String(dev.id || '').startsWith('airplay:');
+      const subParts = [dev.model, dev.ip ? `IP: ${dev.ip}` : ''].filter(Boolean);
+      netBox.appendChild(buildRow({
+        id: dev.id,
+        name: dev.name || 'UPnP MediaRenderer',
+        subtitle: subParts.join(' • ') || (isAirPlay ? 'AirPlay 區網串流裝置' : 'DLNA / UPnP 網路串流裝置'),
+        iconTarget: dev,
+        protocolTag: isAirPlay ? 'AirPlay' : 'DLNA / UPnP'
+      }));
+    });
+  }
+}
+
+function initAdvancedSettingsUI() {
+  if (_settingsViewBound) return;
+  _settingsViewBound = true;
+
+  // Sync persisted close-to-tray preference to Rust backend immediately
+  setCloseToTrayPref(getCloseToTrayPref());
+
+  const btnOpen = document.getElementById('btnOpenSettings');
+  if (btnOpen) {
+    btnOpen.addEventListener('click', () => {
+      openAdvancedSettings('general');
+    });
+  }
+
+  document.querySelectorAll('.roo-settings-tab').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      const tab = tabBtn.getAttribute('data-settings-tab') || 'general';
+      switchSettingsTab(tab);
+    });
+  });
+
+  const cbTray = document.getElementById('toggleCloseToTray');
+  if (cbTray) {
+    cbTray.addEventListener('change', () => {
+      setCloseToTrayPref(cbTray.checked);
+      showToast(cbTray.checked ? '已啟用：關閉視窗時縮小至系統狀態列' : '已關閉：按下關閉將直接結束程式');
+    });
+  }
+
+  const btnRefresh = document.getElementById('btnSettingsRefreshDevices');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', async () => {
+      btnRefresh.disabled = true;
+      showToast('🔍 正在重新搜尋區網串流裝置...');
+      try {
+        if (window.electronAPI && window.electronAPI.scanDlnaDevices) {
+          const devices = await window.electronAPI.scanDlnaDevices();
+          if (Array.isArray(devices)) {
+            state.availableDevices = devices;
+            renderAudioDevicesList();
+            renderSettingsDevicesList();
+          }
+        }
+      } catch (_) {}
+      finally {
+        btnRefresh.disabled = false;
+      }
+    });
+  }
+}
+
+function switchSettingsTab(tabName) {
+  document.querySelectorAll('.roo-settings-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-settings-tab') === tabName);
+  });
+  const pGen = document.getElementById('settingsPanelGeneral');
+  const pAud = document.getElementById('settingsPanelAudio');
+  if (pGen) pGen.classList.toggle('active', tabName === 'general');
+  if (pAud) pAud.classList.toggle('active', tabName === 'audio');
+  if (tabName === 'audio') {
+    renderSettingsDevicesList();
+  }
+}
+
+function openAdvancedSettings(tabName = 'general') {
+  initAdvancedSettingsUI();
+  switchSettingsTab(tabName);
+  renderSettingsDevicesList();
+  navigateTo('settings');
+  const mainContentEl = document.getElementById('mainContent');
+  if (mainContentEl) mainContentEl.scrollTop = 0;
+}
+
 function renderAudioDevicesList() {
   const listEl = document.getElementById('roonZoneList');
   if (!listEl) return;
 
-  // Filter out local duplicates & non-audio network equipment (routers, Wi-Fi nodes, etc.)
-  const dlnaList = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
+  // Filter out local duplicates, non-audio network equipment, and user-disabled devices
+  const dlnaList = (state.availableDevices || []).filter(
+    d => !d.isLocal && isAudioRendererDevice(d) && !isAudioDeviceDisabled(d.id)
+  );
   listEl.innerHTML = '';
+
+  let renderedCount = 0;
 
   // 1. Network Audio Streamers / DLNA Devices first
   dlnaList.forEach(dev => {
@@ -23484,17 +23716,42 @@ function renderAudioDevicesList() {
       onSelect: () => switchAudioZone(dev),
     }));
     probeZoneVolumeCapability(dev, { applyToActive: isDevActive });
+    renderedCount++;
   });
 
-  // 2. Local System Output row
-  listEl.appendChild(buildZoneCardElement({
-    zoneId: 'local',
-    name: 'System Output',
-    iconKind: 'speaker',
-    tooltip: 'Windows WASAPI Exclusive / DirectSound 本機輸出',
-    isActive: state.activeAudioZone === 'local',
-    onSelect: () => switchAudioZone('local'),
-  }));
+  // 2. Local System Output row (only if not disabled in Device Management)
+  if (!isAudioDeviceDisabled('local')) {
+    listEl.appendChild(buildZoneCardElement({
+      zoneId: 'local',
+      name: 'System Output',
+      iconKind: 'speaker',
+      tooltip: 'Windows WASAPI Exclusive / DirectSound 本機輸出',
+      isActive: state.activeAudioZone === 'local',
+      onSelect: () => switchAudioZone('local'),
+    }));
+    renderedCount++;
+  }
+
+  if (renderedCount === 0) {
+    const emptyWrap = document.createElement('div');
+    emptyWrap.className = 'roon-zone-empty-hint';
+    emptyWrap.innerHTML = `
+      <div>所有播放裝置皆已停用</div>
+      <button type="button" class="roon-zone-empty-btn">前往裝置管理啟用</button>
+    `;
+    const btn = emptyWrap.querySelector('.roon-zone-empty-btn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        if (typeof toggleRooOutputPopover === 'function') toggleRooOutputPopover(false);
+        openAdvancedSettings('audio');
+      });
+    }
+    listEl.appendChild(emptyWrap);
+  }
+
+  if (state.currentView === 'settings') {
+    renderSettingsDevicesList();
+  }
 }
 
 // ----------------- Multi-Zone Independent Playback State (Phase 1) -----------------
