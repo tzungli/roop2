@@ -2823,9 +2823,13 @@ function updateBadgesAndStats() {
   document.getElementById('trackCountBadge').textContent = totalTracks;
   const genreBadge = document.getElementById('genreCountBadge');
   if (genreBadge) {
-    const totalGenres = (state.tracks && state.tracks.length > 0 && state.genres && state.genres.length > 0)
-      ? state.genres.length
-      : 0;
+    let totalGenres = 0;
+    if (state.tracks && state.tracks.length > 0 && typeof buildGenreBuckets === 'function') {
+      const { genreList, tracksByGenre, albumsByGenre } = buildGenreBuckets();
+      totalGenres = genreList.filter(
+        g => (albumsByGenre.get(g) || []).length > 0 || (tracksByGenre.get(g) || []).length > 0
+      ).length;
+    }
     genreBadge.textContent = totalGenres;
   }
 
