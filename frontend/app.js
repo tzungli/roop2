@@ -22070,6 +22070,93 @@ function getZoneLiveInfo(zoneId) {
   };
 }
 
+async function resolveBackgroundTrackFilePath(track) {
+  if (!track) return;
+  if (track.isTidal && (!track.filePath || !String(track.filePath).endsWith('.flac')) && window.electronAPI && window.electronAPI.tidalCacheTrack) {
+    let cached = await window.electronAPI.tidalCacheTrack(track.tidalId);
+    if (!cached && window.tidalService) {
+      const info = await window.tidalService.getTrackStreamUrl(track.tidalId, 'HI_RES_LOSSLESS');
+      if (info && info.url) {
+        track.streamUrl = info.url;
+        cached = await window.electronAPI.tidalCacheTrack(track.tidalId, info.url, info.manifest ? {
+          manifest: info.manifest, manifestMimeType: info.manifestMimeType,
+          bitDepth: info.bitDepth, sampleRate: info.sampleRate, audioQuality: info.audioQuality
+        } : undefined);
+      }
+    }
+    if (cached) track.filePath = cached;
+  }
+}
+
+async function stepZoneInlineTrack(zoneId, direction) {
+  if (zoneId === state.activeAudioZone) {
+    if (direction < 0) {
+      if (typeof playPrevTrack === 'function') playPrevTrack();
+    } else {
+      if (typeof playNextTrack === 'function') playNextTrack(false);
+    }
+    setTimeout(() => renderAudioDevicesList(), 80);
+    return;
+  }
+
+  const z = state.zones && state.zones[zoneId];
+  if (!z || !Array.isArray(z.queue) || z.queue.length === 0) return;
+
+  let targetIdx = z.currentTrackIndex;
+  if (targetIdx < 0 || targetIdx >= z.queue.length) {
+    targetIdx = 0;
+  } else if (z.isShuffling && z.queue.length > 1) {
+    let nextIdx = targetIdx;
+    while (nextIdx === targetIdx) {
+      nextIdx = Math.floor(Math.random() * z.queue.length);
+    }
+    targetIdx = nextIdx;
+  } else if (direction < 0) {
+    targetIdx = (targetIdx - 1 + z.queue.length) % z.queue.length;
+  } else {
+    targetIdx = (targetIdx + 1) % z.queue.length;
+  }
+
+  const track = z.queue[targetIdx];
+  if (!track) return;
+
+  z.currentTrackIndex = targetIdx;
+  z.isPlaying = true;
+  z.currentSec = 0;
+  z.durationSec = track.duration || 0;
+  if (zoneId !== 'local') {
+    z.dlnaPosEstSec = 0;
+    z.dlnaPosEstAtMs = performance.now();
+    z.dlnaTrackStartTime = Date.now();
+    z.dlnaHasStartedPlaying = false;
+    z.dlnaMaxProgressSec = 0;
+  }
+  renderAudioDevicesList();
+
+  try {
+    await resolveBackgroundTrackFilePath(track);
+    if (zoneId === 'local') {
+      if (typeof exclusiveStopStream === 'function') exclusiveStopStream();
+      if (nativeAudio) {
+        if (track.filePath && window.electronAPI && window.electronAPI.getMediaUrl) {
+          nativeAudio.src = window.electronAPI.getMediaUrl(track.filePath);
+        } else if (track.streamUrl) {
+          nativeAudio.src = track.streamUrl;
+        }
+        await nativeAudio.play();
+      }
+    } else if (window.electronAPI && window.electronAPI.playDlnaTrack) {
+      const zoneDsp = getZoneDspProfile(zoneId);
+      const dspOpts = typeof buildDspOptions === 'function' ? buildDspOptions(track, zoneDsp) : null;
+      await window.electronAPI.playDlnaTrack(zoneId, track, 0, dspOpts);
+    }
+  } catch (err) {
+    console.warn(`[Multi-Zone] Background ${direction < 0 ? 'prev' : 'next'} failed for ${zoneId}:`, err);
+    z.isPlaying = false;
+    renderAudioDevicesList();
+  }
+}
+
 async function toggleZoneInlinePlayPause(zoneId) {
   if (zoneId === state.activeAudioZone) {
     if (typeof togglePlayPause === 'function') {
@@ -22251,8 +22338,10 @@ function buildZoneCardElement({ zoneId, name, iconKind, device, tooltip, isActiv
   if (zoneId === 'local') card.id = 'localAudioCard';
   if (tooltip) card.title = tooltip;
 
+  const prevSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="4" y="5" width="2.4" height="14" rx="1"/><polygon points="20 5 9 12 20 19 20 5"/></svg>`;
   const playSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="margin-left:1px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>`;
   const pauseSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
+  const nextSvg = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><polygon points="4 5 15 12 4 19 4 5"/><rect x="17.6" y="5" width="2.4" height="14" rx="1"/></svg>`;
 
   let miniCoverSrc = 'icon.png';
   let miniFallbackSrc = 'icon.png';
@@ -22264,6 +22353,8 @@ function buildZoneCardElement({ zoneId, name, iconKind, device, tooltip, isActiv
     const rawCov = info.track.cover || (foundAlb ? foundAlb.cover : null);
     miniCoverSrc = (typeof formatCoverSrc === 'function' ? formatCoverSrc(rawCov) : rawCov) || miniFallbackSrc;
   }
+
+  const disabledAttr = hasTrack ? '' : 'disabled';
 
   card.innerHTML = `
     <div class="roon-zone-card-main">
@@ -22281,11 +22372,17 @@ function buildZoneCardElement({ zoneId, name, iconKind, device, tooltip, isActiv
           </div>
         ` : `<div class="roon-zone-idle-label">待命中</div>`}
       </div>
-      ${hasTrack ? `
-        <button type="button" class="roon-zone-inline-play ${info.isPlaying ? 'playing' : ''}" title="${info.isPlaying ? '暫停此區域' : '繼續播放此區域'}">
+      <div class="roon-zone-transport">
+        <button type="button" class="roon-zone-inline-nav roon-zone-inline-prev" ${disabledAttr} title="此區域上一首" aria-label="此區域上一首">
+          ${prevSvg}
+        </button>
+        <button type="button" class="roon-zone-inline-play ${info.isPlaying ? 'playing' : ''}" ${disabledAttr} title="${info.isPlaying ? '暫停此區域' : '繼續播放此區域'}" aria-label="${info.isPlaying ? '暫停此區域' : '繼續播放此區域'}">
           ${info.isPlaying ? pauseSvg : playSvg}
         </button>
-      ` : ''}
+        <button type="button" class="roon-zone-inline-nav roon-zone-inline-next" ${disabledAttr} title="此區域下一首" aria-label="此區域下一首">
+          ${nextSvg}
+        </button>
+      </div>
     </div>
   `;
 
@@ -22301,11 +22398,32 @@ function buildZoneCardElement({ zoneId, name, iconKind, device, tooltip, isActiv
     onSelect();
   });
 
+  const transportWrap = card.querySelector('.roon-zone-transport');
+  if (transportWrap) {
+    transportWrap.addEventListener('click', (e) => e.stopPropagation());
+  }
+
+  const prevBtn = card.querySelector('.roon-zone-inline-prev');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      stepZoneInlineTrack(zoneId, -1);
+    });
+  }
+
   const playBtn = card.querySelector('.roon-zone-inline-play');
   if (playBtn) {
     playBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleZoneInlinePlayPause(zoneId);
+    });
+  }
+
+  const nextBtn = card.querySelector('.roon-zone-inline-next');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      stepZoneInlineTrack(zoneId, 1);
     });
   }
 

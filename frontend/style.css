@@ -6810,7 +6810,7 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   bottom: 92px;
   right: 76px;
   z-index: 1000;
-  width: 348px;
+  width: 392px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 120px);
   background: var(--popover-bg, #181a24);
@@ -14507,6 +14507,36 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   margin-top: 2px;
 }
 
+.roon-zone-transport {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.roon-zone-inline-nav {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: all 0.16s ease;
+}
+
+.roon-zone-inline-nav:hover:not(:disabled) {
+  background: rgba(124, 92, 255, 0.14);
+  color: var(--accent-purple);
+  border-color: rgba(124, 92, 255, 0.3);
+}
+
 .roon-zone-inline-play {
   width: 28px;
   height: 28px;
@@ -14520,14 +14550,22 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  padding: 0;
   transition: all 0.16s ease;
 }
 
-.roon-zone-inline-play:hover,
-.roon-zone-inline-play.playing {
+.roon-zone-inline-play:hover:not(:disabled),
+.roon-zone-inline-play.playing:not(:disabled) {
   background: var(--accent-purple);
   color: #ffffff;
   border-color: var(--accent-purple);
+}
+
+.roon-zone-inline-nav:disabled,
+.roon-zone-inline-play:disabled {
+  opacity: 0.32;
+  cursor: default;
+  pointer-events: none;
 }
 
 [data-theme="light"] .roon-zone-card {
