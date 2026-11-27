@@ -14581,11 +14581,20 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 /* =========================================================================
    Roon-Style Genre Detail Landing Page (viewGenreDetail)
    ========================================================================= */
+#viewGenreDetail {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 .rgd-page {
   display: flex;
   flex-direction: column;
   gap: 28px;
   padding-bottom: 36px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .rgd-hero {
