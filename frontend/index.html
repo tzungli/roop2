@@ -444,7 +444,7 @@
                   <h3 class="featured-album-name" id="featuredReleaseTitle">BREAK EVEN</h3>
                   <div class="featured-release-date" id="featuredReleaseDate">26 十一月 2026</div>
                 </div>
-                <img src="" class="featured-release-img" id="featuredReleaseImg" alt="Featured Album Cover">
+                <img class="featured-release-img" id="featuredReleaseImg" alt="Featured Album Cover" style="display: none;">
               </div>
               <p class="featured-release-desc" id="featuredReleaseDesc">
                 《BREAK EVEN》是精選推薦的重磅專輯作品，結合精湛編曲與高解析母帶製作，呈現極致通透的立體音場與人聲細節表現。
@@ -2055,7 +2055,7 @@
                 <br>• <strong>平滑 (Smooth)</strong>：採用高斯窗 sinc 緩降 FIR，自 18kHz 平緩慢滾降，消除高頻生硬數位感，時域鈴振時長縮短 &gt;55%。
                 <br>• <strong>線性相位 (Linear Phase)</strong>：對稱衝激響應，全頻段群延遲恆定，<strong>絕對零相位失真</strong>。
                 <br>• <strong>最小相位 (Minimum Phase)</strong>：透過複倒頻譜希爾伯特變換（Spectral Factorization）將零點完全反射至單位圓內，<strong>預響鈴嚴格為零 (0.00% Pre-ringing)</strong>，符合人耳聽覺心理前向遮蔽效應。
-                <br>• <strong>高斯長階 (Gauss Long)</strong>：仿 HQPlayer <code>poly-sinc-gauss-long</code>，採純高斯窗（σ = 0.17L，邊緣自然衰減 &lt; -150 dB）搭配 449 輸入階多相 Sinc，20 kHz 內零衰減、奈奎斯特 -166.6 dB 深度抑鏡，時域呈平滑高斯包絡無硬切邊。
+                <br>• <strong>poly-sinc-gauss-long</strong>：仿 HQPlayer <code>poly-sinc-gauss-long</code>，採純高斯窗（σ = 0.17L，邊緣自然衰減 &lt; -150 dB）搭配 449 輸入階多相 Sinc，20 kHz 內零衰減、奈奎斯特 -166.6 dB 深度抑鏡，時域呈平滑高斯包絡無硬切邊。
                 <br>• <strong>poly-sinc-ext2</strong>：仿 HQPlayer <code>poly-sinc-ext2</code>，1,281 輸入階超高陡峭 Kaiser 窗（As = 175 dB），通帶延伸至 20.8 kHz 依然 0.000 dB 完全平坦，於 22.05 kHz 瞬間達成 -183.0 dB 磚牆抑鏡。
                 <br>• <strong>poly-sinc-ext3 (apod)</strong>：仿 HQPlayer <code>poly-sinc-ext3</code> 超長階切趾（Apodizing）磚牆，每相 4,097 階（4x 達 <strong>16,385 taps</strong>、16x 達 <strong>65,537 taps</strong>，As = 195 dB），採 16,384 點 Partitioned FFT 加速（4x 1 秒立體聲僅 <strong>7.65 ms / ~131x 即時速度</strong>），通帶至 <strong>21.00 kHz 完全 0.0000 dB</strong>，並於原始奈奎斯特頻率前 450 Hz（<strong>21.60 kHz</strong>）即提前垂直截斷至 <strong>-210.42 dB</strong>（22.05 kHz 達 <strong>-229.08 dB</strong>），徹底抹除 1980s/1990s 早期 CD 母帶 ADC 殘留的奈奎斯特預響鈴與數碼毛躁。
                 <br>• <strong>sinc-M</strong>：仿 HQPlayer <code>sinc-M</code> / Chord M-Scaler，採 <strong>Partitioned FFT 分段多相卷積</strong>（立體聲複數打包 L+iR 2 倍加速），每相 65,535 階（16x 升頻總原型達 <strong>1,048,545 taps</strong>），44.1 kHz 下平坦延伸至 21.95 kHz、22.15 kHz 第一鏡像直壓 -205.3 dB，1 kHz 重建 SNR 達 242.5 dB，且 4x 1 秒立體聲僅耗時 17.0 ms（~59x 即時速度）。
@@ -2115,7 +2115,7 @@
                       <td style="padding: 8px 10px;">-85.96 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">高斯長階，線性相位 (Gauss Long)</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">poly-sinc-gauss-long</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
@@ -2216,7 +2216,7 @@
                       <td style="padding: 8px 10px;"><strong>發燒黑膠韻味</strong>：零預響加超短後響，毫無數位硬邊，久聽不累。</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">高斯長階，線性相位 (Gauss Long)</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">poly-sinc-gauss-long</td>
                       <td style="padding: 8px 10px;">1,793 (4x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -2698,7 +2698,7 @@
                 <li><strong>溫潤發燒人聲與弦樂重奏組合</strong>：<code>平滑，線性相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k</code>。高斯抖動徹底消除 Delta-Sigma 極限環，時域鈴振時長大幅縮短 75%，泛音溫暖厚實自然，消除高頻冷硬毛刺，人聲甜美滑順、久聽不累。</li>
                 <li><strong>發燒黑膠老類比韻味組合</strong>：<code>平滑，最小相位</code> ➔ <code>5 階 (CRFB)</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD64 / DSD128</code> ➔ <code>20k / 30k</code>。零預響鈴加上超短後響鈴，完全消除數位硬邊，重現經典黑膠唱片與早期 SACD 迷人的溫潤厚重感。</li>
                 <li><strong>純 PCM 超取樣直通組合</strong>：<code>精準，線性相位</code> ➔ <code>4x 整數倍頻 (176.4k / 192k)</code> ➔ <code>TPDF 抖動</code> ➔ <code>關閉 (None) / 30k</code>。純 PCM 多相 FIR 超取樣直出，線性無失真量化抖動，由 DAC 本地解碼，細節通透開闊。</li>
-                <li><strong>HQPlayer 風格全能發燒組合 (Gauss Long + ASDM7EC)</strong>：<code>高斯長階，線性相位</code> ➔ <code>ASDM7EC</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。純高斯包絡搭配高 H<sub>&infin;</sub> 7 階 M=4 / L=32 Trellis 強化修正，兼具 20kHz 內零衰減、超低底噪（+20 dB SNR 提升）與寬鬆立體音場。</li>
+                <li><strong>HQPlayer 風格全能發燒組合 (poly-sinc-gauss-long + ASDM7EC)</strong>：<code>poly-sinc-gauss-long</code> ➔ <code>ASDM7EC</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>30k / 40k</code>。純高斯包絡搭配高 H<sub>&infin;</sub> 7 階 M=4 / L=32 Trellis 強化修正，兼具 20kHz 內零衰減、超低底噪（+20 dB SNR 提升）與寬鬆立體音場。</li>
                 <li><strong>高線性溫潤平衡組合 (Ext2 + ASDM5EC)</strong>：<code>poly-sinc-ext2，線性相位</code> ➔ <code>ASDM5EC</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD128 / DSD256</code> ➔ <code>40k / 關閉</code>。DSD128 帶內 SNR 達 163.45 dB、超聲噪聲更低且 CPU 負載輕盈，人聲與微細節透明自然。</li>
                 <li><strong>百萬階 M-Scaler 終極空間解析組合 (Sinc-M)</strong>：<code>sinc-M，線性相位</code> ➔ <code>8x / 16x 整數倍 PCM 或 DSD256</code> ➔ <code>Noise-Shaped / Gauss</code> ➔ <code>關閉 / 40k</code>。Partitioned FFT 百萬階多相卷積提供 242dB 重建精度與 22kHz 垂直刀切抑鏡，重現現場廳堂深度與針點結像。</li>
                 <li><strong>HQPlayer 雙旗艦終極退燒組合 (Sinc-L + ASDM7EC-super 512+fs)</strong>：<code>sinc-L，線性相位</code> ➔ <code>ASDM7EC-super 512+fs</code> ➔ <code>Gauss 高斯抖動</code> ➔ <code>DSD512 / DSD256</code> ➔ <code>40k / 50k / 關閉</code>。262k-pt FFT 二百萬階（131,070×倍率）22.00kHz 零衰減超長磚牆結合雙頻段非對稱 7 階 Trellis（DSD512 帶內 SNR 高達 254.26 dB、超聲底噪 -222.68 dBFS），帶來無可比擬的 3D 全息音場深度與堂音空氣感。</li>
@@ -2719,7 +2719,7 @@
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s2">
                 <span class="spec-label">PCM 升頻引擎</span>
-                <span class="spec-value">自研 64-bit 浮點多相 FIR 與 Partitioned FFT 卷積核心：2x~16x 整數倍頻、96k~768k DXD；含 sinc-L（210萬階）、sinc-M（105萬階）、poly-sinc-ext3 (apod)、高斯長階等 9 種核心濾波器 (止帶達 -229dB)</span>
+                <span class="spec-value">自研 64-bit 浮點多相 FIR 與 Partitioned FFT 卷積核心：2x~16x 整數倍頻、96k~768k DXD；含 sinc-L（210萬階）、sinc-M（105萬階）、poly-sinc-ext3 (apod)、poly-sinc-gauss-long 等 9 種核心濾波器 (止帶達 -229dB)</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s3">
                 <span class="spec-label">DSD 調變器</span>

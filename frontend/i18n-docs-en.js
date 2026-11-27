@@ -257,7 +257,7 @@
                 <br>• <strong>Smooth</strong>: Employs Gaussian-window sinc slow roll-off FIR, beginning a gentle slope at 18kHz to eliminate digital glare, reducing time-domain ringing duration by &gt;55%.
                 <br>• <strong>Linear Phase</strong>: Symmetric impulse response with strictly constant group delay and <strong>absolute zero phase distortion</strong>.
                 <br>• <strong>Minimum Phase</strong>: Employs complex cepstrum Hilbert spectral factorization to reflect zeros inside the unit circle, achieving <strong>strictly zero pre-ringing (0.00% Pre-ringing)</strong>, aligning perfectly with psychoacoustic pre-masking.
-                <br>• <strong>Gauss Long</strong>: Inspired by HQPlayer <code>poly-sinc-gauss-long</code>; pure Gaussian window (&sigma; = 0.17L, edge attenuation &lt; -150 dB) with 449 input taps, dead-flat through 20 kHz, -166.6 dB at Nyquist, and ultra-smooth natural Gaussian ringing envelope.
+                <br>• <strong>poly-sinc-gauss-long</strong>: Inspired by HQPlayer <code>poly-sinc-gauss-long</code>; pure Gaussian window (&sigma; = 0.17L, edge attenuation &lt; -150 dB) with 449 input taps, dead-flat through 20 kHz, -166.6 dB at Nyquist, and ultra-smooth natural Gaussian ringing envelope.
                 <br>• <strong>Ext2 (Extended Brickwall)</strong>: Inspired by HQPlayer <code>poly-sinc-ext2</code>; 1,281 input-tap Kaiser brickwall (A<sub>s</sub> = 175 dB), flat passband extended to 20.8 kHz (0.000 dB) and -183.0 dB suppression right at Nyquist.
                 <br>• <strong>Ext3 Apodizing (poly-sinc-ext3)</strong>: Inspired by HQPlayer <code>poly-sinc-ext3</code>; 4,097 taps/phase (<strong>16,385 taps</strong> at 4x, <strong>65,537 taps</strong> at 16x, A<sub>s</sub> = 195 dB) with 16k-pt Partitioned FFT acceleration (<strong>7.65 ms/s at 4x, ~131x real-time</strong>). Flat to <strong>21.00 kHz (0.0000 dB)</strong>, plunging to <strong>-210.42 dB by 21.60 kHz (450 Hz before Nyquist)</strong> and <strong>-229.08 dB at 22.05 kHz</strong> to completely erase early 1980s/1990s ADC Nyquist ringing.
                 <br>• <strong>Sinc-M (Million-Tap FFT)</strong>: Inspired by HQPlayer <code>sinc-M</code> / Chord M-Scaler; <strong>Partitioned FFT Polyphase Convolution</strong> with stereo complex packing (L+iR, 2x throughput), 65,535 taps per phase (<strong>1,048,545 prototype taps</strong> at 16x), flat to 21.95 kHz, -205.3 dB first-image suppression at 22.15 kHz, 242.5 dB 1 kHz SNR, and 17.0 ms per stereo second at 4x (~59x real-time).
@@ -317,7 +317,7 @@
                       <td style="padding: 8px 10px;">-85.96 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">Gauss Long, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">poly-sinc-gauss-long</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
@@ -418,7 +418,7 @@
                       <td style="padding: 8px 10px;"><strong>Audiophile Vinyl Warmth</strong>: Zero pre-ringing plus short decay, zero digital edge, fatigue-free musicality.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">Gauss Long, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #2dd4bf;">poly-sinc-gauss-long</td>
                       <td style="padding: 8px 10px;">1,793 (4x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>

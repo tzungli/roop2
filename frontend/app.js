@@ -146,7 +146,7 @@ const FALLBACK_FILTER_PLUGINS = [
   { id: 'precise-min', label: '精準，最小相位', sound: '極陡峭滾降，無預響鈴 (Zero Pre-ringing)，打擊樂瞬態衝擊力極強、結像鮮明凝聚', kind: 'fir' },
   { id: 'smooth-linear', label: '平滑，線性相位', sound: '高頻平緩平滑滾降，極低響鈴震盪，聲音寬鬆大氣、泛音自然流暢', kind: 'fir' },
   { id: 'smooth-min', label: '平滑，最小相位', sound: '無預響鈴且極低後響鈴，最符合人耳聽覺物理掩蔽效應，類比黑膠般溫潤耐聽', kind: 'fir' },
-  { id: 'gauss-long', label: '高斯長階，線性相位', sound: '仿 HQPlayer poly-sinc-gauss-long：20kHz 內極致平坦、奈奎斯特 -140dB 深度阻帶，純高斯包絡極低自然響鈴，音場寬鬆立體', kind: 'fir' },
+  { id: 'gauss-long', label: 'poly-sinc-gauss-long', sound: '仿 HQPlayer poly-sinc-gauss-long：20kHz 內極致平坦、奈奎斯特 -140dB 深度阻帶，純高斯包絡極低自然響鈴，音場寬鬆立體', kind: 'fir' },
   { id: 'poly-ext2', label: 'poly-sinc-ext2，線性相位', sound: '仿 HQPlayer poly-sinc-ext2：1281 階超陡峭磚牆，通帶延伸至 21kHz 零衰減、奈奎斯特 -170dB 徹底抑鏡，通透高密度微細節', kind: 'fir' },
   { id: 'poly-ext3', label: 'poly-sinc-ext3 (apod)，線性相位', sound: '仿 HQPlayer poly-sinc-ext3：16,385 階 (4x) / 65,537 階 (16x) 超長階切趾 (Apodizing) 磚牆，21kHz 零衰減、21.6kHz 提前直壓 -210dB（奈奎斯特 -229dB），徹底消除老 CD 母帶 ADC 響鈴與數碼毛躁', kind: 'fir' },
   { id: 'sinc-m', label: 'sinc-M，線性相位', sound: '仿 HQPlayer sinc-M / M-Scaler：FFT 分段多相卷積百萬階極致磚牆，22kHz 零衰減、奈奎斯特 -175dB 垂直截止，極致空間解析力', kind: 'fir' },
@@ -4299,6 +4299,7 @@ function renderNewReleases(tab = 'albums', page = 0) {
     if (featImg) {
       const coverSource = (isTrackMode && featuredEntry.track.cover) || alb.cover;
       featImg.src = formatCoverSrc(coverSource) || createSvgCover(dispTitle, dispArtist);
+      featImg.style.display = '';
     }
     if (featCard) {
       featCard.onclick = () => {
@@ -4311,6 +4312,13 @@ function renderNewReleases(tab = 'albums', page = 0) {
     if (featTitleEl) featTitleEl.textContent = '尚無可推薦作品';
     if (featDateEl) featDateEl.textContent = '';
     if (featDescEl) featDescEl.textContent = '匯入本機音樂或連線 TIDAL 後，系統將自動為您發掘曲庫中較少聆聽的歌手、專輯與音樂類型。';
+    if (featImg) {
+      featImg.removeAttribute('src');
+      featImg.style.display = 'none';
+    }
+    if (featCard) {
+      featCard.onclick = null;
+    }
   }
 
   const compactGrid = document.getElementById('newReleasesCompactGrid');

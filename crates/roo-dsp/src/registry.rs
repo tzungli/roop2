@@ -102,7 +102,7 @@ impl FilterRegistry {
             },
             FilterDescriptor {
                 id: "gauss-long".to_string(),
-                label: "高斯長階，線性相位".to_string(),
+                label: "poly-sinc-gauss-long".to_string(),
                 sound: "仿 HQPlayer poly-sinc-gauss-long：20kHz 內極致平坦、奈奎斯特 -140dB 深度阻帶，純高斯包絡極低自然響鈴，音場寬鬆立體".to_string(),
                 kind: "fir".to_string(),
                 dsd_safe: true,
