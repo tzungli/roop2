@@ -1748,7 +1748,7 @@ async function fetchOnlineAlbumGenre(albumTitle, artistName) {
 
   // 2. Fallback: MusicBrainz Release-Group API (structured community genres/tags)
   try {
-    const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.4 (https://github.com/tzungli/roop2)' };
+    const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.5 (https://github.com/tzungli/roop2)' };
     const mbArtistClause = cleanArtist ? ` AND artist:${encodeURIComponent('"' + cleanArtist + '"')}` : '';
     const mbSearchUrl = `https://musicbrainz.org/ws/2/release-group/?query=releasegroup:${encodeURIComponent('"' + cleanTitle + '"')}${mbArtistClause}&fmt=json&limit=5`;
     const mbSearch = await nativeFetchJson(mbSearchUrl, mbHeaders, 8500);
@@ -6877,8 +6877,8 @@ async function fetchArtistBio(artistName, localAlbums = []) {
       for (const variant of nameVariants) {
         const zhUrl = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(variant)}`;
         const data = typeof nativeFetchJson === 'function'
-          ? await nativeFetchJson(zhUrl, { 'User-Agent': 'rooPlayer/0.2.4', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' }, 7500)
-          : await fetch(zhUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.4', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' } }).then(r => r.ok ? r.json() : null).catch(() => null);
+          ? await nativeFetchJson(zhUrl, { 'User-Agent': 'rooPlayer/0.2.5', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' }, 7500)
+          : await fetch(zhUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.5', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' } }).then(r => r.ok ? r.json() : null).catch(() => null);
         if (data && data.extract && data.type !== 'disambiguation') {
           rawBioText = data.extract;
           wikiPageUrl = data.content_urls?.desktop?.page || `https://zh.wikipedia.org/wiki/${encodeURIComponent(variant)}`;
@@ -6893,8 +6893,8 @@ async function fetchArtistBio(artistName, localAlbums = []) {
         for (const variant of nameVariants) {
           const enUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(variant)}`;
           const data = typeof nativeFetchJson === 'function'
-            ? await nativeFetchJson(enUrl, { 'User-Agent': 'rooPlayer/0.2.4' }, 7500)
-            : await fetch(enUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.4' } }).then(r => r.ok ? r.json() : null).catch(() => null);
+            ? await nativeFetchJson(enUrl, { 'User-Agent': 'rooPlayer/0.2.5' }, 7500)
+            : await fetch(enUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.5' } }).then(r => r.ok ? r.json() : null).catch(() => null);
           if (data && data.extract && data.type !== 'disambiguation') {
             if (!rawBioText) {
               rawBioText = data.extract;
@@ -9516,7 +9516,7 @@ async function resolveAlbumReviewData(album) {
 
       if (!rawBioText) {
         const directUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTitle + ' (album)')}`;
-        const sumData = await nativeFetchJson(directUrl, { 'User-Agent': 'rooPlayer/0.2.4' }, 8000);
+        const sumData = await nativeFetchJson(directUrl, { 'User-Agent': 'rooPlayer/0.2.5' }, 8000);
         if (sumData && sumData.extract && sumData.type !== 'disambiguation' && isGenuineAlbumWikiArticle(sumData.title || (cleanTitle + ' (album)'), sumData.extract, cleanTitle, cleanArtist, cleanTitleCn)) {
           rawBioText = sumData.extract;
           isFromEnWiki = true;
@@ -9567,7 +9567,7 @@ async function resolveAlbumReviewData(album) {
   // 6. MusicBrainz Release-Group -> Annotation / Wikidata -> Exact Wikipedia Sitelink
   if (!rawBioText) {
     try {
-      const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.4 (https://github.com/tzungli/roop2)' };
+      const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.5 (https://github.com/tzungli/roop2)' };
       const mbArtistClause = cleanArtist
         ? `+AND+artist:${encodeURIComponent('"' + cleanArtist + '"')}`
         : '';

@@ -1,6 +1,6 @@
 # Privacy Policy / 隱私權政策 — rooPlayer
 
-Effective Date / 生效日期：2026-11-26  
+Effective Date / 生效日期：2026-11-27  
 Publisher / 發行者：tzungli  
 Repository / 專案網址：https://github.com/tzungli/roop2
 
@@ -18,8 +18,8 @@ All application data is stored strictly on your local device:
 
 ### 2. Optional Network Access
 rooPlayer only initiates network connections when you use specific features:
-- **Local Area Network (LAN) Discovery & Streaming**: SSDP/mDNS/HTTP/RTSP/SMB requests within your local network to discover and stream audio to your DLNA/UPnP renderers, AirPlay devices, or NAS/SMB folders.
-- **Online Lyrics & Metadata Lookup**: Queries public music databases (such as LRCLIB, NetEase Cloud Music lyric API, and Wikipedia) using only the track/album/artist title you are viewing or playing.
+- **Local Area Network (LAN) Discovery, Streaming & Web Display**: SSDP/mDNS/HTTP/RTSP/SMB requests within your local network to discover and stream audio to your DLNA/UPnP renderers, AirPlay devices, NAS/SMB folders, or serve the optional fullscreen Web Display (`/display/`) to browsers on your LAN.
+- **Online Lyrics & Metadata Lookup**: Queries public music databases (such as LRCLIB, NetEase Cloud Music, Apple Music/iTunes Search, MusicBrainz/Wikidata, Wikipedia, Douban, and Baidu Baike) using only the track/album/artist title you are viewing or playing.
 - **Third-Party Streaming (Optional)**: If you choose to connect your TIDAL or KKBOX account, authentication tokens are stored locally on your device and used strictly to fetch streams from those services according to their respective privacy policies.
 
 ### 3. Permissions
@@ -44,8 +44,8 @@ https://github.com/tzungli/roop2/issues
 
 ### 2. 選用性網路連線行為
 僅在您主動使用下列功能時，本軟體才會發起對應網路連線：
-- **區域網路裝置探索與串流**：在您的區網內透過 SSDP / mDNS / HTTP / RTSP / SMB 探索並串流無損音訊至您的 DLNA / UPnP 音響、AirPlay 裝置或 SMB 網路資料夾。
-- **線上歌詞與專輯資料查詢**：僅以您正在播放或檢視的曲名、專輯與藝術家名稱向公開音樂資料庫（如 LRCLIB、網易雲公開歌詞介面與維基百科）查詢歌詞或簡介。
+- **區域網路裝置探索、串流與網頁顯示器**：在您的區網內透過 SSDP / mDNS / HTTP / RTSP / SMB 探索並串流無損音訊至您的 DLNA / UPnP 音響、AirPlay 裝置或 SMB 網路資料夾，或於區網提供選用之全螢幕網頁顯示器（`/display/`）。
+- **線上歌詞與專輯資料查詢**：僅以您正在播放或檢視的曲名、專輯與藝術家名稱向公開音樂資料庫（如 LRCLIB、網易雲、Apple Music / iTunes、MusicBrainz / Wikidata、維基百科、豆瓣與百度百科）查詢歌詞、曲風或簡介。
 - **第三方串流服務（選用）**：若您主動登入 TIDAL 或 KKBOX 帳號，相關授權憑證僅儲存於您的本機裝置上，並僅用於向該服務請求串流與收藏資料。
 
 ### 3. 系統權限用途
