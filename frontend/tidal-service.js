@@ -251,99 +251,11 @@ class TidalService {
     };
 
     const isGetOrHead = method === 'GET' || method === 'HEAD';
-    const url = finalEndpoint.startsWith('http')
-      ? finalEndpoint
-      : `https://api.tidal.com/v1${finalEndpoint}`;
 
-    // Prefer WebView2 native Chromium fetch() first (genuine browser TLS/HTTP2 fingerprint,
-    // permitted by TIDAL's `Access-Control-Allow-Origin: *`), with concurrency cap & 429 backoff.
-    // Falls back to Rust `tidalApi` only if fetch throws a transport/CORS error.
-    const headers = {
-      'Authorization': `Bearer ${this.auth.accessToken}`,
-      'Accept': 'application/json, text/plain, */*'
-    };
-    if (!isGetOrHead && body) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    const maxRetries = 1;
-    let useRustFallback = false;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const waitMs = this._cooldownUntil - Date.now();
-      if (waitMs > 0) {
-        await new Promise(r => setTimeout(r, Math.min(waitMs, 5000)));
-      }
-
-      await this._acquireSlot();
-      let res;
-      const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 10000);
-      try {
-        res = await fetch(url, {
-          method,
-          headers,
-          body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined,
-          signal: ctrl.signal
-        });
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
-        this._releaseSlot();
-        if (fetchErr && fetchErr.name === 'AbortError') {
-          throw new Error(`TIDAL API 連線逾時 (${endpoint})`);
-        }
-        console.warn('[TIDAL] Native Chromium fetch failed, falling back to Rust IPC:', fetchErr);
-        useRustFallback = true;
-        break;
-      }
-      clearTimeout(timeoutId);
-
-      if (res.status === 429 || res.status === 503) {
-        const retryAfterRaw = res.headers.get('retry-after');
-        const retrySecs = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN;
-        const backoffMs = Number.isFinite(retrySecs) && retrySecs > 0
-          ? Math.min(Math.max(retrySecs * 1000, 1000), 5000)
-          : 1500;
-        const errBody = await res.text().catch(() => '');
-        this._releaseSlot();
-        this._cooldownUntil = Math.max(this._cooldownUntil, Date.now() + backoffMs);
-        console.warn(`[TIDAL] HTTP ${res.status} on ${finalEndpoint} (attempt ${attempt + 1}/${maxRetries + 1}), wait ${backoffMs}ms`, errBody.slice(0, 200));
-        if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, backoffMs));
-          continue;
-        }
-        let detail = '';
-        try {
-          const parsed = JSON.parse(errBody);
-          detail = parsed.userMessage || parsed.message || '';
-        } catch (_) {
-          detail = errBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
-        }
-        throw new Error(`TIDAL API HTTP ${res.status}${detail ? ': ' + detail : '（請求過於頻繁，請稍候再試）'}`);
-      }
-
-      if (res.status === 401) {
-        this._releaseSlot();
-        const res401 = await handle401();
-        if (res401 === 'RETRY') {
-          return this.api(endpoint, params, method, body, true);
-        }
-        if (res401 instanceof Error) throw res401;
-        throw new Error(`TIDAL API HTTP 401: ${res.statusText}`);
-      }
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => res.statusText);
-        this._releaseSlot();
-        throw new Error(`TIDAL API HTTP ${res.status}: ${errText || res.statusText}`);
-      }
-
-      const json = await res.json();
-      this._releaseSlot();
-      return json;
-    }
-
-    if (useRustFallback && window.electronAPI && window.electronAPI.tidalApi) {
+    // Prefer Rust IPC (`tidal_api`) first because it can set `Origin: https://listen.tidal.com`
+    // and `Referer: https://listen.tidal.com/` (WebView2 `fetch()` forces `Origin: http://tauri.localhost`,
+    // which TIDAL's WAF rejects with HTTP 429 on authenticated requests).
+    if (window.electronAPI && window.electronAPI.tidalApi) {
       try {
         return await window.electronAPI.tidalApi({
           endpoint: finalEndpoint,
@@ -363,7 +275,47 @@ class TidalService {
         throw (err instanceof Error) ? err : new Error(errMsg || 'TIDAL API 呼叫失敗');
       }
     }
-    throw new Error('TIDAL API 呼叫失敗');
+
+    // Browser-only fallback (when running outside Tauri)
+    const url = finalEndpoint.startsWith('http')
+      ? finalEndpoint
+      : `https://api.tidal.com/v1${finalEndpoint}`;
+
+    const headers = {
+      'Authorization': `Bearer ${this.auth.accessToken}`,
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (!isGetOrHead && body) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 10000);
+    let res;
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (res.status === 401) {
+      const res401 = await handle401();
+      if (res401 === 'RETRY') {
+        return this.api(endpoint, params, method, body, true);
+      }
+      if (res401 instanceof Error) throw res401;
+      throw new Error(`TIDAL API HTTP 401: ${res.statusText}`);
+    }
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      throw new Error(`TIDAL API HTTP ${res.status}: ${errText || res.statusText}`);
+    }
+    return await res.json();
   }
 
   // ==========================================================
