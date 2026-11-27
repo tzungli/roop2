@@ -3200,16 +3200,16 @@ body.table-col-resizing * {
 /* ----------------- Album Intro Section ----------------- */
 .album-intro-section {
   margin-bottom: 24px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  padding: 18px 20px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 0;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .album-intro-section.collapsed {
   margin-bottom: 16px;
-  padding: 12px 20px;
+  padding: 4px 0;
 }
 
 .album-intro-header {
@@ -3430,7 +3430,7 @@ body.table-col-resizing * {
 }
 
 [data-theme="light"] .album-intro-section {
-  background: rgba(0, 0, 0, 0.02);
+  background: transparent;
 }
 
 [data-theme="light"] .recommend-card {
