@@ -140,7 +140,7 @@ function matchRoonGenreRules(text, { strictMeta = false } = {}) {
   }
 
   // 15. International / World / Ethnic / Traditional
-  if (/(?:\binternational\b|\bworld\s*music\b|\bceltic\b|\bafrobeat\b|\bchanson\b|\bfado\b|\bgamelan\b|\btaiko\b|鬼太鼓座|ondekoza|馬頭琴|民樂|國樂|古箏|二胡|琵琶|笛子|國際音樂|世界音樂|民族音樂|阿姐鼓|朱哲琴|hélène|helene)/i.test(text)) {
+  if (/(?:\binternational\b|\bworld\s*music\b|\bceltic\b|\bafrobeat\b|\bchanson\b|\bfado\b|\bgamelan\b|\btaiko\b|\benka\b|演歌|鬼太鼓座|ondekoza|馬頭琴|民樂|國樂|古箏|二胡|琵琶|笛子|國際音樂|世界音樂|民族音樂|阿姐鼓|朱哲琴|hélène|helene)/i.test(text) || (!strictMeta && /\bworld\b/i.test(text))) {
     return 'International';
   }
 
@@ -155,7 +155,7 @@ function matchRoonGenreRules(text, { strictMeta = false } = {}) {
   }
 
   // 18. Electronic
-  if (/(?:\belectronic\b|\belectronica\b|\btechno\b|\bdeep\s*house\b|\bhouse\s*music\b|\btrance\b|\bsynthwave\b|\bsynth-?pop\b|\bedm\b|\bdowntempo\b|\bchillout\b|\bdrum\s*(?:&|and)\s*bass\b|\bdubstep\b|\bdisco\b|daft\s*punk|kraftwerk|aphex\s*twin|massive\s*attack|portishead|chemical\s*brothers|電子|電音)/i.test(text)) {
+  if (/(?:\belectronic\b|\belectronica\b|\btechno\b|\bdeep\s*house\b|\bhouse\s*music\b|\btrance\b|\bsynthwave\b|\bsynth-?pop\b|\bedm\b|\bdowntempo\b|\bchillout\b|\bdrum\s*(?:&|and)\s*bass\b|\bdubstep\b|\bdisco\b|daft\s*punk|kraftwerk|aphex\s*twin|massive\s*attack|portishead|chemical\s*brothers|電子|電音)/i.test(text) || (!strictMeta && /\bdance\b/i.test(text))) {
     return 'Electronic';
   }
 
@@ -165,12 +165,12 @@ function matchRoonGenreRules(text, { strictMeta = false } = {}) {
   }
 
   // 20. Easy Listening (Lounge / Instrumental / Audiophile Demo & Test CDs)
-  if (/(?:\beasy\s*listening\b|\blounge\b|\bexotica\b|\bmuzak\b|\binstrumental\s*pop\b|\baudiophile\b|\bbinaural\b|burmester|bowers\s*&\s*wilkins.*society|chesky\s*records?\s*sampler|stockfisch|sheffield\s*lab|reference\s*recordings|opus\s*3|telarc\s*sampler|hi-?end.*(?:cd|音響)|音響大展|音響展|展cd|示範片|測試片|終極測試|發燒試音|試音碟|發燒天碟|輕音樂|抒情演奏)/i.test(text)) {
+  if (/(?:\beasy\s*listening\b|\blounge\b|\bexotica\b|\bmuzak\b|\binstrumental\s*pop\b|\baudiophile\b|\bbinaural\b|burmester|bowers\s*&\s*wilkins.*society|chesky\s*records?\s*sampler|stockfisch|sheffield\s*lab|reference\s*recordings|opus\s*3|telarc\s*sampler|hi-?end.*(?:cd|音響)|音響大展|音響展|展cd|示範片|測試片|終極測試|發燒試音|試音碟|發燒天碟|輕音樂|抒情演奏)/i.test(text) || (!strictMeta && /\binstrumental\b/i.test(text))) {
     return 'Easy Listening';
   }
 
   // 21. Pop/Rock (Pop, Rock, Metal, Mandopop, Cantopop, J-Pop, K-Pop)
-  if (/(?:\bpop\b|\brock\b|\bmetal\b|\bpunk\b|\bgrunge\b|\balternative\b|\bindie\b|\bhard\s*rock\b|\bclassic\s*rock\b|\bpsychedelic\b|\bprog(?:ressive)?\s*rock\b|\bbritpop\b|\bj-?rock\b|\bj-?pop\b|\bc-?pop\b|\bk-?pop\b|\bcantopop\b|\bmandopop\b|\bballad\b|asian\s*music|coldplay|pink\s*floyd|led\s*zeppelin|the\s*beatles|rolling\s*stones|\bqueen\b|radiohead|nirvana|dire\s*straits|\beagles\b|fleetwood\s*mac|deep\s*purple|ac\/dc|\boasis\b|\bmuse\b|linkin\s*park|tears\s*for\s*fears|radwimps|king\s*gnu|back\s*number|one\s*ok\s*rock|\baimer\b|\baiko\b|\bdaoko\b|\breol\b|\bmajiko\b|まじ娘|浜崎あゆみ|熊木杏里|西村知美|garnidelia|\begoist\b|\bjunna\b|\badele\b|carole\s*king|周杰倫|張學友|王菲|陳奕迅|林俊傑|鄧麗君|黃舒駿|shu\s*jun\s*huang|飛兒樂團|f\.?i\.?r|自然捲|五月天|伍佰|老歌|流行|搖滾|重金屬|華語|一般流行)/i.test(text)) {
+  if (/(?:\bpop\b|\brock\b|\bmetal\b|\bpunk\b|\bgrunge\b|\balternative\b|\bindie\b|\bhard\s*rock\b|\bclassic\s*rock\b|\bpsychedelic\b|\bprog(?:ressive)?\s*rock\b|\bbritpop\b|\bj-?rock\b|\bj-?pop\b|\bc-?pop\b|\bk-?pop\b|\bhk-?pop\b|\bcantopop\b|\bmandopop\b|\bkayokyoku\b|\bballad\b|asian\s*music|coldplay|pink\s*floyd|led\s*zeppelin|the\s*beatles|rolling\s*stones|\bqueen\b|radiohead|nirvana|dire\s*straits|\beagles\b|fleetwood\s*mac|deep\s*purple|ac\/dc|\boasis\b|\bmuse\b|linkin\s*park|tears\s*for\s*fears|radwimps|king\s*gnu|back\s*number|one\s*ok\s*rock|\baimer\b|\baiko\b|\bdaoko\b|\breol\b|\bmajiko\b|まじ娘|浜崎あゆみ|熊木杏里|西村知美|garnidelia|\begoist\b|\bjunna\b|\badele\b|carole\s*king|周杰倫|張學友|王菲|陳奕迅|林俊傑|鄧麗君|黃舒駿|shu\s*jun\s*huang|飛兒樂團|f\.?i\.?r|自然捲|五月天|伍佰|老歌|流行|搖滾|重金屬|華語|一般流行)/i.test(text)) {
     return 'Pop/Rock';
   }
 
@@ -180,38 +180,58 @@ function matchRoonGenreRules(text, { strictMeta = false } = {}) {
 function canonicalizeGenre(rawGenre, track = {}) {
   const g = String(rawGenre || '').trim();
   const trackRaw = String(track.rawGenre || '').trim();
+  const onlineRaw = String(track.onlineGenre || '').trim();
   const gLower = g.toLowerCase();
   const trackRawLower = trackRaw.toLowerCase();
 
-  // Identify genuinely specific file genre tag (neither already Roon-canonical nor an old overwritten legacy bucket)
-  const isGenericOrLegacy = (s) => !s || CANONICAL_GENRE_SET.has(s) || Object.prototype.hasOwnProperty.call(LEGACY_GENRE_MAP, s);
+  // Identify genuinely specific file genre tag (neither already Roon-canonical nor an old overwritten legacy/unknown bucket)
+  const UNKNOWN_PLACEHOLDERS = new Set(['', 'unknown', 'various', 'other', 'music', 'none', 'test']);
+  const isGenericOrLegacy = (s) => UNKNOWN_PLACEHOLDERS.has(s) || CANONICAL_GENRE_SET.has(s) || Object.prototype.hasOwnProperty.call(LEGACY_GENRE_MAP, s);
   const explicitRawTag = !isGenericOrLegacy(trackRawLower)
     ? trackRaw
     : (!isGenericOrLegacy(gLower) ? g : '');
 
-  // 1. Explicit non-canonical file genre tag wins first
+  // 1. Priority 1: Explicit non-canonical file genre tag wins first
   if (explicitRawTag) {
     const fromRaw = matchRoonGenreRules(explicitRawTag, { strictMeta: false });
     if (fromRaw) return fromRaw;
   }
 
-  // 2. Infer from album title + artist ONLY (never scan filePath) with strict word boundaries
+  // 1b. Priority 1 (continued): Already-valid specific Roon canonical tag from file metadata (non-Pop/Rock default)
+  const isSpecificCanonicalFileTag = g && CANONICAL_GENRE_SET.has(gLower) && gLower !== 'pop/rock';
+  if (isSpecificCanonicalFileTag) {
+    const exact = CANONICAL_GENRES.find(c => c.toLowerCase() === gLower);
+    if (exact) return exact;
+  }
+
+  // 2. Priority 2: Online structured metadata (iTunes Search API -> MusicBrainz Release-Group API)
+  if (onlineRaw) {
+    const onlineLower = onlineRaw.toLowerCase();
+    if (CANONICAL_GENRE_SET.has(onlineLower)) {
+      const exact = CANONICAL_GENRES.find(c => c.toLowerCase() === onlineLower);
+      if (exact) return exact;
+    }
+    const fromOnline = matchRoonGenreRules(onlineRaw, { strictMeta: false });
+    if (fromOnline) return fromOnline;
+  }
+
+  // 3. Priority 3: Infer from album title + artist ONLY (never scan filePath) with strict word boundaries
   const metaText = [track.album || track.title || '', track.albumArtist || '', track.artist || ''].join(' ').trim();
   const fromMeta = matchRoonGenreRules(metaText, { strictMeta: true });
   if (fromMeta) return fromMeta;
 
-  // 3. Keep already-valid Roon canonical genre if no stronger metadata signal disagreed
+  // 4. Keep already-valid Roon canonical genre (including Pop/Rock) if no stronger signal disagreed
   if (g && CANONICAL_GENRE_SET.has(gLower)) {
     const exact = CANONICAL_GENRES.find(c => c.toLowerCase() === gLower);
     if (exact) return exact;
   }
 
-  // 4. Map legacy canonical genre cleanly
+  // 5. Map legacy canonical genre cleanly
   if (g && Object.prototype.hasOwnProperty.call(LEGACY_GENRE_MAP, gLower)) {
     return LEGACY_GENRE_MAP[gLower];
   }
 
-  // 5. Loose fallback on rawGenre
+  // 6. Loose fallback on rawGenre
   if (g) {
     const loose = matchRoonGenreRules(g, { strictMeta: false });
     if (loose) return loose;

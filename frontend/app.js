@@ -1010,6 +1010,8 @@ async function initApp() {
 
     // Startup default: show the last played track in the player bar (display only, not playing)
     restoreLastPlayedTrack();
+    // Kick off silent background online genre enrichment (iTunes -> MusicBrainz) for untagged albums
+    scheduleBackgroundGenreEnrichment(3000);
     if (playerCoverImg && playerCoverImg.complete && playerCoverImg.naturalWidth > 0) {
       updateAlbumAccentFromCover(playerCoverImg.currentSrc || playerCoverImg.getAttribute('src') || '');
     }
@@ -1623,6 +1625,266 @@ function cleanAlbumTitleForSearch(title) {
 }
 
 const resolvedArtistCache = new Map();
+
+// =========================================================================
+// Background Online Album Genre Enrichment (Priority 2: iTunes -> MusicBrainz)
+// Runs silently off the startup path, caches hits & misses in localStorage,
+// and persists upgraded genres into SQLite via saveLibraryTracks.
+// =========================================================================
+const ONLINE_GENRE_CACHE_KEY = 'rooplayer_online_album_genres_v1';
+const ONLINE_GENRE_MISS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+let _onlineGenreStore = null;
+let _onlineGenreEnrichRunning = false;
+let _onlineGenreEnrichPending = false;
+let _onlineGenreEnrichTimer = null;
+
+function loadOnlineGenreStore() {
+  if (_onlineGenreStore) return _onlineGenreStore;
+  try {
+    const raw = localStorage.getItem(ONLINE_GENRE_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    _onlineGenreStore = (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (_) {
+    _onlineGenreStore = {};
+  }
+  return _onlineGenreStore;
+}
+
+function saveOnlineGenreStore() {
+  if (!_onlineGenreStore) return;
+  try {
+    localStorage.setItem(ONLINE_GENRE_CACHE_KEY, JSON.stringify(_onlineGenreStore));
+  } catch (_) {}
+}
+
+function makeOnlineGenreCacheKey(albumTitle, artistName) {
+  const a = cleanAlbumTitleForSearch(albumTitle || '').toLowerCase().trim();
+  const ar = isUnknownArtist(artistName) ? '' : String(artistName || '').toLowerCase().trim();
+  if (!a) return '';
+  return `${a}___${ar}`;
+}
+
+function getCachedOnlineAlbumGenreEntry(albumTitle, artistName) {
+  const key = makeOnlineGenreCacheKey(albumTitle, artistName);
+  if (!key) return null;
+  const store = loadOnlineGenreStore();
+  const entry = store[key];
+  if (!entry) return null;
+  if (!entry.genre && entry.ts && (Date.now() - entry.ts > ONLINE_GENRE_MISS_TTL_MS)) {
+    return null; // expired negative cache
+  }
+  return entry;
+}
+
+function getCachedOnlineAlbumGenre(albumTitle, artistName) {
+  const entry = getCachedOnlineAlbumGenreEntry(albumTitle, artistName);
+  return (entry && entry.genre) ? entry.genre : null;
+}
+
+function setCachedOnlineAlbumGenre(albumTitle, artistName, genre, rawTag = '', source = '') {
+  const key = makeOnlineGenreCacheKey(albumTitle, artistName);
+  if (!key) return;
+  const store = loadOnlineGenreStore();
+  store[key] = {
+    genre: genre || null,
+    raw: rawTag || '',
+    source: source || '',
+    ts: Date.now()
+  };
+  saveOnlineGenreStore();
+}
+
+function trackNeedsOnlineGenreLookup(t) {
+  if (!t || !t.album || t.album === 'Unknown Album') return false;
+  const raw = String(t.rawGenre || t.genre || '').trim().toLowerCase();
+  const genericSet = new Set(['', 'unknown', 'various', 'other', 'music', 'none', 'test', 'pop/rock']);
+  if (genericSet.has(raw)) return true;
+  if (t.isTidal && raw === 'pop') return true;
+  return false;
+}
+
+async function fetchOnlineAlbumGenre(albumTitle, artistName) {
+  const cleanTitle = cleanAlbumTitleForSearch(albumTitle || '');
+  if (!cleanTitle || cleanTitle.length < 2) return null;
+  const cleanArtist = isUnknownArtist(artistName) ? '' : String(artistName || '').trim();
+  const searchQuery = cleanArtist ? `${cleanTitle} ${cleanArtist}` : cleanTitle;
+
+  const pickBestItunesHit = (results) => {
+    if (!Array.isArray(results) || results.length === 0) return null;
+    if (cleanArtist) {
+      const exact = results.find(r =>
+        r.primaryGenreName && r.primaryGenreName !== 'Music' &&
+        albumTitleMatches(r.collectionName, cleanTitle) &&
+        artistNameMatches(r.artistName, cleanArtist)
+      );
+      if (exact) return exact;
+    }
+    return results.find(r =>
+      r.primaryGenreName && r.primaryGenreName !== 'Music' &&
+      albumTitleMatches(r.collectionName, cleanTitle) &&
+      (!cleanArtist || !/[\u4e00-\u9fff]/.test(cleanArtist))
+    ) || null;
+  };
+
+  // 1. Primary: iTunes Search API (TW storefront -> Global fallback)
+  try {
+    const twUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&country=tw&limit=6`;
+    let data = await nativeFetchJson(twUrl, {}, 6500);
+    let hit = pickBestItunesHit(data?.results);
+    if (!hit) {
+      const usUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&limit=6`;
+      data = await nativeFetchJson(usUrl, {}, 6500);
+      hit = pickBestItunesHit(data?.results);
+    }
+    if (hit && hit.primaryGenreName && hit.primaryGenreName !== 'Music') {
+      const mapped = canonicalizeGenre(hit.primaryGenreName, {});
+      if (mapped) {
+        return { genre: mapped, raw: hit.primaryGenreName, source: 'itunes' };
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fallback: MusicBrainz Release-Group API (structured community genres/tags)
+  try {
+    const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.4 (https://github.com/tzungli/roop2)' };
+    const mbArtistClause = cleanArtist ? ` AND artist:${encodeURIComponent('"' + cleanArtist + '"')}` : '';
+    const mbSearchUrl = `https://musicbrainz.org/ws/2/release-group/?query=releasegroup:${encodeURIComponent('"' + cleanTitle + '"')}${mbArtistClause}&fmt=json&limit=5`;
+    const mbSearch = await nativeFetchJson(mbSearchUrl, mbHeaders, 8500);
+    const rgs = mbSearch?.['release-groups'] || [];
+    const rgHit = rgs.find(rg => {
+      if (!albumTitleMatches(rg.title, cleanTitle)) return false;
+      if (!cleanArtist) return true;
+      const ac = (rg['artist-credit'] || []).map(x => x.name || x.artist?.name || '').join(' ');
+      return artistNameMatches(ac, cleanArtist);
+    });
+    if (rgHit && Array.isArray(rgHit.tags) && rgHit.tags.length > 0) {
+      const sortedTags = rgHit.tags
+        .filter(t => t && t.name)
+        .slice()
+        .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
+      for (const tg of sortedTags) {
+        const mapped = (typeof matchRoonGenreRules === 'function')
+          ? matchRoonGenreRules(tg.name, { strictMeta: false })
+          : canonicalizeGenre(tg.name, {});
+        if (mapped) {
+          return { genre: mapped, raw: tg.name, source: 'musicbrainz' };
+        }
+      }
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+function scheduleBackgroundGenreEnrichment(delayMs = 2800) {
+  if (_onlineGenreEnrichTimer) {
+    clearTimeout(_onlineGenreEnrichTimer);
+  }
+  _onlineGenreEnrichTimer = setTimeout(() => {
+    _onlineGenreEnrichTimer = null;
+    runBackgroundGenreEnrichment();
+  }, delayMs);
+}
+
+async function runBackgroundGenreEnrichment() {
+  if (_onlineGenreEnrichRunning) {
+    _onlineGenreEnrichPending = true;
+    return;
+  }
+  if (!Array.isArray(state.albums) || state.albums.length === 0) return;
+
+  // Collect unique albums that lack a specific embedded file genre and aren't cached yet
+  const candidates = [];
+  const seenKeys = new Set();
+  for (const alb of state.albums) {
+    if (!alb || !alb.title || !Array.isArray(alb.tracks) || alb.tracks.length === 0) continue;
+    const key = makeOnlineGenreCacheKey(alb.title, alb.artist);
+    if (!key || seenKeys.has(key)) continue;
+    if (getCachedOnlineAlbumGenreEntry(alb.title, alb.artist)) continue;
+    if (!alb.tracks.some(trackNeedsOnlineGenreLookup)) continue;
+    seenKeys.add(key);
+    candidates.push({ title: alb.title, artist: alb.artist, key });
+  }
+
+  if (candidates.length === 0) return;
+
+  _onlineGenreEnrichRunning = true;
+  let updatedAlbumCount = 0;
+  let dirtySinceSave = 0;
+
+  const commitBatch = async () => {
+    if (dirtySinceSave <= 0) return;
+    dirtySinceSave = 0;
+    rebuildLibraryCollections();
+    if (typeof viewDirtyState === 'object' && viewDirtyState) {
+      viewDirtyState.genres = true;
+      viewDirtyState.albums = true;
+      viewDirtyState.overview = true;
+    }
+    if (state.currentView === 'genres' && typeof renderGenres === 'function') {
+      renderGenres();
+    } else if (state.currentView === 'overview' && typeof renderRooRecommendedGenres === 'function') {
+      renderRooRecommendedGenres();
+    }
+    if (state.activeAlbumDetail && detailGenre) {
+      const refreshed = state.albums.find(a => a.id === state.activeAlbumDetail.id);
+      if (refreshed) {
+        state.activeAlbumDetail.genre = refreshed.genre;
+        detailGenre.textContent = refreshed.genre || 'Various';
+      }
+    }
+    if (window.electronAPI && typeof window.electronAPI.saveLibraryTracks === 'function') {
+      try {
+        await window.electronAPI.saveLibraryTracks(state.tracks);
+      } catch (_) {}
+    }
+  };
+
+  try {
+    console.log(`[GenreEnrich] Starting background lookup for ${candidates.length} album(s)...`);
+    for (const item of candidates) {
+      const res = await fetchOnlineAlbumGenre(item.title, item.artist);
+      if (res && res.genre) {
+        setCachedOnlineAlbumGenre(item.title, item.artist, res.genre, res.raw, res.source);
+        // Apply immediately to matching tracks in state.tracks
+        let changed = false;
+        for (const t of state.tracks) {
+          if (makeOnlineGenreCacheKey(t.album, t.artist) === item.key && trackNeedsOnlineGenreLookup(t)) {
+            t.onlineGenre = res.genre;
+            const nextGenre = canonicalizeGenre(t.rawGenre || t.genre, t);
+            if (nextGenre !== t.genre) {
+              t.genre = nextGenre;
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          updatedAlbumCount++;
+          dirtySinceSave++;
+          if (dirtySinceSave >= 8) {
+            await commitBatch();
+          }
+        }
+      } else {
+        setCachedOnlineAlbumGenre(item.title, item.artist, null, '', 'miss');
+      }
+      // Polite rate limiting (350ms for iTunes, 1100ms if MusicBrainz fallback was touched)
+      await new Promise(r => setTimeout(r, (res && res.source === 'itunes') ? 350 : 1100));
+    }
+    await commitBatch();
+    if (updatedAlbumCount > 0) {
+      console.log(`[GenreEnrich] Enriched ${updatedAlbumCount} album(s) via online metadata.`);
+    }
+  } catch (err) {
+    console.warn('[GenreEnrich] Background enrichment error:', err);
+  } finally {
+    _onlineGenreEnrichRunning = false;
+    if (_onlineGenreEnrichPending) {
+      _onlineGenreEnrichPending = false;
+      scheduleBackgroundGenreEnrichment(1500);
+    }
+  }
+}
 
 function getCachedResolvedArtist(albumTitle) {
   if (!albumTitle) return null;
@@ -2301,7 +2563,14 @@ function rebuildLibraryCollections() {
     if (t.genre && !t.rawGenre) {
       t.rawGenre = t.genre;
     }
-    // Canonicalize track genre
+    // Priority 2: Attach cached online genre (iTunes / MusicBrainz) before canonicalization
+    if (!t.onlineGenre) {
+      const cachedOnlineGenre = getCachedOnlineAlbumGenre(t.album, t.artist);
+      if (cachedOnlineGenre) {
+        t.onlineGenre = cachedOnlineGenre;
+      }
+    }
+    // Canonicalize track genre (Priority 1: file tag -> Priority 2: online genre -> Priority 3: album/artist rules -> Priority 4: fallback)
     t.genre = canonicalizeGenre(t.rawGenre || t.genre, t);
 
     // Albums grouping
@@ -10430,6 +10699,7 @@ async function addTidalAlbumToLibrary(tidalAlbumId, preloadedData = null) {
     if (window.electronAPI && window.electronAPI.saveLibraryTracks) {
       await window.electronAPI.saveLibraryTracks(state.tracks);
     }
+    scheduleBackgroundGenreEnrichment(1200);
 
     showToast(`✅ 已將《${album.title}》加入曲庫 (${tracks.length} 首曲目)`);
 
@@ -10464,6 +10734,7 @@ async function removeTidalAlbumFromLibrary(tidalAlbumId) {
     if (window.electronAPI && window.electronAPI.saveLibraryTracks) {
       await window.electronAPI.saveLibraryTracks(state.tracks);
     }
+    scheduleBackgroundGenreEnrichment(1200);
     showToast(`🗑️ 已從曲庫移除該專輯 (共 ${removed} 首曲目)`);
 
     if (state.activeAlbumDetail && (String(state.activeAlbumDetail.tidalId) === String(tidalAlbumId) || state.activeAlbumDetail.id === `tidal_album_${tidalAlbumId}`)) {
@@ -10665,6 +10936,7 @@ async function importTidalFavTracksToLibrary() {
     if (window.electronAPI && window.electronAPI.saveLibraryTracks) {
       await window.electronAPI.saveLibraryTracks(state.tracks);
     }
+    scheduleBackgroundGenreEnrichment(1200);
 
     if (state.currentView === 'overview') renderOverview();
     else if (state.currentView === 'tracks') renderTracks();
@@ -21355,6 +21627,7 @@ window.rescanSpecificFolder = async function(folderPath) {
       rebuildLibraryCollections();
       renderAll();
       scanProgressBox.style.display = 'none';
+      scheduleBackgroundGenreEnrichment(1500);
     }
   } catch (err) {
     console.error('Rescan failed:', err);
