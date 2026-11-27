@@ -6346,8 +6346,75 @@ async function openArtistDetail(artistInput) {
   fetchArtistMissingAlbums(artistName, localAlbums);
 }
 
-// ----------------- Artist Biography & Translation Engine -----------------
-const artistBioTranslationCache = new Map();
+// ----------------- Persistent Metadata / Cover / Portrait Cache Engine -----------------
+function createPersistentMap(storageKey, maxEntries = 500) {
+  const map = new Map();
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const entries = JSON.parse(raw);
+      if (Array.isArray(entries)) {
+        for (const pair of entries) {
+          if (Array.isArray(pair) && pair.length === 2 && pair[0]) {
+            map.set(pair[0], pair[1]);
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  let saveTimer = null;
+  const scheduleSave = () => {
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      try {
+        while (map.size > maxEntries) {
+          const oldestKey = map.keys().next().value;
+          if (oldestKey === undefined) break;
+          map.delete(oldestKey);
+        }
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(map.entries())));
+      } catch (_) {}
+    }, 450);
+  };
+
+  const origSet = map.set.bind(map);
+  map.set = (k, v) => {
+    origSet(k, v);
+    scheduleSave();
+    return map;
+  };
+  return map;
+}
+
+const artistBioTranslationCache = createPersistentMap('roo_cache_artist_bio_v1', 350);
+const tidalAlbumCoverCache = createPersistentMap('roo_cache_tidal_album_cover_v1', 800);
+
+window.seedArtistPortraitCache = function(artistName, picUrl) {
+  if (!artistName || !picUrl) return;
+  const key = String(artistName).toLowerCase().trim();
+  if (!key) return;
+  if (!artistPortraitCache.has(key)) {
+    artistPortraitCache.set(key, picUrl);
+  }
+  if (artistBioTranslationCache.has(artistName)) {
+    const entry = artistBioTranslationCache.get(artistName);
+    if (entry && !entry.avatarUrl) {
+      entry.avatarUrl = picUrl;
+      if (!entry.originalImageUrl) entry.originalImageUrl = picUrl;
+      artistBioTranslationCache.set(artistName, entry);
+    }
+  }
+};
+
+window.seedAlbumCoverCache = function(albumTitle, artistName, coverUrl) {
+  if (!albumTitle || !coverUrl) return;
+  const titleKey = String(albumTitle).toLowerCase().trim();
+  const fullKey = `${titleKey}::${String(artistName || '').toLowerCase().trim()}`;
+  if (!tidalAlbumCoverCache.has(fullKey)) tidalAlbumCoverCache.set(fullKey, coverUrl);
+  if (!tidalAlbumCoverCache.has(titleKey)) tidalAlbumCoverCache.set(titleKey, coverUrl);
+};
 let currentArtistBioState = {
   originalText: '',
   translatedText: '',
@@ -6435,7 +6502,7 @@ function extractArtistNameVariants(artistName) {
   return out;
 }
 
-const artistPortraitCache = new Map();
+const artistPortraitCache = createPersistentMap('roo_cache_artist_portrait_v1', 600);
 
 async function resolveArtistOnlinePortrait(artistName, variants) {
   const cacheKey = String(artistName || '').toLowerCase().trim();
@@ -6525,13 +6592,17 @@ async function fetchArtistBio(artistName, localAlbums = []) {
   let originalImageUrl = '';
   let isFromEnWiki = false;
 
+  const cachedPortrait = nameVariants
+    .map(v => artistPortraitCache.get(String(v || '').toLowerCase().trim()))
+    .find(Boolean) || '';
+
   // Check cache first for instant display
   if (artistBioTranslationCache.has(artistName)) {
     const cached = artistBioTranslationCache.get(artistName);
     rawBioText = cached.originalText;
     wikiPageUrl = cached.wikiPageUrl;
-    avatarUrl = cached.avatarUrl;
-    originalImageUrl = cached.originalImageUrl;
+    avatarUrl = cached.avatarUrl || cachedPortrait;
+    originalImageUrl = cached.originalImageUrl || cachedPortrait;
     isFromEnWiki = cached.isFromEnWiki;
   } else {
     // Delegate NetEase/Deezer portrait + zh/en Wikipedia + zh-TW translation to native Rust engine
@@ -6542,9 +6613,12 @@ async function fetchArtistBio(artistName, localAlbums = []) {
       if (nativeRes) {
         rawBioText = nativeRes.originalText || '';
         wikiPageUrl = nativeRes.wikiPageUrl || '';
-        avatarUrl = nativeRes.avatarUrl || '';
-        originalImageUrl = nativeRes.originalImageUrl || '';
+        avatarUrl = cachedPortrait || nativeRes.avatarUrl || '';
+        originalImageUrl = nativeRes.originalImageUrl || cachedPortrait || '';
         isFromEnWiki = !!nativeRes.isFromEnWiki;
+        if (avatarUrl) {
+          artistPortraitCache.set(String(artistName).toLowerCase().trim(), avatarUrl);
+        }
         if (nativeRes.translatedText && rawBioText) {
           artistBioTranslationCache.set(artistName, {
             originalText: rawBioText,
@@ -8674,7 +8748,7 @@ function isGenuineAlbumWikiArticle(pageTitle, extractText, albumTitle, artistNam
   return hasAlbumSignals || pageHasAlbumTag;
 }
 
-const albumOnlineMetaCache = new Map();
+const albumOnlineMetaCache = createPersistentMap('roo_cache_album_online_meta_v1', 500);
 
 async function nativeFetchText(url, headers = {}, timeoutMs = 9000) {
   try {

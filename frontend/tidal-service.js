@@ -327,10 +327,20 @@ class TidalService {
   async search(query, limit = 20) {
     if (!query || !query.trim()) return { albums: [], tracks: [], artists: [], playlists: [] };
     const res = await this.api('/search', { query: query.trim(), limit });
+    const artists = (res.artists && res.artists.items) ? res.artists.items : [];
+    // Harvest artist portraits into persistent local cache so artist pages never need extra TIDAL searches
+    if (typeof window !== 'undefined' && typeof window.seedArtistPortraitCache === 'function') {
+      for (const ar of artists) {
+        if (ar && ar.name && ar.picture) {
+          const picUrl = this.getCoverUrl(ar.picture, 640);
+          if (picUrl) window.seedArtistPortraitCache(ar.name, picUrl);
+        }
+      }
+    }
     return {
       albums: (res.albums && res.albums.items) ? res.albums.items.map(a => this.normalizeAlbum(a)) : [],
       tracks: (res.tracks && res.tracks.items) ? res.tracks.items.map(t => this.normalizeTrack(t)) : [],
-      artists: (res.artists && res.artists.items) ? res.artists.items : [],
+      artists,
       playlists: (res.playlists && res.playlists.items) ? res.playlists.items : []
     };
   }
@@ -739,6 +749,19 @@ class TidalService {
       : (a.artist ? a.artist.name : 'Unknown Artist');
 
     const coverUrl = this.getCoverUrl(a.cover, 640);
+    if (typeof window !== 'undefined') {
+      if (coverUrl && a.title && typeof window.seedAlbumCoverCache === 'function') {
+        window.seedAlbumCoverCache(a.title, artists, coverUrl);
+      }
+      if (a.artists && Array.isArray(a.artists) && typeof window.seedArtistPortraitCache === 'function') {
+        for (const ar of a.artists) {
+          if (ar && ar.name && ar.picture) {
+            const picUrl = this.getCoverUrl(ar.picture, 640);
+            if (picUrl) window.seedArtistPortraitCache(ar.name, picUrl);
+          }
+        }
+      }
+    }
     const hasHiresTag = (a.mediaMetadata && a.mediaMetadata.tags && a.mediaMetadata.tags.includes('HIRES_LOSSLESS'));
     const quality = (hasHiresTag || a.audioQuality === 'HI_RES_LOSSLESS' || a.audioQuality === 'HIRES' || (a.audioModes && a.audioModes.includes('HIRES_LOSSLESS'))) 
       ? 'HI_RES_LOSSLESS' 

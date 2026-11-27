@@ -1,27 +1,56 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::Semaphore;
 use anyhow::Result;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedTidalEntry {
+    pub ts_secs: u64,
+    pub data: serde_json::Value,
+}
+
 pub struct TidalState {
     pub cache_file: PathBuf,
+    pub api_cache_file: PathBuf,
     pub http_client: reqwest::Client,
     pub auth_data: Arc<RwLock<Option<serde_json::Value>>>,
+    pub api_cache: Arc<RwLock<HashMap<String, CachedTidalEntry>>>,
     pub api_semaphore: Arc<Semaphore>,
     pub rate_limit_until: Arc<Mutex<Option<Instant>>>,
+}
+
+fn now_unix_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 impl TidalState {
     pub fn new(cache_dir: PathBuf) -> Self {
         let cache_file = cache_dir.join("tidal-auth.json");
+        let api_cache_file = cache_dir.join("tidal-api-cache.json");
         let initial_auth = if let Ok(data) = fs::read_to_string(&cache_file) {
             serde_json::from_str(&data).ok()
         } else {
             None
         };
+        let now = now_unix_secs();
+        let initial_api_cache: HashMap<String, CachedTidalEntry> =
+            if let Ok(data) = fs::read_to_string(&api_cache_file) {
+                serde_json::from_str::<HashMap<String, CachedTidalEntry>>(&data)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|(_, v)| now.saturating_sub(v.ts_secs) < 7 * 86400)
+                    .collect()
+            } else {
+                HashMap::new()
+            };
         let mut default_headers = reqwest::header::HeaderMap::new();
         default_headers.insert(
             reqwest::header::ORIGIN,
@@ -53,6 +82,7 @@ impl TidalState {
         );
         Self {
             cache_file,
+            api_cache_file,
             http_client: reqwest::Client::builder()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
                 .default_headers(default_headers)
@@ -62,8 +92,66 @@ impl TidalState {
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
             auth_data: Arc::new(RwLock::new(initial_auth)),
+            api_cache: Arc::new(RwLock::new(initial_api_cache)),
             api_semaphore: Arc::new(Semaphore::new(3)),
             rate_limit_until: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub fn cache_ttl_secs(endpoint: &str) -> u64 {
+        if endpoint.starts_with("/sessions") || endpoint.contains("playbackinfo") {
+            return 0;
+        }
+        if endpoint.starts_with("/albums/") || endpoint.starts_with("/artists/") {
+            return 7 * 86400; // 7 days for album/artist metadata, covers, portraits & reviews
+        }
+        if endpoint.contains("/favorites/") || endpoint.contains("/users/") {
+            return 1800; // 30 minutes for user collection (auto-invalidated on writes)
+        }
+        6 * 3600 // 6 hours for search, curated Hi-Res picks, official playlists, home modules
+    }
+
+    pub fn get_cached_api(&self, key: &str, ttl_secs: u64) -> Option<serde_json::Value> {
+        if ttl_secs == 0 {
+            return None;
+        }
+        let now = now_unix_secs();
+        let guard = self.api_cache.read().ok()?;
+        let entry = guard.get(key)?;
+        if now.saturating_sub(entry.ts_secs) <= ttl_secs {
+            Some(entry.data.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn put_cached_api(&self, key: String, data: serde_json::Value) {
+        let now = now_unix_secs();
+        let snapshot = {
+            let Ok(mut guard) = self.api_cache.write() else { return };
+            guard.insert(key, CachedTidalEntry { ts_secs: now, data });
+            if guard.len() > 320 {
+                let mut pairs: Vec<(String, u64)> =
+                    guard.iter().map(|(k, v)| (k.clone(), v.ts_secs)).collect();
+                pairs.sort_by_key(|(_, ts)| *ts);
+                let remove_count = guard.len().saturating_sub(260);
+                for (k, _) in pairs.into_iter().take(remove_count) {
+                    guard.remove(&k);
+                }
+            }
+            guard.clone()
+        };
+        if let Some(parent) = self.api_cache_file.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(json_str) = serde_json::to_string(&snapshot) {
+            let _ = fs::write(&self.api_cache_file, json_str);
+        }
+    }
+
+    pub fn invalidate_user_cache(&self) {
+        if let Ok(mut guard) = self.api_cache.write() {
+            guard.retain(|k, _| !k.contains("/users/") && !k.contains("/favorites/") && !k.contains("/playlists/"));
         }
     }
 
@@ -680,6 +768,23 @@ pub async fn tidal_api(
     };
 
     let method_upper = method.to_uppercase();
+    let force_refresh = options
+        .get("forceRefresh")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let ttl_secs = if method_upper == "GET" {
+        TidalState::cache_ttl_secs(endpoint)
+    } else {
+        state.invalidate_user_cache();
+        0
+    };
+
+    if method_upper == "GET" && !force_refresh && ttl_secs > 0 {
+        if let Some(cached) = state.get_cached_api(&url, ttl_secs) {
+            return Ok(cached);
+        }
+    }
+
     let max_retries: u32 = 1;
     let mut last_err = "TIDAL API 請求過於頻繁（HTTP 429），請稍候再試".to_string();
 
@@ -743,6 +848,9 @@ pub async fn tidal_api(
         let json_val: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
             format!("JSON parse error ({}): {}", e, text)
         })?;
+        if method_upper == "GET" && ttl_secs > 0 {
+            state.put_cached_api(url.clone(), json_val.clone());
+        }
         return Ok(json_val);
     }
 
