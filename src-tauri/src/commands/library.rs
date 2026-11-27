@@ -387,7 +387,8 @@ pub async fn library_scan_folder(
         let _ = app_clone.emit("library:scanProgress", serde_json::json!({
             "current": prog.current,
             "total": prog.total,
-            "file": prog.file
+            "file": prog.file,
+            "currentFile": prog.file
         }));
     }).map_err(|e| e.to_string())?;
 

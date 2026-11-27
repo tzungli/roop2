@@ -20267,14 +20267,17 @@ function setupScannerEvents() {
 
   if (window.electronAPI) {
     window.electronAPI.onScanProgress((data) => {
-      const pct = Math.round((data.current / data.total) * 100);
+      const total = Number(data?.total) || 0;
+      const current = Number(data?.current) || 0;
+      const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+      const currentFile = data?.currentFile || data?.file || '';
       if (scanProgressBar) scanProgressBar.style.width = `${pct}%`;
-      if (scanPercentLabel) scanPercentLabel.textContent = `${pct}% (${data.current}/${data.total})`;
-      if (scanCurrentFile) scanCurrentFile.textContent = `檔案: ${data.currentFile}`;
+      if (scanPercentLabel) scanPercentLabel.textContent = `${pct}% (${current}/${total})`;
+      if (scanCurrentFile) scanCurrentFile.textContent = currentFile ? `檔案: ${currentFile}` : '掃描中...';
 
       if (netScanProgressBar) netScanProgressBar.style.width = `${pct}%`;
-      if (netScanPercentLabel) netScanPercentLabel.textContent = `${pct}% (${data.current}/${data.total})`;
-      if (netScanCurrentFile) netScanCurrentFile.textContent = `檔案: ${data.currentFile}`;
+      if (netScanPercentLabel) netScanPercentLabel.textContent = `${pct}% (${current}/${total})`;
+      if (netScanCurrentFile) netScanCurrentFile.textContent = currentFile ? `檔案: ${currentFile}` : '掃描中...';
     });
   }
 }
