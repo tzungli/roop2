@@ -16215,6 +16215,7 @@ function initDspControls() {
   const dspActivePhaseHint = document.getElementById('dspActivePhaseHint');
 
   const triggerLiveDspUpdate = () => {
+    if (typeof persistActiveZoneDsp === 'function') persistActiveZoneDsp();
     updateSignalPathUI();
     // 升頻倍率／格式一換，預覽脈絡（源 ➔ 輸出取樣率）就跟著變；編輯器開著就要重算。
     try {
@@ -16241,7 +16242,8 @@ function initDspControls() {
     toggleSoxDsp.addEventListener('change', () => {
       state.dsp.enabled = toggleSoxDsp.checked;
       if (dspSoxCard) dspSoxCard.classList.toggle('active', state.dsp.enabled);
-      localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+      if (typeof persistActiveZoneDsp === 'function') persistActiveZoneDsp();
+      else localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
       updateSignalPathUI();
 
       // If a track is currently playing, switch stream seamlessly
@@ -17627,6 +17629,25 @@ if (window.electronAPI && window.electronAPI.onDlnaPrepareStatus) {
 
 function togglePlayPause() {
   if (state.currentTrackIndex === -1) {
+    // Prefer the most recently played restorable track over blindly jumping to library track #0
+    try {
+      const history = typeof getPlaybackHistory === 'function' ? getPlaybackHistory() : [];
+      for (const h of history) {
+        if (!h) continue;
+        const found = state.tracks.find(t =>
+          (h.filePath && t.filePath === h.filePath)
+          || (h.id && t.id === h.id)
+          || (h.title && t.title === h.title && h.artist && t.artist === h.artist)
+        );
+        if (found) {
+          const alb = typeof findAlbumForTrack === 'function' ? findAlbumForTrack(found) : null;
+          const list = (alb && Array.isArray(alb.tracks) && alb.tracks.length > 0) ? alb.tracks : [found];
+          const idx = Math.max(0, list.indexOf(found));
+          playTrackList(list, idx);
+          return;
+        }
+      }
+    } catch (_) {}
     if (state.tracks.length > 0) {
       playTrackList(state.tracks, 0);
     }
@@ -23600,9 +23621,29 @@ function cloneDspConfig(dspObj) {
     filterPhase: src.filterPhase || 'precise-linear',
     ultrasonicFilter: src.ultrasonicFilter || '30k',
     dither: src.dither || 'tpdf',
+    crossfeedEnabled: !!src.crossfeedEnabled,
+    crossfeedLevel: src.crossfeedLevel || 'medium',
     peq: typeof normalizePeqSettings === 'function' ? normalizePeqSettings(src.peq) : src.peq,
     conv: typeof normalizeConvSettings === 'function' ? normalizeConvSettings(src.conv) : src.conv,
   };
+}
+
+function getZoneDspAliasKeys(zoneId, deviceObj = null) {
+  const keys = [];
+  if (zoneId) keys.push(String(zoneId));
+  if (zoneId === 'local') return keys;
+  const dev = deviceObj
+    || (state.activeDlnaDevice && state.activeDlnaDevice.id === zoneId ? state.activeDlnaDevice : null)
+    || (Array.isArray(state.availableDevices) ? state.availableDevices.find(d => d && d.id === zoneId) : null)
+    || (state.zones && state.zones[zoneId] ? state.zones[zoneId].device : null);
+  if (dev) {
+    const normName = String(dev.name || '').trim().toLowerCase();
+    const proto = String(dev.protocol || (String(zoneId || '').startsWith('airplay:') ? 'airplay' : 'dlna')).toLowerCase();
+    if (normName) keys.push(`name::${proto}::${normName}`);
+    const ip = String(dev.ip || '').trim();
+    if (ip) keys.push(`ip::${proto}::${ip}`);
+  }
+  return Array.from(new Set(keys));
 }
 
 function loadAllZoneDspProfiles() {
@@ -23614,24 +23655,121 @@ function loadAllZoneDspProfiles() {
   }
 }
 
-function saveZoneDspProfile(zoneId, dspObj) {
+function saveZoneDspProfile(zoneId, dspObj, deviceObj = null) {
   if (!zoneId) return;
   try {
     const all = loadAllZoneDspProfiles();
-    all[zoneId] = cloneDspConfig(dspObj);
+    const cloned = cloneDspConfig(dspObj);
+    const keys = getZoneDspAliasKeys(zoneId, deviceObj);
+    for (const k of keys) {
+      all[k] = cloned;
+    }
     localStorage.setItem(ZONE_DSP_STORAGE_KEY, JSON.stringify(all));
+    if (state.zones && state.zones[zoneId]) {
+      state.zones[zoneId].dsp = cloned;
+    }
   } catch (_) {}
 }
 
-function getZoneDspProfile(zoneId) {
+function persistActiveZoneDsp() {
+  if (!state.dsp) return;
+  try {
+    localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp));
+  } catch (_) {}
+  saveZoneDspProfile(state.activeAudioZone || 'local', state.dsp, state.activeDlnaDevice);
+}
+
+function getZoneDspProfile(zoneId, deviceObj = null) {
   if (zoneId === state.activeAudioZone && state.dsp) {
     return cloneDspConfig(state.dsp);
   }
   const z = state.zones && state.zones[zoneId];
   if (z && z.dsp) return cloneDspConfig(z.dsp);
-  const saved = loadAllZoneDspProfiles()[zoneId];
-  if (saved) return cloneDspConfig(saved);
+  const all = loadAllZoneDspProfiles();
+  const keys = getZoneDspAliasKeys(zoneId, deviceObj);
+  for (const k of keys) {
+    if (all[k]) return cloneDspConfig(all[k]);
+  }
   return cloneDspConfig(state.dsp);
+}
+
+function findSavedZoneDspProfile(zoneId, deviceObj = null) {
+  const all = loadAllZoneDspProfiles();
+  const keys = getZoneDspAliasKeys(zoneId, deviceObj);
+  for (const k of keys) {
+    if (all[k]) return cloneDspConfig(all[k]);
+  }
+  return null;
+}
+
+function syncDspControlsFromState() {
+  if (!state.dsp) return;
+  const toggleSoxDsp = document.getElementById('toggleSoxDsp');
+  const dspSoxCard = document.querySelector('.dsp-sox-card');
+  if (toggleSoxDsp) toggleSoxDsp.checked = !!state.dsp.enabled;
+  if (dspSoxCard) dspSoxCard.classList.toggle('active', !!state.dsp.enabled);
+
+  const curRate = String(state.dsp.rateMode || '2x');
+  document.querySelectorAll('#dspRateSelector .dsp-pill, #dspDsdRateSelector .dsp-pill').forEach(p => {
+    const active = p.getAttribute('data-rate-mode') === curRate;
+    p.classList.toggle('active', active);
+    if (active) {
+      const rateHint = document.getElementById('dspActiveRateHint');
+      const dsdHint = document.getElementById('dspActiveDsdHint');
+      if (isDsdRateMode(curRate)) {
+        if (dsdHint) dsdHint.textContent = `${p.textContent} (已生效)`;
+        if (rateHint) rateHint.textContent = '使用 DSD 調變中';
+      } else {
+        if (rateHint) rateHint.textContent = p.textContent;
+        if (dsdHint) dsdHint.textContent = '可選 DSD 格式';
+      }
+    }
+  });
+
+  const curOrder = String(state.dsp.dsdOrder || 5);
+  document.querySelectorAll('#dspOrderSelector .dsp-pill').forEach(p => {
+    const active = p.getAttribute('data-order') === curOrder;
+    p.classList.toggle('active', active);
+    if (active) {
+      const hint = document.getElementById('dspActiveOrderHint');
+      if (hint) hint.textContent = p.textContent;
+    }
+  });
+
+  const curPhase = String(state.dsp.filterPhase || 'precise-linear');
+  document.querySelectorAll('#dspPhaseSelector .dsp-pill').forEach(p => {
+    const active = p.getAttribute('data-phase') === curPhase;
+    p.classList.toggle('active', active);
+    if (active) {
+      const hint = document.getElementById('dspActivePhaseHint');
+      if (hint) hint.textContent = p.textContent;
+    }
+  });
+
+  const curUltra = String(state.dsp.ultrasonicFilter || '30k');
+  document.querySelectorAll('#dspUltrasonicSelector .dsp-pill').forEach(p => {
+    const active = p.getAttribute('data-ultrasonic') === curUltra;
+    p.classList.toggle('active', active);
+    if (active) {
+      const hint = document.getElementById('dspActiveUltrasonicHint');
+      if (hint) hint.textContent = p.textContent;
+    }
+  });
+
+  const curDither = String(state.dsp.dither || 'tpdf');
+  document.querySelectorAll('#dspDitherSelector .dsp-pill').forEach(p => {
+    const active = p.getAttribute('data-dither') === curDither;
+    p.classList.toggle('active', active);
+    if (active) {
+      const hint = document.getElementById('dspActiveDitherHint');
+      if (hint) hint.textContent = p.textContent;
+    }
+  });
+
+  if (typeof renderUserFilterChips === 'function') renderUserFilterChips();
+  if (typeof updateLocalDsdNotice === 'function') updateLocalDsdNotice();
+  if (typeof renderDspView === 'function') renderDspView();
+  if (typeof updateSignalPathUI === 'function') updateSignalPathUI();
 }
 
 function formatZoneDspSummary(dspObj, isLocalZone = false, isAirPlayZone = false) {
@@ -24616,12 +24754,14 @@ function restoreZoneSnapshot(zoneId, deviceObj = null) {
   state.repeatMode = z.repeatMode || 'none';
   state.isShuffling = !!z.isShuffling;
 
-  // Restore per-zone independent rooDSP profile
-  const zoneDsp = z.dsp || loadAllZoneDspProfiles()[zoneId];
+  // Restore per-zone independent rooDSP profile (matches UDN, device name, or IP)
+  const zoneDsp = z.dsp || findSavedZoneDspProfile(zoneId, deviceObj);
   if (zoneDsp && state.dsp) {
     Object.assign(state.dsp, cloneDspConfig(zoneDsp));
+    z.dsp = cloneDspConfig(state.dsp);
     try { localStorage.setItem('rooplayer_dsp_settings', JSON.stringify(state.dsp)); } catch (_) {}
-    if (typeof renderDspView === 'function') renderDspView();
+    if (typeof syncDspControlsFromState === 'function') syncDspControlsFromState();
+    else if (typeof renderDspView === 'function') renderDspView();
   }
   if (zoneId !== 'local') {
     dlnaPosEstSec = z.dlnaPosEstSec || z.currentSec || 0;
@@ -24778,6 +24918,9 @@ async function switchAudioZone(target) {
     const dev = target;
     if (state.activeAudioZone !== dev.id) {
       // Multi-Zone Phase 1: keep local / other DLNA zones playing independently — just snapshot!
+      const prevWasPlaying = !!state.isPlaying;
+      const prevQueue = Array.isArray(state.queue) ? state.queue.slice() : [];
+      const prevIdx = state.currentTrackIndex;
       saveActiveZoneSnapshot();
 
       state.activeAudioZone = dev.id;
@@ -24787,6 +24930,24 @@ async function switchAudioZone(target) {
         window.electronAPI.selectDlnaDevice(dev.id).catch(() => {});
       }
 
+      // If previous zone was idle (e.g., right after startup restore) and this target zone has no queue yet,
+      // inherit the idle queue/track so pressing Play immediately plays the track shown in the player bar
+      // instead of falling back to library track #0.
+      const targetZoneState = ensureZoneState(dev.id, dev);
+      if (
+        !prevWasPlaying
+        && prevQueue.length > 0
+        && prevIdx >= 0
+        && prevIdx < prevQueue.length
+        && !targetZoneState.isPlaying
+        && (!targetZoneState.queue || targetZoneState.queue.length === 0 || targetZoneState.currentTrackIndex < 0)
+      ) {
+        targetZoneState.queue = prevQueue.map((t, i) => (i === prevIdx ? Object.assign({}, t, { _restoredSession: true }) : t));
+        targetZoneState.currentTrackIndex = prevIdx;
+        targetZoneState.currentSec = 0;
+        targetZoneState.dlnaPosEstSec = 0;
+      }
+
       if (currentZoneName) currentZoneName.textContent = dev.name;
       updateBottomZoneIcon(dev);
       if (btnAudioOutput) btnAudioOutput.classList.add('network-active');
@@ -24794,6 +24955,8 @@ async function switchAudioZone(target) {
       const isAirPlayDev = dev.protocol === 'airplay' || String(dev.id || '').startsWith('airplay:');
       if (signalOutputIcon) signalOutputIcon.textContent = isAirPlayDev ? '📶' : ((dev.deviceCategory === 'tv') ? '📺' : '📡');
       if (signalOutputTitle) signalOutputTitle.textContent = isAirPlayDev ? `${dev.name} (AirPlay)` : `${dev.name} (DLNA / UPnP)`;
+
+      restoreZoneSnapshot(dev.id, dev);
       if (signalOutputDesc) {
         if (isAirPlayDev) {
           signalOutputDesc.textContent = `透過區網即時傳輸 44.1kHz / 16-bit ALAC 無損串流至 ${dev.ip} (AirPlay RAOP)`;
@@ -24803,8 +24966,6 @@ async function switchAudioZone(target) {
           signalOutputDesc.textContent = `透過區網即時串流至 ${dev.ip} (UPnP AVTransport)`;
         }
       }
-
-      restoreZoneSnapshot(dev.id, dev);
       if (isAirPlayDev) {
         stopDlnaVolumeSyncLoop();
         probeZoneVolumeCapability(dev, { applyToActive: false, force: true });
