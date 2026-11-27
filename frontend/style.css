@@ -14869,17 +14869,17 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   color: var(--accent-purple);
 }
 
-/* 1. Library Albums 5-col Row */
+/* 1. Library Albums Small-Size 8-col Row (matches cover-size-small) */
 .rgd-albums-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .rgd-album-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   cursor: pointer;
   min-width: 0;
 }
@@ -14891,14 +14891,14 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   border-radius: 4px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.05);
-  margin-bottom: 4px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  margin-bottom: 3px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .rgd-album-card:hover .rgd-album-cover-wrap {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
 }
 
 .rgd-album-cover {
@@ -14910,10 +14910,10 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 
 .rgd-lib-check {
   position: absolute;
-  left: 8px;
-  bottom: 8px;
-  width: 20px;
-  height: 20px;
+  left: 6px;
+  bottom: 6px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: rgba(15, 23, 42, 0.85);
   color: #ffffff;
@@ -14924,7 +14924,7 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .rgd-album-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-main);
   white-space: nowrap;
@@ -14933,7 +14933,7 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .rgd-album-artist {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-sub);
   white-space: nowrap;
   overflow: hidden;
@@ -14941,32 +14941,33 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .rgd-album-spec {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 2. Library Artists 5-col Circular Row */
+/* 2. Library Artists Small-Size 8-col Circular Row (matches artist-size-small) */
 .rgd-artists-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .rgd-artist-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   min-width: 0;
 }
 
 .rgd-artist-circle {
-  width: 100%;
-  max-width: 168px;
+  width: 92px;
+  height: 92px;
+  max-width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   overflow: hidden;
@@ -14974,13 +14975,13 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .rgd-artist-card:hover .rgd-artist-circle {
-  transform: scale(1.04);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
 .rgd-artist-img {
@@ -14992,13 +14993,13 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .rgd-artist-initial {
-  font-size: 42px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--accent-purple);
 }
 
 .rgd-artist-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-main);
   text-align: center;
@@ -15019,15 +15020,15 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 14px 16px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
   min-width: 0;
-  min-height: 118px;
+  min-height: 96px;
 }
 
 .rgd-new-card:hover {
@@ -15039,14 +15040,14 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 .rgd-new-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   flex: 1;
 }
 
 .rgd-new-artist {
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 15.5px;
+  font-weight: 600;
   line-height: 1.25;
   color: var(--text-main);
   white-space: nowrap;
@@ -15055,7 +15056,7 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .rgd-new-title {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-sub);
   white-space: nowrap;
   overflow: hidden;
@@ -15063,20 +15064,20 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .rgd-new-date {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
 .rgd-new-source {
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
 }
 
 .rgd-new-cover {
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   border-radius: 2px;
   object-fit: cover;
   flex-shrink: 0;
@@ -15116,8 +15117,8 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 
 .rgd-rec-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .rgd-rec-card {
@@ -15230,11 +15231,11 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1150px) {
   .rgd-albums-row,
   .rgd-artists-row,
   .rgd-rec-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
   .rgd-new-releases-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -15251,7 +15252,7 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   .rgd-albums-row,
   .rgd-artists-row,
   .rgd-rec-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .rgd-new-releases-grid {
     grid-template-columns: 1fr;

@@ -7908,7 +7908,7 @@ function renderRgdLibAlbums() {
   const nextBtn = document.getElementById('btnRgdAlbumsNext');
   if (!grid) return;
 
-  const pageSize = 5;
+  const pageSize = 8;
   const total = genreDetailState.albums.length;
   const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
   genreDetailState.albumsPage = Math.min(genreDetailState.albumsPage, maxPage);
@@ -7966,7 +7966,7 @@ function renderRgdLibArtists() {
   const nextBtn = document.getElementById('btnRgdArtistsNext');
   if (!grid) return;
 
-  const pageSize = 5;
+  const pageSize = 8;
   const total = genreDetailState.artists.length;
   const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
   genreDetailState.artistsPage = Math.min(genreDetailState.artistsPage, maxPage);
@@ -8097,7 +8097,7 @@ function renderRgdRecommended() {
   const nextBtn = document.getElementById('btnRgdRecNext');
   if (!grid) return;
 
-  const pageSize = 5;
+  const pageSize = 8;
   const list = genreDetailState.recommended || [];
   const total = list.length;
   const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
@@ -8326,9 +8326,9 @@ async function fetchRgdOnlineDiscovery(canonGenre, sessionId) {
     if (seenRec.has(k) || usedNewKeys.has(k)) continue;
     seenRec.add(k);
     recommended.push(cand);
-    if (recommended.length >= 15) break;
+    if (recommended.length >= 16) break;
   }
-  const finalRec = recommended.length >= 5 ? recommended : recCandidates.slice(0, 15);
+  const finalRec = recommended.length >= 8 ? recommended : recCandidates.slice(0, 16);
 
   _genreDiscoveryCache.set(canonGenre, {
     newReleases: newReleases.slice(0, TARGET_NEW_COUNT),
