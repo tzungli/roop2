@@ -351,7 +351,7 @@ pub async fn tidal_login_with_window(
             tracing::info!("TIDAL token received, verifying with sessions endpoint...");
             let client = &state.http_client;
             let sess_resp = client
-                .get("https://listen.tidal.com/v1/sessions")
+                .get("https://api.tidal.com/v1/sessions")
                 .header("Authorization", format!("Bearer {}", token))
                 .send()
                 .await;
@@ -654,22 +654,19 @@ pub async fn tidal_api(
     let method = options.get("method").and_then(|v| v.as_str()).unwrap_or("GET");
     let token = options.get("token").and_then(|v| v.as_str()).unwrap_or("");
 
-    // Prefer listen.tidal.com/v1 (official web player same-origin API gateway),
-    // falling back to api.tidal.com/v1 on 429/503.
-    let candidate_urls: Vec<String> = if endpoint.starts_with("http") {
-        vec![endpoint.to_string()]
+    // Always call api.tidal.com/v1 directly (listen.tidal.com/v1 returns HTTP 301 to api.tidal.com,
+    // which causes reqwest to strip the Authorization header on cross-host redirect).
+    let url = if endpoint.starts_with("http") {
+        endpoint.to_string()
     } else {
-        vec![
-            format!("https://listen.tidal.com/v1{}", endpoint),
-            format!("https://api.tidal.com/v1{}", endpoint),
-        ]
+        format!("https://api.tidal.com/v1{}", endpoint)
     };
 
     let method_upper = method.to_uppercase();
+    let max_retries: u32 = 1;
     let mut last_err = "TIDAL API 請求過於頻繁（HTTP 429），請稍候再試".to_string();
 
-    for (host_idx, url) in candidate_urls.iter().enumerate() {
-        let is_last_host = host_idx + 1 == candidate_urls.len();
+    for attempt in 0..=max_retries {
         state.wait_rate_limit_cooldown().await;
         let _permit = state
             .api_semaphore
@@ -678,11 +675,11 @@ pub async fn tidal_api(
             .map_err(|e| format!("TIDAL 限流器錯誤: {}", e))?;
 
         let mut req = match method_upper.as_str() {
-            "POST" => state.http_client.post(url),
-            "PUT" => state.http_client.put(url),
-            "DELETE" => state.http_client.delete(url),
-            "PATCH" => state.http_client.patch(url),
-            _ => state.http_client.get(url),
+            "POST" => state.http_client.post(&url),
+            "PUT" => state.http_client.put(&url),
+            "DELETE" => state.http_client.delete(&url),
+            "PATCH" => state.http_client.patch(&url),
+            _ => state.http_client.get(&url),
         };
 
         if !token.is_empty() {
@@ -701,20 +698,21 @@ pub async fn tidal_api(
         let status = resp.status();
 
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status == reqwest::StatusCode::SERVICE_UNAVAILABLE {
-            let wait_dur = parse_retry_after_secs(resp.headers(), host_idx as u32);
+            let wait_dur = parse_retry_after_secs(resp.headers(), attempt);
             let err_text = resp.text().await.unwrap_or_default();
             drop(_permit);
+            state.set_rate_limit_cooldown(wait_dur);
             let snippet: String = err_text.chars().take(120).collect();
             last_err = if snippet.trim().is_empty() {
-                format!("TIDAL API HTTP {}（{}）", status.as_u16(), url.split('?').next().unwrap_or(url))
+                format!("TIDAL API HTTP {}（{}）", status.as_u16(), url.split('?').next().unwrap_or(&url))
             } else {
                 format!("TIDAL API HTTP {}: {}", status.as_u16(), snippet.trim())
             };
-            if !is_last_host {
-                tracing::warn!("[TIDAL] HTTP {} on {} — trying alternate gateway", status.as_u16(), url);
+            if attempt < max_retries {
+                tracing::warn!("[TIDAL] HTTP {} on {} — backing off {:?}", status.as_u16(), endpoint, wait_dur);
+                tokio::time::sleep(wait_dur).await;
                 continue;
             }
-            state.set_rate_limit_cooldown(wait_dur);
             return Err(last_err);
         }
 
