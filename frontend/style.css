@@ -6396,10 +6396,10 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 .artist-bio-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  padding: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 0;
   line-height: 1.8;
 }
 
