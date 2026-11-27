@@ -23611,13 +23611,7 @@ function renderSettingsDevicesList() {
   const netBox = document.getElementById('settingsNetworkDevicesList');
   if (!localBox || !netBox) return;
 
-  const gearSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-
-  const closeAllGearMenus = () => {
-    document.querySelectorAll('.roo-device-gear-menu').forEach(m => { m.style.display = 'none'; });
-  };
-
-  const buildRow = ({ id, name, subtitle, iconTarget, devObj }) => {
+  const buildRow = ({ id, name, subtitle, iconTarget }) => {
     const disabled = isAudioDeviceDisabled(id);
     const row = document.createElement('div');
     row.className = `roo-device-manage-row ${disabled ? 'is-disabled' : 'is-enabled'}`;
@@ -23632,66 +23626,31 @@ function renderSettingsDevicesList() {
         </div>
       </div>
       <div class="roo-device-manage-right">
-        ${disabled
-          ? `<button type="button" class="roo-device-enable-btn">啟用</button>`
-          : `<div class="roo-device-gear-wrap">
-               <button type="button" class="roo-device-gear-btn" title="裝置選項" aria-label="裝置選項">${gearSvg}</button>
-               <div class="roo-device-gear-menu" style="display: none;">
-                 <button type="button" class="roo-device-gear-item" data-act="select">切換至此裝置</button>
-                 <button type="button" class="roo-device-gear-item is-danger" data-act="disable">停用</button>
-               </div>
-             </div>`}
+        <button type="button" class="${disabled ? 'roo-device-enable-btn' : 'roo-device-disable-btn'}">
+          ${disabled ? '啟用' : '停用'}
+        </button>
       </div>
     `;
 
-    const enableBtn = row.querySelector('.roo-device-enable-btn');
-    if (enableBtn) {
-      enableBtn.addEventListener('click', (e) => {
+    const actionBtn = row.querySelector('button');
+    if (actionBtn) {
+      actionBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        setAudioDeviceDisabled(id, false);
-        showToast(`已啟用裝置：${name}`);
-      });
-    }
-
-    const gearBtn = row.querySelector('.roo-device-gear-btn');
-    const gearMenu = row.querySelector('.roo-device-gear-menu');
-    if (gearBtn && gearMenu) {
-      gearBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = gearMenu.style.display === 'block';
-        closeAllGearMenus();
-        gearMenu.style.display = isOpen ? 'none' : 'block';
-      });
-      gearMenu.querySelectorAll('.roo-device-gear-item').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          gearMenu.style.display = 'none';
-          const act = btn.getAttribute('data-act');
-          if (act === 'disable') {
-            setAudioDeviceDisabled(id, true);
-            showToast(`已停用裝置：${name}`);
-          } else if (act === 'select') {
-            switchAudioZone(id === 'local' ? 'local' : devObj);
-          }
-        });
+        const nextDisabled = !disabled;
+        setAudioDeviceDisabled(id, nextDisabled);
+        showToast(nextDisabled ? `已停用裝置：${name}` : `已啟用裝置：${name}`);
       });
     }
 
     return row;
   };
 
-  if (!window._rooDeviceGearDocBound) {
-    window._rooDeviceGearDocBound = true;
-    document.addEventListener('click', closeAllGearMenus);
-  }
-
   localBox.innerHTML = '';
   localBox.appendChild(buildRow({
     id: 'local',
     name: 'System Output',
     subtitle: '音樂將會透過預設音訊裝置播放',
-    iconTarget: 'speaker',
-    devObj: null
+    iconTarget: 'speaker'
   }));
 
   const netDevices = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
@@ -23707,8 +23666,7 @@ function renderSettingsDevicesList() {
         id: dev.id,
         name: dev.name || 'UPnP MediaRenderer',
         subtitle: sub,
-        iconTarget: dev,
-        devObj: dev
+        iconTarget: dev
       }));
     });
   }

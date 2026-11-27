@@ -15667,21 +15667,49 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   flex-shrink: 0;
 }
 
-.roo-device-enable-btn {
+.roo-device-enable-btn,
+.roo-device-disable-btn {
   padding: 6px 20px;
   border-radius: 999px;
-  border: none;
-  background: #6c63ff;
-  color: #ffffff;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.roo-device-enable-btn {
+  border: 1px solid transparent;
+  background: #6c63ff;
+  color: #ffffff;
 }
 
 .roo-device-enable-btn:hover {
   background: #5b52eb;
   transform: translateY(-1px);
+}
+
+.roo-device-disable-btn {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.72);
+  color: #334155;
+}
+
+.roo-device-disable-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #dc2626;
+}
+
+[data-theme="dark"] .roo-device-disable-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .roo-device-disable-btn:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
 }
 
 .roo-device-gear-wrap {
