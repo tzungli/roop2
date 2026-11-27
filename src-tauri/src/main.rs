@@ -436,6 +436,12 @@ async fn main() {
             metadata_fetch_lyrics,
             metadata_fetch_album_bio,
             metadata_fetch_artist_portrait,
+            metadata_fetch_artist_bio,
+            metadata_fetch_album_credits,
+            metadata_fetch_online_genre,
+            metadata_find_artist_by_album,
+            library_parse_m3u,
+            library_match_songs,
             kkbox_api,
             kkbox_get_stream_url,
             // TIDAL commands

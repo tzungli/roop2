@@ -1520,73 +1520,12 @@ function trackNeedsOnlineGenreLookup(t) {
 async function fetchOnlineAlbumGenre(albumTitle, artistName) {
   const cleanTitle = cleanAlbumTitleForSearch(albumTitle || '');
   if (!cleanTitle || cleanTitle.length < 2) return null;
-  const cleanArtist = isUnknownArtist(artistName) ? '' : String(artistName || '').trim();
-  const searchQuery = cleanArtist ? `${cleanTitle} ${cleanArtist}` : cleanTitle;
-
-  const pickBestItunesHit = (results) => {
-    if (!Array.isArray(results) || results.length === 0) return null;
-    if (cleanArtist) {
-      const exact = results.find(r =>
-        r.primaryGenreName && r.primaryGenreName !== 'Music' &&
-        albumTitleMatches(r.collectionName, cleanTitle) &&
-        artistNameMatches(r.artistName, cleanArtist)
-      );
-      if (exact) return exact;
-    }
-    return results.find(r =>
-      r.primaryGenreName && r.primaryGenreName !== 'Music' &&
-      albumTitleMatches(r.collectionName, cleanTitle) &&
-      (!cleanArtist || !/[\u4e00-\u9fff]/.test(cleanArtist))
-    ) || null;
-  };
-
-  // 1. Primary: iTunes Search API (TW storefront -> Global fallback)
-  try {
-    const twUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&country=tw&limit=6`;
-    let data = await nativeFetchJson(twUrl, {}, 6500);
-    let hit = pickBestItunesHit(data?.results);
-    if (!hit) {
-      const usUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&limit=6`;
-      data = await nativeFetchJson(usUrl, {}, 6500);
-      hit = pickBestItunesHit(data?.results);
-    }
-    if (hit && hit.primaryGenreName && hit.primaryGenreName !== 'Music') {
-      const mapped = canonicalizeGenre(hit.primaryGenreName, {});
-      if (mapped) {
-        return { genre: mapped, raw: hit.primaryGenreName, source: 'itunes' };
-      }
-    }
-  } catch (_) {}
-
-  // 2. Fallback: MusicBrainz Release-Group API (structured community genres/tags)
-  try {
-    const mbHeaders = { 'User-Agent': 'rooPlayer/0.2.5 (https://github.com/tzungli/roop2)' };
-    const mbArtistClause = cleanArtist ? ` AND artist:${encodeURIComponent('"' + cleanArtist + '"')}` : '';
-    const mbSearchUrl = `https://musicbrainz.org/ws/2/release-group/?query=releasegroup:${encodeURIComponent('"' + cleanTitle + '"')}${mbArtistClause}&fmt=json&limit=5`;
-    const mbSearch = await nativeFetchJson(mbSearchUrl, mbHeaders, 8500);
-    const rgs = mbSearch?.['release-groups'] || [];
-    const rgHit = rgs.find(rg => {
-      if (!albumTitleMatches(rg.title, cleanTitle)) return false;
-      if (!cleanArtist) return true;
-      const ac = (rg['artist-credit'] || []).map(x => x.name || x.artist?.name || '').join(' ');
-      return artistNameMatches(ac, cleanArtist);
-    });
-    if (rgHit && Array.isArray(rgHit.tags) && rgHit.tags.length > 0) {
-      const sortedTags = rgHit.tags
-        .filter(t => t && t.name)
-        .slice()
-        .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
-      for (const tg of sortedTags) {
-        const mapped = (typeof matchRoonGenreRules === 'function')
-          ? matchRoonGenreRules(tg.name, { strictMeta: false })
-          : canonicalizeGenre(tg.name, {});
-        if (mapped) {
-          return { genre: mapped, raw: tg.name, source: 'musicbrainz' };
-        }
-      }
-    }
-  } catch (_) {}
-
+  if (window.electronAPI && window.electronAPI.fetchOnlineGenreNative) {
+    try {
+      const res = await window.electronAPI.fetchOnlineGenreNative(cleanTitle, String(artistName || ''));
+      if (res && res.genre) return res;
+    } catch (_) {}
+  }
   return null;
 }
 
@@ -1737,65 +1676,15 @@ async function findArtistByAlbumTitleOnline(albumTitle) {
   const cleanTitle = cleanAlbumTitleForSearch(albumTitle);
   if (!cleanTitle || cleanTitle.length < 2) return null;
 
-  // 1. Try MusicBrainz Release API
-  try {
-    const mbUrl = `https://musicbrainz.org/ws/2/release/?query=release:${encodeURIComponent(cleanTitle)}&fmt=json&limit=5`;
-    const res = await fetch(mbUrl, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.releases && data.releases.length > 0) {
-        for (const rel of data.releases) {
-          if (rel['artist-credit'] && rel['artist-credit'].length > 0) {
-            const artistName = rel['artist-credit'].map(a => a.name).filter(Boolean).join(', ');
-            if (artistName && !isUnknownArtist(artistName) && artistName.toLowerCase() !== 'various artists') {
-              setCachedResolvedArtist(albumTitle, artistName);
-              return artistName;
-            }
-          }
-        }
+  if (window.electronAPI && window.electronAPI.findArtistByAlbumNative) {
+    try {
+      const artistName = await window.electronAPI.findArtistByAlbumNative(cleanTitle);
+      if (artistName && !isUnknownArtist(artistName)) {
+        setCachedResolvedArtist(albumTitle, artistName);
+        return artistName;
       }
-    }
-  } catch (e) {}
-
-  // 2. Try iTunes Search API
-  try {
-    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle)}&entity=album&limit=5`;
-    const res = await fetch(itunesUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        for (const r of data.results) {
-          if (r.artistName && !isUnknownArtist(r.artistName) && r.artistName.toLowerCase() !== 'various artists') {
-            setCachedResolvedArtist(albumTitle, r.artistName);
-            return r.artistName;
-          }
-        }
-      }
-    }
-  } catch (e) {}
-
-  // 3. Try Wikipedia Search API
-  try {
-    const wikiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanTitle + ' 專輯')}&format=json&utf8=1`;
-    const res = await fetch(wikiUrl, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-    if (res.ok) {
-      const data = await res.json();
-      const hits = data.query?.search;
-      if (hits && hits.length > 0) {
-        for (const hit of hits) {
-          const text = hit.snippet || '';
-          const m = text.match(/(?:歌手|音樂人|由)\s*([A-Za-z\u4e00-\u9fa5\s·]{2,15}?)(?:發行|製作|的第|於|推出)/);
-          if (m && m[1]) {
-            const cand = m[1].replace(/<[^>]+>/g, '').trim();
-            if (cand && !isUnknownArtist(cand) && cand.length >= 2 && cand.length <= 25) {
-              setCachedResolvedArtist(albumTitle, cand);
-              return cand;
-            }
-          }
-        }
-      }
-    }
-  } catch (e) {}
+    } catch (_) {}
+  }
 
   return null;
 }
@@ -6659,52 +6548,38 @@ async function fetchArtistBio(artistName, localAlbums = []) {
     originalImageUrl = cached.originalImageUrl;
     isFromEnWiki = cached.isFromEnWiki;
   } else {
-    // Run online artist portrait search (TIDAL -> NetEase -> Deezer) in parallel with Wikipedia lookup
-    const portraitPromise = resolveArtistOnlinePortrait(artistName, nameVariants).catch(() => '');
-
+    // Delegate NetEase/Deezer portrait + zh/en Wikipedia + zh-TW translation to native Rust engine
     try {
-      // 1. Try Chinese Wikipedia with cleaned name variants (e.g. "孫燕姿" instead of "孫燕姿 (Yanzi Sun)")
-      for (const variant of nameVariants) {
-        const zhUrl = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(variant)}`;
-        const data = typeof nativeFetchJson === 'function'
-          ? await nativeFetchJson(zhUrl, { 'User-Agent': 'rooPlayer/0.2.5', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' }, 7500)
-          : await fetch(zhUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.5', 'Accept-Language': 'zh-tw,zh-hant;q=0.9' } }).then(r => r.ok ? r.json() : null).catch(() => null);
-        if (data && data.extract && data.type !== 'disambiguation') {
-          rawBioText = data.extract;
-          wikiPageUrl = data.content_urls?.desktop?.page || `https://zh.wikipedia.org/wiki/${encodeURIComponent(variant)}`;
-          if (data.originalimage?.source) originalImageUrl = data.originalimage.source;
-          if (data.thumbnail?.source) avatarUrl = data.thumbnail.source;
-          break;
+      const tidalPortraitPromise = (window.tidalService && window.tidalService.isLoggedIn)
+        ? resolveArtistOnlinePortrait(artistName, nameVariants).catch(() => '')
+        : Promise.resolve('');
+      const nativeBioPromise = (window.electronAPI && window.electronAPI.fetchArtistBioNative)
+        ? window.electronAPI.fetchArtistBioNative(artistName, nameVariants).catch(() => null)
+        : Promise.resolve(null);
+      const [tidalPortrait, nativeRes] = await Promise.all([tidalPortraitPromise, nativeBioPromise]);
+      if (nativeRes) {
+        rawBioText = nativeRes.originalText || '';
+        wikiPageUrl = nativeRes.wikiPageUrl || '';
+        avatarUrl = nativeRes.avatarUrl || '';
+        originalImageUrl = nativeRes.originalImageUrl || '';
+        isFromEnWiki = !!nativeRes.isFromEnWiki;
+        if (nativeRes.translatedText && rawBioText) {
+          artistBioTranslationCache.set(artistName, {
+            originalText: rawBioText,
+            translatedText: nativeRes.translatedText,
+            wikiPageUrl,
+            avatarUrl: tidalPortrait || avatarUrl,
+            originalImageUrl: originalImageUrl || tidalPortrait,
+            isFromEnWiki,
+          });
         }
       }
-
-      // 2. Fallback to English Wikipedia with cleaned variants
-      if (!rawBioText || (!originalImageUrl && !avatarUrl)) {
-        for (const variant of nameVariants) {
-          const enUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(variant)}`;
-          const data = typeof nativeFetchJson === 'function'
-            ? await nativeFetchJson(enUrl, { 'User-Agent': 'rooPlayer/0.2.5' }, 7500)
-            : await fetch(enUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.5' } }).then(r => r.ok ? r.json() : null).catch(() => null);
-          if (data && data.extract && data.type !== 'disambiguation') {
-            if (!rawBioText) {
-              rawBioText = data.extract;
-              isFromEnWiki = true;
-            }
-            if (!wikiPageUrl) wikiPageUrl = data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(variant)}`;
-            if (data.originalimage?.source && !originalImageUrl) originalImageUrl = data.originalimage.source;
-            if (data.thumbnail?.source && !avatarUrl) avatarUrl = data.thumbnail.source;
-            break;
-          }
-        }
+      if (tidalPortrait) {
+        avatarUrl = tidalPortrait;
+        if (!originalImageUrl) originalImageUrl = tidalPortrait;
       }
     } catch (err) {
-      console.warn('Wikipedia API fetch error:', err);
-    }
-
-    const onlinePortrait = await portraitPromise;
-    if (onlinePortrait) {
-      avatarUrl = onlinePortrait;
-      if (!originalImageUrl) originalImageUrl = onlinePortrait;
+      console.warn('Native artist bio fetch error:', err);
     }
   }
 
@@ -9245,67 +9120,20 @@ async function fetchOnlineAlbumCredits(album) {
     composer: null
   };
 
-  try {
-    // 1. iTunes Search API (fast, returns global copyright, publisher label & release date)
-    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(album.title + ' ' + album.artist)}&entity=album&limit=5`;
-    const res = await fetch(itunesUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        const normTitle = album.title.toLowerCase().trim();
-        const normArtist = album.artist.toLowerCase().trim();
-        const hit = data.results.find(r => {
-          const rTitle = (r.collectionName || '').toLowerCase();
-          const rArt = (r.artistName || '').toLowerCase();
-          return (rTitle.includes(normTitle) || normTitle.includes(rTitle)) &&
-                 (rArt.includes(normArtist) || normArtist.includes(rArt));
-        }) || data.results[0];
-
-        if (hit) {
-          if (hit.copyright) {
-            result.copyright = hit.copyright;
-            let clean = hit.copyright.replace(/^[℗©pPcC0-9\s,\.\-]+/, '').trim();
-            clean = clean.replace(/(under exclusive license to|licensed to|a division of).*$/i, '').trim();
-            if (clean && clean.length > 2) {
-              result.label = clean;
-            }
-          }
-          if (hit.releaseDate) {
-            result.releaseDate = hit.releaseDate.slice(0, 10);
-          }
-        }
+  if (window.electronAPI && window.electronAPI.fetchAlbumCreditsNative) {
+    try {
+      const res = await window.electronAPI.fetchAlbumCreditsNative(String(album.title || ''), String(album.artist || ''));
+      if (res) {
+        if (res.label) result.label = res.label;
+        if (res.releaseDate) result.releaseDate = res.releaseDate;
+        if (res.copyright) result.copyright = res.copyright;
+        if (res.producer) result.producer = res.producer;
+        if (res.composer) result.composer = res.composer;
       }
-    }
-  } catch (e) {
-    // iTunes fetch error ignored
+    } catch (_) {}
   }
 
-  try {
-    // 2. MusicBrainz Release API
-    if (!result.label || !result.releaseDate) {
-      const mbUrl = `https://musicbrainz.org/ws/2/release/?query=release:${encodeURIComponent(album.title)}+AND+artist:${encodeURIComponent(album.artist)}&fmt=json&limit=3`;
-      const mbRes = await fetch(mbUrl, { headers: { 'User-Agent': 'rooPlayer/1.0' } });
-      if (mbRes.ok) {
-        const mbData = await mbRes.json();
-        if (mbData.releases && mbData.releases.length > 0) {
-          const rel = mbData.releases[0];
-          if (rel['label-info-list'] && rel['label-info-list'].length > 0) {
-            const labels = rel['label-info-list'].map(l => l.label?.name).filter(Boolean);
-            if (labels.length > 0 && !result.label) {
-              result.label = labels.slice(0, 2).join(', ');
-            }
-          }
-          if (rel.date && !result.releaseDate) {
-            result.releaseDate = rel.date;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    // MusicBrainz fetch error ignored
-  }
-
-  // 3. Extract producer or label from Wikipedia review text if available
+  // Extract producer or label from cached review text if still missing
   try {
     if (!result.producer) {
       let bioText = '';

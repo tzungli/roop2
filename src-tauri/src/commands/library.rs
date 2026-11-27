@@ -939,6 +939,20 @@ fn has_lrc_timestamps(text: &str) -> bool {
 }
 
 #[tauri::command]
+pub async fn library_parse_m3u(text: String) -> Result<Vec<roo_library::ParsedM3uEntry>, String> {
+    Ok(roo_library::parse_m3u_text(&text))
+}
+
+#[tauri::command]
+pub async fn library_match_songs(
+    queries: Vec<roo_library::SongMatchQuery>,
+    state: State<'_, LibraryState>,
+) -> Result<Vec<roo_library::SongMatchHit>, String> {
+    let tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
+    Ok(roo_library::match_songs_against_library(&queries, &tracks))
+}
+
+#[tauri::command]
 pub async fn library_read_track_lyrics(file_path: String) -> Result<Option<serde_json::Value>, String> {
     let trimmed = file_path.trim().to_string();
     if trimmed.is_empty() {

@@ -1860,6 +1860,540 @@ pub async fn metadata_fetch_artist_portrait(artist_name: String) -> Result<Optio
     Ok(None)
 }
 
+// =========================================================================
+// 4. Native Artist Biography + Concurrent Portrait Engine
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtistBioResponse {
+    pub original_text: String,
+    pub translated_text: String,
+    pub wiki_page_url: String,
+    pub avatar_url: String,
+    pub original_image_url: String,
+    pub is_from_en_wiki: bool,
+}
+
+#[tauri::command]
+pub async fn metadata_fetch_artist_bio(
+    artist_name: String,
+    name_variants: Vec<String>,
+) -> Result<ArtistBioResponse, String> {
+    let variants: Vec<String> = if name_variants.is_empty() {
+        vec![artist_name.trim().to_string()]
+    } else {
+        name_variants
+            .into_iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+    let primary = variants.first().cloned().unwrap_or_default();
+    let client = shared_http_client();
+
+    let portrait_fut = async {
+        let mut found = String::new();
+        // 1. NetEase artist search (strong for Mandarin / Asian artists)
+        let primary_cn = if has_cjk(&primary) {
+            to_simplified_for_search(&primary).await
+        } else {
+            primary.clone()
+        };
+        let mut ne_queries = vec![primary_cn.clone()];
+        if primary != primary_cn {
+            ne_queries.push(primary.clone());
+        }
+        if let Some(v1) = variants.get(1) {
+            if !ne_queries.contains(v1) {
+                ne_queries.push(v1.clone());
+            }
+        }
+        for q in ne_queries {
+            if q.is_empty() {
+                continue;
+            }
+            if let Ok(resp) = client
+                .get(&format!(
+                    "https://music.163.com/api/search/get/web?s={}&type=100&offset=0&limit=5",
+                    urlencoding::encode(&q)
+                ))
+                .timeout(std::time::Duration::from_secs(6))
+                .header("Referer", "https://music.163.com/")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .send()
+                .await
+            {
+                if let Ok(json) = resp.json::<serde_json::Value>().await {
+                    let artists = json.pointer("/result/artists").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+                    let hit = artists
+                        .iter()
+                        .find(|a| {
+                            let an = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                            artist_name_matches(an, &primary, &primary_cn)
+                        })
+                        .or_else(|| artists.first());
+                    if let Some(h) = hit {
+                        if let Some(pic) = h.get("img1v1Url").or_else(|| h.get("picUrl")).and_then(|v| v.as_str()) {
+                            if !pic.contains("5639395138885805") {
+                                found = format!("{}?param=640y640", pic.replacen("http://", "https://", 1));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // 2. Deezer artist search fallback
+        if found.is_empty() {
+            for q in variants.iter().take(2) {
+                if let Ok(resp) = client
+                    .get(&format!(
+                        "https://api.deezer.com/search/artist?q={}&limit=5",
+                        urlencoding::encode(q)
+                    ))
+                    .timeout(std::time::Duration::from_secs(6))
+                    .send()
+                    .await
+                {
+                    if let Ok(json) = resp.json::<serde_json::Value>().await {
+                        let items = json.get("data").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+                        let hit = items
+                            .iter()
+                            .find(|a| artist_name_matches(a.get("name").and_then(|v| v.as_str()).unwrap_or(""), q, ""))
+                            .or_else(|| items.first());
+                        if let Some(h) = hit {
+                            if let Some(pic) = h
+                                .get("picture_xl")
+                                .or_else(|| h.get("picture_big"))
+                                .or_else(|| h.get("picture_medium"))
+                                .and_then(|v| v.as_str())
+                            {
+                                if !pic.contains("/images/artist//") {
+                                    found = pic.to_string();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        found
+    };
+
+    let wiki_fut = async {
+        let mut raw_bio = String::new();
+        let mut wiki_url = String::new();
+        let mut avatar = String::new();
+        let mut orig_img = String::new();
+        let mut from_en = false;
+        let ua = concat!("rooPlayer/", env!("CARGO_PKG_VERSION"));
+
+        for v in &variants {
+            if let Ok(resp) = client
+                .get(&format!(
+                    "https://zh.wikipedia.org/api/rest_v1/page/summary/{}",
+                    urlencoding::encode(v)
+                ))
+                .timeout(std::time::Duration::from_secs(7))
+                .header("User-Agent", ua)
+                .header("Accept-Language", "zh-tw,zh-hant;q=0.9")
+                .send()
+                .await
+            {
+                if resp.status().is_success() {
+                    if let Ok(json) = resp.json::<serde_json::Value>().await {
+                        if json.get("type").and_then(|x| x.as_str()) != Some("disambiguation") {
+                            if let Some(ext) = json.get("extract").and_then(|x| x.as_str()) {
+                                if !ext.trim().is_empty() {
+                                    raw_bio = ext.to_string();
+                                    wiki_url = json
+                                        .pointer("/content_urls/desktop/page")
+                                        .and_then(|x| x.as_str())
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| format!("https://zh.wikipedia.org/wiki/{}", urlencoding::encode(v)));
+                                    if let Some(o) = json.pointer("/originalimage/source").and_then(|x| x.as_str()) {
+                                        orig_img = o.to_string();
+                                    }
+                                    if let Some(t) = json.pointer("/thumbnail/source").and_then(|x| x.as_str()) {
+                                        avatar = t.to_string();
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if raw_bio.is_empty() || (orig_img.is_empty() && avatar.is_empty()) {
+            for v in &variants {
+                if let Ok(resp) = client
+                    .get(&format!(
+                        "https://en.wikipedia.org/api/rest_v1/page/summary/{}",
+                        urlencoding::encode(v)
+                    ))
+                    .timeout(std::time::Duration::from_secs(7))
+                    .header("User-Agent", ua)
+                    .send()
+                    .await
+                {
+                    if resp.status().is_success() {
+                        if let Ok(json) = resp.json::<serde_json::Value>().await {
+                            if json.get("type").and_then(|x| x.as_str()) != Some("disambiguation") {
+                                if let Some(ext) = json.get("extract").and_then(|x| x.as_str()) {
+                                    if !ext.trim().is_empty() {
+                                        if raw_bio.is_empty() {
+                                            raw_bio = ext.to_string();
+                                            from_en = true;
+                                        }
+                                        if wiki_url.is_empty() {
+                                            wiki_url = json
+                                                .pointer("/content_urls/desktop/page")
+                                                .and_then(|x| x.as_str())
+                                                .map(|s| s.to_string())
+                                                .unwrap_or_else(|| format!("https://en.wikipedia.org/wiki/{}", urlencoding::encode(v)));
+                                        }
+                                        if orig_img.is_empty() {
+                                            if let Some(o) = json.pointer("/originalimage/source").and_then(|x| x.as_str()) {
+                                                orig_img = o.to_string();
+                                            }
+                                        }
+                                        if avatar.is_empty() {
+                                            if let Some(t) = json.pointer("/thumbnail/source").and_then(|x| x.as_str()) {
+                                                avatar = t.to_string();
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        (raw_bio, wiki_url, avatar, orig_img, from_en)
+    };
+
+    let (online_portrait, (raw_bio, wiki_url, mut avatar, mut orig_img, from_en)) =
+        tokio::join!(portrait_fut, wiki_fut);
+
+    if !online_portrait.is_empty() {
+        avatar = online_portrait.clone();
+        if orig_img.is_empty() {
+            orig_img = online_portrait;
+        }
+    }
+
+    let translated = if !raw_bio.is_empty() && from_en {
+        crate::commands::library::util_translate_to_zh_tw(raw_bio.clone())
+            .await
+            .unwrap_or_else(|_| raw_bio.clone())
+    } else {
+        raw_bio.clone()
+    };
+
+    Ok(ArtistBioResponse {
+        original_text: raw_bio,
+        translated_text: translated,
+        wiki_page_url: wiki_url,
+        avatar_url: avatar,
+        original_image_url: orig_img,
+        is_from_en_wiki: from_en,
+    })
+}
+
+// =========================================================================
+// 5. Native Album Credits, Online Genre & Unknown Artist Resolvers
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlbumCreditsResponse {
+    pub producer: Option<String>,
+    pub label: Option<String>,
+    pub release_date: Option<String>,
+    pub copyright: Option<String>,
+    pub composer: Option<String>,
+}
+
+#[tauri::command]
+pub async fn metadata_fetch_album_credits(title: String, artist: String) -> Result<AlbumCreditsResponse, String> {
+    let client = shared_http_client();
+    let mut label: Option<String> = None;
+    let mut release_date: Option<String> = None;
+    let mut copyright: Option<String> = None;
+
+    let norm_t = title.trim().to_lowercase();
+    let norm_a = artist.trim().to_lowercase();
+
+    // 1. iTunes Search API
+    let it_url = format!(
+        "https://itunes.apple.com/search?term={}&entity=album&limit=5",
+        urlencoding::encode(&format!("{} {}", title.trim(), artist.trim()))
+    );
+    if let Ok(resp) = client.get(&it_url).timeout(std::time::Duration::from_secs(6)).send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            let results = json.get("results").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            let hit = results
+                .iter()
+                .find(|r| {
+                    let rt = r.get("collectionName").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                    let ra = r.get("artistName").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                    (rt.contains(&norm_t) || norm_t.contains(&rt)) && (ra.contains(&norm_a) || norm_a.contains(&ra))
+                })
+                .or_else(|| results.first());
+            if let Some(h) = hit {
+                if let Some(cp) = h.get("copyright").and_then(|v| v.as_str()) {
+                    copyright = Some(cp.to_string());
+                    let clean = cp
+                        .trim_start_matches(|c: char| !c.is_alphabetic() && !has_cjk(&c.to_string()))
+                        .trim();
+                    if clean.chars().count() > 2 {
+                        label = Some(clean.to_string());
+                    }
+                }
+                if let Some(rd) = h.get("releaseDate").and_then(|v| v.as_str()) {
+                    release_date = Some(rd.chars().take(10).collect());
+                }
+            }
+        }
+    }
+
+    // 2. MusicBrainz Release API fallback
+    if label.is_none() || release_date.is_none() {
+        let mb_url = format!(
+            "https://musicbrainz.org/ws/2/release/?query=release:{}+AND+artist:{}&fmt=json&limit=3",
+            urlencoding::encode(title.trim()),
+            urlencoding::encode(artist.trim())
+        );
+        if let Ok(resp) = client
+            .get(&mb_url)
+            .timeout(std::time::Duration::from_secs(7))
+            .header("User-Agent", concat!("rooPlayer/", env!("CARGO_PKG_VERSION"), " (https://github.com/tzungli/roop2)"))
+            .send()
+            .await
+        {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(rel) = json.get("releases").and_then(|v| v.as_array()).and_then(|a| a.first()) {
+                    if label.is_none() {
+                        let lbls: Vec<&str> = rel
+                            .get("label-info")
+                            .or_else(|| rel.get("label-info-list"))
+                            .and_then(|v| v.as_array())
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|l| l.pointer("/label/name").and_then(|n| n.as_str()))
+                            .take(2)
+                            .collect();
+                        if !lbls.is_empty() {
+                            label = Some(lbls.join(", "));
+                        }
+                    }
+                    if release_date.is_none() {
+                        if let Some(d) = rel.get("date").and_then(|v| v.as_str()) {
+                            if !d.is_empty() {
+                                release_date = Some(d.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(AlbumCreditsResponse {
+        producer: None,
+        label,
+        release_date,
+        copyright,
+        composer: None,
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineGenreResponse {
+    pub genre: String,
+    pub raw: String,
+    pub source: String,
+}
+
+#[tauri::command]
+pub async fn metadata_fetch_online_genre(
+    album_title: String,
+    artist_name: String,
+) -> Result<Option<OnlineGenreResponse>, String> {
+    let clean_title = strip_edition_parens(album_title.trim()).trim().to_string();
+    if clean_title.chars().count() < 2 {
+        return Ok(None);
+    }
+    let clean_artist = if is_unknown_artist(&artist_name) {
+        String::new()
+    } else {
+        artist_name.trim().to_string()
+    };
+    let query = if clean_artist.is_empty() {
+        clean_title.clone()
+    } else {
+        format!("{} {}", clean_title, clean_artist)
+    };
+    let client = shared_http_client();
+
+    // 1. iTunes Search API (TW -> Global)
+    for url in [
+        format!("https://itunes.apple.com/search?term={}&entity=album&country=tw&limit=6", urlencoding::encode(&query)),
+        format!("https://itunes.apple.com/search?term={}&entity=album&limit=6", urlencoding::encode(&query)),
+    ] {
+        if let Ok(resp) = client.get(&url).timeout(std::time::Duration::from_secs(6)).send().await {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                let results = json.get("results").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+                let hit = results
+                    .iter()
+                    .find(|r| {
+                        let gn = r.get("primaryGenreName").and_then(|v| v.as_str()).unwrap_or("");
+                        !gn.is_empty()
+                            && gn != "Music"
+                            && album_title_matches(r.get("collectionName").and_then(|v| v.as_str()).unwrap_or(""), &clean_title, "")
+                            && artist_name_matches(r.get("artistName").and_then(|v| v.as_str()).unwrap_or(""), &clean_artist, "")
+                    })
+                    .or_else(|| {
+                        if !has_cjk(&clean_artist) {
+                            results.iter().find(|r| {
+                                let gn = r.get("primaryGenreName").and_then(|v| v.as_str()).unwrap_or("");
+                                !gn.is_empty()
+                                    && gn != "Music"
+                                    && album_title_matches(r.get("collectionName").and_then(|v| v.as_str()).unwrap_or(""), &clean_title, "")
+                            })
+                        } else {
+                            None
+                        }
+                    });
+                if let Some(h) = hit {
+                    if let Some(raw_g) = h.get("primaryGenreName").and_then(|v| v.as_str()) {
+                        let mapped = roo_library::genre::canonicalize_genre(raw_g, raw_g, "", "", "", "", "");
+                        return Ok(Some(OnlineGenreResponse {
+                            genre: mapped.to_string(),
+                            raw: raw_g.to_string(),
+                            source: "itunes".to_string(),
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. MusicBrainz Release-Group tags fallback
+    let art_clause = if clean_artist.is_empty() {
+        String::new()
+    } else {
+        format!("+AND+artist:{}", urlencoding::encode(&format!("\"{}\"", clean_artist)))
+    };
+    let mb_url = format!(
+        "https://musicbrainz.org/ws/2/release-group/?query=releasegroup:{}{}&fmt=json&limit=5",
+        urlencoding::encode(&format!("\"{}\"", clean_title)),
+        art_clause
+    );
+    if let Ok(resp) = client
+        .get(&mb_url)
+        .timeout(std::time::Duration::from_secs(7))
+        .header("User-Agent", concat!("rooPlayer/", env!("CARGO_PKG_VERSION"), " (https://github.com/tzungli/roop2)"))
+        .send()
+        .await
+    {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(rg) = json.get("release-groups").and_then(|v| v.as_array()).and_then(|arr| {
+                arr.iter().find(|r| album_title_matches(r.get("title").and_then(|v| v.as_str()).unwrap_or(""), &clean_title, ""))
+            }) {
+                let mut tag_pairs: Vec<(i64, String)> = rg
+                    .get("tags")
+                    .and_then(|v| v.as_array())
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|t| {
+                        let name = t.get("name").and_then(|v| v.as_str())?;
+                        let cnt = t.get("count").and_then(|v| v.as_i64()).unwrap_or(0);
+                        Some((cnt, name.to_string()))
+                    })
+                    .collect();
+                tag_pairs.sort_by(|a, b| b.0.cmp(&a.0));
+                for (_, tg) in tag_pairs {
+                    if let Some(mapped) = roo_library::genre::match_roon_genre_rules(&tg, false) {
+                        return Ok(Some(OnlineGenreResponse {
+                            genre: mapped.to_string(),
+                            raw: tg,
+                            source: "musicbrainz".to_string(),
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn metadata_find_artist_by_album(album_title: String) -> Result<Option<String>, String> {
+    let clean_title = strip_edition_parens(album_title.trim()).trim().to_string();
+    if clean_title.chars().count() < 2 {
+        return Ok(None);
+    }
+    let client = shared_http_client();
+
+    // 1. MusicBrainz Release API
+    let mb_url = format!(
+        "https://musicbrainz.org/ws/2/release/?query=release:{}&fmt=json&limit=5",
+        urlencoding::encode(&clean_title)
+    );
+    if let Ok(resp) = client
+        .get(&mb_url)
+        .timeout(std::time::Duration::from_secs(7))
+        .header("User-Agent", concat!("rooPlayer/", env!("CARGO_PKG_VERSION"), " (https://github.com/tzungli/roop2)"))
+        .send()
+        .await
+    {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            for rel in json.get("releases").and_then(|v| v.as_array()).into_iter().flatten() {
+                let names: Vec<&str> = rel
+                    .get("artist-credit")
+                    .and_then(|v| v.as_array())
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|a| a.get("name").and_then(|v| v.as_str()))
+                    .collect();
+                let joined = names.join(", ");
+                if !joined.is_empty() && !is_unknown_artist(&joined) {
+                    return Ok(Some(joined));
+                }
+            }
+        }
+    }
+
+    // 2. iTunes Search API
+    let it_url = format!(
+        "https://itunes.apple.com/search?term={}&entity=album&limit=5",
+        urlencoding::encode(&clean_title)
+    );
+    if let Ok(resp) = client.get(&it_url).timeout(std::time::Duration::from_secs(6)).send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            for r in json.get("results").and_then(|v| v.as_array()).into_iter().flatten() {
+                if let Some(a) = r.get("artistName").and_then(|v| v.as_str()) {
+                    if !a.trim().is_empty() && !is_unknown_artist(a) {
+                        return Ok(Some(a.trim().to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
