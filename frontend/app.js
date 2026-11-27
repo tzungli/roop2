@@ -4878,6 +4878,9 @@ function resolvePlaylistFirstAlbumCover(pl) {
   return '';
 }
 
+const ROOPMIX_REFRESH_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // Every 3 days
+const ROOPMIX_LAST_UPDATED_KEY = 'rooplayer_roopmix_last_updated_ts';
+
 function ensureMonthlyRoopMixPlaylists(force = false) {
   const allTracks = Array.isArray(state.tracks) ? state.tracks : [];
   if (allTracks.length === 0) return;
@@ -4885,10 +4888,17 @@ function ensureMonthlyRoopMixPlaylists(force = false) {
   const monthKey = getCurrentYearMonthKey();
   const existingPlaylists = getPlaylists();
   const hasAllFive = ROOPMIX_IDS.every(id => existingPlaylists.some(p => p && p.id === id));
-  let lastMonth = '';
-  try { lastMonth = localStorage.getItem(ROOPMIX_MONTH_KEY) || ''; } catch (_) {}
+  const nowMs = Date.now();
+  let lastUpdatedMs = 0;
+  try { lastUpdatedMs = Number(localStorage.getItem(ROOPMIX_LAST_UPDATED_KEY) || 0) || 0; } catch (_) {}
+  if (!lastUpdatedMs && hasAllFive) {
+    const existingMix = existingPlaylists.find(p => p && p.id === ROOPMIX_IDS[0]);
+    if (existingMix && existingMix.updatedAt) {
+      lastUpdatedMs = Number(existingMix.updatedAt) || 0;
+    }
+  }
 
-  if (!force && lastMonth === monthKey && hasAllFive) {
+  if (!force && hasAllFive && lastUpdatedMs > 0 && (nowMs - lastUpdatedMs < ROOPMIX_REFRESH_INTERVAL_MS)) {
     return;
   }
 
@@ -5081,7 +5091,10 @@ function ensureMonthlyRoopMixPlaylists(force = false) {
   const mergedPlaylists = [...generatedMixes, ...userPlaylists];
   persistPlaylists(mergedPlaylists);
 
-  try { localStorage.setItem(ROOPMIX_MONTH_KEY, monthKey); } catch (_) {}
+  try {
+    localStorage.setItem(ROOPMIX_MONTH_KEY, monthKey);
+    localStorage.setItem(ROOPMIX_LAST_UPDATED_KEY, String(nowTs));
+  } catch (_) {}
 }
 
 function renderRooCuratedPlaylists() {
@@ -5095,7 +5108,7 @@ function renderRooCuratedPlaylists() {
     .filter(Boolean);
 
   if (mixPlaylists.length === 0) {
-    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 18px; color: var(--text-muted); font-size: 13px;">匯入音樂或聆聽曲目後，系統將於每月自動建立 roopmix_01 至 roopmix_05 專屬播放清單</div>';
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 18px; color: var(--text-muted); font-size: 13px;">匯入音樂或聆聽曲目後，系統將每三天自動更新 roopmix_01 至 roopmix_05 專屬播放清單</div>';
     return;
   }
 
