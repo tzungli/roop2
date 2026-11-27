@@ -257,6 +257,9 @@
     },
     setCloseToTray: (enabled) => invoke('window_set_close_to_tray', { enabled: !!enabled }),
     getCloseToTray: () => invoke('window_get_close_to_tray'),
+    getDisplayInfo: () => invoke('display_get_info'),
+    setDisplayEnabled: (enabled) => invoke('display_set_enabled', { enabled: !!enabled }),
+    updateDisplayState: (payload) => invoke('display_update_state', { payload }),
     onMaximizedChange: (callback) => {
       listen('window:maximizedChange', callback);
     },

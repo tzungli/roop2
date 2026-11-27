@@ -23881,12 +23881,145 @@ function renderSettingsDevicesList() {
   }
 }
 
+const WEB_DISPLAY_ENABLED_KEY = 'rooplayer_web_display_enabled_v1';
+let _webDisplayUrlCache = 'http://127.0.0.1:39840/display/';
+let _webDisplaySyncTimer = null;
+let _webDisplayLastPushSig = '';
+
+function getWebDisplayEnabledPref() {
+  try {
+    const raw = localStorage.getItem(WEB_DISPLAY_ENABLED_KEY);
+    return raw === null ? true : raw === '1';
+  } catch (_) {
+    return true;
+  }
+}
+
+function setWebDisplayEnabledPref(enabled) {
+  const val = !!enabled;
+  try {
+    localStorage.setItem(WEB_DISPLAY_ENABLED_KEY, val ? '1' : '0');
+  } catch (_) {}
+  const cb = document.getElementById('toggleWebDisplayEnabled');
+  const lbl = document.getElementById('toggleWebDisplayEnabledLabel');
+  const sec = document.getElementById('webDisplayUrlSection');
+  if (cb) cb.checked = val;
+  if (lbl) lbl.textContent = val ? '是' : '否';
+  if (sec) sec.classList.toggle('disabled', !val);
+  if (window.electronAPI && window.electronAPI.setDisplayEnabled) {
+    window.electronAPI.setDisplayEnabled(val).catch(() => {});
+  }
+  if (val) {
+    _webDisplayLastPushSig = '';
+    syncWebDisplayState(true);
+  }
+}
+
+async function refreshWebDisplayInfo() {
+  const urlEl = document.getElementById('webDisplayUrlText');
+  try {
+    if (window.electronAPI && window.electronAPI.getDisplayInfo) {
+      const info = await window.electronAPI.getDisplayInfo();
+      if (info && info.url) {
+        _webDisplayUrlCache = info.url;
+        if (urlEl) urlEl.textContent = info.url;
+      }
+    }
+  } catch (_) {}
+}
+
+function buildWebDisplayQualityBadge(track) {
+  if (!track) return '';
+  const fmt = String(track.format || track.codec || '').toUpperCase();
+  const sr = Number(track.sampleRate || 0);
+  const bits = Number(track.bitDepth || track.bitsPerSample || 0);
+  if (fmt.includes('DSD') || /\.(dsf|dff)$/i.test(track.path || track.filePath || '')) {
+    if (sr >= 22579200) return 'DSD512';
+    if (sr >= 11289600) return 'DSD256';
+    if (sr >= 5644800) return 'DSD128';
+    return 'DSD64';
+  }
+  const parts = [];
+  if (fmt) parts.push(fmt);
+  if (bits > 0) parts.push(`${bits}-bit`);
+  if (sr > 0) {
+    const khz = sr >= 1000 ? (sr / 1000).toFixed(sr % 1000 === 0 ? 0 : 1) : String(sr);
+    parts.push(`${khz} kHz`);
+  }
+  return parts.join(' • ');
+}
+
+function syncWebDisplayState(force = false) {
+  if (!window.electronAPI || !window.electronAPI.updateDisplayState) return;
+  if (!getWebDisplayEnabledPref() && !force) return;
+
+  const track = (state.currentTrackIndex >= 0 && state.queue && state.queue[state.currentTrackIndex]) || null;
+  const isPlaying = !!state.isPlaying;
+  const curSec = track ? (Number(getCurrentPlaybackTime()) || 0) : 0;
+  const durSec = track ? (Number(track.duration) || Number(nativeAudio && nativeAudio.duration) || 0) : 0;
+
+  let zoneName = 'System Output';
+  if (state.activeAudioZone !== 'local' && state.activeDlnaDevice && state.activeDlnaDevice.name) {
+    zoneName = state.activeDlnaDevice.name;
+  } else {
+    const zEl = document.getElementById('zonePickerName');
+    if (zEl && zEl.textContent && zEl.textContent.trim()) {
+      zoneName = zEl.textContent.trim();
+    }
+  }
+
+  let coverSrc = '';
+  if (track && typeof track.cover === 'string' && /^https?:\/\//i.test(track.cover)) {
+    coverSrc = track.cover;
+  } else {
+    const thumb = document.getElementById('playerThumbImg');
+    const src = thumb ? (thumb.getAttribute('src') || '') : '';
+    if (/^https?:\/\//i.test(src)) coverSrc = src;
+  }
+
+  const lyrics = Array.isArray(currentSyncedLyrics)
+    ? currentSyncedLyrics.map(l => ({
+        timeSec: Number(l.time) || 0,
+        text: String(l.text || ''),
+      }))
+    : [];
+
+  // Deduplicate idle pushes so we don't spam IPC when nothing changed
+  const trackKey = track ? `${track.id || track.path || track.title}|${track.artist || ''}` : 'none';
+  const sig = `${trackKey}|${isPlaying ? 1 : 0}|${zoneName}|${lyrics.length}|${isPlaying ? Math.floor(curSec) : Math.round(curSec)}`;
+  if (!force && sig === _webDisplayLastPushSig) return;
+  _webDisplayLastPushSig = sig;
+
+  window.electronAPI.updateDisplayState({
+    isPlaying,
+    title: track ? String(track.title || '') : '',
+    artist: track ? String(track.artist || '') : '',
+    album: track ? String(track.album || '') : '',
+    year: track && track.year ? String(track.year) : '',
+    zoneName,
+    qualityBadge: buildWebDisplayQualityBadge(track),
+    coverSrc,
+    filePath: track ? String(track.path || track.filePath || '') : '',
+    currentSec: curSec,
+    durationSec: durSec,
+    lyrics,
+  }).catch(() => {});
+}
+
 function initAdvancedSettingsUI() {
   if (_settingsViewBound) return;
   _settingsViewBound = true;
 
-  // Sync persisted close-to-tray preference to Rust backend immediately
+  // Sync persisted close-to-tray & Web Display preferences to Rust backend immediately
   setCloseToTrayPref(getCloseToTrayPref());
+  setWebDisplayEnabledPref(getWebDisplayEnabledPref());
+  refreshWebDisplayInfo();
+
+  if (!_webDisplaySyncTimer) {
+    _webDisplaySyncTimer = setInterval(() => {
+      syncWebDisplayState(false);
+    }, 1500);
+  }
 
   const btnOpen = document.getElementById('btnOpenSettings');
   if (btnOpen) {
@@ -23907,6 +24040,45 @@ function initAdvancedSettingsUI() {
     cbTray.addEventListener('change', () => {
       setCloseToTrayPref(cbTray.checked);
       showToast(cbTray.checked ? '已啟用：關閉視窗時縮小至系統狀態列' : '已關閉：按下關閉將直接結束程式');
+    });
+  }
+
+  const cbDisplay = document.getElementById('toggleWebDisplayEnabled');
+  if (cbDisplay) {
+    cbDisplay.addEventListener('change', () => {
+      setWebDisplayEnabledPref(cbDisplay.checked);
+      showToast(cbDisplay.checked ? '已啟用網頁顯示器' : '已停用網頁顯示器');
+    });
+  }
+
+  const btnCopyDisplay = document.getElementById('btnCopyWebDisplayUrl');
+  if (btnCopyDisplay) {
+    btnCopyDisplay.addEventListener('click', async () => {
+      const url = _webDisplayUrlCache || 'http://127.0.0.1:39840/display/';
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('已複製網頁顯示器連結');
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('已複製網頁顯示器連結');
+      }
+    });
+  }
+
+  const btnOpenDisplay = document.getElementById('btnOpenWebDisplayUrl');
+  if (btnOpenDisplay) {
+    btnOpenDisplay.addEventListener('click', () => {
+      const url = _webDisplayUrlCache || 'http://127.0.0.1:39840/display/';
+      if (window.electronAPI && window.electronAPI.openExternal) {
+        window.electronAPI.openExternal(url);
+      } else {
+        window.open(url, '_blank');
+      }
     });
   }
 
@@ -23938,10 +24110,14 @@ function switchSettingsTab(tabName) {
   });
   const pGen = document.getElementById('settingsPanelGeneral');
   const pAud = document.getElementById('settingsPanelAudio');
+  const pDis = document.getElementById('settingsPanelDisplay');
   if (pGen) pGen.classList.toggle('active', tabName === 'general');
   if (pAud) pAud.classList.toggle('active', tabName === 'audio');
+  if (pDis) pDis.classList.toggle('active', tabName === 'display');
   if (tabName === 'audio') {
     renderSettingsDevicesList();
+  } else if (tabName === 'display') {
+    refreshWebDisplayInfo();
   }
 }
 

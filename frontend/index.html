@@ -2948,6 +2948,7 @@
             <h1 class="roo-settings-nav-title">設定</h1>
             <button type="button" class="roo-settings-tab active" data-settings-tab="general">一般</button>
             <button type="button" class="roo-settings-tab" data-settings-tab="audio">音訊裝置</button>
+            <button type="button" class="roo-settings-tab" data-settings-tab="display">外部顯示器</button>
           </aside>
 
           <div class="roo-settings-body">
@@ -3021,6 +3022,48 @@
                 </div>
               </div>
               <div class="roo-device-manage-list" id="settingsNetworkDevicesList"></div>
+            </div>
+
+            <!-- Tab 3: External Display (Roon-style Web Display) -->
+            <div class="roo-settings-panel" id="settingsPanelDisplay">
+              <h2 class="roo-settings-section-heading">外部顯示器</h2>
+
+              <div class="roo-settings-list">
+                <div class="roo-settings-row">
+                  <div class="roo-settings-row-text">
+                    <div class="roo-settings-row-label">網頁顯示器</div>
+                    <div class="roo-settings-row-desc">在支援的網頁瀏覽器中啟用一個 rooPlayer 網頁版音樂資訊顯示頁面，於區網內的電腦、平板或電視全螢幕顯示專輯封面、播放進度與同步歌詞。</div>
+                  </div>
+                  <label class="roo-switch-wrap">
+                    <input type="checkbox" id="toggleWebDisplayEnabled" class="roo-switch-input" checked>
+                    <span class="roo-switch-slider"></span>
+                    <span class="roo-switch-state" id="toggleWebDisplayEnabledLabel">是</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="roo-display-url-section" id="webDisplayUrlSection">
+                <div class="roo-display-url-label">網頁顯示器網址</div>
+                <div class="roo-display-url-value" id="webDisplayUrlText">http://127.0.0.1:39840/display/</div>
+                <div class="roo-display-url-actions">
+                  <button type="button" class="roo-display-action-btn" id="btnCopyWebDisplayUrl">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>複製連結</span>
+                  </button>
+                  <button type="button" class="roo-display-action-btn" id="btnOpenWebDisplayUrl">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    <span>在瀏覽器開啟</span>
+                  </button>
+                </div>
+                <div class="roo-display-url-hint">請確保手機、平板或電視與此電腦連線至相同的區網 (Wi-Fi / LAN)。於網頁內點擊右下角按鈕或按 F 鍵即可切換全螢幕。</div>
+              </div>
             </div>
           </div>
         </div>

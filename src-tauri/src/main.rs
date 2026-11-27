@@ -374,6 +374,9 @@ async fn main() {
             window_close,
             window_set_close_to_tray,
             window_get_close_to_tray,
+            display_get_info,
+            display_set_enabled,
+            display_update_state,
             // Audio commands
             audio_get_dsd_stream_url,
             audio_get_sox_stream_url,

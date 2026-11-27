@@ -39,6 +39,33 @@ pub fn window_get_close_to_tray() -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub fn display_get_info() -> Result<serde_json::Value, String> {
+    let lan_ip = crate::commands::dlna::resolve_local_ip_for_target("8.8.8.8");
+    let port: u16 = 39840;
+    let url = format!("http://{}:{}/display/", lan_ip, port);
+    let local_url = format!("http://127.0.0.1:{}/display/", port);
+    Ok(serde_json::json!({
+        "enabled": roo_streamer::is_web_display_enabled(),
+        "lanIp": lan_ip,
+        "port": port,
+        "url": url,
+        "localUrl": local_url,
+    }))
+}
+
+#[tauri::command]
+pub fn display_set_enabled(enabled: bool) -> Result<bool, String> {
+    tracing::info!("Set Web Display enabled = {}", enabled);
+    Ok(roo_streamer::set_web_display_enabled(enabled))
+}
+
+#[tauri::command]
+pub fn display_update_state(payload: roo_streamer::WebDisplayUpdate) -> Result<(), String> {
+    roo_streamer::update_web_display_state(payload);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn window_minimize(window: Window) -> Result<(), String> {
     tracing::info!("Minimizing window");
     window.minimize().map_err(|e| e.to_string())

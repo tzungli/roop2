@@ -92,6 +92,9 @@ impl StreamServer {
 
     pub async fn run(&self) -> Result<()> {
         let app = Router::new()
+            .route("/display", get(crate::display::handle_display_page))
+            .route("/display/", get(crate::display::handle_display_page))
+            .route("/display/state", get(crate::display::handle_display_state))
             .route("/stream/:token/:filename", get(handle_stream_token))
             .route("/stream/:token", get(handle_stream_token_simple))
             .route("/cover/:token/:filename", get(handle_cover_token))
