@@ -168,14 +168,17 @@ class TidalService {
     const token = this.auth && this.auth.accessToken;
     if (!token) return false;
     try {
-      if (window.electronAPI && window.electronAPI.tidalApi) {
-        await window.electronAPI.tidalApi({ endpoint: '/sessions', method: 'GET', body: null, token });
-        return true;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      try {
+        const r = await fetch('https://api.tidal.com/v1/sessions', {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+          signal: ctrl.signal
+        });
+        return r.ok;
+      } finally {
+        clearTimeout(timer);
       }
-      const r = await fetch('https://api.tidal.com/v1/sessions', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      return r.ok;
     } catch (e) {
       return false;
     }
@@ -263,36 +266,44 @@ class TidalService {
       headers['Content-Type'] = 'application/json';
     }
 
-    const maxRetries = 3;
+    const maxRetries = 1;
     let useRustFallback = false;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const waitMs = this._cooldownUntil - Date.now();
       if (waitMs > 0) {
-        await new Promise(r => setTimeout(r, waitMs));
+        await new Promise(r => setTimeout(r, Math.min(waitMs, 5000)));
       }
 
       await this._acquireSlot();
       let res;
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 10000);
       try {
         res = await fetch(url, {
           method,
           headers,
-          body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined
+          body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined,
+          signal: ctrl.signal
         });
       } catch (fetchErr) {
+        clearTimeout(timeoutId);
         this._releaseSlot();
+        if (fetchErr && fetchErr.name === 'AbortError') {
+          throw new Error(`TIDAL API 連線逾時 (${endpoint})`);
+        }
         console.warn('[TIDAL] Native Chromium fetch failed, falling back to Rust IPC:', fetchErr);
         useRustFallback = true;
         break;
       }
+      clearTimeout(timeoutId);
 
       if (res.status === 429 || res.status === 503) {
         const retryAfterRaw = res.headers.get('retry-after');
         const retrySecs = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN;
         const backoffMs = Number.isFinite(retrySecs) && retrySecs > 0
-          ? Math.min(Math.max(retrySecs * 1000, 1000), 15000)
-          : [1500, 3000, 6000][Math.min(attempt, 2)];
+          ? Math.min(Math.max(retrySecs * 1000, 1000), 5000)
+          : 1500;
         const errBody = await res.text().catch(() => '');
         this._releaseSlot();
         this._cooldownUntil = Math.max(this._cooldownUntil, Date.now() + backoffMs);
@@ -301,7 +312,14 @@ class TidalService {
           await new Promise(r => setTimeout(r, backoffMs));
           continue;
         }
-        throw new Error(`TIDAL API 請求過於頻繁（HTTP ${res.status}），請稍候再試`);
+        let detail = '';
+        try {
+          const parsed = JSON.parse(errBody);
+          detail = parsed.userMessage || parsed.message || '';
+        } catch (_) {
+          detail = errBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+        }
+        throw new Error(`TIDAL API HTTP ${res.status}${detail ? ': ' + detail : '（請求過於頻繁，請稍候再試）'}`);
       }
 
       if (res.status === 401) {

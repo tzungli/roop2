@@ -44,6 +44,8 @@ impl TidalState {
             http_client: reqwest::Client::builder()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
                 .default_headers(default_headers)
+                .connect_timeout(Duration::from_secs(6))
+                .timeout(Duration::from_secs(12))
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
             auth_data: Arc::new(RwLock::new(initial_auth)),
@@ -560,13 +562,17 @@ pub async fn tidal_silent_refresh(
         return Ok(serde_json::json!({ "success": false, "error": format!("Silent refresh window error: {}", e) }));
     }
 
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(6);
     let mut refreshed_auth: Option<serde_json::Value> = None;
+    let mut tested_tokens = std::collections::HashSet::<String>::new();
 
     while tokio::time::Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         match tokio::time::timeout(remaining, token_rx.recv()).await {
             Ok(Some(token)) => {
+                if !tested_tokens.insert(token.clone()) {
+                    continue;
+                }
                 let sess_resp = state
                     .http_client
                     .get("https://api.tidal.com/v1/sessions")
@@ -575,6 +581,9 @@ pub async fn tidal_silent_refresh(
                     .await;
 
                 if let Ok(resp) = sess_resp {
+                    if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                        break;
+                    }
                     if resp.status().is_success() {
                         if let Ok(json) = resp.json::<serde_json::Value>().await {
                             let user_id = json.get("userId").and_then(|v| v.as_i64()).map(|id| id.to_string()).unwrap_or_default();
@@ -641,7 +650,7 @@ pub async fn tidal_api(
     };
 
     let method_upper = method.to_uppercase();
-    let max_retries: u32 = 3;
+    let max_retries: u32 = 1;
 
     for attempt in 0..=max_retries {
         state.wait_rate_limit_cooldown().await;
