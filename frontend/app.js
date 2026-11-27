@@ -23552,22 +23552,15 @@ function renderSettingsDevicesList() {
   const netBox = document.getElementById('settingsNetworkDevicesList');
   if (!localBox || !netBox) return;
 
-  const buildRow = ({ id, name, subtitle, iconTarget, protocolTag }) => {
+  const buildRow = ({ id, name, tooltip, iconTarget }) => {
     const disabled = isAudioDeviceDisabled(id);
-    const isActive = state.activeAudioZone === id && !disabled;
     const row = document.createElement('div');
     row.className = `roo-device-manage-row ${disabled ? 'is-disabled' : ''}`;
+    if (tooltip) row.title = tooltip;
     row.innerHTML = `
       <div class="roo-device-manage-left">
         <span class="roo-device-manage-icon">${getRoonDeviceIconSvg(iconTarget, false)}</span>
-        <div class="roo-device-manage-meta">
-          <div class="roo-device-manage-name-line">
-            <span class="roo-device-manage-name">${escapeXml(name)}</span>
-            ${protocolTag ? `<span class="roo-device-manage-tag">${escapeXml(protocolTag)}</span>` : ''}
-            ${isActive ? `<span class="roo-device-manage-active-pill">使用中</span>` : ''}
-          </div>
-          <div class="roo-device-manage-sub">${escapeXml(subtitle)}</div>
-        </div>
+        <span class="roo-device-manage-name" title="${escapeXml(name)}">${escapeXml(name)}</span>
       </div>
       <div class="roo-device-manage-right">
         <label class="roo-switch-wrap">
@@ -23592,9 +23585,8 @@ function renderSettingsDevicesList() {
   localBox.appendChild(buildRow({
     id: 'local',
     name: 'System Output',
-    subtitle: 'Windows WASAPI Exclusive / DirectSound 本機音訊輸出',
-    iconTarget: 'speaker',
-    protocolTag: '本機'
+    tooltip: 'Windows WASAPI Exclusive / DirectSound 本機音訊輸出',
+    iconTarget: 'speaker'
   }));
 
   const netDevices = (state.availableDevices || []).filter(d => !d.isLocal && isAudioRendererDevice(d));
@@ -23603,14 +23595,12 @@ function renderSettingsDevicesList() {
     netBox.innerHTML = `<div class="roo-settings-empty">尚未搜尋到區網串流裝置，請點擊右上角「重新搜尋裝置」。</div>`;
   } else {
     netDevices.forEach(dev => {
-      const isAirPlay = dev.protocol === 'airplay' || String(dev.id || '').startsWith('airplay:');
-      const subParts = [dev.model, dev.ip ? `IP: ${dev.ip}` : ''].filter(Boolean);
+      const tipParts = [dev.model, dev.ip ? `IP: ${dev.ip}` : ''].filter(Boolean);
       netBox.appendChild(buildRow({
         id: dev.id,
         name: dev.name || 'UPnP MediaRenderer',
-        subtitle: subParts.join(' • ') || (isAirPlay ? 'AirPlay 區網串流裝置' : 'DLNA / UPnP 網路串流裝置'),
-        iconTarget: dev,
-        protocolTag: isAirPlay ? 'AirPlay' : 'DLNA / UPnP'
+        tooltip: tipParts.join(' • '),
+        iconTarget: dev
       }));
     });
   }
