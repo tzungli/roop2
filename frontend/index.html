@@ -2914,7 +2914,7 @@
           <aside class="roo-settings-nav">
             <h1 class="roo-settings-nav-title">設定</h1>
             <button type="button" class="roo-settings-tab active" data-settings-tab="general">一般</button>
-            <button type="button" class="roo-settings-tab" data-settings-tab="audio">裝置管理</button>
+            <button type="button" class="roo-settings-tab" data-settings-tab="audio">音訊裝置</button>
           </aside>
 
           <div class="roo-settings-body">
@@ -2955,24 +2955,38 @@
               </div>
             </div>
 
-            <!-- Tab 2: Audio Device Management -->
+            <!-- Tab 2: Audio Device Management (Roon Audio Devices Style) -->
             <div class="roo-settings-panel" id="settingsPanelAudio">
-              <div class="roo-settings-head-row">
-                <h2 class="roo-settings-section-heading" style="margin: 0;">裝置管理</h2>
-                <button type="button" class="roo-settings-refresh-btn" id="btnSettingsRefreshDevices">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <h2 class="roo-settings-section-heading">音訊裝置</h2>
+
+              <div class="roo-audio-group-head">
+                <div class="roo-audio-group-label">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                  <span>此 電腦</span>
+                </div>
+                <button type="button" class="roo-audio-refresh-icon" id="btnSettingsRefreshDevices" title="重新搜尋裝置" aria-label="重新搜尋裝置">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
                     <polyline points="21 3 21 9 15 9"></polyline>
                   </svg>
-                  <span>重新搜尋裝置</span>
                 </button>
               </div>
-              <p class="roo-settings-lead">啟用或停用本機與區網串流播放裝置。被停用的裝置將不會出現在右下角的可播放設備清單中。</p>
-
-              <div class="roo-settings-group-title">本機裝置</div>
               <div class="roo-device-manage-list" id="settingsLocalDevicesList"></div>
 
-              <div class="roo-settings-group-title" style="margin-top: 24px;">網路串流裝置（DLNA / UPnP / AirPlay）</div>
+              <div class="roo-audio-group-head" style="margin-top: 28px;">
+                <div class="roo-audio-group-label">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                  </svg>
+                  <span>網路串流裝置</span>
+                </div>
+              </div>
               <div class="roo-device-manage-list" id="settingsNetworkDevicesList"></div>
             </div>
           </div>

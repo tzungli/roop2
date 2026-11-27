@@ -15550,11 +15550,52 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   cursor: default;
 }
 
+.roo-audio-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.roo-audio-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.roo-audio-refresh-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.25s ease;
+}
+
+.roo-audio-refresh-icon:hover:not(:disabled) {
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple);
+  transform: rotate(35deg);
+}
+
+.roo-audio-refresh-icon:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .roo-device-manage-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 36px;
-  row-gap: 0;
+  gap: 12px;
 }
 
 .roo-device-manage-row {
@@ -15562,32 +15603,36 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 13px 2px;
-  border: none;
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 0;
-  background: transparent;
-  transition: opacity 0.16s ease;
+  padding: 15px 18px;
+  border-radius: 7px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.16s ease, border-color 0.16s ease;
   min-width: 0;
+  min-height: 70px;
+}
+
+.roo-device-manage-row.is-enabled {
+  background: rgba(124, 92, 255, 0.12);
+  border-color: transparent;
 }
 
 .roo-device-manage-row.is-disabled {
-  opacity: 0.52;
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--border-color);
 }
 
 .roo-device-manage-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   flex: 1;
 }
 
 .roo-device-manage-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 0;
-  background: transparent;
+  width: 28px;
+  height: 28px;
   color: var(--text-sub);
   display: inline-flex;
   align-items: center;
@@ -15595,13 +15640,107 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   flex-shrink: 0;
 }
 
+.roo-device-manage-text {
+  min-width: 0;
+  flex: 1;
+}
+
 .roo-device-manage-name {
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 600;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.roo-device-manage-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roo-device-manage-right {
+  flex-shrink: 0;
+}
+
+.roo-device-enable-btn {
+  padding: 6px 20px;
+  border-radius: 999px;
+  border: none;
+  background: #6c63ff;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.roo-device-enable-btn:hover {
+  background: #5b52eb;
+  transform: translateY(-1px);
+}
+
+.roo-device-gear-wrap {
+  position: relative;
+}
+
+.roo-device-gear-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.roo-device-gear-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-main);
+}
+
+.roo-device-gear-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 130px;
+  background: var(--bg-card, #1d202c);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+  z-index: 40;
+}
+
+.roo-device-gear-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  padding: 7px 10px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.roo-device-gear-item:hover {
+  background: rgba(124, 92, 255, 0.14);
+  color: var(--accent-purple);
+}
+
+.roo-device-gear-item.is-danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
 }
 
 .roo-settings-empty {
@@ -15648,10 +15787,25 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 [data-theme="light"] .roo-settings-row,
-[data-theme="light"] .roo-device-manage-row,
 [data-theme="light"] .roo-settings-empty {
   background: transparent;
   border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .roo-device-manage-row.is-enabled {
+  background: #dfe4ec;
+  border-color: transparent;
+}
+
+[data-theme="light"] .roo-device-manage-row.is-disabled {
+  background: #ffffff;
+  border-color: #d6dce5;
+}
+
+[data-theme="light"] .roo-device-gear-menu {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
 }
 
 [data-theme="light"] .roo-settings-refresh-btn {
