@@ -6444,21 +6444,7 @@ async function resolveArtistOnlinePortrait(artistName, variants) {
   const list = (variants && variants.length) ? variants : extractArtistNameVariants(artistName);
   let foundUrl = '';
 
-  // 1. TIDAL Artist Portrait (highest quality official press photo)
-  if (!foundUrl && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.searchArtist === 'function') {
-    for (const q of list.slice(0, 2)) {
-      try {
-        const hit = await window.tidalService.searchArtist(q);
-        const pic = hit && (hit.picture || hit.image || hit.cover);
-        if (pic && typeof pic === 'string' && !pic.startsWith('data:image/svg')) {
-          foundUrl = pic;
-          break;
-        }
-      } catch (_) {}
-    }
-  }
-
-  // 2. NetEase Cloud Music Artist Portrait (strongest for Mandarin / Asian artists, CORS-free via native HTTP)
+  // 1. NetEase Cloud Music Artist Portrait (strongest for Mandarin / Asian artists, CORS-free via native HTTP)
   if (!foundUrl && typeof nativeFetchJson === 'function') {
     const neteaseHeaders = {
       'Referer': 'https://music.163.com/',
@@ -6550,13 +6536,9 @@ async function fetchArtistBio(artistName, localAlbums = []) {
   } else {
     // Delegate NetEase/Deezer portrait + zh/en Wikipedia + zh-TW translation to native Rust engine
     try {
-      const tidalPortraitPromise = (window.tidalService && window.tidalService.isLoggedIn)
-        ? resolveArtistOnlinePortrait(artistName, nameVariants).catch(() => '')
-        : Promise.resolve('');
-      const nativeBioPromise = (window.electronAPI && window.electronAPI.fetchArtistBioNative)
-        ? window.electronAPI.fetchArtistBioNative(artistName, nameVariants).catch(() => null)
-        : Promise.resolve(null);
-      const [tidalPortrait, nativeRes] = await Promise.all([tidalPortraitPromise, nativeBioPromise]);
+      const nativeRes = (window.electronAPI && window.electronAPI.fetchArtistBioNative)
+        ? await window.electronAPI.fetchArtistBioNative(artistName, nameVariants).catch(() => null)
+        : null;
       if (nativeRes) {
         rawBioText = nativeRes.originalText || '';
         wikiPageUrl = nativeRes.wikiPageUrl || '';
@@ -6568,15 +6550,11 @@ async function fetchArtistBio(artistName, localAlbums = []) {
             originalText: rawBioText,
             translatedText: nativeRes.translatedText,
             wikiPageUrl,
-            avatarUrl: tidalPortrait || avatarUrl,
-            originalImageUrl: originalImageUrl || tidalPortrait,
+            avatarUrl,
+            originalImageUrl,
             isFromEnWiki,
           });
         }
-      }
-      if (tidalPortrait) {
-        avatarUrl = tidalPortrait;
-        if (!originalImageUrl) originalImageUrl = tidalPortrait;
       }
     } catch (err) {
       console.warn('Native artist bio fetch error:', err);
@@ -6739,8 +6717,10 @@ async function fetchArtistMissingAlbums(artistName, localAlbums) {
 
   const localTitlesNormalized = new Set(localAlbums.map(a => normalize(a.title)));
 
-  // If TIDAL is logged in, use TIDAL official discography!
-  if (window.tidalService && window.tidalService.isLoggedIn) {
+  // Only auto-query TIDAL official discography when the artist already has TIDAL albums
+  // (avoids burning TIDAL API rate limit / HTTP 429 when browsing pure local artists)
+  const hasTidalAlbum = (localAlbums || []).some(a => a && (a.isTidal || a.source === 'tidal' || a.tidalId));
+  if (hasTidalAlbum && window.tidalService && window.tidalService.isLoggedIn) {
     if (titleEl) titleEl.innerHTML = '💎 TIDAL 歷年完整發行作品 (直接播放 & 收錄)';
     if (tagsEl) tagsEl.innerHTML = `
       <span class="platform-tag tidal" style="background:#000;color:#00e5ff;border:1px solid #00e5ff;font-weight:700;">TIDAL Hi-Res MAX</span>
@@ -8864,41 +8844,16 @@ async function resolveAlbumReviewData(album) {
   let isFromEnWiki = false;
   let sourceLabel = '';
 
-  // 1. TIDAL / TiVo Professional Album Review (when user is logged in to TIDAL)
-  if (window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getAlbumReview === 'function') {
+  // 1. TIDAL / TiVo Professional Album Review (only for TIDAL albums to avoid HTTP 429 on local browsing)
+  if (album.isTidal && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getAlbumReview === 'function') {
     try {
-      const candidateIds = [];
-      const pushTidalId = (rawId) => {
-        const clean = String(rawId || '').replace(/^tidal_(?:album_)?/, '').trim();
-        if (clean && !candidateIds.includes(clean)) candidateIds.push(clean);
-      };
-      if (album.isTidal) pushTidalId(album.tidalId || album.id);
-
-      let candidates = [];
-      if (typeof window.tidalService.searchAlbumVersions === 'function') {
-        candidates = (await window.tidalService.searchAlbumVersions(cleanTitle, cleanArtist)) || [];
-      }
-      if (!candidates.length && typeof window.tidalService.search === 'function') {
-        const sr = await window.tidalService.search(searchQuery, 8);
-        candidates = (sr && sr.albums) || [];
-      }
-      const matchedVersions = candidates.filter(a =>
-        albumTitleMatches(a.title, cleanTitle, cleanTitleCn) &&
-        (!cleanArtist || artistNameMatches(a.artist, cleanArtist, cleanArtistCn))
-      );
-      for (const mv of matchedVersions) {
-        pushTidalId(mv.tidalId || mv.id);
-        if (mv.releaseDate && !onlineMeta.releaseDate) onlineMeta.releaseDate = String(mv.releaseDate).slice(0, 10);
-        if (mv.copyright && !onlineMeta.copyright) onlineMeta.copyright = String(mv.copyright).trim();
-        if (mv.label && !onlineMeta.label) onlineMeta.label = String(mv.label).trim();
-      }
-      for (const tid of candidateIds.slice(0, 4)) {
+      const tid = String(album.tidalId || album.id || '').replace(/^tidal_(?:album_)?/, '').trim();
+      if (tid) {
         const rev = await window.tidalService.getAlbumReview(tid);
         if (rev && rev.text && rev.text.length >= 45) {
           rawBioText = rev.text;
           isFromEnWiki = !/[\u4e00-\u9fff]/.test(rev.text);
           sourceLabel = 'TIDAL / TiVo 專業樂評';
-          break;
         }
       }
     } catch (_) {}
@@ -11129,8 +11084,8 @@ async function renderAlbumVersions(album) {
     }
   });
 
-  // 2. Scan TIDAL online catalog versions
-  if (window.tidalService && window.tidalService.isLoggedIn) {
+  // 2. Scan TIDAL online catalog versions (only for TIDAL albums to avoid HTTP 429 on local browsing)
+  if (album.isTidal && window.tidalService && window.tidalService.isLoggedIn) {
     try {
       const searchRes = await window.tidalService.searchAlbumVersions(album.title, album.artist);
       (searchRes || []).forEach(ta => {
@@ -15679,40 +15634,8 @@ async function fetchLyricsOnline(title, artist, album, duration, trackObj = null
     } catch (_) {}
   }
 
-  // 2. TIDAL Official Lyrics when logged in
-  if (window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getTrackLyrics === 'function') {
-    try {
-      let tidalTrackId = trackObj && (trackObj.tidalId || (String(trackObj.id || '').startsWith('tidal_') ? String(trackObj.id).slice(6) : null));
-      if (!tidalTrackId) {
-        const q = `${cleanTitle}${cleanArt ? ' ' + cleanArt : ''}`;
-        const sRes = await window.tidalService.search(q, 8);
-        const items = sRes?.tracks?.items || [];
-        let bestItem = null;
-        let bestScore = -Infinity;
-        for (const t of items) {
-          const cand = {
-            trackName: t.title || '',
-            artistName: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(' ') : (t.artist?.name || ''),
-            albumName: t.album?.title || '',
-            duration: Number(t.duration) || 0,
-            syncedLyrics: true,
-          };
-          const sc = scoreLyricsCandidate(cand, cleanTitle, cleanArt, cleanAlb, durRounded);
-          if (sc > bestScore) { bestScore = sc; bestItem = t; }
-        }
-        if (bestItem && bestScore >= 60) tidalTrackId = bestItem.id;
-      }
-      if (tidalTrackId) {
-        const tLyr = await window.tidalService.getTrackLyrics(tidalTrackId);
-        if (tLyr && (tLyr.synced || tLyr.plain)) {
-          nowPlayingLyricsCache.set(cacheKey, tLyr);
-          return tLyr;
-        }
-      }
-    } catch (_) {}
-  }
-
-  // 3. Delegate KKBOX / LRCLIB / NetEase / QQ Music / KuGou + bilingual scoring + LRC parsing to native Rust
+  // 2. Delegate KKBOX / LRCLIB / NetEase / QQ Music / KuGou + bilingual scoring + LRC parsing to native Rust
+  // (TIDAL lyrics intentionally excluded to prevent HTTP 429 / 503 rate limiting during playback)
   if (window.electronAPI && window.electronAPI.fetchLyrics) {
     try {
       const kkboxId = trackObj ? (trackObj.kkboxId || (String(trackObj.id || '').startsWith('kkbox_') ? String(trackObj.id).slice(6) : null)) : null;
