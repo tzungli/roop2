@@ -586,6 +586,61 @@ pub fn build_hqp_ps_ext2_filter(fs_out: f64, src_rate: f64) -> FirFilter {
     build_poly_ext2_filter(fs_out, src_rate)
 }
 
+/// poly-sinc-ext3 (apod)，線性相位 (Apodizing Extended Brickwall — 仿 HQPlayer poly-sinc-ext3)
+///
+/// 演算法特點：
+/// - 超長階切趾（Apodizing）Kaiser 窗多相 Sinc 濾波器（單側 2,048 輸入取樣點，總跨度 4,097 輸入階；4x 為 16,385 階、16x 為 65,537 階）
+/// - 阻帶設計衰減 As = 195 dB（beta ≈ 20.53），截止頻率 fc = 0.4820 * fs_in（44.1kHz 下為 21.256 kHz）
+/// - 通帶延伸至 21.00 kHz 完全平坦（0.0000 dB），並於原始奈奎斯特頻率前 450 Hz（21.60 kHz）即提前垂直截斷至 -210.4 dB（22.05 kHz 達 -229.1 dB）
+/// - 專為消除早期數位錄音（1980s/1990s CD 母帶 ADC）在 22.05 kHz 附近殘留的預響鈴與混疊瑕疵而設計，兼具極致解析與溫潤滑順度
+pub fn build_poly_ext3_filter(fs_out: f64, src_rate: f64) -> FirFilter {
+    let ratio = fs_out / src_rate;
+    let integer_ratio = (ratio - ratio.round()).abs() < 1e-9;
+    let s = if integer_ratio { 1 } else { 32 };
+
+    let as_db = 195.0;
+    let beta = 0.1102 * (as_db - 8.7);
+    let fc = (0.4820 * src_rate).min(0.490 * fs_out);
+    let l_in = 2048i32;
+    let l = (l_in as f64 * ratio).round().max(16.0) as i32;
+
+    let i0_beta = bessel_i0(beta);
+    let half = l * s as i32;
+    let n = (2 * half + 2) as usize;
+    let mut h = vec![0.0; n];
+
+    for j in -half..=half {
+        let t = j as f64 / s as f64;
+        let x = 2.0 * fc * t / fs_out;
+        let sinc = if x == 0.0 { 1.0 } else { (PI * x).sin() / (PI * x) };
+        let u = t / l as f64;
+        let w = bessel_i0(beta * (0.0f64.max(1.0 - u * u)).sqrt()) / i0_beta;
+        h[(j + half) as usize] = (2.0 * fc / fs_out) * sinc * w;
+    }
+
+    let sum: f64 = h[..n - 1].iter().sum();
+    let g = if sum.abs() > 1e-12 { ratio * s as f64 / sum } else { 1.0 };
+    for x in &mut h {
+        *x *= g;
+    }
+
+    let mut filter = FirFilter {
+        h,
+        s,
+        lo: -l,
+        hi: l,
+        ratio,
+        integer_ratio,
+        fs_out,
+        src_rate,
+        minimum_phase: false,
+        taps: (2 * half + 1) as usize,
+        poly_phases: None,
+    };
+    filter.poly_phases = build_fir_phases(&filter);
+    filter
+}
+
 /// 高斯長階，線性相位 (Gauss Long, Linear Phase — 仿 HQPlayer poly-sinc-gauss-long)
 ///
 /// 演算法特點：

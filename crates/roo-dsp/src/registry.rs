@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use crate::fir::{
-    build_hq_poly_sinc_gauss_long_filter, build_poly_ext2_filter, build_precise_linear_filter,
-    build_precise_min_filter, build_smooth_linear_filter, build_smooth_min_filter,
-    windowed_sinc_fir_ext, FirFilter,
+    build_hq_poly_sinc_gauss_long_filter, build_poly_ext2_filter, build_poly_ext3_filter,
+    build_precise_linear_filter, build_precise_min_filter, build_smooth_linear_filter,
+    build_smooth_min_filter, windowed_sinc_fir_ext, FirFilter,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +115,13 @@ impl FilterRegistry {
                 dsd_safe: true,
             },
             FilterDescriptor {
+                id: "poly-ext3".to_string(),
+                label: "poly-sinc-ext3 (apod)，線性相位".to_string(),
+                sound: "仿 HQPlayer poly-sinc-ext3：16,385 階 (4x) / 65,537 階 (16x) 超長階切趾 (Apodizing) 磚牆，21kHz 零衰減、21.6kHz 提前直壓 -210dB（奈奎斯特 -229dB），徹底消除老 CD 母帶 ADC 響鈴與數碼毛躁".to_string(),
+                kind: "fir".to_string(),
+                dsd_safe: true,
+            },
+            FilterDescriptor {
                 id: "sinc-m".to_string(),
                 label: "sinc-M，線性相位".to_string(),
                 sound: "仿 HQPlayer sinc-M / M-Scaler：FFT 分段多相卷積百萬階極致磚牆，22kHz 零衰減、奈奎斯特 -175dB 垂直截止，極致空間解析力".to_string(),
@@ -149,13 +156,14 @@ impl FilterRegistry {
     }
 
     pub fn list(&self) -> Vec<FilterDescriptor> {
-        const CORE_ORDER: [&str; 8] = [
+        const CORE_ORDER: [&str; 9] = [
             "precise-linear",
             "precise-min",
             "smooth-linear",
             "smooth-min",
             "gauss-long",
             "poly-ext2",
+            "poly-ext3",
             "sinc-m",
             "sinc-l",
         ];
@@ -180,6 +188,7 @@ impl FilterRegistry {
             "precise-min" => Some(build_precise_min_filter(fs_out, src_rate)),
             "gauss-long" | "poly-sinc-gauss-long" => Some(build_hq_poly_sinc_gauss_long_filter(fs_out, src_rate)),
             "poly-ext2" | "hqp-ps-ext2" => Some(build_poly_ext2_filter(fs_out, src_rate)),
+            "poly-ext3" | "poly-sinc-ext3" | "hqp-ps-ext3" => Some(build_poly_ext3_filter(fs_out, src_rate)),
             "sinc-m" | "sinc-M" | "hqp-sinc-m" => Some(build_poly_ext2_filter(fs_out, src_rate)),
             "sinc-l" | "sinc-L" | "hqp-sinc-l" => Some(build_poly_ext2_filter(fs_out, src_rate)),
             "smooth-linear" => Some(build_smooth_linear_filter(fs_out, src_rate)),

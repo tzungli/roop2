@@ -24,8 +24,18 @@ pub const SINC_L_FFT_SIZE: usize = 262144; // 2 * SINC_L_BLOCK_IN > (T - 1) + B
 const SINC_L_AS_DB: f64 = 180.0;
 const SINC_L_FC_RATIO: f64 = 0.4997; // 22,036.8 Hz at 44.1 kHz (flat to 22.02 kHz, < -180 dB at 22.05 kHz)
 
+/// Half-length of each polyphase branch in input-rate samples for `poly-sinc-ext3 (apod)`.
+/// Total taps per phase = 2 * 2048 + 1 = 4,097 (16,385 taps at 4x, 65,537 taps at 16x).
+pub const POLY_EXT3_HALF_IN: i32 = 2048;
+pub const POLY_EXT3_TAPS_PER_PHASE: usize = (2 * POLY_EXT3_HALF_IN + 1) as usize;
+pub const POLY_EXT3_BLOCK_IN: usize = 8192;
+pub const POLY_EXT3_FFT_SIZE: usize = 16384; // 2 * 8192 > 4096 + 8192
+const POLY_EXT3_AS_DB: f64 = 195.0;
+const POLY_EXT3_FC_RATIO: f64 = 0.4820; // Apodizing cutoff: flat to 21.00 kHz, -210.4 dB at 21.60 kHz (-229.1 dB at 22.05 kHz)
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SincLongPreset {
+    PolyExt3,
     SincM,
     SincL,
 }
@@ -34,6 +44,7 @@ impl SincLongPreset {
     #[inline]
     pub fn half_in(self) -> i32 {
         match self {
+            Self::PolyExt3 => POLY_EXT3_HALF_IN,
             Self::SincM => SINC_M_HALF_IN,
             Self::SincL => SINC_L_HALF_IN,
         }
@@ -42,6 +53,7 @@ impl SincLongPreset {
     #[inline]
     pub fn taps_per_phase(self) -> usize {
         match self {
+            Self::PolyExt3 => POLY_EXT3_TAPS_PER_PHASE,
             Self::SincM => SINC_M_TAPS_PER_PHASE,
             Self::SincL => SINC_L_TAPS_PER_PHASE,
         }
@@ -50,6 +62,7 @@ impl SincLongPreset {
     #[inline]
     pub fn block_in(self) -> usize {
         match self {
+            Self::PolyExt3 => POLY_EXT3_BLOCK_IN,
             Self::SincM => SINC_M_BLOCK_IN,
             Self::SincL => SINC_L_BLOCK_IN,
         }
@@ -58,6 +71,7 @@ impl SincLongPreset {
     #[inline]
     pub fn fft_size(self) -> usize {
         match self {
+            Self::PolyExt3 => POLY_EXT3_FFT_SIZE,
             Self::SincM => SINC_M_FFT_SIZE,
             Self::SincL => SINC_L_FFT_SIZE,
         }
@@ -66,6 +80,7 @@ impl SincLongPreset {
     #[inline]
     pub fn as_db(self) -> f64 {
         match self {
+            Self::PolyExt3 => POLY_EXT3_AS_DB,
             Self::SincM => SINC_M_AS_DB,
             Self::SincL => SINC_L_AS_DB,
         }
@@ -74,6 +89,7 @@ impl SincLongPreset {
     #[inline]
     pub fn fc_ratio(self) -> f64 {
         match self {
+            Self::PolyExt3 => POLY_EXT3_FC_RATIO,
             Self::SincM => SINC_M_FC_RATIO,
             Self::SincL => SINC_L_FC_RATIO,
         }
@@ -512,6 +528,12 @@ pub fn is_sinc_l_phase(phase_id: &str) -> bool {
     matches!(phase_id, "sinc-l" | "sinc-L" | "hqp-sinc-l")
 }
 
+/// Check whether a filter phase ID selects the Partitioned FFT `poly-sinc-ext3 (apod)` engine.
+#[inline]
+pub fn is_poly_ext3_phase(phase_id: &str) -> bool {
+    matches!(phase_id, "poly-ext3" | "poly-sinc-ext3" | "hqp-ps-ext3")
+}
+
 /// Resolve the Partitioned FFT long-sinc preset for a filter phase ID, if applicable.
 #[inline]
 pub fn sinc_long_preset_for_phase(phase_id: &str) -> Option<SincLongPreset> {
@@ -519,6 +541,8 @@ pub fn sinc_long_preset_for_phase(phase_id: &str) -> Option<SincLongPreset> {
         Some(SincLongPreset::SincL)
     } else if is_sinc_m_phase(phase_id) {
         Some(SincLongPreset::SincM)
+    } else if is_poly_ext3_phase(phase_id) {
+        Some(SincLongPreset::PolyExt3)
     } else {
         None
     }

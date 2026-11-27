@@ -148,6 +148,7 @@ const FALLBACK_FILTER_PLUGINS = [
   { id: 'smooth-min', label: '平滑，最小相位', sound: '無預響鈴且極低後響鈴，最符合人耳聽覺物理掩蔽效應，類比黑膠般溫潤耐聽', kind: 'fir' },
   { id: 'gauss-long', label: '高斯長階，線性相位', sound: '仿 HQPlayer poly-sinc-gauss-long：20kHz 內極致平坦、奈奎斯特 -140dB 深度阻帶，純高斯包絡極低自然響鈴，音場寬鬆立體', kind: 'fir' },
   { id: 'poly-ext2', label: 'poly-sinc-ext2，線性相位', sound: '仿 HQPlayer poly-sinc-ext2：1281 階超陡峭磚牆，通帶延伸至 21kHz 零衰減、奈奎斯特 -170dB 徹底抑鏡，通透高密度微細節', kind: 'fir' },
+  { id: 'poly-ext3', label: 'poly-sinc-ext3 (apod)，線性相位', sound: '仿 HQPlayer poly-sinc-ext3：16,385 階 (4x) / 65,537 階 (16x) 超長階切趾 (Apodizing) 磚牆，21kHz 零衰減、21.6kHz 提前直壓 -210dB（奈奎斯特 -229dB），徹底消除老 CD 母帶 ADC 響鈴與數碼毛躁', kind: 'fir' },
   { id: 'sinc-m', label: 'sinc-M，線性相位', sound: '仿 HQPlayer sinc-M / M-Scaler：FFT 分段多相卷積百萬階極致磚牆，22kHz 零衰減、奈奎斯特 -175dB 垂直截止，極致空間解析力', kind: 'fir' },
   { id: 'sinc-l', label: 'sinc-L，線性相位', sound: '仿 HQPlayer sinc-L：FFT 分段多相卷積 131,070×倍率超長階磚牆（16x 達 210 萬階），22.02kHz 零衰減、奈奎斯特 -180dB 垂直截止，極致音場深度與空間解析', kind: 'fir' }
 ];

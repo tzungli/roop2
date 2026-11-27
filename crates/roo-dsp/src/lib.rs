@@ -410,11 +410,21 @@ mod tests {
 
         // 5. Registry checks
         let list = REGISTRY.list();
-        assert_eq!(list.len(), 8);
+        assert_eq!(list.len(), 9);
         let ids: Vec<&str> = list.iter().map(|d| d.id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["precise-linear", "precise-min", "smooth-linear", "smooth-min", "gauss-long", "poly-ext2", "sinc-m", "sinc-l"]
+            vec![
+                "precise-linear",
+                "precise-min",
+                "smooth-linear",
+                "smooth-min",
+                "gauss-long",
+                "poly-ext2",
+                "poly-ext3",
+                "sinc-m",
+                "sinc-l"
+            ]
         );
     }
 
@@ -526,6 +536,54 @@ mod tests {
             max_err = max_err.max((y - exp).abs());
         }
         assert!(max_err < 1e-4, "Non-integer sinc-M max error too high: {}", max_err);
+    }
+
+    #[test]
+    fn test_poly_ext3_apodizing_frequency_response() {
+        let src_rate = 44100.0;
+        let fs_out = 176400.0;
+        let f = REGISTRY.build_filter(fs_out, src_rate, "poly-ext3").expect("poly-ext3 filter");
+        assert!(!f.minimum_phase);
+        assert_eq!(f.taps, 16_385);
+
+        let eval_db = |freq_hz: f64| -> f64 {
+            let n = f.taps;
+            let l = n / 2;
+            let w = 2.0 * std::f64::consts::PI * freq_hz / fs_out;
+            let mut acc = f.h[l];
+            for k in 1..=l {
+                acc += 2.0 * f.h[l + k] * (w * k as f64).cos();
+            }
+            let mag = acc.abs() / f.ratio;
+            20.0 * mag.max(1e-20).log10()
+        };
+
+        let db_10k = eval_db(10_000.0);
+        let db_18k = eval_db(18_000.0);
+        let db_20k = eval_db(20_000.0);
+        let db_21k = eval_db(21_000.0);
+        let db_21_6k = eval_db(21_600.0);
+        let db_nyq = eval_db(22_050.0);
+        let db_24k = eval_db(24_000.0);
+        let db_30k = eval_db(30_000.0);
+
+        let t0 = std::time::Instant::now();
+        let fft_ext3 = SincMFftResampler::new_with_preset(fs_out, src_rate, SincLongPreset::PolyExt3).expect("poly-ext3 fft");
+        let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        assert_eq!(fft_ext3.total_taps(), 16_385);
+        let in_pcm = vec![0.25f64; 44_100];
+        let tr = std::time::Instant::now();
+        let _ = fft_ext3.upsample_range_stereo(&in_pcm, &in_pcm, 0, 176_400);
+        let run_ms = tr.elapsed().as_secs_f64() * 1000.0;
+
+        println!(
+            "poly-sinc-ext3 (apod): taps4x={}, build={:.2}ms, run4x(1s stereo)={:.2}ms | 10k={:.4}dB, 18k={:.4}dB, 20k={:.4}dB, 21k={:.4}dB, 21.6k(pre-Nyq apod)={:.2}dB, 22.05k(Nyq)={:.2}dB, 24k={:.2}dB, 30k={:.2}dB",
+            f.taps, build_ms, run_ms, db_10k, db_18k, db_20k, db_21k, db_21_6k, db_nyq, db_24k, db_30k
+        );
+
+        assert!(db_20k.abs() < 1e-4 && db_21k.abs() < 1e-4, "Passband up to 21kHz must be 0.0000 dB");
+        assert!(db_21_6k < -200.0, "Pre-Nyquist 21.6kHz apodizing zone must be < -200 dB, got {}", db_21_6k);
+        assert!(db_nyq < -220.0, "Nyquist 22.05kHz must be < -220 dB, got {}", db_nyq);
     }
 
     #[test]

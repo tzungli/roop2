@@ -249,16 +249,17 @@
                 <br>• <strong>Third Line of Defense (Ultrasonic Protection Filter)</strong>: Applies a 2nd-order Butterworth low-pass filter to attenuate ultrasonic energy before analog amplification, protecting amplifiers and tweeters from RF intermodulation distortion (IMD) and overheating.
               </p>
 
-              <!-- Section 1: 8 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 8 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
+              <!-- Section 1: 9 Sample Rate Conversion (SRC) Filters: Principles & Benchmarks -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">1. 9 Core Sample Rate Conversion (SRC) Filters: Principles &amp; Benchmarks</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
-                Modeled after flagship high-end DSP architectures, combining four foundational orthogonal profiles (<strong>Frequency Roll-off</strong> &times; <strong>Phase Profile</strong>) with four reference long-tap linear-phase filters:
+                Modeled after flagship high-end DSP architectures, combining four foundational orthogonal profiles (<strong>Frequency Roll-off</strong> &times; <strong>Phase Profile</strong>) with five reference long-tap linear-phase filters:
                 <br>• <strong>Precise</strong>: Employs Kaiser window polyphase FIR (&beta; &approx; 14.47, A<sub>s</sub> &ge; 140 dB), flat passband (0~20kHz with 0.000 dB loss), and brickwall Nyquist attenuation.
                 <br>• <strong>Smooth</strong>: Employs Gaussian-window sinc slow roll-off FIR, beginning a gentle slope at 18kHz to eliminate digital glare, reducing time-domain ringing duration by &gt;55%.
                 <br>• <strong>Linear Phase</strong>: Symmetric impulse response with strictly constant group delay and <strong>absolute zero phase distortion</strong>.
                 <br>• <strong>Minimum Phase</strong>: Employs complex cepstrum Hilbert spectral factorization to reflect zeros inside the unit circle, achieving <strong>strictly zero pre-ringing (0.00% Pre-ringing)</strong>, aligning perfectly with psychoacoustic pre-masking.
                 <br>• <strong>Gauss Long</strong>: Inspired by HQPlayer <code>poly-sinc-gauss-long</code>; pure Gaussian window (&sigma; = 0.17L, edge attenuation &lt; -150 dB) with 449 input taps, dead-flat through 20 kHz, -166.6 dB at Nyquist, and ultra-smooth natural Gaussian ringing envelope.
                 <br>• <strong>Ext2 (Extended Brickwall)</strong>: Inspired by HQPlayer <code>poly-sinc-ext2</code>; 1,281 input-tap Kaiser brickwall (A<sub>s</sub> = 175 dB), flat passband extended to 20.8 kHz (0.000 dB) and -183.0 dB suppression right at Nyquist.
+                <br>• <strong>Ext3 Apodizing (poly-sinc-ext3)</strong>: Inspired by HQPlayer <code>poly-sinc-ext3</code>; 4,097 taps/phase (<strong>16,385 taps</strong> at 4x, <strong>65,537 taps</strong> at 16x, A<sub>s</sub> = 195 dB) with 16k-pt Partitioned FFT acceleration (<strong>7.65 ms/s at 4x, ~131x real-time</strong>). Flat to <strong>21.00 kHz (0.0000 dB)</strong>, plunging to <strong>-210.42 dB by 21.60 kHz (450 Hz before Nyquist)</strong> and <strong>-229.08 dB at 22.05 kHz</strong> to completely erase early 1980s/1990s ADC Nyquist ringing.
                 <br>• <strong>Sinc-M (Million-Tap FFT)</strong>: Inspired by HQPlayer <code>sinc-M</code> / Chord M-Scaler; <strong>Partitioned FFT Polyphase Convolution</strong> with stereo complex packing (L+iR, 2x throughput), 65,535 taps per phase (<strong>1,048,545 prototype taps</strong> at 16x), flat to 21.95 kHz, -205.3 dB first-image suppression at 22.15 kHz, 242.5 dB 1 kHz SNR, and 17.0 ms per stereo second at 4x (~59x real-time).
                 <br>• <strong>Sinc-L (2.1M-Tap Adaptive FFT)</strong>: Inspired by HQPlayer <code>sinc-L</code>; 262,144-pt <strong>Partitioned FFT Overlap-Save Polyphase Convolution</strong> with <strong>131,071 taps per phase</strong> (<code>131,070 &times; ratio + 1</code> total taps: <strong>524,281 taps</strong> at 4x, <strong>2,097,121 taps</strong> at 16x), dead-flat to <strong>22.00 kHz (0.0000 dB)</strong>, <strong>-209.97 dB</strong> mirror image rejection at 22.10 kHz, 238.17 dB 1 kHz SNR, and <strong>14.0 ms per stereo second at 4x (~71x real-time)</strong>.
               </p>
@@ -332,6 +333,15 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-183.01 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">-192.71 dB (@23k)</td>
                       <td style="padding: 8px 10px; color: #34d399;">-213.26 dB</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #e879f9;">Ext3 Apodizing, Linear Phase</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (0dB @21.0k)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-229.08 dB (-210.4dB @21.6k)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-227.46 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-234.67 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
@@ -424,6 +434,15 @@
                       <td style="padding: 8px 10px;">High-Order Symmetric Brickwall</td>
                       <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong></td>
                       <td style="padding: 8px 10px;"><strong>Ultra-Transparent Detail</strong>: Extended 20.8kHz flat passband, -183dB Nyquist rejection, crisp micro-detail.</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #e879f9;">Ext3 Apodizing, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600;">16,385 (4x)<br>65,537 (16x)</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px;">50.00%</td>
+                      <td style="padding: 8px 10px; color: #34d399;">Apodizing Pre-Nyquist Cut<br>(7.65 ms / 1s stereo)</td>
+                      <td style="padding: 8px 10px; color: #34d399;"><strong>Absolute Zero Phase Distortion</strong><br>(-210.4 dB @21.6k)</td>
+                      <td style="padding: 8px 10px;"><strong>Early CD Master Cure</strong>: Cuts -210dB before 22.05kHz to erase vintage ADC Nyquist ringing, silky smooth clarity.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
