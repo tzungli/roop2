@@ -166,6 +166,7 @@ function dsdOrderLabel(order) {
   if (n === 50) return 'ASDM5EC';
   if (n === 70) return 'ASDM7EC';
   if (n === 75) return 'ASDM7EC-super 512+fs';
+  if (n === 55) return 'ASDM5EC-super 512+fs';
   if (n === 7) return '7 階 (CLANS)';
   return '5 階 (CRFB)';
 }
@@ -281,7 +282,7 @@ const state = {
       return {
         enabled: saved.enabled === true,
         rateMode: saved.rateMode || '4x',
-        dsdOrder: [5, 7, 50, 70, 75].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
+        dsdOrder: [5, 7, 50, 55, 70, 75].includes(parseInt(saved.dsdOrder, 10)) ? parseInt(saved.dsdOrder, 10) : 5,
         filterPhase: isValidFilterPhaseId(saved.filterPhase) ? saved.filterPhase : 'precise-linear',
         ultrasonicFilter: ['none', '20k', '30k', '40k', '50k'].includes(saved.ultrasonicFilter) ? saved.ultrasonicFilter : '30k',
         dither: ['none', 'tpdf', 'hp-tpdf', 'shaped', 'gauss', 'gauss1'].includes(saved.dither) ? saved.dither : 'tpdf',
@@ -23347,7 +23348,7 @@ function formatZoneDspSummary(dspObj, isLocalZone = false, isAirPlayZone = false
   const mode = String(dspObj.rateMode || '2x').toLowerCase();
   if (isDsdRateMode(mode)) {
     if (isLocalZone) return '2x PCM';
-    const ord = dspObj.dsdOrder === 75 ? 'ASDM7EC-super 512+fs' : (dspObj.dsdOrder === 70 ? 'ASDM7EC' : (dspObj.dsdOrder === 50 ? 'ASDM5EC' : `${dspObj.dsdOrder || 5}階`));
+    const ord = dspObj.dsdOrder === 75 ? 'ASDM7EC-super 512+fs' : (dspObj.dsdOrder === 55 ? 'ASDM5EC-super 512+fs' : (dspObj.dsdOrder === 70 ? 'ASDM7EC' : (dspObj.dsdOrder === 50 ? 'ASDM5EC' : `${dspObj.dsdOrder || 5}階`)));
     return `${mode.toUpperCase()} • ${ord}`;
   }
   return `${mode.toUpperCase()} PCM`;

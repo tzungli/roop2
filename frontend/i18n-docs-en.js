@@ -466,14 +466,15 @@
                 </table>
               </div>
 
-              <!-- Section 2: DSD 5th, 7th & ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs Modulators Benchmarks -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">2. DSD 5th/7th-Order &amp; ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs Modulator Benchmarks (DSD64 ~ DSD512)</h4>
+              <!-- Section 2: DSD 5th, 7th & ASDM5EC / ASDM7EC / ASDM5EC-super 512+fs / ASDM7EC-super 512+fs Modulators Benchmarks -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">2. DSD 5th/7th-Order &amp; ASDM5EC / ASDM7EC / ASDM5EC-super 512+fs / ASDM7EC-super 512+fs Modulator Benchmarks (DSD64 ~ DSD512)</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
                 rooPlayer features a pure 64-bit floating-point <strong>Three-Stage Polyphase Anti-Imaging Sigma-Delta Architecture</strong>: <strong>Stage 1</strong> upsamples to 352.8 kHz via the selected flagship FIR / Partitioned FFT filter (&lt; -180 ~ -210 dB near-band rejection) &rarr; <strong>Stage 1B</strong> upsamples 4x to <strong>1.4112 MHz (32x)</strong> via an <strong>AVX2 4-phase transposed 16-tap Kaiser Polyphase Anti-Imaging FIR</strong> (<strong>0.00000 dB</strong> flat 0~50 kHz, <strong>-135.44 dB</strong> image suppression at 330.75 kHz / -319.44 dB at 352.8 kHz, costing only <strong>4.06 ms per stereo second</strong>) &rarr; <strong>Stage 2</strong> feeds register forward-differences into the parallel AVX2 modulator. Verified via coherent -6dBFS 1kHz sine 262,144-pt 7-term Blackman-Harris FFT spectral analysis:
                 <br>• <strong>5th-Order (CRFB)</strong>: Cascade of Resonators, Feedback Form (H<sub>&infin;</sub> = 1.55). Gentle noise rise, rich analog atmosphere, and ultra-low CPU load (3.7x real-time at DSD512).
                 <br>• <strong>7th-Order (CLANS)</strong>: Closed-Loop Asymptotic Noise Shaping (H<sub>&infin;</sub> = 1.50). Features a steep noise shaping slope of <strong>52.6 dB/oct</strong> for pitch-black audible backgrounds.
                 <br>• <strong>ASDM5EC</strong>: High-gain 5th-order NTF (<strong>H<sub>&infin;</sub> = 1.88</strong>) with <strong>AVX2+FMA M=4 / L=32 in-register Trellis</strong>, cutting ultrasonic noise by <strong>-12.1 ~ -13.5 dB</strong> at 283.2 ms/s for DSD256 (3.5x) and 573.3 ms/s for DSD512 (1.74x).
                 <br>• <strong>ASDM7EC</strong>: High-gain 7th-order NTF (<strong>H<sub>&infin;</sub> = 1.78</strong>) with <strong>AVX2+FMA 4-wide M=4 / L=32 in-register Trellis</strong> and C<sup>1</sup> adaptive MSA soft-knee, boosting SNR to <strong>156.66 dB (DSD64), 201.77 dB (DSD128), 245.48 dB (DSD256), and 244.30 dB (DSD512)</strong>.
+                <br>• <strong>ASDM5EC-super 512+fs</strong>: Dual-band asymmetric 5th-order Trellis (<strong>H<sub>&infin;</sub> = 1.82</strong>) tuned for <strong>DSD512+ (and DSD256)</strong> with <strong>14.5 kHz audible notch + 36.0 kHz ultrasonic notch</strong> (13.8 kHz + 28.0 kHz at DSD256), lowering DSD512 20-50kHz ultrasonic floor to <strong>-186.38 dBFS (-20.32 dB vs 5th-CRFB, -7.87 dB vs ASDM5EC)</strong> with <strong>198.12 dB SNR / -206.11 dB THD</strong>, 0.624 max state at 0 dBFS full scale, and <strong>602.9 ms/s (1.66x real-time)</strong>.
                 <br>• <strong>ASDM7EC-super 512+fs</strong>: Flagship dual-band asymmetric 7th-order Trellis tuned for <strong>DSD512+ (and DSD256)</strong> with <strong>9.5 kHz / 18.5 kHz audible notches + 38.0 kHz ultrasonic notch</strong>, achieving <strong>254.26 dB 0-20kHz SNR (+9.96 dB over ASDM7EC), -271.63 dB THD, and -222.68 dBFS 20-50kHz ultrasonic floor (-27.83 dB vs 7th-CLANS)</strong> at <strong>659.0 ms/s (1.52x real-time at DSD512)</strong> and 0.256 max state at 0 dBFS full scale.
               </p>
 
@@ -556,9 +557,9 @@
                     </tr>
                     <tr>
                       <td style="padding: 8px 10px;">Ultrasonic Noise (20k - 50k)</td>
-                      <td style="padding: 8px 10px; color: #34d399;">-165.04 dB (ASDM5EC: -178.53 dB)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-165.04 dB (ASDM5EC: -178.53 / super: -186.38 dB)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-194.85 dB (ASDM7EC: -213.17 / super: -222.68 dB)</td>
-                      <td style="padding: 8px 10px;">Ultrasonic band down to -222.68 dBFS, ideal for discrete 1-bit DSD DACs.</td>
+                      <td style="padding: 8px 10px;">Ultrasonic band down to -186.38 dBFS (5EC-super) / -222.68 dBFS (7EC-super).</td>
                     </tr>
                   </tbody>
                 </table>

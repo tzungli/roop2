@@ -685,20 +685,22 @@ mod tests {
         }
 
         // -3 dBFS PCM (+0.1 dB SACD) and 0 dBFS PCM (0.99 full-scale) stability stress tests at DSD512
-        for &(label, amp_stress) in &[("-3dBFS", 0.707f64), ("0dBFS", 0.99f64)] {
-            let pcm_stress: Vec<f64> = (0..in_len)
-                .map(|i| amp_stress * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / src_rate).sin())
-                .collect();
-            let mut m_fs = DsdModulator::new(75, "precise-linear", DitherType::Gauss, None);
-            m_fs.set_dsd_rate(22_579_200);
-            let mut out_fs = vec![0u8; 200 * 2 * DSD_BLOCK_SIZE];
-            m_fs.run_blocks(&pcm_stress, &pcm_stress, in_len, 0, 200, 1.0 / 64.0, &mut out_fs);
-            let max_fs = [m_fs.s1_l, m_fs.s2_l, m_fs.s3_l, m_fs.s4_l, m_fs.s5_l, m_fs.s6_l, m_fs.s7_l]
-                .iter()
-                .map(|v| v.abs())
-                .fold(0.0f64, f64::max);
-            println!("DSD512 ASDM7EC-super512+fs {} stress max_state={:.3}", label, max_fs);
-            assert!(max_fs.is_finite() && max_fs < 4.5, "{} stress unstable: {}", label, max_fs);
+        for &(ord_name, ord_id) in &[("ASDM5EC-super512+fs", 55u8), ("ASDM7EC-super512+fs", 75u8)] {
+            for &(label, amp_stress) in &[("-3dBFS", 0.707f64), ("0dBFS", 0.99f64)] {
+                let pcm_stress: Vec<f64> = (0..in_len)
+                    .map(|i| amp_stress * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / src_rate).sin())
+                    .collect();
+                let mut m_fs = DsdModulator::new(ord_id, "precise-linear", DitherType::Gauss, None);
+                m_fs.set_dsd_rate(22_579_200);
+                let mut out_fs = vec![0u8; 200 * 2 * DSD_BLOCK_SIZE];
+                m_fs.run_blocks(&pcm_stress, &pcm_stress, in_len, 0, 200, 1.0 / 64.0, &mut out_fs);
+                let max_fs = [m_fs.s1_l, m_fs.s2_l, m_fs.s3_l, m_fs.s4_l, m_fs.s5_l, m_fs.s6_l, m_fs.s7_l]
+                    .iter()
+                    .map(|v| v.abs())
+                    .fold(0.0f64, f64::max);
+                println!("DSD512 {} {} stress max_state={:.3}", ord_name, label, max_fs);
+                assert!(max_fs.is_finite() && max_fs < 4.5, "{} {} stress unstable: {}", ord_name, label, max_fs);
+            }
         }
 
         // Verify Stage-1B 4x 16-tap polyphase FIR frequency response & standalone AVX2 throughput
@@ -888,11 +890,12 @@ mod tests {
             ("DSD256", 11_289_600, 32),
             ("DSD512", 22_579_200, 64),
         ];
-        let orders: [(&str, u8); 5] = [
+        let orders: [(&str, u8); 6] = [
             ("5th-CRFB", 5),
             ("ASDM5EC", 50),
             ("7th-CLANS", 7),
             ("ASDM7EC", 70),
+            ("ASDM5EC-super512+fs", 55),
             ("ASDM7EC-super512+fs", 75),
         ];
 
@@ -933,7 +936,7 @@ mod tests {
                 let hamming_note = if ord == 5 {
                     prev_bits_5 = l_bytes.clone();
                     String::new()
-                } else if ord == 50 {
+                } else if ord == 50 || ord == 55 {
                     let diff_bits: usize = l_bytes.iter().zip(prev_bits_5.iter()).map(|(a, b)| (a ^ b).count_ones() as usize).sum();
                     format!(", diff_vs_5th={:.1}%", 100.0 * diff_bits as f64 / (l_bytes.len() * 8) as f64)
                 } else if ord == 7 {

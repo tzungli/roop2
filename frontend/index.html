@@ -2364,20 +2364,21 @@
                 </table>
               </div>
 
-              <!-- 區塊二：DSD 5階、7階與 ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs 調變器客觀量測驗證 -->
-              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">二、DSD 5 階 / 7 階與 ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs 調變器量測驗證 (DSD64 ~ DSD512)</h4>
+              <!-- 區塊二：DSD 5階、7階與 ASDM5EC / ASDM7EC / ASDM5EC-super 512+fs / ASDM7EC-super 512+fs 調變器客觀量測驗證 -->
+              <h4 style="color: var(--text-main); margin-top: 22px; margin-bottom: 8px;">二、DSD 5 階 / 7 階與 ASDM5EC / ASDM7EC / ASDM5EC-super 512+fs / ASDM7EC-super 512+fs 調變器量測驗證 (DSD64 ~ DSD512)</h4>
               <p style="font-size: 12.5px; margin-bottom: 8px;">
                 rooPlayer 內建純 64 位元浮點<strong>三級多相抗鏡像 Sigma-Delta 調變架構</strong>：<strong>Stage 1</strong> 以所選旗艦 FIR / Partitioned FFT 升頻至 352.8 kHz 消除 22.05 kHz 近端鏡像（&lt; -180 ~ -210 dB）➔ <strong>Stage 1B</strong> 以 <strong>AVX2 四相轉置 16-tap Kaiser 多相抗鏡像 FIR</strong> 升頻 4x 至 <strong>1.4112 MHz (32x)</strong>，於 0~50 kHz 維持 <strong>0.00000 dB</strong> 絕對平坦，並將 330.75 kHz / 683.55 kHz 超聲鏡像徹底壓制至 <strong>-135.44 dB（352.8 kHz 中心達 -319.44 dB，1 秒立體聲僅耗時 4.06 ms）</strong> ➔ <strong>Stage 2</strong> 以暫存器前向差分與 AVX2 多核心平行調變直入 DSD 頻率。透過實機生成 -6dBFS 同調 1kHz 正弦波進行 262,144 點 7-term 週期型 Blackman-Harris FFT（旁瓣 &lt; -180 dB）頻譜分析與位元級 Hamming 距離驗證：
                 <br>• <strong>5 階 (CRFB)</strong>：級聯共振回授架構（H<sub>&infin;</sub> = 1.55），高頻噪聲抬升適度，類比氛圍感強烈，CPU 佔用極低（DSD512 達 3.7x 即時速度）。
                 <br>• <strong>7 階 (CLANS)</strong>：閉迴路局部反饋噪聲整形（H<sub>&infin;</sub> = 1.50），NTF 噪聲整形斜率高達 <strong>52.6 dB/oct</strong>，可聽頻帶內背景極致純黑寧靜。
                 <br>• <strong>ASDM5EC（5 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM5EC</code> 原理，採用高增益 5 階 NTF（<strong>H<sub>&infin;</sub> = 1.88</strong>）搭配 <strong>AVX2+FMA 單 FMA 平行預先計算、YMM 暫存器內 M=4 / L=32 狀態機 Trellis 與雙階軟約束</strong>，在 DSD64/128/256/512 全規格將可聽帶 SNR 與超聲噪聲大幅優化（超聲噪聲再降 <strong>-12.1 ～ -13.5 dB</strong>），DSD256 僅耗時 <strong>283.2 ms (3.5x)</strong>、DSD512 僅 <strong>573.3 ms (1.74x)</strong>。
                 <br>• <strong>ASDM7EC（7 階高 H<sub>&infin;</sub> Trellis 強化修正）</strong>：仿 HQPlayer <code>ASDM7EC</code> 原理，採用高增益 7 階 NTF（<strong>H<sub>&infin;</sub> = 1.78</strong>）搭配 <strong>AVX2+FMA 四路平行 M=4 / L=32 YMM 暫存器內 Trellis</strong> 與 C<sup>1</sup> 自適應 MSA 軟限幅，DSD64 帶內 SNR 暴增 <strong>+21.22 dB（達 156.66 dB）</strong>、DSD128 暴增 <strong>+21.47 dB（達 201.77 dB）</strong>、DSD256 達 <strong>245.48 dB</strong>、DSD512 達 <strong>244.30 dB</strong>，DSD256 僅耗時 <strong>333.5 ms (3.0x)</strong>、DSD512 僅 <strong>662.7 ms (1.51x)</strong>。
+                <br>• <strong>ASDM5EC-super 512+fs（雙頻段非對稱寬頻 5 階 Trellis）</strong>：仿 HQPlayer <code>ASDM5EC-super 512+fs</code> 原理，專為 <strong>DSD512+（與 DSD256）</strong> 調校 5 階雙頻段非對稱諧振零點（<strong>H<sub>&infin;</sub> = 1.82</strong>，DSD512 配置 <strong>14.5 kHz 可聽帶零點 + 36.0 kHz 超聲帶零點</strong>、DSD256 配置 <strong>13.8 kHz + 28.0 kHz</strong>），在 <strong>DSD512</strong> 下維持 <strong>198.12 dB 帶內 SNR / -206.11 dB THD</strong> 的同時，將 20–50 kHz 超聲底噪再壓低至 <strong>-186.38 dBFS（較 5 階 CRFB 暴降 -20.32 dB、較標準 ASDM5EC 再降 -7.87 dB）</strong>，0 dBFS 滿載壓測最大積分狀態僅 <strong>0.624</strong>（-3 dBFS 僅 0.233），1 秒立體聲僅耗時 <strong>602.9 ms (1.66x 即時速度)</strong>，兼具 5 階溫潤寬鬆音色與輕盈 CPU 負載。
                 <br>• <strong>ASDM7EC-super 512+fs（雙頻段非對稱寬頻 7 階旗艦 Trellis）</strong>：仿 HQPlayer <code>ASDM7EC-super 512+fs</code> 原理，專為 <strong>DSD512+（與 DSD256）</strong> 調校雙頻段非對稱諧振零點（DSD512 配置 <strong>9.5 kHz / 18.5 kHz 可聽帶雙零點 + 38.0 kHz 超聲帶零點</strong>，純淨帶寬延伸至 50 kHz），在 <strong>DSD512</strong> 下同時達成 <strong>254.26 dB 極限帶內 SNR（較標準 ASDM7EC 再高 +9.96 dB）、-271.63 dB THD 與 -222.68 dBFS 超聲底噪（較 7 階 CLANS 暴降 -27.83 dB、較標準 ASDM7EC 再降 -9.51 dB）</strong>，0 dBFS 滿載壓測最大積分狀態僅 <strong>0.256</strong>，1 秒立體聲僅耗時 <strong>659.0 ms (1.52x 即時速度)</strong>。
               </p>
 
-              <!-- 表 2-2: 五組 DSD 調變器同調 FFT 實測對比表 (DSD64 ~ DSD512) -->
+              <!-- 表 2-2: 六組 DSD 調變器同調 FFT 實測對比表 (DSD64 ~ DSD512) -->
               <div style="overflow-x: auto; margin-bottom: 16px;">
-                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">表 2-2：五組 DSD 調變器同調 FFT 實機量測對比（DSD64 / DSD128 / DSD256 / DSD512，1kHz @ -6dBFS，262,144-pt Blackman-Harris FFT）</div>
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">表 2-2：六組 DSD 調變器同調 FFT 實機量測對比（DSD64 / DSD128 / DSD256 / DSD512，1kHz @ -6dBFS，262,144-pt Blackman-Harris FFT）</div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
                   <thead>
                     <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-main);">
@@ -2392,7 +2393,7 @@
                   </thead>
                   <tbody>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td rowspan="5" style="padding: 8px 10px; font-weight: 600; color: #fbbf24; vertical-align: top;">DSD64<br>(2.82MHz)</td>
+                      <td rowspan="6" style="padding: 8px 10px; font-weight: 600; color: #fbbf24; vertical-align: top;">DSD64<br>(2.82MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
                       <td style="padding: 8px 10px;">116.19 dB</td>
                       <td style="padding: 8px 10px;">-132.55 dB</td>
@@ -2424,6 +2425,14 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.437 (-61%)</td>
                       <td style="padding: 8px 10px;">82.8 ms (12.1x)</td>
                     </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">ASDM5EC-super 512+fs</td>
+                      <td style="padding: 8px 10px; color: #34d399;">129.11 dB (+13.26)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-147.84 dB (-16.24)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-77.99 dB (-12.74)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.498</td>
+                      <td style="padding: 8px 10px;">87.9 ms (11.4x)</td>
+                    </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">ASDM7EC-super 512+fs</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">155.28 dB (+19.84)</td>
@@ -2433,7 +2442,7 @@
                       <td style="padding: 8px 10px;">83.8 ms (11.9x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td rowspan="5" style="padding: 8px 10px; font-weight: 600; color: #38bdf8; vertical-align: top;">DSD128<br>(5.64MHz)</td>
+                      <td rowspan="6" style="padding: 8px 10px; font-weight: 600; color: #38bdf8; vertical-align: top;">DSD128<br>(5.64MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
                       <td style="padding: 8px 10px;">149.26 dB</td>
                       <td style="padding: 8px 10px;">-164.56 dB</td>
@@ -2465,6 +2474,14 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.381 (-66%)</td>
                       <td style="padding: 8px 10px;">169.1 ms (5.9x)</td>
                     </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">ASDM5EC-super 512+fs</td>
+                      <td style="padding: 8px 10px; color: #34d399;">156.07 dB (+7.20)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-172.69 dB (-10.84)</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-112.10 dB (-13.78)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.547</td>
+                      <td style="padding: 8px 10px;">172.6 ms (5.8x)</td>
+                    </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">ASDM7EC-super 512+fs</td>
                       <td style="padding: 8px 10px; color: #34d399;">191.32 dB (+11.02)</td>
@@ -2474,7 +2491,7 @@
                       <td style="padding: 8px 10px;">166.6 ms (6.0x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td rowspan="5" style="padding: 8px 10px; font-weight: 600; color: #a78bfa; vertical-align: top;">DSD256<br>(11.29MHz)</td>
+                      <td rowspan="6" style="padding: 8px 10px; font-weight: 600; color: #a78bfa; vertical-align: top;">DSD256<br>(11.29MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
                       <td style="padding: 8px 10px;">182.60 dB</td>
                       <td style="padding: 8px 10px;">-193.15 dB</td>
@@ -2506,6 +2523,14 @@
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.196 (-87%)</td>
                       <td style="padding: 8px 10px;">333.5 ms (3.0x)</td>
                     </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">ASDM5EC-super 512+fs</td>
+                      <td style="padding: 8px 10px; color: #34d399;">181.25 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-191.83 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-147.93 dB (-16.61)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.398</td>
+                      <td style="padding: 8px 10px;">313.5 ms (3.2x)</td>
+                    </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.15);">
                       <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">ASDM7EC-super 512+fs</td>
                       <td style="padding: 8px 10px; color: #34d399;">227.76 dB (+2.39)</td>
@@ -2515,7 +2540,7 @@
                       <td style="padding: 8px 10px;">333.2 ms (3.0x)</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td rowspan="5" style="padding: 8px 10px; font-weight: 600; color: #34d399; vertical-align: top;">DSD512<br>(22.58MHz)</td>
+                      <td rowspan="6" style="padding: 8px 10px; font-weight: 600; color: #34d399; vertical-align: top;">DSD512<br>(22.58MHz)</td>
                       <td style="padding: 8px 10px;">5 階 (CRFB)</td>
                       <td style="padding: 8px 10px;">216.90 dB</td>
                       <td style="padding: 8px 10px;">-224.94 dB</td>
@@ -2546,6 +2571,14 @@
                       <td style="padding: 8px 10px; color: #34d399;">-213.17 dB (-18.32)</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.337 (-82%)</td>
                       <td style="padding: 8px 10px;">662.7 ms (1.51x)</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                      <td style="padding: 8px 10px; font-weight: 600; color: #38bdf8;">ASDM5EC-super 512+fs</td>
+                      <td style="padding: 8px 10px; color: #34d399;">198.12 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399;">-206.11 dB</td>
+                      <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">-186.38 dB (-20.32)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">0.468 (0dBFS 0.624)</td>
+                      <td style="padding: 8px 10px; color: #34d399;">602.9 ms (1.66x)</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">ASDM7EC-super 512+fs</td>
@@ -2823,7 +2856,7 @@
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s3">
                 <span class="spec-label">DSD 調變器</span>
-                <span class="spec-value">5 / 7 階諧振噪聲整形 &amp; ASDM5EC / ASDM7EC / ASDM7EC-super 512+fs 高 H<sub>&infin;</sub> AVX2 M=4 / L=32 Trellis 強化修正 1-bit 調變器 (DSD64 ~ DSD512，帶內 SNR 高達 254.3 dB)</span>
+                <span class="spec-value">5 / 7 階諧振噪聲整形 &amp; ASDM5EC / ASDM7EC / ASDM5EC-super 512+fs / ASDM7EC-super 512+fs 高 H<sub>&infin;</sub> AVX2 M=4 / L=32 Trellis 強化修正 1-bit 調變器 (DSD64 ~ DSD512，帶內 SNR 高達 254.3 dB)</span>
               </div>
               <div class="spec-row" data-i18n-html="about.tech.s4">
                 <span class="spec-label">專屬 rooDSP</span>
@@ -3338,6 +3371,7 @@
                       <button class="dsp-pill pill-dsd" data-order="7" title="7 階 CLANS 三重諧振零點調變 (極致微動態解析，極寬音場)">7 階 (CLANS)</button>
                       <button class="dsp-pill pill-dsd" data-order="50" title="仿 HQPlayer ASDM5EC：5 階高 H∞=1.88 + AVX2 M=4 / L=32 Trellis 強化誤差修正，SNR +10~14 dB、超聲噪聲 -12~-13.5 dB">ASDM5EC</button>
                       <button class="dsp-pill pill-dsd" data-order="70" title="仿 HQPlayer ASDM7EC：7 階高 H∞=1.78 + AVX2 M=4 / L=32 Trellis 強化誤差修正，SNR +20~46 dB（DSD256 達 245.5 dB），極致純淨與立體堂音">ASDM7EC</button>
+                      <button class="dsp-pill pill-dsd" data-order="55" title="仿 HQPlayer ASDM5EC-super 512+fs：專為 DSD512+ 調校之雙頻段非對稱（14.5k/36kHz 諧振）5 階 H∞=1.82 AVX2 M=4/L=32 Trellis，DSD512 超聲底噪 -186.38 dBFS（較 ASDM5EC 再降 -7.87 dB）、1.66x 即時速度且更輕盈">ASDM5EC-super 512+fs</button>
                       <button class="dsp-pill pill-dsd" data-order="75" title="仿 HQPlayer ASDM7EC-super 512+fs：專為 DSD512+ 調校之雙頻段非對稱（9.5k/18.5k/38kHz 諧振）7 階 AVX2 M=4/L=32 Trellis，DSD512 帶內 SNR 達 254.26 dB、超聲底噪 -222.68 dBFS（推薦 DSD256 / DSD512）">ASDM7EC-super 512+fs</button>
                     </div>
                   </div>

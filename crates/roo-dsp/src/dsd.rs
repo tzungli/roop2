@@ -180,6 +180,44 @@ pub fn get_asdm5ec_params_for_osr(ratio: f64) -> Ciff5Coeffs {
     }
 }
 
+/// Dual-band asymmetric `512+fs` CIFF-5 NTF coefficients dedicated to
+/// `ASDM5EC-super 512+fs` (order = 55, H_inf = 1.82).
+/// Places 1 resonator notch in the audible band (14.5 kHz at DSD512+, 13.8 kHz at DSD256)
+/// and 1 wideband resonator notch in the ultrasonic band (36.0 kHz at DSD512+, 28.0 kHz at DSD256),
+/// slashing 20..50 kHz ultrasonic noise while keeping 5th-order AVX2 throughput (~1.75x at DSD512)
+/// and rock-solid stability even at 0 dBFS full-scale input.
+pub fn get_asdm5ec_super512_params_for_osr(ratio: f64) -> Ciff5Coeffs {
+    if ratio >= 384.0 {
+        // dsd512+ (dual-band asymmetric notches: 14.5 kHz / 36.0 kHz)
+        Ciff5Coeffs {
+            g1: 4.070222e-5,
+            g2: 6.690410e-4,
+            a: [1.396243, 1.358436, 1.176763, 0.935918, 0.863994],
+        }
+    } else if ratio >= 192.0 {
+        // dsd256 (dual-band asymmetric notches: 13.8 kHz / 28.0 kHz)
+        Ciff5Coeffs {
+            g1: 1.474683e-4,
+            g2: 1.618895e-3,
+            a: [1.396299, 1.358348, 1.176154, 0.935098, 0.860567],
+        }
+    } else if ratio >= 96.0 {
+        // dsd128 (11.8 kHz / 21.5 kHz fallback)
+        Ciff5Coeffs {
+            g1: 4.312811e-4,
+            g2: 3.817926e-3,
+            a: [1.396433, 1.358138, 1.174658, 0.933216, 0.852665],
+        }
+    } else {
+        // dsd64 (10.8 kHz / 18.5 kHz fallback)
+        Ciff5Coeffs {
+            g1: 1.445071e-3,
+            g2: 1.130612e-2,
+            a: [1.396894, 1.357414, 1.169449, 0.926825, 0.825868],
+        }
+    }
+}
+
 /// High-H_inf (H_inf = 1.78) CIFF-7 NTF coefficients dedicated to ASDM7EC M-algorithm Trellis modulator.
 /// Enables deep 7th-order noise shaping (~21 dB lower audio-band NTF floor than H_inf=1.50),
 /// remaining rock-solid stable even at 0 dBFS full-scale input.
@@ -1079,9 +1117,10 @@ impl DsdModulator {
         Self {
             order: match order {
                 7 => 7,
-                50 => 50, // ASDM5EC (5th-order M=4/L=32 Trellis Enhanced Correction)
-                70 => 70, // ASDM7EC (7th-order H_inf=1.75 M=4/L=32 Trellis Enhanced Correction)
-                75 => 75, // ASDM7EC-super 512+fs (7th-order H_inf=1.90 wideband 50kHz M=4/L=32 Trellis)
+                50 => 50, // ASDM5EC (5th-order H_inf=1.88 M=4/L=32 Trellis Enhanced Correction)
+                55 => 55, // ASDM5EC-super 512+fs (5th-order dual-band asymmetric 14.5k/36kHz M=4/L=32 Trellis)
+                70 => 70, // ASDM7EC (7th-order H_inf=1.78 M=4/L=32 Trellis Enhanced Correction)
+                75 => 75, // ASDM7EC-super 512+fs (7th-order dual-band asymmetric 9.5k/18.5k/38kHz M=4/L=32 Trellis)
                 _ => 5,
             },
             dither_type: dither,
@@ -1136,7 +1175,7 @@ impl DsdModulator {
         }
         match self.order {
             7 => self.run_blocks7(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
-            50 => self.run_blocks5_ec(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
+            50 | 55 => self.run_blocks5_ec(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
             70 | 75 => self.run_blocks7_ec(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
             _ => self.run_blocks5(left, right, in_len, start_bit, num_blocks, inv_ratio, out),
         }
@@ -1302,7 +1341,11 @@ impl DsdModulator {
         out: &mut [u8],
     ) {
         let osr = self.dsd_rate.map(|r| r as f64 / 44100.0).unwrap_or_else(|| 1.0 / inv_ratio);
-        let p = get_asdm5ec_params_for_osr(osr);
+        let p = if self.order == 55 {
+            get_asdm5ec_super512_params_for_osr(osr)
+        } else {
+            get_asdm5ec_params_for_osr(osr)
+        };
 
         let ratio = 1.0 / inv_ratio;
         let is_exact_frac = (ratio - ratio.round()).abs() < 1e-9;
