@@ -1,13 +1,17 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tokio::sync::Semaphore;
 use anyhow::Result;
 
 pub struct TidalState {
     pub cache_file: PathBuf,
     pub http_client: reqwest::Client,
     pub auth_data: Arc<RwLock<Option<serde_json::Value>>>,
+    pub api_semaphore: Arc<Semaphore>,
+    pub rate_limit_until: Arc<Mutex<Option<Instant>>>,
 }
 
 impl TidalState {
@@ -25,8 +29,45 @@ impl TidalState {
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
             auth_data: Arc::new(RwLock::new(initial_auth)),
+            api_semaphore: Arc::new(Semaphore::new(3)),
+            rate_limit_until: Arc::new(Mutex::new(None)),
         }
     }
+
+    pub async fn wait_rate_limit_cooldown(&self) {
+        let wait_dur = {
+            let guard = self.rate_limit_until.lock().unwrap();
+            guard.and_then(|until| until.checked_duration_since(Instant::now()))
+        };
+        if let Some(dur) = wait_dur {
+            tokio::time::sleep(dur).await;
+        }
+    }
+
+    pub fn set_rate_limit_cooldown(&self, dur: Duration) {
+        let target = Instant::now() + dur;
+        let mut guard = self.rate_limit_until.lock().unwrap();
+        let next = match *guard {
+            Some(existing) if existing > target => existing,
+            _ => target,
+        };
+        *guard = Some(next);
+    }
+}
+
+fn parse_retry_after_secs(headers: &reqwest::header::HeaderMap, attempt: u32) -> Duration {
+    if let Some(val) = headers.get(reqwest::header::RETRY_AFTER).and_then(|h| h.to_str().ok()) {
+        if let Ok(secs) = val.trim().parse::<u64>() {
+            return Duration::from_secs(secs.clamp(1, 15));
+        }
+    }
+    // Exponential backoff: 1.2s, 2.5s, 5.0s
+    let ms = match attempt {
+        0 => 1200,
+        1 => 2500,
+        _ => 5000,
+    };
+    Duration::from_millis(ms)
 }
 
 #[tauri::command]
@@ -582,38 +623,75 @@ pub async fn tidal_api(
     };
 
     let method_upper = method.to_uppercase();
-    let mut req = match method_upper.as_str() {
-        "POST" => state.http_client.post(&url),
-        "PUT" => state.http_client.put(&url),
-        "DELETE" => state.http_client.delete(&url),
-        "PATCH" => state.http_client.patch(&url),
-        _ => state.http_client.get(&url),
-    };
+    let max_retries: u32 = 3;
 
-    if !token.is_empty() {
-        req = req.header("Authorization", format!("Bearer {}", token));
-    }
+    for attempt in 0..=max_retries {
+        state.wait_rate_limit_cooldown().await;
+        let _permit = state
+            .api_semaphore
+            .acquire()
+            .await
+            .map_err(|e| format!("TIDAL 限流器錯誤: {}", e))?;
 
-    if method_upper != "GET" && method_upper != "HEAD" {
-        if let Some(body) = options.get("body") {
-            if !body.is_null() {
-                req = req.json(body);
+        let mut req = match method_upper.as_str() {
+            "POST" => state.http_client.post(&url),
+            "PUT" => state.http_client.put(&url),
+            "DELETE" => state.http_client.delete(&url),
+            "PATCH" => state.http_client.patch(&url),
+            _ => state.http_client.get(&url),
+        };
+
+        if !token.is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", token));
+        }
+
+        if method_upper != "GET" && method_upper != "HEAD" {
+            if let Some(body) = options.get("body") {
+                if !body.is_null() {
+                    req = req.json(body);
+                }
             }
         }
+
+        let resp = req.send().await.map_err(|e| e.to_string())?;
+        let status = resp.status();
+
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+            let wait_dur = parse_retry_after_secs(resp.headers(), attempt);
+            drop(_permit);
+            state.set_rate_limit_cooldown(wait_dur);
+            if attempt < max_retries {
+                tracing::warn!(
+                    "[TIDAL] HTTP {} on {} — backing off {:?} (retry {}/{})",
+                    status.as_u16(),
+                    endpoint,
+                    wait_dur,
+                    attempt + 1,
+                    max_retries
+                );
+                tokio::time::sleep(wait_dur).await;
+                continue;
+            }
+            return Err(format!(
+                "TIDAL API 請求過於頻繁（HTTP {}），請稍候幾秒再重試",
+                status.as_u16()
+            ));
+        }
+
+        let text = resp.text().await.map_err(|e| e.to_string())?;
+        drop(_permit);
+
+        if !status.is_success() {
+            return Err(format!("TIDAL API HTTP {}: {}", status.as_u16(), text));
+        }
+
+        let json_val: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+            format!("JSON parse error ({}): {}", e, text)
+        })?;
+        return Ok(json_val);
     }
 
-    let resp = req.send().await.map_err(|e| e.to_string())?;
-    let status = resp.status();
-    let text = resp.text().await.map_err(|e| e.to_string())?;
-
-    if !status.is_success() {
-        return Err(format!("TIDAL API HTTP {}: {}", status.as_u16(), text));
-    }
-
-    let json_val: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
-        format!("JSON parse error ({}): {}", e, text)
-    })?;
-    Ok(json_val)
+    Err("TIDAL API 請求過於頻繁（HTTP 429），請稍候幾秒再重試".to_string())
 }
 
 fn clean_track_id(track_id: &serde_json::Value) -> String {
@@ -839,22 +917,49 @@ async fn ensure_tidal_track_cached(
             safe_id, country_code
         );
 
-        let resp = state
-            .http_client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", token))
-            .send()
-            .await
-            .map_err(|e| format!("取得 TIDAL 播放資訊失敗: {}", e))?;
+        let mut body_json_opt: Option<serde_json::Value> = None;
+        for attempt in 0..=3u32 {
+            state.wait_rate_limit_cooldown().await;
+            let _permit = state
+                .api_semaphore
+                .acquire()
+                .await
+                .map_err(|e| format!("TIDAL 限流器錯誤: {}", e))?;
 
-        if !resp.status().is_success() {
-            return Err(format!("TIDAL 播放授權錯誤 HTTP {}", resp.status()));
+            let resp = state
+                .http_client
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await
+                .map_err(|e| format!("取得 TIDAL 播放資訊失敗: {}", e))?;
+
+            if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+                || resp.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE
+            {
+                let wait_dur = parse_retry_after_secs(resp.headers(), attempt);
+                drop(_permit);
+                state.set_rate_limit_cooldown(wait_dur);
+                if attempt < 3 {
+                    tokio::time::sleep(wait_dur).await;
+                    continue;
+                }
+                return Err(format!("TIDAL 播放授權請求過於頻繁 HTTP {}", resp.status()));
+            }
+
+            if !resp.status().is_success() {
+                return Err(format!("TIDAL 播放授權錯誤 HTTP {}", resp.status()));
+            }
+
+            let parsed: serde_json::Value = resp
+                .json()
+                .await
+                .map_err(|e| format!("解析播放資訊 JSON 失敗: {}", e))?;
+            body_json_opt = Some(parsed);
+            break;
         }
-
-        let body_json: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| format!("解析播放資訊 JSON 失敗: {}", e))?;
+        let body_json = body_json_opt
+            .ok_or_else(|| "TIDAL 播放授權請求過於頻繁 HTTP 429".to_string())?;
 
         if let Some(m) = body_json.get("manifest").and_then(|v| v.as_str()) {
             if m.trim().starts_with('<') || m.trim().starts_with('{') {
