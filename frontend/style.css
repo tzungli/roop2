@@ -15194,6 +15194,17 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 }
 
 /* Light Theme Refinements */
+[data-theme="light"] h1.rgd-title,
+[data-theme="light"] .rgd-title,
+[data-theme="light"] h2.rgd-rec-title,
+[data-theme="light"] .rgd-rec-title {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .rgd-subtitle {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
 [data-theme="light"] .rgd-new-card {
   background: #f5f6fa;
   border-color: rgba(15, 23, 42, 0.06);
