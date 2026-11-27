@@ -7878,18 +7878,19 @@ async function openRgdExternalAlbum(item) {
       const q = [item.title, item.artist].filter(Boolean).join(' ');
       const res = await window.tidalService.search(q, 5);
       const hit = (res && res.albums || []).find(a => albumTitleMatches(a.title, item.title)) || (res && res.albums && res.albums[0]);
-      if (hit && hit.id) {
-        const full = await window.tidalService.getAlbum(hit.id);
+      const hitTidalId = hit && (hit.tidalId || String(hit.id || '').replace(/^tidal_album_/, ''));
+      if (hit && hitTidalId) {
+        const full = await window.tidalService.getAlbum(hitTidalId);
         if (full && full.album) {
           openAlbumDetail({
             ...full.album,
             isTidal: true,
-            tidalId: full.album.tidalId || hit.id,
+            tidalId: full.album.tidalId || hitTidalId,
             genre: genreDetailState.genre,
             tracks: (full.tracks || []).map(tr => ({
               ...tr,
               isTidal: true,
-              tidalAlbumId: full.album.tidalId || hit.id,
+              tidalAlbumId: full.album.tidalId || hitTidalId,
               genre: genreDetailState.genre
             }))
           });
@@ -8058,14 +8059,16 @@ function renderRgdNewReleases() {
     card.className = 'rgd-new-card';
     const fallbackCov = createSvgCover(item.title, item.artist, '#1e293b', '#0f172a');
     const coverSrc = item.cover || fallbackCov;
-    const dateLabel = formatRgdReleaseDate(item.releaseDate || item.year);
+    const dateLabel = item.source === 'local'
+      ? (item.addedDate || formatRgdReleaseDate(item.releaseDate || item.year))
+      : formatRgdReleaseDate(item.releaseDate || item.year);
 
     card.innerHTML = `
       <div class="rgd-new-meta">
         <div class="rgd-new-artist" title="${escapeXml(item.artist)}">${escapeXml(item.artist)}</div>
         <div class="rgd-new-title" title="${escapeXml(item.title)}">${escapeXml(item.title)}</div>
         ${dateLabel ? `<div class="rgd-new-date">${escapeXml(dateLabel)}</div>` : ''}
-        <div class="rgd-new-source" title="${item.source === 'tidal' ? 'TIDAL' : '線上曲庫'}">
+        <div class="rgd-new-source" title="${item.source === 'tidal' ? 'TIDAL 最新發行' : (item.source === 'local' ? '本機新加入' : '線上曲庫')}">
           ${item.source === 'tidal' ? tidalBadgeSvg : discBadgeSvg}
         </div>
       </div>
@@ -8147,7 +8150,55 @@ function renderRgdRecommended() {
   grid.appendChild(frag);
 }
 
+function formatRgdTimestampDate(ts) {
+  const n = Number(ts) || 0;
+  if (!n) return '';
+  const ms = n < 1e12 ? n * 1000 : n;
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getDate()} ${d.getMonth() + 1}月 ${d.getFullYear()}`;
+}
+
+function buildLocalNewlyAddedForGenre(canonGenre, limit = 12) {
+  const localGenreAlbums = genreDetailState.albums
+    .filter(a => a && !a.isTidal)
+    .slice()
+    .sort((a, b) => (Number(b.addedAt) || 0) - (Number(a.addedAt) || 0));
+
+  const allLocalRecent = (state.albums || [])
+    .filter(a => a && !a.isTidal)
+    .slice()
+    .sort((a, b) => (Number(b.addedAt) || 0) - (Number(a.addedAt) || 0));
+
+  const out = [];
+  const seen = new Set();
+  const addAlb = (a) => {
+    if (!a || !a.title || out.length >= limit) return;
+    const k = `${String(a.title).toLowerCase().trim()}___${String(a.artist || '').toLowerCase().trim()}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    const addedDate = formatRgdTimestampDate(a.addedAt);
+    out.push({
+      title: a.title,
+      artist: a.artist || 'Unknown Artist',
+      cover: a.cover ? formatCoverSrc(a.cover) : '',
+      releaseDate: a.date || (a.year ? `${a.year}` : '') || addedDate,
+      addedDate,
+      year: a.year || '',
+      source: 'local',
+      localAlbumRef: a
+    });
+  };
+
+  localGenreAlbums.forEach(addAlb);
+  if (out.length < limit) {
+    allLocalRecent.forEach(addAlb);
+  }
+  return out;
+}
+
 async function fetchRgdOnlineDiscovery(canonGenre, sessionId) {
+  const localRecent = buildLocalNewlyAddedForGenre(canonGenre, 12);
   const cached = _genreDiscoveryCache.get(canonGenre);
   if (cached && (Date.now() - cached.ts < 15 * 60 * 1000)) {
     if (genreDetailState.sessionId !== sessionId) return;
@@ -8158,51 +8209,97 @@ async function fetchRgdOnlineDiscovery(canonGenre, sessionId) {
     return;
   }
 
+  // Immediately show newly added local albums while TIDAL fetches in background (no blank/stuck state)
+  if (localRecent.length > 0 && genreDetailState.sessionId === sessionId) {
+    genreDetailState.newReleases = localRecent.slice(0, 12);
+    genreDetailState.recommended = localRecent.slice(0, 10);
+    renderRgdNewReleases();
+    renderRgdRecommended();
+  }
+
   const queryTerm = (typeof getRoonGenreQueryTerm === 'function')
     ? getRoonGenreQueryTerm(canonGenre)
     : canonGenre;
-  const collected = [];
-  const seen = new Set();
-  const pushItem = (it) => {
-    if (!it || !it.title) return;
-    const k = `${String(it.title).toLowerCase().trim()}___${String(it.artist || '').toLowerCase().trim()}`;
-    if (seen.has(k)) return;
-    seen.add(k);
-    collected.push(it);
+  const tidalPool = [];
+  const seenTidal = new Set();
+  const pushTidal = (norm) => {
+    if (!norm || !norm.title) return;
+    const tidalId = norm.tidalId || String(norm.id || '').replace(/^tidal_album_/, '');
+    const k = `${String(norm.title).toLowerCase().trim()}___${String(norm.artist || '').toLowerCase().trim()}`;
+    if (seenTidal.has(k)) return;
+    seenTidal.add(k);
+    tidalPool.push({
+      title: norm.title,
+      artist: norm.artist || 'Unknown Artist',
+      cover: norm.cover || '',
+      releaseDate: norm.releaseDate || String(norm.year || ''),
+      year: norm.year || '',
+      tidalId,
+      source: 'tidal'
+    });
   };
 
-  // 1. Query TIDAL if logged in
+  // 1. Fetch new albums from TIDAL (note: search() and getNewReleases() already return normalized albums!)
   if (window.tidalService && window.tidalService.isLoggedIn) {
     try {
-      const res = await window.tidalService.search(queryTerm, 24);
-      const rawAlbums = (res && res.albums) || [];
-      rawAlbums.forEach(raw => {
-        const norm = window.tidalService.normalizeAlbum(raw);
-        if (norm && norm.title && norm.cover) {
-          pushItem({
-            title: norm.title,
-            artist: norm.artist,
-            cover: norm.cover,
-            releaseDate: norm.releaseDate || String(norm.year || ''),
-            year: norm.year,
-            tidalId: norm.tidalId || raw.id,
-            source: 'tidal'
-          });
+      const [searchRes, newRelRes] = await Promise.allSettled([
+        window.tidalService.search(queryTerm, 20),
+        typeof window.tidalService.getNewReleases === 'function'
+          ? window.tidalService.getNewReleases(20)
+          : Promise.resolve([])
+      ]);
+      if (searchRes.status === 'fulfilled' && searchRes.value && Array.isArray(searchRes.value.albums)) {
+        searchRes.value.albums.forEach(pushTidal);
+      }
+      if (newRelRes.status === 'fulfilled' && Array.isArray(newRelRes.value)) {
+        // Keep new releases that match this genre first, then recent ones if pool is small
+        const matchedNew = newRelRes.value.filter(a => canonicalizeGenre(a.genre || '', a) === canonGenre);
+        matchedNew.forEach(pushTidal);
+        if (tidalPool.length < 8) {
+          newRelRes.value.forEach(pushTidal);
         }
-      });
-    } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('[GenreDetail] TIDAL discovery failed:', err);
+    }
   }
 
-  // 2. Complement / fallback with iTunes Search API (always works without login)
-  if (collected.length < 18) {
+  // Sort TIDAL albums newest first
+  const tidalNewest = tidalPool.slice().sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')));
+
+  // 2. Build exactly up to 12 "New Releases" cards:
+  //    TIDAL new albums first (up to 6 when local newly-added albums exist, or up to 12 if local has fewer),
+  //    followed by newly added local library albums to total 12!
+  const TARGET_NEW_COUNT = 12;
+  const newReleases = [];
+  const seenNew = new Set();
+  const addNewItem = (it) => {
+    if (!it || !it.title || newReleases.length >= TARGET_NEW_COUNT) return;
+    const k = `${String(it.title).toLowerCase().trim()}___${String(it.artist || '').toLowerCase().trim()}`;
+    if (seenNew.has(k)) return;
+    seenNew.add(k);
+    newReleases.push(it);
+  };
+
+  const localQuota = Math.min(localRecent.length, 6);
+  const tidalQuota = TARGET_NEW_COUNT - localQuota;
+  tidalNewest.slice(0, tidalQuota).forEach(addNewItem);
+  localRecent.forEach(addNewItem);
+  if (newReleases.length < TARGET_NEW_COUNT) {
+    tidalNewest.slice(tidalQuota).forEach(addNewItem);
+  }
+
+  // 3. Optional iTunes fallback ONLY if still fewer than 12 (e.g. TIDAL not logged in and small local library)
+  const itunesExtra = [];
+  if (newReleases.length < TARGET_NEW_COUNT || tidalPool.length < 5) {
     try {
-      const twUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=album&country=tw&limit=24`;
-      const data = await nativeFetchJson(twUrl, {}, 7000);
+      const twUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=album&country=tw&limit=18`;
+      const data = await nativeFetchJson(twUrl, {}, 6500);
       const results = (data && data.results) || [];
       results.forEach(r => {
         if (!r || !r.collectionName) return;
         const cov = (r.artworkUrl100 || '').replace(/100x100bb/i, '600x600bb');
-        pushItem({
+        itunesExtra.push({
           title: r.collectionName,
           artist: r.artistName || 'Unknown Artist',
           cover: cov,
@@ -8211,39 +8308,36 @@ async function fetchRgdOnlineDiscovery(canonGenre, sessionId) {
           source: 'itunes'
         });
       });
+      itunesExtra
+        .slice()
+        .sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')))
+        .forEach(addNewItem);
     } catch (_) {}
   }
 
-  // 3. Sort newest first for "New Releases", and pick distinct classics/highlights for "Recommended Albums"
-  const byDate = collected.slice().sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')));
-  const newReleases = byDate.slice(0, 18);
-
-  const newKeys = new Set(newReleases.slice(0, 6).map(x => `${x.title.toLowerCase()}___${x.artist.toLowerCase()}`));
-  const recPool = collected.filter(x => !newKeys.has(`${x.title.toLowerCase()}___${x.artist.toLowerCase()}`));
-  const recommended = (recPool.length >= 5 ? recPool : collected).slice(0, 15);
-
-  // If offline and nothing came back, fall back to local library albums of this genre
-  const fallbackLocal = genreDetailState.albums.slice(0, 10).map(a => ({
-    title: a.title,
-    artist: a.artist,
-    cover: a.cover ? formatCoverSrc(a.cover) : '',
-    releaseDate: a.date || String(a.year || ''),
-    year: a.year,
-    source: a.isTidal ? 'tidal' : 'local',
-    tidalId: a.tidalId || null
-  }));
-
-  const finalNew = newReleases.length ? newReleases : fallbackLocal;
-  const finalRec = recommended.length ? recommended : fallbackLocal;
+  // 4. Recommended Albums (cobalt-blue banner): pick distinct TIDAL / iTunes / local albums
+  const usedNewKeys = new Set(newReleases.slice(0, 6).map(x => `${x.title.toLowerCase()}___${x.artist.toLowerCase()}`));
+  const recCandidates = [...tidalPool, ...itunesExtra, ...localRecent];
+  const recommended = [];
+  const seenRec = new Set();
+  for (const cand of recCandidates) {
+    if (!cand || !cand.title) continue;
+    const k = `${cand.title.toLowerCase()}___${cand.artist.toLowerCase()}`;
+    if (seenRec.has(k) || usedNewKeys.has(k)) continue;
+    seenRec.add(k);
+    recommended.push(cand);
+    if (recommended.length >= 15) break;
+  }
+  const finalRec = recommended.length >= 5 ? recommended : recCandidates.slice(0, 15);
 
   _genreDiscoveryCache.set(canonGenre, {
-    newReleases: finalNew,
+    newReleases: newReleases.slice(0, TARGET_NEW_COUNT),
     recommended: finalRec,
     ts: Date.now()
   });
 
   if (genreDetailState.sessionId !== sessionId) return;
-  genreDetailState.newReleases = finalNew;
+  genreDetailState.newReleases = newReleases.slice(0, TARGET_NEW_COUNT);
   genreDetailState.recommended = finalRec;
   renderRgdNewReleases();
   renderRgdRecommended();
