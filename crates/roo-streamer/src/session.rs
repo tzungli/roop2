@@ -133,7 +133,7 @@ fn upsample_stage1_stereo(
 }
 
 enum StageResampler {
-    Fir(roo_dsp::FirFilter),
+    Fir(Arc<roo_dsp::FirFilter>),
     SincM(roo_dsp::SincMFftResampler),
 }
 
@@ -144,7 +144,7 @@ impl StageResampler {
                 return Some(Self::SincM(fft_resampler));
             }
         }
-        REGISTRY.build_filter(fs_out, src_rate, phase_id).map(Self::Fir)
+        REGISTRY.build_filter_arc(fs_out, src_rate, phase_id).map(Self::Fir)
     }
 
     fn upsample_range_stereo(
@@ -253,17 +253,13 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
         right = padded_r;
     }
 
-    // 3. Apply PEQ if configured
+    // 3. Apply PEQ if configured (zero-allocation in-place)
     if let Some(peq_str) = &opts.peq_json {
         if !peq_str.trim().is_empty() && peq_str != "null" {
             if let Ok(peq_conf) = serde_json::from_str::<PeqConfig>(peq_str) {
                 if peq_conf.enabled && !peq_conf.bands.is_empty() {
                     let chain = PeqChain::new(src_rate as f64, peq_conf.pre_gain_db, &peq_conf.bands);
-                    let mut out_l = vec![0.0; left.len()];
-                    let mut out_r = vec![0.0; right.len()];
-                    chain.apply_arrays(&left, &right, &mut out_l, &mut out_r);
-                    left = out_l;
-                    right = out_r;
+                    chain.apply_in_place(&mut left, &mut right);
                 }
             }
         }
@@ -566,9 +562,11 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     return;
                 }
 
-                let batch_frames = 16384usize;
+                // Scale batch size with target sample rate (~0.5s per batch) to reduce write/flush syscalls by >90%
+                let batch_frames = ((target_rate as usize) / 2).max(32768);
                 let mut curr_frame = initial_frames;
                 let mut batch_buf = vec![0u8; batch_frames * 6];
+                let bg_start = std::time::Instant::now();
 
                 while curr_frame < out_frames {
                     if bg_is_cancelled.load(Ordering::Relaxed) {
@@ -584,6 +582,18 @@ pub fn start_progressive_stream(opts: &DspStreamOptions, token: &str) -> Result<
                     curr_frame += frames_to_run;
                     bg_bytes_written.store(44 + (curr_frame * 6) as u64, Ordering::Release);
                     bg_notify.notify_waiters();
+
+                    // Gentle CPU pacing once we have >25s buffered ahead of real-time playback
+                    let written_secs = curr_frame as f64 / target_rate as f64;
+                    let ahead_secs = written_secs - bg_start.elapsed().as_secs_f64();
+                    if ahead_secs > 25.0 && curr_frame < out_frames {
+                        for _ in 0..8 {
+                            if bg_is_cancelled.load(Ordering::Relaxed) {
+                                return;
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(20));
+                        }
+                    }
                 }
                 bg_is_completed.store(true, Ordering::Release);
                 bg_notify.notify_waiters();
@@ -743,17 +753,13 @@ pub fn generate_audio_stream(opts: &DspStreamOptions) -> Result<GeneratedStream>
         bail!("No audio samples read from file");
     }
 
-    // 2. Apply PEQ if configured
+    // 2. Apply PEQ if configured (zero-allocation in-place)
     if let Some(peq_str) = &opts.peq_json {
         if !peq_str.trim().is_empty() && peq_str != "null" {
             if let Ok(peq_conf) = serde_json::from_str::<PeqConfig>(peq_str) {
                 if peq_conf.enabled && !peq_conf.bands.is_empty() {
                     let chain = PeqChain::new(src_rate as f64, peq_conf.pre_gain_db, &peq_conf.bands);
-                    let mut out_l = vec![0.0; left.len()];
-                    let mut out_r = vec![0.0; right.len()];
-                    chain.apply_arrays(&left, &right, &mut out_l, &mut out_r);
-                    left = out_l;
-                    right = out_r;
+                    chain.apply_in_place(&mut left, &mut right);
                 }
             }
         }

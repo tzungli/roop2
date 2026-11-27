@@ -117,13 +117,15 @@ impl ConvolutionEngine {
         if taps == 0 { return None; }
         let k = (taps + CONV_BLOCK_SIZE - 1) / CONV_BLOCK_SIZE;
         let mut parts = Vec::with_capacity(k);
+        // Fold 1/N IFFT normalization directly into IR spectra at init time
+        let inv_n = 1.0 / CONV_FFT_SIZE as f64;
 
         for step in 0..k {
             let start = step * CONV_BLOCK_SIZE;
             let len = (taps - start).min(CONV_BLOCK_SIZE);
             let mut buf = vec![Complex64::new(0.0, 0.0); CONV_FFT_SIZE];
             for i in 0..len {
-                buf[i].re = ir[start + i];
+                buf[i].re = ir[start + i] * inv_n;
             }
             fft.process(&mut buf);
             parts.push(ConvPartition { h: buf });
@@ -153,13 +155,23 @@ impl ConvolutionEngine {
         }
 
         // Real-input conjugate symmetry: accumulate only DC..Nyquist (N/2 + 1 bins),
-        // cutting partition multiply-add work in half with exact mathematical equivalence.
+        // cutting partition multiply-add work in half with 4-way loop unrolling.
+        let bins = half + 1;
         for k in 0..k_total {
             let x_idx = (ch.ring_pos + 2 * k_total - 1 - k) % k_total;
-            let x = &ch.ring[x_idx][..=half];
-            let h = &ch.parts[k].h[..=half];
-            for i in 0..=half {
+            let x = &ch.ring[x_idx][..bins];
+            let h = &ch.parts[k].h[..bins];
+            let mut i = 0usize;
+            while i + 4 <= bins {
                 y_buf[i] += x[i] * h[i];
+                y_buf[i + 1] += x[i + 1] * h[i + 1];
+                y_buf[i + 2] += x[i + 2] * h[i + 2];
+                y_buf[i + 3] += x[i + 3] * h[i + 3];
+                i += 4;
+            }
+            while i < bins {
+                y_buf[i] += x[i] * h[i];
+                i += 1;
             }
         }
 
@@ -169,11 +181,10 @@ impl ConvolutionEngine {
         }
 
         fft_inv.process(y_buf);
-        let inv_n = 1.0 / CONV_FFT_SIZE as f64;
 
-        // Overlap-save: valid linear convolution is the second half
+        // Overlap-save: valid linear convolution is the second half (1/N already folded into H)
         for i in 0..CONV_BLOCK_SIZE {
-            ch.out[i] = y_buf[CONV_BLOCK_SIZE + i].re * inv_n;
+            ch.out[i] = y_buf[CONV_BLOCK_SIZE + i].re;
         }
         ch.out_pos = 0;
         ch.out_len = CONV_BLOCK_SIZE;

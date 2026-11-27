@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 use crate::fir::{
     build_hq_poly_sinc_gauss_long_filter, build_poly_ext2_filter, build_poly_ext3_filter,
@@ -69,6 +69,7 @@ pub struct FilterPreviewResult {
 pub struct FilterRegistry {
     plugins: RwLock<HashMap<String, FilterDescriptor>>,
     user_slots: RwLock<HashMap<String, UserFilterSpec>>,
+    filter_cache: RwLock<HashMap<(u64, u64, String), Arc<FirFilter>>>,
 }
 
 pub static REGISTRY: std::sync::LazyLock<FilterRegistry> = std::sync::LazyLock::new(FilterRegistry::new);
@@ -78,6 +79,7 @@ impl FilterRegistry {
         let registry = Self {
             plugins: RwLock::new(HashMap::new()),
             user_slots: RwLock::new(HashMap::new()),
+            filter_cache: RwLock::new(HashMap::new()),
         };
         registry.register_core_filters();
         registry
@@ -182,7 +184,29 @@ impl FilterRegistry {
         map.get(id).cloned()
     }
 
+    pub fn build_filter_arc(&self, fs_out: f64, src_rate: f64, phase_id: &str) -> Option<Arc<FirFilter>> {
+        let key = (fs_out.round() as u64, src_rate.round() as u64, phase_id.to_string());
+        if let Ok(read) = self.filter_cache.read() {
+            if let Some(cached) = read.get(&key) {
+                return Some(cached.clone());
+            }
+        }
+        let built = self.build_filter_uncached(fs_out, src_rate, phase_id)?;
+        let arc_f = Arc::new(built);
+        if let Ok(mut write) = self.filter_cache.write() {
+            if write.len() >= 32 {
+                write.clear();
+            }
+            write.insert(key, arc_f.clone());
+        }
+        Some(arc_f)
+    }
+
     pub fn build_filter(&self, fs_out: f64, src_rate: f64, phase_id: &str) -> Option<FirFilter> {
+        self.build_filter_arc(fs_out, src_rate, phase_id).map(|a| (*a).clone())
+    }
+
+    fn build_filter_uncached(&self, fs_out: f64, src_rate: f64, phase_id: &str) -> Option<FirFilter> {
         match phase_id {
             "precise-linear" => Some(build_precise_linear_filter(fs_out, src_rate)),
             "precise-min" => Some(build_precise_min_filter(fs_out, src_rate)),
@@ -230,11 +254,17 @@ impl FilterRegistry {
         };
         self.plugins.write().unwrap().insert(spec.id.clone(), desc);
         self.user_slots.write().unwrap().insert(spec.id.clone(), spec);
+        if let Ok(mut cache) = self.filter_cache.write() {
+            cache.clear();
+        }
     }
 
     pub fn delete_user_slot(&self, slot_id: &str) {
         self.plugins.write().unwrap().remove(slot_id);
         self.user_slots.write().unwrap().remove(slot_id);
+        if let Ok(mut cache) = self.filter_cache.write() {
+            cache.clear();
+        }
     }
 
     pub fn list_user_slots(&self) -> Vec<UserFilterSpec> {

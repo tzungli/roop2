@@ -205,7 +205,8 @@ pub fn build_fir_phases(gf: &FirFilter) -> Option<PolyphaseBank> {
 }
 
 #[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2,fma")]
+#[cfg_attr(all(target_feature = "avx2", target_feature = "fma"), inline(always))]
+#[cfg_attr(not(all(target_feature = "avx2", target_feature = "fma")), target_feature(enable = "avx2,fma"))]
 unsafe fn dot_product_avx2_fma(x: &[f64], g: &[f64]) -> f64 {
     use std::arch::x86_64::*;
     let len = x.len().min(g.len());
@@ -249,35 +250,42 @@ unsafe fn dot_product_avx2_fma(x: &[f64], g: &[f64]) -> f64 {
     acc
 }
 
-/// Vectorized 64-bit dot product with runtime AVX2 + FMA dispatch for polyphase FIR scanning.
-#[inline]
+/// Vectorized 64-bit dot product with compile-time AVX2 + FMA inlining (or runtime fallback).
+#[inline(always)]
 pub fn polyphase_dot_product(x: &[f64], g: &[f64]) -> f64 {
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    {
+        return unsafe { dot_product_avx2_fma(x, g) };
+    }
+    #[cfg(all(target_arch = "x86_64", not(all(target_feature = "avx2", target_feature = "fma"))))]
     {
         if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
             return unsafe { dot_product_avx2_fma(x, g) };
         }
     }
-    let t = x.len().min(g.len());
-    let mut s0 = 0.0f64;
-    let mut s1 = 0.0f64;
-    let mut s2 = 0.0f64;
-    let mut s3 = 0.0f64;
-    let chunks = t / 4;
-    let mut j = 0usize;
-    for _ in 0..chunks {
-        s0 += x[j] * g[j];
-        s1 += x[j + 1] * g[j + 1];
-        s2 += x[j + 2] * g[j + 2];
-        s3 += x[j + 3] * g[j + 3];
-        j += 4;
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    {
+        let t = x.len().min(g.len());
+        let mut s0 = 0.0f64;
+        let mut s1 = 0.0f64;
+        let mut s2 = 0.0f64;
+        let mut s3 = 0.0f64;
+        let chunks = t / 4;
+        let mut j = 0usize;
+        for _ in 0..chunks {
+            s0 += x[j] * g[j];
+            s1 += x[j + 1] * g[j + 1];
+            s2 += x[j + 2] * g[j + 2];
+            s3 += x[j + 3] * g[j + 3];
+            j += 4;
+        }
+        let mut acc = (s0 + s1) + (s2 + s3);
+        while j < t {
+            acc += x[j] * g[j];
+            j += 1;
+        }
+        acc
     }
-    let mut acc = (s0 + s1) + (s2 + s3);
-    while j < t {
-        acc += x[j] * g[j];
-        j += 1;
-    }
-    acc
 }
 
 #[inline]

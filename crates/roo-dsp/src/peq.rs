@@ -189,4 +189,15 @@ impl PeqChain {
             out_r[i] = or;
         }
     }
+
+    /// Zero-allocation in-place stereo PEQ filtering (avoids allocating two full-track Vec<f64> buffers).
+    pub fn apply_in_place(&self, left: &mut [f64], right: &mut [f64]) {
+        let n = left.len().min(right.len());
+        let mut st = self.create_state();
+        for i in 0..n {
+            let (ol, or) = self.process_pair(&mut st, left[i], right[i]);
+            left[i] = ol;
+            right[i] = or;
+        }
+    }
 }
