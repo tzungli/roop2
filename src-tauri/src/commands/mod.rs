@@ -7,3 +7,5 @@ pub mod library;
 pub mod tidal;
 pub mod http;
 pub mod updater;
+pub mod metadata;
+pub mod kkbox;

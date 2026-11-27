@@ -18,6 +18,8 @@ use commands::library::*;
 use commands::tidal::*;
 use commands::updater::*;
 use commands::window::*;
+use commands::metadata::*;
+use commands::kkbox::*;
 
 use roo_dlna::DlnaManager;
 use roo_airplay::AirPlayManager;
@@ -430,6 +432,12 @@ async fn main() {
             playlist_write_file,
             shell_open_external,
             util_translate_to_zh_tw,
+            // Native Metadata & KKBOX commands
+            metadata_fetch_lyrics,
+            metadata_fetch_album_bio,
+            metadata_fetch_artist_portrait,
+            kkbox_api,
+            kkbox_get_stream_url,
             // TIDAL commands
             tidal_get_stored_auth,
             tidal_save_auth,

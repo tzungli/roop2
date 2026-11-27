@@ -391,9 +391,7 @@ pub async fn library_scan_folder(
         }));
     }).map_err(|e| e.to_string())?;
 
-    for t in &scanned_tracks {
-        let _ = state.db.insert_or_update_track(t);
-    }
+    let _ = state.db.bulk_upsert_tracks(&scanned_tracks);
     let _ = state.db.add_folder(&folder_path);
 
     let all_tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
@@ -411,7 +409,19 @@ pub async fn library_scan_folder(
 
 #[tauri::command]
 pub async fn library_load_saved(state: State<'_, LibraryState>) -> Result<serde_json::Value, String> {
-    let tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
+    let mut tracks = state.db.get_all_tracks().map_err(|e| e.to_string())?;
+    for t in &mut tracks {
+        t.genre = roo_library::genre::canonicalize_genre(
+            &t.genre,
+            "",
+            "",
+            &t.title,
+            &t.album,
+            &t.artist,
+            &t.album_artist,
+        )
+        .to_string();
+    }
     let folders = state.db.get_folders().map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "tracks": tracks,

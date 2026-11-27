@@ -83,8 +83,9 @@ pub fn read_file_metadata(file_path: &Path, covers_dir: &Path) -> Result<TrackRe
         .unwrap_or_else(|| "Unknown Album".to_string());
 
     let year = tag.and_then(|t| t.year());
-    let genre = tag.and_then(|t| t.genre().map(|s| s.to_string()))
+    let raw_genre = tag.and_then(|t| t.genre().map(|s| s.to_string()))
         .unwrap_or_else(|| "Unknown".to_string());
+    let genre = crate::genre::canonicalize_genre(&raw_genre, &raw_genre, "", &title, &album, &artist, &album_artist).to_string();
 
     let track_number = tag.and_then(|t| t.track());
     let disk_number = tag.and_then(|t| t.disk());

@@ -316,6 +316,11 @@
     },
     updateAlbumArtist: (albumTitle, artistName) => invoke('library_update_album_artist', { albumTitle, artistName }),
     readTrackLyrics: (filePath) => invoke('library_read_track_lyrics', { filePath }),
+    fetchLyrics: (req) => invoke('metadata_fetch_lyrics', { req }),
+    fetchAlbumBioNative: (req) => invoke('metadata_fetch_album_bio', { req }),
+    fetchArtistPortraitNative: (artistName) => invoke('metadata_fetch_artist_portrait', { artistName }),
+    kkboxApi: (endpoint, territory = 'TW') => invoke('kkbox_api', { endpoint, territory }),
+    kkboxGetStreamUrl: (trackId, territory = 'TW') => invoke('kkbox_get_stream_url', { trackId, territory }),
     openExternal: (url) => invoke('shell_open_external', { url }),
     getDsdStreamUrl: (filePath, startSec = 0, peqJson = '', convJson = '') =>
       invoke('audio_get_dsd_stream_url', { filePath, startSec, peqJson, convJson }),
