@@ -310,7 +310,7 @@ class TidalService {
   }
 
   async getAlbumReview(albumId) {
-    const cleanId = String(albumId || '').replace(/^tidal_/, '').trim();
+    const cleanId = String(albumId || '').replace(/^tidal_(?:album_)?/, '').trim();
     if (!cleanId) return null;
     try {
       const res = await this.api(`/albums/${cleanId}/review`);

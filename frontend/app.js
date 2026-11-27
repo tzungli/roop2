@@ -8992,23 +8992,48 @@ async function resolveAlbumReviewData(album) {
   let sourceLabel = '';
   let sourceLang = 'auto';
 
-  // 1. TIDAL / TiVo Professional Album Review (strongest for Western / Jazz / Classical)
+  // 1. TIDAL / TiVo Professional Album Review (checks multiple editions for both TIDAL & local albums)
   if (!rawBioText && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getAlbumReview === 'function') {
     try {
-      let targetTidalId = album.isTidal ? (album.tidalId || album.id) : null;
-      if (!targetTidalId) {
-        const candidates = await window.tidalService.searchAlbumVersions(cleanTitle, cleanArtist);
-        const match = (candidates || []).find(a =>
-          albumTitleMatches(a.title, cleanTitle, cleanTitleCn) && artistNameMatches(a.artist, cleanArtist, cleanArtistCn)
-        );
-        if (match) targetTidalId = match.tidalId || match.id;
+      const candidateIds = [];
+      const pushTidalId = (rawId) => {
+        const clean = String(rawId || '').replace(/^tidal_(?:album_)?/, '').trim();
+        if (clean && !candidateIds.includes(clean)) candidateIds.push(clean);
+      };
+
+      if (album.isTidal) {
+        pushTidalId(album.tidalId || album.id);
       }
-      if (targetTidalId) {
-        const rev = await window.tidalService.getAlbumReview(targetTidalId);
+
+      // Search matching TIDAL editions (many albums attach TiVo reviews only to the standard/original edition)
+      let candidates = [];
+      if (typeof window.tidalService.searchAlbumVersions === 'function') {
+        candidates = (await window.tidalService.searchAlbumVersions(cleanTitle, cleanArtist)) || [];
+      }
+      if (!candidates.length && typeof window.tidalService.search === 'function') {
+        const sr = await window.tidalService.search(searchQuery, 8);
+        candidates = (sr && sr.albums) || [];
+      }
+
+      const matchedVersions = candidates.filter(a =>
+        albumTitleMatches(a.title, cleanTitle, cleanTitleCn) &&
+        (!cleanArtist || artistNameMatches(a.artist, cleanArtist, cleanArtistCn))
+      );
+
+      for (const mv of matchedVersions) {
+        pushTidalId(mv.tidalId || mv.id);
+        if (mv.releaseDate && !onlineMeta.releaseDate) onlineMeta.releaseDate = String(mv.releaseDate).slice(0, 10);
+        if (mv.copyright && !onlineMeta.copyright) onlineMeta.copyright = String(mv.copyright).trim();
+        if (mv.label && !onlineMeta.label) onlineMeta.label = String(mv.label).trim();
+      }
+
+      for (const tid of candidateIds.slice(0, 4)) {
+        const rev = await window.tidalService.getAlbumReview(tid);
         if (rev && rev.text && rev.text.length >= 45) {
           rawBioText = rev.text;
           isFromEnWiki = !/[\u4e00-\u9fff]/.test(rev.text);
           sourceLabel = 'TIDAL / TiVo 專業樂評';
+          break;
         }
       }
     } catch (_) {}
@@ -9450,6 +9475,40 @@ async function resolveAlbumReviewData(album) {
 
   if (onlineMeta.releaseDate || onlineMeta.label || onlineMeta.copyright || onlineMeta.tags.length > 0 || onlineMeta.primaryType) {
     albumOnlineMetaCache.set(cacheKey, onlineMeta);
+  }
+
+  // 8. Structured Metadata Summary Fallback (iTunes / MusicBrainz / TIDAL factual liner card when no editorial review exists)
+  if (!rawBioText && (onlineMeta.releaseDate || onlineMeta.label || onlineMeta.tags.length > 0 || onlineMeta.primaryType)) {
+    const parts = [];
+    const artistDisp = cleanArtist || '未知藝術家';
+    const typeMap = { Album: '錄音室專輯', EP: '迷你專輯 (EP)', Single: '單曲', Live: '現場錄音專輯', Compilation: '精選輯', Soundtrack: '原聲帶' };
+    const typeLabel = typeMap[onlineMeta.secondaryTypes[0]] || typeMap[onlineMeta.primaryType] || '專輯';
+    const relStr = onlineMeta.releaseDate ? `於 ${onlineMeta.releaseDate} ` : (album.year ? `於 ${album.year} 年` : '');
+    const lblStr = onlineMeta.label ? `由 ${onlineMeta.label} ` : '';
+    parts.push(`《${cleanTitle}》是 ${artistDisp} ${relStr}${lblStr}發行的${typeLabel}。`);
+    if (onlineMeta.tags.length > 0) {
+      const zhTags = onlineMeta.tags.slice(0, 4).map(tg => {
+        const zh = (typeof getRoonGenreZhName === 'function') ? getRoonGenreZhName(tg) : tg;
+        return zh && zh !== tg ? `${zh} (${tg})` : tg;
+      });
+      parts.push(`曲風與標籤涵蓋 ${zhTags.join('、')}。`);
+    }
+    const trackCount = Array.isArray(album.tracks) ? album.tracks.length : 0;
+    if (trackCount > 0) {
+      parts.push(`本版本共收錄 ${trackCount} 首曲目。`);
+    }
+    if (onlineMeta.copyright) {
+      parts.push(`版權資訊：${onlineMeta.copyright}。`);
+    }
+    const summaryText = parts.join('');
+    const entry = {
+      originalText: summaryText,
+      translatedText: summaryText,
+      isFromEnWiki: false,
+      sourceLabel: 'iTunes / MusicBrainz 唱片檔案'
+    };
+    albumBioCache.set(cacheKey, entry);
+    return entry;
   }
 
   if (!rawBioText) return null;
