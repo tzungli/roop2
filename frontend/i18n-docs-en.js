@@ -326,7 +326,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">-237.20 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">Ext2 Brickwall, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">poly-sinc-ext2</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB (0dB @20.8k)</td>
@@ -335,7 +335,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">-213.26 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #e879f9;">Ext3 Apodizing, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #e879f9;">poly-sinc-ext3 (apod)</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (0dB @21.0k)</td>
@@ -344,7 +344,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">-234.67 dB</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">sinc-M</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (0dB @21.95k)</td>
@@ -353,7 +353,7 @@
                       <td style="padding: 8px 10px; color: #34d399;">&lt; -210 dB</td>
                     </tr>
                     <tr>
-                      <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">Sinc-L 2.1M-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">sinc-L</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399;">0.000 dB</td>
                       <td style="padding: 8px 10px; color: #34d399; font-weight: 600;">0.000 dB (0.0000dB @22.00k)</td>
@@ -427,7 +427,7 @@
                       <td style="padding: 8px 10px;"><strong>All-Round Natural Staging</strong>: Zero truncation glare, spacious 3D soundstage with natural harmonics.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">Ext2 Brickwall, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #f472b6;">poly-sinc-ext2</td>
                       <td style="padding: 8px 10px;">5,121 (4x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -436,7 +436,7 @@
                       <td style="padding: 8px 10px;"><strong>Ultra-Transparent Detail</strong>: Extended 20.8kHz flat passband, -183dB Nyquist rejection, crisp micro-detail.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #e879f9;">Ext3 Apodizing, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #e879f9;">poly-sinc-ext3 (apod)</td>
                       <td style="padding: 8px 10px; font-weight: 600;">16,385 (4x)<br>65,537 (16x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -445,7 +445,7 @@
                       <td style="padding: 8px 10px;"><strong>Early CD Master Cure</strong>: Cuts -210dB before 22.05kHz to erase vintage ADC Nyquist ringing, silky smooth clarity.</td>
                     </tr>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">Sinc-M Million-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #fb923c;">sinc-M</td>
                       <td style="padding: 8px 10px; font-weight: 600;">262,137 (4x)<br>1,048,545 (16x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -454,7 +454,7 @@
                       <td style="padding: 8px 10px;"><strong>Million-Tap Spatial Precision</strong>: Flat to 21.95kHz, -205dB image cut at 22.15kHz, deep hall ambiance.</td>
                     </tr>
                     <tr>
-                      <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">Sinc-L 2.1M-Tap, Linear Phase</td>
+                      <td style="padding: 8px 10px; font-weight: 600; color: #c084fc;">sinc-L</td>
                       <td style="padding: 8px 10px; font-weight: 600;">524,281 (4x)<br>2,097,121 (16x)</td>
                       <td style="padding: 8px 10px;">50.00%</td>
                       <td style="padding: 8px 10px;">50.00%</td>
@@ -716,7 +716,7 @@
                 <li><strong>Lush Audiophile Vocals &amp; Acoustic Strings</strong>: <code>Smooth, Linear Phase</code> &rarr; <code>5th-Order (CRFB)</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD128 / DSD256</code> &rarr; <code>30k</code>. Ringing duration shortened by &gt;75%, velvety smooth treble, lush natural overtones without high-frequency digital hardness.</li>
                 <li><strong>Classic Analog &amp; Vinyl Warmth</strong>: <code>Smooth, Minimum Phase</code> &rarr; <code>5th-Order (CRFB)</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD64 / DSD128</code> &rarr; <code>20k / 30k</code>. Zero pre-ringing plus minimal post-decay eliminates digital harshness, recreating the organic, fatigue-free warmth of vintage vinyl and classic SACDs.</li>
                 <li><strong>Pure Direct PCM Oversampling</strong>: <code>Precise, Linear Phase</code> &rarr; <code>4x Integer Rate (176.4k / 192k)</code> &rarr; <code>TPDF Dither</code> &rarr; <code>None / 30k</code>. Direct polyphase FIR upsampling passed directly to DAC chips, delivering open clarity and spacious imaging.</li>
-                <li><strong>HQPlayer Flagship Reference Synergy (Sinc-L + ASDM7EC-super 512+fs)</strong>: <code>Sinc-L, Linear Phase</code> &rarr; <code>ASDM7EC-super 512+fs</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD512 / DSD256</code> &rarr; <code>40k / 50k / None</code>. 262k-pt FFT 2.1M-tap brickwall (flat to 22.00kHz, -210dB image rejection) paired with dual-band 7th-order Trellis (254.26 dB SNR, -222.68 dBFS ultrasonic floor at DSD512) for holographic 3D soundstage depth.</li>
+                <li><strong>HQPlayer Flagship Reference Synergy (Sinc-L + ASDM7EC-super 512+fs)</strong>: <code>sinc-L</code> &rarr; <code>ASDM7EC-super 512+fs</code> &rarr; <code>Gauss Dither</code> &rarr; <code>DSD512 / DSD256</code> &rarr; <code>40k / 50k / None</code>. 262k-pt FFT 2.1M-tap brickwall (flat to 22.00kHz, -210dB image rejection) paired with dual-band 7th-order Trellis (254.26 dB SNR, -222.68 dBFS ultrasonic floor at DSD512) for holographic 3D soundstage depth.</li>
               </ul>
             </div>`,
   };
