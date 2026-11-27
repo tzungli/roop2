@@ -302,6 +302,12 @@ impl LibraryDatabase {
 
     fn init_schema(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        let _ = conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA temp_store = MEMORY;
+             PRAGMA cache_size = -16000;",
+        );
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS tracks (
                 id TEXT PRIMARY KEY,
@@ -344,15 +350,15 @@ impl LibraryDatabase {
     fn upsert_track_with_conn(conn: &Connection, t: &TrackRecord) -> Result<()> {
         let eff_path = t.effective_path();
         let is_tidal_int: i64 = if t.is_tidal || t.tidal_id.is_some() || eff_path.starts_with("tidal://") { 1 } else { 0 };
-        conn.execute(
+        let mut stmt = conn.prepare_cached(
             "INSERT OR REPLACE INTO tracks (id, path, title, artist, album_artist, album, year, genre, track_number, disk_number, duration, sample_rate, bits_per_sample, format, cover_path, date_added, is_tidal, tidal_id, tidal_album_id, audio_quality)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20);",
-            params![
-                t.id, eff_path, t.title, t.artist, t.album_artist, t.album, t.year, t.genre,
-                t.track_number, t.disk_number, t.duration, t.sample_rate, t.bits_per_sample,
-                t.format, t.cover_path, t.date_added, is_tidal_int, t.tidal_id, t.tidal_album_id, t.audio_quality
-            ],
         )?;
+        stmt.execute(params![
+            t.id, eff_path, t.title, t.artist, t.album_artist, t.album, t.year, t.genre,
+            t.track_number, t.disk_number, t.duration, t.sample_rate, t.bits_per_sample,
+            t.format, t.cover_path, t.date_added, is_tidal_int, t.tidal_id, t.tidal_album_id, t.audio_quality
+        ])?;
         Ok(())
     }
 

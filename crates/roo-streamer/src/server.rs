@@ -20,6 +20,18 @@ pub static STREAM_CACHE: std::sync::LazyLock<RwLock<HashMap<String, Arc<Generate
 static COVER_TOKEN_REGISTRY: std::sync::LazyLock<RwLock<HashMap<String, (Option<String>, Option<String>)>>> =
     std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
+static EMBEDDED_COVER_CACHE: std::sync::LazyLock<RwLock<HashMap<String, Vec<u8>>>> =
+    std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
+
+static COVER_HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> =
+    std::sync::LazyLock::new(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .pool_max_idle_per_host(4)
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    });
+
 pub fn register_cover_for_token(token: &str, cover_path: Option<String>, file_path: Option<String>) {
     let mut write = COVER_TOKEN_REGISTRY.write().unwrap();
     if write.len() > 200 {
@@ -203,16 +215,14 @@ async fn resolve_cover_response(q: CoverQuery) -> Response {
     });
 
     if let Some(url) = remote_url {
-        if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build() {
-            if let Ok(resp) = client.get(url).send().await {
-                if resp.status().is_success() {
-                    let ctype = resp.headers().get(header::CONTENT_TYPE)
-                        .and_then(|v| v.to_str().ok())
-                        .unwrap_or("image/jpeg")
-                        .to_string();
-                    if let Ok(bytes) = resp.bytes().await {
-                        return dlna_image_response(StatusCode::OK, &ctype, bytes.to_vec());
-                    }
+        if let Ok(resp) = COVER_HTTP_CLIENT.get(url).send().await {
+            if resp.status().is_success() {
+                let ctype = resp.headers().get(header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("image/jpeg")
+                    .to_string();
+                if let Ok(bytes) = resp.bytes().await {
+                    return dlna_image_response(StatusCode::OK, &ctype, bytes.to_vec());
                 }
             }
         }
@@ -232,9 +242,15 @@ async fn resolve_cover_response(q: CoverQuery) -> Response {
         }
     }
 
-    // 3. Fallback: check track folder or embedded picture in audio file
+    // 3. Fallback: check track folder or embedded picture in audio file (with in-memory cache)
     if resolved_image_path.is_none() {
         if let Some(track_path_str) = q.file_path.as_deref() {
+            if let Ok(cache_read) = EMBEDDED_COVER_CACHE.read() {
+                if let Some(cached_bytes) = cache_read.get(track_path_str) {
+                    return dlna_image_response(StatusCode::OK, "image/jpeg", cached_bytes.clone());
+                }
+            }
+
             let tp = std::path::Path::new(track_path_str);
             if let Some(parent) = tp.parent() {
                 let candidates = ["cover.jpg", "folder.jpg", "front.jpg", "Cover.jpg", "Folder.jpg", "cover.png", "folder.png"];
@@ -255,6 +271,12 @@ async fn resolve_cover_response(q: CoverQuery) -> Response {
                     if let Some(t) = tag {
                         if let Some(pic) = t.pictures().first() {
                             let data = pic.data().to_vec();
+                            if let Ok(mut cache_write) = EMBEDDED_COVER_CACHE.write() {
+                                if cache_write.len() >= 32 {
+                                    cache_write.clear();
+                                }
+                                cache_write.insert(track_path_str.to_string(), data.clone());
+                            }
                             return dlna_image_response(StatusCode::OK, "image/jpeg", data);
                         }
                     }

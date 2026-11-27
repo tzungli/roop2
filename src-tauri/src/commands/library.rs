@@ -851,11 +851,7 @@ pub async fn util_translate_to_zh_tw(text: String) -> Result<String, String> {
         return Ok(String::new());
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
-        .timeout(std::time::Duration::from_secs(12))
-        .build()
-        .map_err(|e| format!("reqwest build error: {}", e))?;
+    let client = crate::commands::http::shared_http_client();
 
     let paragraphs: Vec<&str> = text.split("\n\n").collect();
     let mut translated_paragraphs = Vec::with_capacity(paragraphs.len());

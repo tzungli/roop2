@@ -19,15 +19,26 @@ pub struct NativeHttpResponse {
     pub body: String,
 }
 
+static SHARED_HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> =
+    std::sync::LazyLock::new(|| {
+        reqwest::Client::builder()
+            .pool_max_idle_per_host(8)
+            .pool_idle_timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(8))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    });
+
+pub fn shared_http_client() -> &'static reqwest::Client {
+    &SHARED_HTTP_CLIENT
+}
+
 #[tauri::command]
 pub async fn native_http_request(
     request: NativeHttpRequest,
 ) -> Result<NativeHttpResponse, String> {
     let timeout = std::time::Duration::from_millis(request.timeout_ms.unwrap_or(20000));
-    let client = reqwest::Client::builder()
-        .timeout(timeout)
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = shared_http_client();
 
     let method = match request.method.as_deref().unwrap_or("GET").to_uppercase().as_str() {
         "POST" => reqwest::Method::POST,
@@ -38,7 +49,7 @@ pub async fn native_http_request(
         _ => reqwest::Method::GET,
     };
 
-    let mut req_builder = client.request(method, &request.url);
+    let mut req_builder = client.request(method, &request.url).timeout(timeout);
 
     // Default User-Agent if not provided
     let mut has_ua = false;

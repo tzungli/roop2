@@ -2692,6 +2692,7 @@ function rebuildLibraryCollections() {
   state.albums = Array.from(albumMap.values());
   state.artists = Array.from(artistMap.values());
   state.genres = Array.from(genreSet);
+  rebuildAlbumLookupMaps();
 
   if (state.currentView === 'kkbox') {
     try { refreshKkboxMatches(); } catch (e) {}
@@ -12415,29 +12416,62 @@ function closeAlbumDetail() {
 }
 
 // ----------------- Player & Audio Engine -----------------
+let _albumByFilePathMap = new Map();
+let _albumByTitleArtistMap = new Map();
+let _albumByTitleMap = new Map();
+let _albumLookupCount = -1;
+
+function rebuildAlbumLookupMaps() {
+  _albumByFilePathMap = new Map();
+  _albumByTitleArtistMap = new Map();
+  _albumByTitleMap = new Map();
+  const albums = state.albums || [];
+  _albumLookupCount = albums.length;
+  for (let i = 0; i < albums.length; i++) {
+    const a = albums[i];
+    if (!a) continue;
+    const tLower = (a.title || '').trim().toLowerCase();
+    const artLower = (a.artist || '').trim().toLowerCase();
+    const albArtLower = (a.albumArtist || '').trim().toLowerCase();
+    if (tLower) {
+      if (!_albumByTitleMap.has(tLower)) _albumByTitleMap.set(tLower, a);
+      if (artLower) _albumByTitleArtistMap.set(`${tLower}___${artLower}`, a);
+      if (albArtLower) _albumByTitleArtistMap.set(`${tLower}___${albArtLower}`, a);
+    }
+    if (Array.isArray(a.tracks)) {
+      for (let j = 0; j < a.tracks.length; j++) {
+        const tr = a.tracks[j];
+        if (tr && tr.filePath) {
+          _albumByFilePathMap.set(tr.filePath, a);
+        }
+      }
+    }
+  }
+}
+
 function findAlbumForTrack(track) {
   if (!track || !state.albums || !state.albums.length) return null;
-  // 1. Try to find by track's filePath matching one of album.tracks
+  if (_albumLookupCount !== state.albums.length) {
+    rebuildAlbumLookupMaps();
+  }
+  // 1. O(1) lookup by track's filePath
   if (track.filePath) {
-    const byFile = state.albums.find(a => a.tracks && a.tracks.some(tr => tr.filePath && tr.filePath === track.filePath));
+    const byFile = _albumByFilePathMap.get(track.filePath);
     if (byFile) return byFile;
   }
-  // 2. Try to match album title & artist
+  // 2. O(1) lookup by album title & artist
   const trkAlbum = (track.album || '').trim().toLowerCase();
   const trkArtist = (track.artist || '').trim().toLowerCase();
   if (trkAlbum && trkArtist) {
-    const byBoth = state.albums.find(a => 
-      (a.title || '').trim().toLowerCase() === trkAlbum && 
-      ((a.artist || '').trim().toLowerCase() === trkArtist || (a.albumArtist || '').trim().toLowerCase() === trkArtist)
-    );
+    const byBoth = _albumByTitleArtistMap.get(`${trkAlbum}___${trkArtist}`);
     if (byBoth) return byBoth;
   }
-  // 3. Try to match album title alone (handles compilation albums or various artists)
+  // 3. O(1) lookup by album title alone (handles compilation albums or various artists)
   if (trkAlbum) {
-    const byTitle = state.albums.find(a => (a.title || '').trim().toLowerCase() === trkAlbum);
+    const byTitle = _albumByTitleMap.get(trkAlbum);
     if (byTitle) return byTitle;
   }
-  // 4. Try matching track title in album tracks
+  // 4. Fallback: matching track title in album tracks
   if (track.title) {
     const byTrackTitle = state.albums.find(a => a.tracks && a.tracks.some(tr => tr.title && tr.title === track.title));
     if (byTrackTitle) return byTrackTitle;
@@ -17232,6 +17266,9 @@ function updatePlayPauseBtnUI() {
   if (btnPlayPause) btnPlayPause.innerHTML = state.isPlaying ? CTRL_PAUSE_SVG : CTRL_PLAY_SVG;
   const npBtn = document.getElementById('btnNowPlayingPlayPause');
   if (npBtn) npBtn.innerHTML = state.isPlaying ? NP_PAUSE_SVG : NP_PLAY_SVG;
+  if (typeof syncWebDisplayState === 'function') {
+    try { syncWebDisplayState(false); } catch (_) {}
+  }
 }
 
 const NP_VIEW_MODE_STORAGE_KEY = 'rooplayer_np_view_mode';
@@ -24325,6 +24362,23 @@ function getWebDisplayEnabledPref() {
   }
 }
 
+function ensureWebDisplaySyncTimer(enabled) {
+  if (!enabled) {
+    if (_webDisplaySyncTimer) {
+      clearInterval(_webDisplaySyncTimer);
+      _webDisplaySyncTimer = null;
+    }
+    return;
+  }
+  if (!_webDisplaySyncTimer) {
+    _webDisplaySyncTimer = setInterval(() => {
+      // Skip DOM queries & IPC when paused/idle after initial push
+      if (!state.isPlaying && _webDisplayLastPushSig !== '') return;
+      syncWebDisplayState(false);
+    }, 1500);
+  }
+}
+
 function setWebDisplayEnabledPref(enabled) {
   const val = !!enabled;
   try {
@@ -24339,6 +24393,7 @@ function setWebDisplayEnabledPref(enabled) {
   if (window.electronAPI && window.electronAPI.setDisplayEnabled) {
     window.electronAPI.setDisplayEnabled(val).catch(() => {});
   }
+  ensureWebDisplaySyncTimer(val);
   if (val) {
     _webDisplayLastPushSig = '';
     syncWebDisplayState(true);
@@ -24444,12 +24499,6 @@ function initAdvancedSettingsUI() {
   setCloseToTrayPref(getCloseToTrayPref());
   setWebDisplayEnabledPref(getWebDisplayEnabledPref());
   refreshWebDisplayInfo();
-
-  if (!_webDisplaySyncTimer) {
-    _webDisplaySyncTimer = setInterval(() => {
-      syncWebDisplayState(false);
-    }, 1500);
-  }
 
   const btnOpen = document.getElementById('btnOpenSettings');
   if (btnOpen) {

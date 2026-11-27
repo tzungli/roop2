@@ -76,13 +76,11 @@ pub async fn updater_check() -> Result<serde_json::Value, String> {
         }));
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("HTTP client error: {}", e))?;
+    let client = crate::commands::http::shared_http_client();
 
     let resp = client
         .get(GITHUB_RELEASES_LATEST_URL)
+        .timeout(std::time::Duration::from_secs(10))
         .header("User-Agent", format!("rooPlayer/{}", current_ver))
         .header("Accept", "application/vnd.github+json")
         .send()
@@ -183,10 +181,7 @@ pub async fn updater_download_and_install(
         return Err("僅允許執行官方 Windows 安裝程式 (-setup.exe / .msi)".to_string());
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(300))
-        .build()
-        .map_err(|e| format!("HTTP client error: {}", e))?;
+    let client = crate::commands::http::shared_http_client();
 
     let _ = app.emit("updater:progress", serde_json::json!({
         "stage": "downloading",
@@ -197,6 +192,7 @@ pub async fn updater_download_and_install(
 
     let mut resp = client
         .get(&asset_url)
+        .timeout(std::time::Duration::from_secs(300))
         .header("User-Agent", format!("rooPlayer/{}", env!("CARGO_PKG_VERSION")))
         .send()
         .await
