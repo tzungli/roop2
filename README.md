@@ -7,8 +7,6 @@
 
 **rooPlayer** 是一款以 **Rust + Tauri 2** 原生打造的發燒級高解析音樂管理與播放程式。結合 64-bit 浮點多相升頻與 DSD512 調變 DSP 核心、Windows WASAPI 獨佔位元完美輸出、多區域 DLNA / AirPlay 無損串流、Roon 風格 21 大類音樂庫與全螢幕區網網頁顯示器（Web Display），在極低記憶體佔用下提供純粹的 Hi-Res 聆聽體驗。
 
-![rooPlayer](screenshot.png)
-
 ---
 
 ## 核心功能亮點
