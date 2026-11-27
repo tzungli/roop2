@@ -56,6 +56,7 @@ impl TidalState {
             http_client: reqwest::Client::builder()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
                 .default_headers(default_headers)
+                .local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
                 .connect_timeout(Duration::from_secs(6))
                 .timeout(Duration::from_secs(12))
                 .build()
@@ -650,14 +651,30 @@ pub async fn tidal_api(
     state: State<'_, TidalState>,
     options: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let endpoint = options.get("endpoint").and_then(|v| v.as_str()).unwrap_or("");
+    let endpoint = options.get("endpoint").and_then(|v| v.as_str()).unwrap_or("").trim();
     let method = options.get("method").and_then(|v| v.as_str()).unwrap_or("GET");
-    let token = options.get("token").and_then(|v| v.as_str()).unwrap_or("");
+    let mut token = options
+        .get("token")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if token.is_empty() {
+        if let Some(stored) = state.auth_data.read().unwrap().as_ref() {
+            if let Some(t) = stored.get("accessToken").and_then(|v| v.as_str()) {
+                token = t.trim().to_string();
+            }
+        }
+    }
 
-    // Always call api.tidal.com/v1 directly (listen.tidal.com/v1 returns HTTP 301 to api.tidal.com,
-    // which causes reqwest to strip the Authorization header on cross-host redirect).
+    // Route /search to api.tidal.com/v2/search (TIDAL web player tokens get HTTP 429 on /v1/search,
+    // whereas /v2/search returns 200 OK with the exact same JSON schema).
     let url = if endpoint.starts_with("http") {
         endpoint.to_string()
+    } else if endpoint.starts_with("/v2/") {
+        format!("https://api.tidal.com{}", endpoint)
+    } else if endpoint == "/search" || endpoint.starts_with("/search?") {
+        format!("https://api.tidal.com/v2{}", endpoint)
     } else {
         format!("https://api.tidal.com/v1{}", endpoint)
     };
@@ -1200,5 +1217,28 @@ mod tests {
         assert_eq!(res.segment_urls[0], "https://example.com/seg_1.mp4");
         assert_eq!(res.segment_urls[1], "https://example.com/seg_2.mp4");
         assert_eq!(res.segment_urls[2], "https://example.com/seg_3.mp4");
+    }
+
+    #[tokio::test]
+    async fn test_live_v2_search_with_stored_auth() {
+        let Some(local_data) = dirs::data_local_dir() else { return };
+        let dir = local_data.join("rooPlayer");
+        let st = TidalState::new(dir);
+        let auth = st.auth_data.read().unwrap().clone();
+        let Some(auth_val) = auth else { return };
+        let token = auth_val.get("accessToken").and_then(|v| v.as_str()).unwrap_or("");
+        if token.is_empty() { return; }
+        let t0 = Instant::now();
+        let resp = st
+            .http_client
+            .get("https://api.tidal.com/v2/search?countryCode=TW&query=Audiophile+Hi-Res+Master&limit=5")
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await
+            .expect("reqwest send");
+        let code = resp.status().as_u16();
+        let body = resp.text().await.unwrap_or_default();
+        println!("LIVE_V2_SEARCH_STATUS={} ELAPSED_MS={} BODY_LEN={}", code, t0.elapsed().as_millis(), body.len());
+        assert_eq!(code, 200, "Expected 200 OK from v2/search, got {}: {}", code, &body[..body.len().min(200)]);
     }
 }

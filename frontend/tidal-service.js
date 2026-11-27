@@ -279,7 +279,9 @@ class TidalService {
     // Browser-only fallback (when running outside Tauri)
     const url = finalEndpoint.startsWith('http')
       ? finalEndpoint
-      : `https://api.tidal.com/v1${finalEndpoint}`;
+      : (finalEndpoint === '/search' || finalEndpoint.startsWith('/search?'))
+        ? `https://api.tidal.com/v2${finalEndpoint}`
+        : `https://api.tidal.com/v1${finalEndpoint}`;
 
     const headers = {
       'Authorization': `Bearer ${this.auth.accessToken}`,
