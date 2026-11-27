@@ -22,10 +22,28 @@ impl TidalState {
         } else {
             None
         };
+        let mut default_headers = reqwest::header::HeaderMap::new();
+        default_headers.insert(
+            reqwest::header::ORIGIN,
+            reqwest::header::HeaderValue::from_static("https://listen.tidal.com"),
+        );
+        default_headers.insert(
+            reqwest::header::REFERER,
+            reqwest::header::HeaderValue::from_static("https://listen.tidal.com/"),
+        );
+        default_headers.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static("application/json, text/plain, */*"),
+        );
+        default_headers.insert(
+            reqwest::header::ACCEPT_LANGUAGE,
+            reqwest::header::HeaderValue::from_static("zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"),
+        );
         Self {
             cache_file,
             http_client: reqwest::Client::builder()
-                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                .default_headers(default_headers)
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
             auth_data: Arc::new(RwLock::new(initial_auth)),

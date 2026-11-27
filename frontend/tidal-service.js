@@ -18,6 +18,26 @@ class TidalService {
     // to prompt re-login directly. Never checked at app startup.
     this.authExpired = false;
     this._refreshPromise = null;
+    // Client-side concurrency limiter & global 429 cooldown for native Chromium fetch
+    this._inFlight = 0;
+    this._maxConcurrent = 3;
+    this._queue = [];
+    this._cooldownUntil = 0;
+  }
+
+  async _acquireSlot() {
+    if (this._inFlight < this._maxConcurrent) {
+      this._inFlight++;
+      return;
+    }
+    await new Promise(resolve => this._queue.push(resolve));
+    this._inFlight++;
+  }
+
+  _releaseSlot() {
+    this._inFlight = Math.max(0, this._inFlight - 1);
+    const next = this._queue.shift();
+    if (next) next();
   }
 
   /**
@@ -228,7 +248,84 @@ class TidalService {
     };
 
     const isGetOrHead = method === 'GET' || method === 'HEAD';
-    if (window.electronAPI && window.electronAPI.tidalApi) {
+    const url = finalEndpoint.startsWith('http')
+      ? finalEndpoint
+      : `https://api.tidal.com/v1${finalEndpoint}`;
+
+    // Prefer WebView2 native Chromium fetch() first (genuine browser TLS/HTTP2 fingerprint,
+    // permitted by TIDAL's `Access-Control-Allow-Origin: *`), with concurrency cap & 429 backoff.
+    // Falls back to Rust `tidalApi` only if fetch throws a transport/CORS error.
+    const headers = {
+      'Authorization': `Bearer ${this.auth.accessToken}`,
+      'Accept': 'application/json, text/plain, */*'
+    };
+    if (!isGetOrHead && body) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    const maxRetries = 3;
+    let useRustFallback = false;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const waitMs = this._cooldownUntil - Date.now();
+      if (waitMs > 0) {
+        await new Promise(r => setTimeout(r, waitMs));
+      }
+
+      await this._acquireSlot();
+      let res;
+      try {
+        res = await fetch(url, {
+          method,
+          headers,
+          body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined
+        });
+      } catch (fetchErr) {
+        this._releaseSlot();
+        console.warn('[TIDAL] Native Chromium fetch failed, falling back to Rust IPC:', fetchErr);
+        useRustFallback = true;
+        break;
+      }
+
+      if (res.status === 429 || res.status === 503) {
+        const retryAfterRaw = res.headers.get('retry-after');
+        const retrySecs = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN;
+        const backoffMs = Number.isFinite(retrySecs) && retrySecs > 0
+          ? Math.min(Math.max(retrySecs * 1000, 1000), 15000)
+          : [1500, 3000, 6000][Math.min(attempt, 2)];
+        const errBody = await res.text().catch(() => '');
+        this._releaseSlot();
+        this._cooldownUntil = Math.max(this._cooldownUntil, Date.now() + backoffMs);
+        console.warn(`[TIDAL] HTTP ${res.status} on ${finalEndpoint} (attempt ${attempt + 1}/${maxRetries + 1}), wait ${backoffMs}ms`, errBody.slice(0, 200));
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, backoffMs));
+          continue;
+        }
+        throw new Error(`TIDAL API 請求過於頻繁（HTTP ${res.status}），請稍候再試`);
+      }
+
+      if (res.status === 401) {
+        this._releaseSlot();
+        const res401 = await handle401();
+        if (res401 === 'RETRY') {
+          return this.api(endpoint, params, method, body, true);
+        }
+        if (res401 instanceof Error) throw res401;
+        throw new Error(`TIDAL API HTTP 401: ${res.statusText}`);
+      }
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        this._releaseSlot();
+        throw new Error(`TIDAL API HTTP ${res.status}: ${errText || res.statusText}`);
+      }
+
+      const json = await res.json();
+      this._releaseSlot();
+      return json;
+    }
+
+    if (useRustFallback && window.electronAPI && window.electronAPI.tidalApi) {
       try {
         return await window.electronAPI.tidalApi({
           endpoint: finalEndpoint,
@@ -237,7 +334,6 @@ class TidalService {
           token: this.auth.accessToken
         });
       } catch (err) {
-        // Tauri invoke rejects with a plain string, not an Error object
         const errMsg = (err && typeof err === 'object' && err.message) ? err.message : String(err || '');
         if (/\b401\b/.test(errMsg) || /token.*expired|unauthorized/i.test(errMsg)) {
           const res401 = await handle401();
@@ -249,37 +345,7 @@ class TidalService {
         throw (err instanceof Error) ? err : new Error(errMsg || 'TIDAL API 呼叫失敗');
       }
     }
-
-    // Direct fetch fallback
-    const url = finalEndpoint.startsWith('http') 
-      ? finalEndpoint 
-      : `https://api.tidal.com/v1${finalEndpoint}`;
-
-    const headers = {
-      'Authorization': `Bearer ${this.auth.accessToken}`
-    };
-    if (!isGetOrHead && body) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: (!isGetOrHead && body) ? JSON.stringify(body) : undefined
-    });
-
-    if (res.status === 401) {
-      const res401 = await handle401();
-      if (res401 === 'RETRY') {
-        return this.api(endpoint, params, method, body, true);
-      }
-      if (res401 instanceof Error) throw res401;
-      throw new Error(`TIDAL API HTTP 401: ${res.statusText}`);
-    }
-    if (!res.ok) {
-      throw new Error(`TIDAL API HTTP ${res.status}: ${res.statusText}`);
-    }
-    return await res.json();
+    throw new Error('TIDAL API 呼叫失敗');
   }
 
   // ==========================================================
