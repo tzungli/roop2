@@ -15262,20 +15262,25 @@ body.is-music-playing .now-playing-scrubber-fill::before {
 /* =========================================================================
    Top-Left Gear Button & Roon-Style Advanced Settings Page (viewSettings)
    ========================================================================= */
+.nav-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .brand-settings-btn {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-  width: 28px;
-  height: 28px;
-  margin-left: 8px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-sub);
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  padding: 0;
   transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.2s ease;
 }
 
