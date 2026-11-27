@@ -16608,17 +16608,220 @@ function parseLrc(lrcText) {
   return result;
 }
 
-async function fetchLyricsOnline(title, artist, album, duration) {
+function decodeBase64Utf8ForLyrics(b64) {
+  if (!b64) return '';
+  try {
+    const clean = String(b64).replace(/\s+/g, '');
+    const bin = atob(clean);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch (_) {
+    return '';
+  }
+}
+
+function decodeHtmlEntitiesForLyrics(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&apos;|&#39;/gi, "'")
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#(\d+);/g, (_, n) => {
+      const code = Number(n);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+    });
+}
+
+function scoreLyricsCandidateBilingual(cand, titleVariants, artistVariants, albumVariants, targetDuration) {
+  let best = -Infinity;
+  for (const t of titleVariants) {
+    if (!t) continue;
+    for (const a of artistVariants) {
+      for (const alb of albumVariants) {
+        const sc = scoreLyricsCandidate(cand, t, a, alb, targetDuration);
+        if (sc > best) best = sc;
+      }
+    }
+  }
+  return best;
+}
+
+function extractKkboxLyricsFromHtml(html) {
+  if (!html) return null;
+  // 1. JSON-LD or Next.js / Nuxt embedded lyrics block
+  const jsonLdMatches = html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const m of jsonLdMatches) {
+    try {
+      const obj = JSON.parse(m[1]);
+      const raw = obj?.lyrics?.text || obj?.recordingOf?.lyrics?.text;
+      if (typeof raw === 'string' && raw.trim().length > 15) {
+        return decodeHtmlEntitiesForLyrics(raw.replace(/<br\s*\/?>/gi, '\n')).trim();
+      }
+    } catch (_) {}
+  }
+  // 2. Classic KKBOX lyrics container <div class="lyrics">...</div> or <p class="lyrics">
+  const divMatch = html.match(/<(?:div|p)[^>]*class=["'][^"']*\blyrics\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|p)>/i);
+  if (divMatch && divMatch[1]) {
+    const cleaned = decodeHtmlEntitiesForLyrics(
+      divMatch[1]
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+    )
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (cleaned.length > 15 && !/目前沒有歌詞|暫無歌詞|No lyrics/i.test(cleaned)) {
+      return cleaned;
+    }
+  }
+  return null;
+}
+
+async function fetchLyricsOnline(title, artist, album, duration, trackObj = null) {
   if (!title) return null;
   const cleanTitle = cleanTitleForLyrics(title);
   const cleanArt = cleanArtistForLyrics(artist);
   const cleanAlb = album ? String(album).replace(/[\(（][^\)）]*(?:remaster|deluxe|edition|version)[^\)）]*[\)）]/gi, '').trim() : '';
   const durRounded = (typeof duration === 'number' && isFinite(duration) && duration > 0) ? Math.round(duration) : 0;
-  const cacheKey = `${cleanArt}___${cleanTitle}___${durRounded}`.toLowerCase();
+  const filePath = trackObj ? String(trackObj.path || trackObj.filePath || '').trim() : '';
+  const cacheKey = `${filePath || ''}___${cleanArt}___${cleanTitle}___${durRounded}`.toLowerCase();
 
   if (nowPlayingLyricsCache.has(cacheKey)) {
     return nowPlayingLyricsCache.get(cacheKey);
   }
+
+  // 1 & 2. Local .lrc sidecar file & embedded audio file lyrics tag (offline, instant)
+  if (filePath && window.electronAPI && window.electronAPI.readTrackLyrics) {
+    try {
+      const localRes = await window.electronAPI.readTrackLyrics(filePath);
+      if (localRes && (localRes.synced || localRes.plain)) {
+        const result = {
+          source: localRes.source || '本機歌詞',
+          synced: localRes.synced || null,
+          plain: localRes.plain || localRes.synced || null,
+        };
+        nowPlayingLyricsCache.set(cacheKey, result);
+        return result;
+      }
+    } catch (_) {}
+  }
+
+  // Prepare Traditional + Simplified Chinese variants so Traditional tags match Simplified NetEase/QQ/KuGou results
+  const hasCjk = /[\u4e00-\u9fff]/.test(`${cleanTitle} ${cleanArt} ${cleanAlb}`);
+  let simpTitle = cleanTitle;
+  let simpArt = cleanArt;
+  let simpAlb = cleanAlb;
+  if (hasCjk) {
+    try {
+      const [st, sa, salb] = await Promise.all([
+        convertToSimplifiedForSearch(cleanTitle),
+        cleanArt ? convertToSimplifiedForSearch(cleanArt) : Promise.resolve(''),
+        cleanAlb ? convertToSimplifiedForSearch(cleanAlb) : Promise.resolve(''),
+      ]);
+      if (st) simpTitle = st;
+      if (sa) simpArt = sa;
+      if (salb) simpAlb = salb;
+    } catch (_) {}
+  }
+
+  const titleVariants = Array.from(new Set([cleanTitle, simpTitle].filter(Boolean)));
+  const artistVariants = Array.from(new Set([cleanArt, simpArt].filter(Boolean)));
+  if (artistVariants.length === 0) artistVariants.push('');
+  const albumVariants = Array.from(new Set([cleanAlb, simpAlb].filter(Boolean)));
+  if (albumVariants.length === 0) albumVariants.push('');
+
+  const isSyncedLrc = (txt) => /\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/.test(String(txt || ''));
+
+  // 3. TIDAL Official Lyrics (direct ID if TIDAL track, or search TIDAL when logged in)
+  if (window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.getTrackLyrics === 'function') {
+    try {
+      let tidalTrackId = trackObj && (trackObj.tidalId || (String(trackObj.id || '').startsWith('tidal_') ? String(trackObj.id).slice(6) : null));
+      if (!tidalTrackId) {
+        const q = `${cleanTitle}${cleanArt ? ' ' + cleanArt : ''}`;
+        const sRes = await window.tidalService.search(q, 8);
+        const items = sRes?.tracks?.items || [];
+        let bestItem = null;
+        let bestScore = -Infinity;
+        for (const t of items) {
+          const cand = {
+            trackName: t.title || '',
+            artistName: Array.isArray(t.artists) ? t.artists.map(a => a.name).join(' ') : (t.artist?.name || ''),
+            albumName: t.album?.title || '',
+            duration: Number(t.duration) || 0,
+            syncedLyrics: true,
+          };
+          const sc = scoreLyricsCandidateBilingual(cand, titleVariants, artistVariants, albumVariants, durRounded);
+          if (sc > bestScore) {
+            bestScore = sc;
+            bestItem = t;
+          }
+        }
+        if (bestItem && bestScore >= 60) {
+          tidalTrackId = bestItem.id;
+        }
+      }
+      if (tidalTrackId) {
+        const tLyr = await window.tidalService.getTrackLyrics(tidalTrackId);
+        if (tLyr && (tLyr.synced || tLyr.plain)) {
+          nowPlayingLyricsCache.set(cacheKey, tLyr);
+          return tLyr;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 4. KKBOX Online Lyrics (strong for Traditional Chinese / Taiwan & HK catalog)
+  try {
+    let kkboxSongId = trackObj && (trackObj.kkboxId || (String(trackObj.id || '').startsWith('kkbox_') ? String(trackObj.id).slice(6) : null));
+    let kkboxWebUrl = trackObj && trackObj.webUrl && /kkbox\.com/i.test(trackObj.webUrl) ? trackObj.webUrl : '';
+    if (!kkboxSongId && typeof kkboxService !== 'undefined' && kkboxService && typeof kkboxService.search === 'function' && kkboxService.clientId && kkboxService.clientSecret) {
+      const q = `${cleanTitle}${cleanArt ? ' ' + cleanArt : ''}`;
+      const kRes = await kkboxService.search(q, ['track']).catch(() => null);
+      const tracks = kRes?.tracks?.data || [];
+      let bestK = null;
+      let bestScore = -Infinity;
+      for (const kt of tracks) {
+        const cand = {
+          trackName: kt.name || '',
+          artistName: kt.album?.artist?.name || '',
+          albumName: kt.album?.name || '',
+          duration: (Number(kt.duration) || 0) / 1000,
+        };
+        const sc = scoreLyricsCandidateBilingual(cand, titleVariants, artistVariants, albumVariants, durRounded);
+        if (sc > bestScore) {
+          bestScore = sc;
+          bestK = kt;
+        }
+      }
+      if (bestK && bestScore >= 58) {
+        kkboxSongId = bestK.id;
+        kkboxWebUrl = bestK.url || '';
+      }
+    }
+    const targetKkboxUrl = kkboxWebUrl || (kkboxSongId ? `https://www.kkbox.com/tw/tc/song/${encodeURIComponent(kkboxSongId)}` : '');
+    if (targetKkboxUrl) {
+      const htmlRes = await nativeFetchText(targetKkboxUrl, {
+        'Accept-Language': 'zh-TW,zh;q=0.9',
+      }, 6500);
+      if (htmlRes && htmlRes.ok && htmlRes.body) {
+        const extracted = extractKkboxLyricsFromHtml(htmlRes.body);
+        if (extracted) {
+          const result = {
+            source: 'KKBOX 線上歌詞',
+            synced: isSyncedLrc(extracted) ? extracted : null,
+            plain: extracted,
+          };
+          nowPlayingLyricsCache.set(cacheKey, result);
+          return result;
+        }
+      }
+    }
+  } catch (_) {}
 
   const pickBestLrclibHit = (hits) => {
     if (!Array.isArray(hits) || hits.length === 0) return null;
@@ -16626,7 +16829,7 @@ async function fetchLyricsOnline(title, artist, album, duration) {
     let bestScore = -Infinity;
     for (const h of hits) {
       if (!h || (!h.syncedLyrics && !h.plainLyrics)) continue;
-      const sc = scoreLyricsCandidate(h, cleanTitle, cleanArt, cleanAlb, durRounded);
+      const sc = scoreLyricsCandidateBilingual(h, titleVariants, artistVariants, albumVariants, durRounded);
       if (sc > bestScore) {
         bestScore = sc;
         bestHit = h;
@@ -16635,19 +16838,19 @@ async function fetchLyricsOnline(title, artist, album, duration) {
     return (bestHit && bestScore >= 55) ? bestHit : null;
   };
 
-  // 1. Try LRCLIB Exact Match API (/api/get) first — highest precision (title + artist + album + duration)
+  const lrclibHeaders = { 'User-Agent': 'rooPlayer/0.2.5 (https://github.com/tzungli/roop2)' };
+
+  // 5a. LRCLIB Exact Match API (/api/get)
   if (cleanArt && durRounded > 0) {
-    try {
-      const params = new URLSearchParams({
-        track_name: cleanTitle,
-        artist_name: cleanArt,
-        duration: String(durRounded),
-      });
-      if (cleanAlb) params.set('album_name', cleanAlb);
-      const getUrl = `https://lrclib.net/api/get?${params.toString()}`;
-      const res = await fetch(getUrl, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
-      if (res.ok) {
-        const hit = await res.json();
+    for (const [tQ, aQ, albQ] of [[cleanTitle, cleanArt, cleanAlb], ...(simpTitle !== cleanTitle || simpArt !== cleanArt ? [[simpTitle, simpArt, simpAlb]] : [])]) {
+      try {
+        const params = new URLSearchParams({
+          track_name: tQ,
+          artist_name: aQ,
+          duration: String(durRounded),
+        });
+        if (albQ) params.set('album_name', albQ);
+        const hit = await nativeFetchJson(`https://lrclib.net/api/get?${params.toString()}`, lrclibHeaders, 6000);
         if (hit && !hit.instrumental && (hit.syncedLyrics || hit.plainLyrics)) {
           const result = {
             source: 'LRCLIB 精準比對',
@@ -16657,19 +16860,35 @@ async function fetchLyricsOnline(title, artist, album, duration) {
           nowPlayingLyricsCache.set(cacheKey, result);
           return result;
         }
+      } catch (_) {}
+    }
+  }
+
+  // 5b. LRCLIB Structured Search (/api/search?track_name=...&artist_name=...)
+  for (const [tQ, aQ, albQ] of [[cleanTitle, cleanArt, cleanAlb], ...(simpTitle !== cleanTitle || simpArt !== cleanArt ? [[simpTitle, simpArt, simpAlb]] : [])]) {
+    try {
+      const params = new URLSearchParams({ track_name: tQ });
+      if (aQ) params.set('artist_name', aQ);
+      if (albQ) params.set('album_name', albQ);
+      const hits = await nativeFetchJson(`https://lrclib.net/api/search?${params.toString()}`, lrclibHeaders, 6000);
+      const best = pickBestLrclibHit(hits);
+      if (best) {
+        const result = {
+          source: 'LRCLIB 線上音樂資料庫',
+          synced: best.syncedLyrics || null,
+          plain: best.plainLyrics || null,
+        };
+        nowPlayingLyricsCache.set(cacheKey, result);
+        return result;
       }
     } catch (_) {}
   }
 
-  // 2. Try LRCLIB Structured Search (/api/search?track_name=...&artist_name=...) with multi-signal scoring
-  try {
-    const params = new URLSearchParams({ track_name: cleanTitle });
-    if (cleanArt) params.set('artist_name', cleanArt);
-    if (cleanAlb) params.set('album_name', cleanAlb);
-    const url = `https://lrclib.net/api/search?${params.toString()}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
-    if (res.ok) {
-      const hits = await res.json();
+  // 5c. LRCLIB Free-Text Search (/api/search?q=...)
+  for (const [tQ, aQ] of [[cleanTitle, cleanArt], ...(simpTitle !== cleanTitle || simpArt !== cleanArt ? [[simpTitle, simpArt]] : [])]) {
+    try {
+      const q = (aQ ? aQ + ' ' : '') + tQ;
+      const hits = await nativeFetchJson(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, lrclibHeaders, 6000);
       const best = pickBestLrclibHit(hits);
       if (best) {
         const result = {
@@ -16680,22 +16899,46 @@ async function fetchLyricsOnline(title, artist, album, duration) {
         nowPlayingLyricsCache.set(cacheKey, result);
         return result;
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
-  // 3. Try LRCLIB Free-Text Search (/api/search?q=...) as fallback (still strictly scored!)
+  const zhQuery = `${simpTitle}${simpArt ? ' ' + simpArt : ''}`.trim();
+
+  // 6. NetEase Cloud Music Lyric API (CORS-free via nativeFetchJson + Simplified Chinese query)
   try {
-    const q = (cleanArt ? cleanArt + ' ' : '') + cleanTitle;
-    const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'rooPlayer/0.2.3' } });
-    if (res.ok) {
-      const hits = await res.json();
-      const best = pickBestLrclibHit(hits);
-      if (best) {
+    const neteaseHeaders = {
+      'Referer': 'https://music.163.com/',
+      'Origin': 'https://music.163.com',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+    const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(zhQuery)}&type=1&offset=0&limit=8`;
+    const sData = await nativeFetchJson(searchUrl, neteaseHeaders, 6500);
+    const songs = sData?.result?.songs || [];
+    let bestSong = null;
+    let bestScore = -Infinity;
+    for (const s of songs) {
+      const cand = {
+        trackName: s.name || '',
+        artistName: Array.isArray(s.artists) ? s.artists.map(a => a.name).join(' ') : '',
+        albumName: s.album?.name || '',
+        duration: (Number(s.duration) || 0) / 1000,
+        syncedLyrics: true,
+      };
+      const sc = scoreLyricsCandidateBilingual(cand, titleVariants, artistVariants, albumVariants, durRounded);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestSong = s;
+      }
+    }
+    if (bestSong && bestScore >= 55) {
+      const lyricUrl = `https://music.163.com/api/song/lyric?os=pc&id=${bestSong.id}&lv=-1&kv=-1&tv=-1`;
+      const lData = await nativeFetchJson(lyricUrl, neteaseHeaders, 6500);
+      const raw = lData?.lrc?.lyric;
+      if (raw && raw.trim() && !/纯音乐，请欣赏|純音樂，請欣賞/.test(raw)) {
         const result = {
-          source: 'LRCLIB 線上音樂資料庫',
-          synced: best.syncedLyrics || null,
-          plain: best.plainLyrics || null,
+          source: '網易雲音樂歌詞庫',
+          synced: isSyncedLrc(raw) ? raw : null,
+          plain: raw,
         };
         nowPlayingLyricsCache.set(cacheKey, result);
         return result;
@@ -16703,45 +16946,93 @@ async function fetchLyricsOnline(title, artist, album, duration) {
     }
   } catch (_) {}
 
-  // 4. Try Netease Cloud Music Lyric API (scored across top 8 results for Asian/Pop/Classic tracks)
+  // 7. QQ Music Lyric API (CORS-free via nativeFetchJson, strong Mandarin/Cantonese/Asian catalog)
   try {
-    const searchUrl = `https://music.163.com/api/search/get/web?s=${encodeURIComponent(cleanTitle + (cleanArt ? ' ' + cleanArt : ''))}&type=1&offset=0&limit=8`;
-    const sRes = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (sRes.ok) {
-      const sData = await sRes.json();
-      const songs = sData.result?.songs || [];
-      let bestSong = null;
-      let bestScore = -Infinity;
-      for (const s of songs) {
-        const cand = {
-          trackName: s.name || '',
-          artistName: (Array.isArray(s.artists) ? s.artists.map(a => a.name).join(' ') : ''),
-          albumName: s.album?.name || '',
-          duration: (Number(s.duration) || 0) / 1000,
-          syncedLyrics: true,
-        };
-        const sc = scoreLyricsCandidate(cand, cleanTitle, cleanArt, cleanAlb, durRounded);
-        if (sc > bestScore) {
-          bestScore = sc;
-          bestSong = s;
-        }
+    const qqHeaders = {
+      'Referer': 'https://y.qq.com/',
+      'Origin': 'https://y.qq.com',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+    const qqSearchUrl = `https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w=${encodeURIComponent(zhQuery)}&p=1&n=8&format=json&cr=1&g_tk=5381`;
+    const qData = await nativeFetchJson(qqSearchUrl, qqHeaders, 6500);
+    const qSongs = qData?.data?.song?.list || [];
+    let bestQ = null;
+    let bestScore = -Infinity;
+    for (const s of qSongs) {
+      const cand = {
+        trackName: s.songname || '',
+        artistName: Array.isArray(s.singer) ? s.singer.map(a => a.name).join(' ') : '',
+        albumName: s.albumname || '',
+        duration: Number(s.interval) || 0,
+        syncedLyrics: true,
+      };
+      const sc = scoreLyricsCandidateBilingual(cand, titleVariants, artistVariants, albumVariants, durRounded);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestQ = s;
       }
-      if (bestSong && bestScore >= 55) {
-        const lyricUrl = `https://music.163.com/api/song/lyric?os=pc&id=${bestSong.id}&lv=-1&kv=-1&tv=-1`;
-        const lRes = await fetch(lyricUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (lRes.ok) {
-          const lData = await lRes.json();
-          const raw = lData.lrc?.lyric;
-          if (raw && raw.trim()) {
-            const isSynced = /\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/.test(raw);
-            const result = {
-              source: '網易雲音樂歌詞庫',
-              synced: isSynced ? raw : null,
-              plain: raw,
-            };
-            nowPlayingLyricsCache.set(cacheKey, result);
-            return result;
-          }
+    }
+    if (bestQ && bestQ.songmid && bestScore >= 55) {
+      const qqLyricUrl = `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(bestQ.songmid)}&format=json&g_tk=5381&nobase64=1`;
+      const qlData = await nativeFetchJson(qqLyricUrl, qqHeaders, 6500);
+      let raw = qlData?.lyric || '';
+      if (raw && !raw.includes('[') && /^[A-Za-z0-9+/=\s]+$/.test(raw)) {
+        raw = decodeBase64Utf8ForLyrics(raw);
+      }
+      raw = decodeHtmlEntitiesForLyrics(raw).trim();
+      if (raw && raw.length > 10 && !/此歌曲为没有填词的纯音乐/.test(raw)) {
+        const result = {
+          source: 'QQ 音樂歌詞庫',
+          synced: isSyncedLrc(raw) ? raw : null,
+          plain: raw,
+        };
+        nowPlayingLyricsCache.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (_) {}
+
+  // 8. KuGou Music Lyric API (CORS-free via nativeFetchJson, broad CJK & classic catalog)
+  try {
+    const kgHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+    const kgSearchUrl = `http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword=${encodeURIComponent(zhQuery)}&page=1&pagesize=8&showtype=1`;
+    const kgData = await nativeFetchJson(kgSearchUrl, kgHeaders, 6500);
+    const kgSongs = kgData?.data?.info || [];
+    let bestKg = null;
+    let bestScore = -Infinity;
+    for (const s of kgSongs) {
+      const cand = {
+        trackName: s.songname || '',
+        artistName: s.singername || '',
+        albumName: s.album_name || '',
+        duration: Number(s.duration) || 0,
+        syncedLyrics: true,
+      };
+      const sc = scoreLyricsCandidateBilingual(cand, titleVariants, artistVariants, albumVariants, durRounded);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestKg = s;
+      }
+    }
+    if (bestKg && bestKg.hash && bestScore >= 55) {
+      const durMs = Math.round((Number(bestKg.duration) || durRounded || 0) * 1000);
+      const krcSearchUrl = `http://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=${encodeURIComponent(zhQuery)}&duration=${durMs}&hash=${encodeURIComponent(bestKg.hash)}`;
+      const krcData = await nativeFetchJson(krcSearchUrl, kgHeaders, 6500);
+      const candLyr = Array.isArray(krcData?.candidates) ? krcData.candidates[0] : null;
+      if (candLyr && candLyr.id && candLyr.accesskey) {
+        const dlUrl = `http://lyrics.kugou.com/download?ver=1&client=pc&id=${encodeURIComponent(candLyr.id)}&accesskey=${encodeURIComponent(candLyr.accesskey)}&fmt=lrc&charset=utf8`;
+        const dlData = await nativeFetchJson(dlUrl, kgHeaders, 6500);
+        const raw = decodeBase64Utf8ForLyrics(dlData?.content || '').trim();
+        if (raw && raw.length > 10) {
+          const result = {
+            source: '酷狗音樂歌詞庫',
+            synced: isSyncedLrc(raw) ? raw : null,
+            plain: raw,
+          };
+          nowPlayingLyricsCache.set(cacheKey, result);
+          return result;
         }
       }
     }
@@ -16762,13 +17053,13 @@ async function loadLyricsForNowPlaying(track) {
   container.innerHTML = `
     <div class="lyrics-loading-state">
       <span class="spinner"></span>
-      <div>正在連線線上音樂庫檢索歌詞...</div>
+      <div>正在檢索本機與線上音樂庫歌詞...</div>
       <div style="font-size: 11px; opacity: 0.7;">《${escapeXml(track.title)}》 • ${escapeXml(track.artist)}</div>
     </div>
   `;
   if (sourceEl) sourceEl.textContent = '搜尋中...';
 
-  const lyricData = await fetchLyricsOnline(track.title, track.artist, track.album, track.duration);
+  const lyricData = await fetchLyricsOnline(track.title, track.artist, track.album, track.duration, track);
 
   // Prevent race condition if track changed during fetch
   if (state.currentTrackIndex < 0 || state.queue[state.currentTrackIndex] !== track) {
@@ -16779,6 +17070,7 @@ async function loadLyricsForNowPlaying(track) {
     if (sourceEl) sourceEl.textContent = `即時同步歌詞 • ${lyricData.source}`;
     currentSyncedLyrics = parseLrc(lyricData.synced);
     renderSyncedLyrics(currentSyncedLyrics);
+    try { syncWebDisplayState(true); } catch (_) {}
   } else if (lyricData && lyricData.plain) {
     if (sourceEl) sourceEl.textContent = `純文字歌詞 • ${lyricData.source}`;
     container.innerHTML = `<div class="lyrics-plain-box">${escapeXml(lyricData.plain)}</div>`;

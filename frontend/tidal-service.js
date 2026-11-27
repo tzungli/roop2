@@ -334,6 +334,25 @@ class TidalService {
     }
   }
 
+  async getTrackLyrics(trackId) {
+    const cleanId = String(trackId || '').replace(/^tidal_/, '').trim();
+    if (!cleanId) return null;
+    try {
+      const res = await this.api(`/tracks/${cleanId}/lyrics`);
+      if (!res || (!res.subtitles && !res.lyrics)) return null;
+      const subtitles = String(res.subtitles || '').trim();
+      const plain = String(res.lyrics || '').trim();
+      if (!subtitles && !plain) return null;
+      return {
+        synced: subtitles || null,
+        plain: plain || subtitles || null,
+        source: 'TIDAL 官方歌詞',
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
   async getArtist(artistId) {
     const artist = await this.api(`/artists/${artistId}`);
     const albums = await this.getArtistAlbums(artistId, 50);

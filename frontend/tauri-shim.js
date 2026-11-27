@@ -315,6 +315,7 @@
       return res;
     },
     updateAlbumArtist: (albumTitle, artistName) => invoke('library_update_album_artist', { albumTitle, artistName }),
+    readTrackLyrics: (filePath) => invoke('library_read_track_lyrics', { filePath }),
     openExternal: (url) => invoke('shell_open_external', { url }),
     getDsdStreamUrl: (filePath, startSec = 0, peqJson = '', convJson = '') =>
       invoke('audio_get_dsd_stream_url', { filePath, startSec, peqJson, convJson }),

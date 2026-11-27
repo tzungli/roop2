@@ -423,6 +423,7 @@ async fn main() {
             library_save_tracks,
             library_remove_folder,
             library_update_album_artist,
+            library_read_track_lyrics,
             library_export,
             library_import,
             playlist_read_file,

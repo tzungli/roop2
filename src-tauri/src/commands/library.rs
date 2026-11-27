@@ -892,3 +892,110 @@ pub async fn util_translate_to_zh_tw(text: String) -> Result<String, String> {
         Ok(translated_paragraphs.join("\n\n"))
     }
 }
+
+fn decode_text_bytes(bytes: &[u8]) -> String {
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        return String::from_utf8_lossy(&bytes[3..]).into_owned();
+    }
+    if bytes.starts_with(&[0xFF, 0xFE]) && bytes.len() >= 4 {
+        let u16s: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        return String::from_utf16_lossy(&u16s);
+    }
+    if bytes.starts_with(&[0xFE, 0xFF]) && bytes.len() >= 4 {
+        let u16s: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_be_bytes([c[0], c[1]]))
+            .collect();
+        return String::from_utf16_lossy(&u16s);
+    }
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+fn has_lrc_timestamps(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    for i in 0..bytes.len().saturating_sub(6) {
+        if bytes[i] == b'[' && bytes[i + 1].is_ascii_digit() {
+            // Check [m:ss or [mm:ss
+            if (bytes[i + 2] == b':' && bytes[i + 3].is_ascii_digit() && bytes[i + 4].is_ascii_digit())
+                || (bytes[i + 2].is_ascii_digit()
+                    && bytes[i + 3] == b':'
+                    && bytes[i + 4].is_ascii_digit()
+                    && bytes[i + 5].is_ascii_digit())
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[tauri::command]
+pub async fn library_read_track_lyrics(file_path: String) -> Result<Option<serde_json::Value>, String> {
+    let trimmed = file_path.trim().to_string();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    tokio::task::spawn_blocking(move || {
+        use lofty::file::TaggedFileExt;
+        let audio_path = std::path::PathBuf::from(&trimmed);
+
+        // 1. Sidecar .lrc file next to the audio file
+        let lrc_path = audio_path.with_extension("lrc");
+        if lrc_path.is_file() {
+            if let Ok(bytes) = std::fs::read(&lrc_path) {
+                let raw = decode_text_bytes(&bytes).trim().to_string();
+                if !raw.is_empty() {
+                    let is_synced = has_lrc_timestamps(&raw);
+                    return Some(serde_json::json!({
+                        "source": "本機 LRC 歌詞檔",
+                        "synced": if is_synced { Some(raw.clone()) } else { None },
+                        "plain": raw,
+                    }));
+                }
+            }
+        }
+
+        // 2. Embedded lyrics tag inside the audio file (USLT / LYRICS / ©lyr / APE Lyrics)
+        if audio_path.is_file() {
+            if let Ok(probe) = lofty::probe::Probe::open(&audio_path) {
+                if let Ok(tagged) = probe.read() {
+                    let mut found: Option<String> = None;
+                    if let Some(primary) = tagged.primary_tag() {
+                        if let Some(s) = primary.get_string(&lofty::tag::ItemKey::Lyrics) {
+                            let t = s.trim();
+                            if !t.is_empty() {
+                                found = Some(t.to_string());
+                            }
+                        }
+                    }
+                    if found.is_none() {
+                        for tag in tagged.tags() {
+                            if let Some(s) = tag.get_string(&lofty::tag::ItemKey::Lyrics) {
+                                let t = s.trim();
+                                if !t.is_empty() {
+                                    found = Some(t.to_string());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if let Some(raw) = found {
+                        let is_synced = has_lrc_timestamps(&raw);
+                        return Some(serde_json::json!({
+                            "source": "音訊檔案內嵌歌詞",
+                            "synced": if is_synced { Some(raw.clone()) } else { None },
+                            "plain": raw,
+                        }));
+                    }
+                }
+            }
+        }
+
+        None
+    })
+    .await
+    .map_err(|e| format!("read track lyrics join error: {}", e))
+}
