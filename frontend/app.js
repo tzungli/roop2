@@ -4042,32 +4042,62 @@ function renderDailyPickCard(entry) {
     const yr = pick.year && String(pick.year).trim();
     daysAgoEl.textContent = yr ? `${yr} 年發行` : '精選推薦作品';
   }
+  const svgFallbackCover = createSvgCover(pick.title, pick.artist);
   if (coverImg) {
+    coverImg.onerror = () => {
+      coverImg.onerror = null;
+      coverImg.src = svgFallbackCover;
+    };
     coverImg.src = coverUrl;
   }
   if (backdropEl) {
     backdropEl.style.backgroundImage = coverUrl ? `url("${coverUrl}")` : 'none';
   }
 
-  // Populate circular seed-artist avatar (immediate album cover fallback, upgraded to real artist portrait)
+  // Populate circular seed-artist avatar (safe onerror fallback to SVG placeholder so it never shows a broken image)
   if (avatarImg && avatarPh) {
+    const showPlaceholder = () => {
+      avatarImg.style.display = 'none';
+      avatarImg.removeAttribute('src');
+      avatarPh.style.display = 'flex';
+    };
+
     const seedAlb = (state.albums || []).find(a => a && a.cover && String(a.artist || '').toLowerCase() === seedArtist.toLowerCase());
-    const fallbackAvatar = seedAlb ? formatCoverSrc(seedAlb.cover) : coverUrl;
-    if (fallbackAvatar) {
-      avatarImg.src = fallbackAvatar;
+    const immediatePortrait = (typeof getImmediateArtistAvatarSrc === 'function')
+      ? getImmediateArtistAvatarSrc(seedArtist, null)
+      : '';
+    const seedCover = seedAlb ? formatCoverSrc(seedAlb.cover) : '';
+    const validCoverFallback = (coverUrl && !String(coverUrl).startsWith('data:image/svg')) ? coverUrl : '';
+    const initialSrc = immediatePortrait || seedCover || validCoverFallback || '';
+
+    const setSafeAvatar = (src, nextFallback = '') => {
+      if (!src) {
+        showPlaceholder();
+        return;
+      }
+      avatarImg.onerror = () => {
+        avatarImg.onerror = null;
+        if (nextFallback && nextFallback !== src) {
+          setSafeAvatar(nextFallback, '');
+        } else {
+          showPlaceholder();
+        }
+      };
+      avatarImg.src = src;
       avatarImg.style.display = 'block';
       avatarPh.style.display = 'none';
-    } else {
-      avatarImg.style.display = 'none';
-      avatarPh.style.display = 'flex';
-    }
-    if (typeof resolveArtistOnlinePortrait === 'function' && seedArtist) {
+    };
+
+    setSafeAvatar(initialSrc, seedCover || validCoverFallback);
+
+    const portraitFetcher = (typeof fetchArtistPortraitOnline === 'function')
+      ? fetchArtistPortraitOnline
+      : (typeof resolveArtistOnlinePortrait === 'function' ? resolveArtistOnlinePortrait : null);
+    if (portraitFetcher && seedArtist) {
       const targetSeed = seedArtist;
-      resolveArtistOnlinePortrait(targetSeed).then(portraitUrl => {
+      portraitFetcher(targetSeed).then(portraitUrl => {
         if (portraitUrl && seedArtistEl && seedArtistEl.textContent === targetSeed) {
-          avatarImg.src = portraitUrl;
-          avatarImg.style.display = 'block';
-          avatarPh.style.display = 'none';
+          setSafeAvatar(portraitUrl, seedCover || validCoverFallback);
         }
       }).catch(() => {});
     }
