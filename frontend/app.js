@@ -6545,22 +6545,30 @@ function renderArtists() {
 }
 
 // ----------------- Artist Detail View -----------------
-async function openArtistDetail(artistName) {
+async function openArtistDetail(artistInput) {
+  const artistName = typeof artistInput === 'string'
+    ? artistInput.trim()
+    : String((artistInput && artistInput.name) || '').trim();
+  if (!artistName) return;
+
   state.currentArtistDetail = artistName;
   navigateTo('artistDetail');
 
-  const localAlbums = state.albums.filter(a => a.artist.toLowerCase() === artistName.toLowerCase());
-  const localTracks = state.tracks.filter(t => t.artist.toLowerCase() === artistName.toLowerCase());
+  const targetLower = artistName.toLowerCase();
+  const localAlbums = state.albums.filter(a => String(a && a.artist || '').trim().toLowerCase() === targetLower);
+  const localTracks = state.tracks.filter(t => String(t && t.artist || '').trim().toLowerCase() === targetLower);
 
-
-  // Reset Hero Banner Backdrop & Avatar (immediately preview local album cover while resolving real portrait)
+  // Reset Hero Banner Backdrop & Avatar (immediately preview cached portrait or local album cover)
   const heroBackdrop = document.getElementById('artistHeroBackdrop');
   const avatarImg = document.getElementById('artistDetailAvatar');
   const avatarPlaceholder = document.getElementById('artistDetailAvatarPlaceholder');
   const firstLocalCover = localAlbums.find(a => a && a.cover && !String(a.cover).startsWith('data:image/svg'))?.cover
     || localAlbums.find(a => a && a.cover)?.cover
     || '';
-  const localCoverSrc = firstLocalCover ? formatCoverSrc(firstLocalCover) : '';
+  const cachedPortrait = (typeof getImmediateArtistAvatarSrc === 'function')
+    ? getImmediateArtistAvatarSrc(artistName, typeof artistInput === 'object' ? artistInput : null)
+    : '';
+  const localCoverSrc = cachedPortrait || (firstLocalCover ? formatCoverSrc(firstLocalCover) : '');
 
   if (heroBackdrop) {
     if (localCoverSrc) {
