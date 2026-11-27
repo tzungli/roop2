@@ -56,15 +56,7 @@ async fn main() {
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
-    // 1. Start background progressive HTTP audio streamer (Port 39840)
-    tokio::spawn(async {
-        let server = StreamServer::new(39840);
-        if let Err(e) = server.run().await {
-            tracing::error!("StreamServer error: {}", e);
-        }
-    });
-
-    // 2. Resolve application data directory
+    // 1. Resolve application data directory
     let app_data_dir = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("rooPlayer");
@@ -120,7 +112,23 @@ async fn main() {
     let event_restored_flag = window_restored.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tracing::info!("Second instance detected — focusing existing main window");
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.unminimize();
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .setup(move |app| {
+            // Start background progressive HTTP audio streamer (Port 39840) only in the primary instance
+            tokio::spawn(async {
+                let server = StreamServer::new(39840);
+                if let Err(e) = server.run().await {
+                    tracing::error!("StreamServer error: {}", e);
+                }
+            });
+
             if let Some(win) = app.get_webview_window("main") {
                 if let Some(icon) = app.default_window_icon() {
                     let _ = win.set_icon(icon.clone());
