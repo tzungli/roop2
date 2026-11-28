@@ -1333,6 +1333,205 @@ function formatTimeAgo(timestamp) {
   return `${m}/${day} ${h}:${min}`;
 }
 
+// ----------------- Real Elapsed Listening Time Ledger -----------------
+// Tracks actual wall-clock seconds spent listening to music per calendar day ("YYYY-MM-DD"),
+// plus per-genre, per-artist, and per-album actual listened seconds.
+// Solves three major bugs of using the 100-item deduplicated `rooplayer_playback_history`:
+//  1) Clicking/skipping a track for 2s no longer credits its entire 4-10min duration.
+//  2) Playing >100 tracks no longer caps total time at ~7h or erases previous weeks to 0m.
+//  3) Replaying the same track on different days no longer deletes earlier days' history.
+const LISTENING_LEDGER_STORAGE_KEY = 'rooplayer_listening_ledger_v1';
+let _listeningLedger = null;
+let _listeningLedgerDirty = false;
+let _listeningLedgerLastTickMs = 0;
+let _listeningLedgerUiRefreshAccSec = 0;
+let _currentTrackPlaySession = {
+  trackKey: '',
+  trackRef: null,
+  albumRef: null,
+  listenedSec: 0,
+  playCountRecorded: false,
+};
+
+function formatLocalDateKey(ms) {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getListeningLedger() {
+  if (_listeningLedger) return _listeningLedger;
+  try {
+    const raw = localStorage.getItem(LISTENING_LEDGER_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        _listeningLedger = {
+          version: 1,
+          seeded: !!parsed.seeded,
+          days: (parsed.days && typeof parsed.days === 'object') ? parsed.days : {},
+          genres: (parsed.genres && typeof parsed.genres === 'object') ? parsed.genres : {},
+          artists: (parsed.artists && typeof parsed.artists === 'object') ? parsed.artists : {},
+          albums: (parsed.albums && typeof parsed.albums === 'object') ? parsed.albums : {},
+        };
+        return _listeningLedger;
+      }
+    }
+  } catch (_) {}
+
+  _listeningLedger = {
+    version: 1,
+    seeded: false,
+    days: {},
+    genres: {},
+    artists: {},
+    albums: {},
+  };
+  return _listeningLedger;
+}
+
+function saveListeningLedger(force = false) {
+  if (!_listeningLedger || (!_listeningLedgerDirty && !force)) return;
+  try {
+    // Prune days older than 90 days to keep storage compact
+    const cutoffMs = Date.now() - 90 * 86400000;
+    const cutoffKey = formatLocalDateKey(cutoffMs);
+    for (const k of Object.keys(_listeningLedger.days)) {
+      if (k < cutoffKey) delete _listeningLedger.days[k];
+    }
+    localStorage.setItem(LISTENING_LEDGER_STORAGE_KEY, JSON.stringify(_listeningLedger));
+    _listeningLedgerDirty = false;
+  } catch (_) {}
+}
+
+function creditTrackListeningSeconds(track, foundAlbum, deltaSec) {
+  if (!track || !(deltaSec > 0)) return;
+  const ledger = getListeningLedger();
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const todayKey = formatLocalDateKey(Date.now());
+  ledger.days[todayKey] = Math.round(((ledger.days[todayKey] || 0) + deltaSec) * 10) / 10;
+
+  const title = track.title || '';
+  const artist = track.artist || (foundAlbum && foundAlbum.artist) || '';
+  const album = track.album || (foundAlbum && foundAlbum.title) || '';
+  const cover = track.cover || (foundAlbum && foundAlbum.cover) || '';
+  const genreRaw = track.genre || (foundAlbum && foundAlbum.genre) || '';
+
+  const cg = typeof canonicalizeGenre === 'function'
+    ? canonicalizeGenre(genreRaw, { title, artist, album })
+    : (genreRaw || 'Pop');
+  if (cg) {
+    ledger.genres[cg] = Math.round(((ledger.genres[cg] || 0) + deltaSec) * 10) / 10;
+  }
+
+  if (artist && !isUnknownArtist(artist)) {
+    const ak = norm(artist);
+    const prev = ledger.artists[ak];
+    if (prev && typeof prev === 'object') {
+      prev.secs = Math.round(((prev.secs || 0) + deltaSec) * 10) / 10;
+    } else {
+      ledger.artists[ak] = { name: String(artist).trim(), secs: Math.round(deltaSec * 10) / 10 };
+    }
+  }
+
+  if (album && String(album).trim()) {
+    const bk = `${norm(album)}___${norm(artist)}`;
+    const prev = ledger.albums[bk];
+    if (prev && typeof prev === 'object') {
+      prev.secs = Math.round(((prev.secs || 0) + deltaSec) * 10) / 10;
+      if (!prev.cover && cover) prev.cover = cover;
+    } else {
+      ledger.albums[bk] = {
+        title: String(album).trim(),
+        artist: String(artist).trim(),
+        cover: cover || '',
+        secs: Math.round(deltaSec * 10) / 10,
+      };
+    }
+  }
+
+  _listeningLedgerDirty = true;
+}
+
+function beginTrackListeningSession(track, foundAlbum) {
+  if (!track) return;
+  const trackKey = track.id || `${track.title || ''}___${track.artist || ''}`;
+  _currentTrackPlaySession = {
+    trackKey,
+    trackRef: track,
+    albumRef: foundAlbum || null,
+    listenedSec: 0,
+    playCountRecorded: false,
+  };
+  _listeningLedgerLastTickMs = performance.now();
+}
+
+function tickListeningTimeLedger() {
+  const nowMs = performance.now();
+  const elapsedSec = _listeningLedgerLastTickMs > 0 ? (nowMs - _listeningLedgerLastTickMs) / 1000 : 1.0;
+  _listeningLedgerLastTickMs = nowMs;
+  const deltaSec = Math.min(3.0, Math.max(0.1, elapsedSec));
+
+  let anyPlaying = false;
+
+  // 1. Active audio zone
+  if (state.isPlaying && state.queue && state.currentTrackIndex >= 0) {
+    const activeTrack = state.queue[state.currentTrackIndex];
+    if (activeTrack && !activeTrack.isDemo) {
+      anyPlaying = true;
+      const foundAlbum = (_currentTrackPlaySession.trackRef === activeTrack && _currentTrackPlaySession.albumRef)
+        ? _currentTrackPlaySession.albumRef
+        : (typeof findAlbumForTrack === 'function' ? findAlbumForTrack(activeTrack) : null);
+      creditTrackListeningSeconds(activeTrack, foundAlbum, deltaSec);
+
+      const tKey = activeTrack.id || `${activeTrack.title || ''}___${activeTrack.artist || ''}`;
+      if (_currentTrackPlaySession.trackKey !== tKey) {
+        beginTrackListeningSession(activeTrack, foundAlbum);
+      }
+      _currentTrackPlaySession.listenedSec += deltaSec;
+      const trackDur = Number(activeTrack.duration) || 0;
+      const thresholdSec = trackDur > 0 ? Math.min(15, Math.max(5, trackDur * 0.35)) : 15;
+      if (!_currentTrackPlaySession.playCountRecorded && _currentTrackPlaySession.listenedSec >= thresholdSec) {
+        _currentTrackPlaySession.playCountRecorded = true;
+        recordPlayCount(activeTrack, foundAlbum);
+      }
+    }
+  }
+
+  // 2. Background zones playing concurrently
+  if (state.zones && typeof state.zones === 'object') {
+    for (const [zId, zState] of Object.entries(state.zones)) {
+      if (zId === state.activeAudioZone) continue;
+      if (zState && zState.isPlaying && Array.isArray(zState.queue) && zState.currentTrackIndex >= 0) {
+        const bgTrack = zState.queue[zState.currentTrackIndex];
+        if (bgTrack && !bgTrack.isDemo) {
+          anyPlaying = true;
+          const bgAlb = typeof findAlbumForTrack === 'function' ? findAlbumForTrack(bgTrack) : null;
+          creditTrackListeningSeconds(bgTrack, bgAlb, deltaSec);
+        }
+      }
+    }
+  }
+
+  if (anyPlaying) {
+    _listeningLedgerUiRefreshAccSec += deltaSec;
+    if (_listeningLedgerUiRefreshAccSec >= 10) {
+      _listeningLedgerUiRefreshAccSec = 0;
+      saveListeningLedger();
+      if (state.currentView === 'overview' && typeof renderRooListeningAnalytics === 'function') {
+        renderRooListeningAnalytics();
+      }
+    }
+  } else if (_listeningLedgerDirty) {
+    saveListeningLedger();
+  }
+}
+
+setInterval(tickListeningTimeLedger, 1000);
+window.addEventListener('beforeunload', () => saveListeningLedger(true));
+
 // ----------------- Play Count Tracker -----------------
 // Parsed-JSON cache kept in memory; getPlayStatsRef() provides zero-copy O(1) read access
 // for hot render/sort loops, while getPlayStats() returns a shallow copy for mutating callers.
@@ -4887,43 +5086,18 @@ function renderRooListeningAnalytics() {
     trackByTitleArtist.set(`${norm(t.title)}___${norm(t.artist)}`, t);
   });
 
-  const genreSecs = new Map();
-  const artistSecs = new Map(); // norm -> { name, secs }
-  const albumSecs = new Map();  // normKey -> { title, artist, cover, secs }
+  const ledger = getListeningLedger();
+  const hasLedgerDays = Object.keys(ledger.days || {}).length > 0;
 
-  const addEntryStats = (title, artist, album, cover, genreRaw, durSec) => {
-    const d = Math.max(10, Number(durSec) || 210);
-    const cg = canonicalizeGenre(genreRaw || '', { title, artist, album });
-    genreSecs.set(cg, (genreSecs.get(cg) || 0) + d);
-
-    if (artist && !isUnknownArtist(artist)) {
-      const ak = norm(artist);
-      const prev = artistSecs.get(ak);
-      if (prev) prev.secs += d;
-      else artistSecs.set(ak, { name: String(artist).trim(), secs: d });
-    }
-    if (album && String(album).trim()) {
-      const bk = `${norm(album)}___${norm(artist)}`;
-      const prev = albumSecs.get(bk);
-      if (prev) {
-        prev.secs += d;
-        if (!prev.cover && cover) prev.cover = cover;
-      } else {
-        albumSecs.set(bk, { title: String(album).trim(), artist: String(artist || '').trim(), cover: cover || '', secs: d });
-      }
-    }
-  };
-
-  // Accumulate from real playback history
-  history.forEach(h => {
-    if (!h) return;
-    const matched = (h.id && trackById.get(String(h.id)))
-      || trackByTitleArtist.get(`${norm(h.title)}___${norm(h.artist)}`);
-    const durSec = Number(h.duration) || (matched && Number(matched.duration)) || 210;
-    const playedMs = h.playedAt ? (typeof h.playedAt === 'number' ? h.playedAt : Date.parse(h.playedAt)) : 0;
-
-    if (playedMs && !Number.isNaN(playedMs)) {
-      const diffFromMon = playedMs - thisWeekMonMs;
+  // Populate 4-week buckets from accurate daily listening ledger ("YYYY-MM-DD" -> actual listened seconds)
+  if (hasLedgerDays) {
+    for (const [dateKey, rawSecs] of Object.entries(ledger.days)) {
+      const secs = Number(rawSecs) || 0;
+      if (secs <= 0) continue;
+      const parts = dateKey.split('-').map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) continue;
+      const dayStartMs = new Date(parts[0], parts[1] - 1, parts[2]).getTime();
+      const diffFromMon = dayStartMs - thisWeekMonMs;
       let weekIdx = -1;
       if (diffFromMon >= 0 && diffFromMon < weekMs) {
         weekIdx = 0;
@@ -4932,32 +5106,69 @@ function renderRooListeningAnalytics() {
         if (ago >= 1 && ago <= 3) weekIdx = ago;
       }
       if (weekIdx >= 0 && weekIdx < 4) {
-        weeks[weekIdx].secs += durSec;
-        const dObj = new Date(playedMs);
+        weeks[weekIdx].secs += secs;
+        const dObj = new Date(dayStartMs);
         const dayIdx = dObj.getDay() === 0 ? 6 : dObj.getDay() - 1;
         weeks[weekIdx].activeDays.add(dayIdx);
       }
     }
+  }
 
-    addEntryStats(
-      h.title,
-      h.artist || (matched && matched.artist),
-      h.album || (matched && matched.album),
-      h.cover || (matched && matched.cover),
-      h.genre || (matched && matched.genre),
-      durSec
-    );
-  });
+  const genreSecs = new Map();
+  const artistSecs = new Map(); // norm -> { name, secs }
+  const albumSecs = new Map();  // normKey -> { title, artist, cover, secs }
 
-  // Fallback to playStats if playbackHistory is empty (e.g. imported play counts)
-  if (history.length === 0 && stats && stats.tracks) {
-    (state.tracks || []).forEach(t => {
-      const tKey = t.id || `${t.title}___${t.artist}`;
-      const plays = stats.tracks[tKey] || 0;
-      if (plays > 0) {
-        addEntryStats(t.title, t.artist, t.album, t.cover, t.genre, (Number(t.duration) || 210) * plays);
+  const hasLedgerBreakdowns =
+    Object.keys(ledger.genres || {}).length > 0 ||
+    Object.keys(ledger.artists || {}).length > 0 ||
+    Object.keys(ledger.albums || {}).length > 0;
+
+  if (hasLedgerBreakdowns) {
+    for (const [g, s] of Object.entries(ledger.genres || {})) {
+      if (Number(s) > 0) genreSecs.set(g, Number(s));
+    }
+    for (const [ak, obj] of Object.entries(ledger.artists || {})) {
+      if (obj && Number(obj.secs) > 0) artistSecs.set(ak, { name: obj.name, secs: Number(obj.secs) });
+    }
+    for (const [bk, obj] of Object.entries(ledger.albums || {})) {
+      if (obj && Number(obj.secs) > 0) {
+        albumSecs.set(bk, { title: obj.title, artist: obj.artist, cover: obj.cover || '', secs: Number(obj.secs) });
       }
-    });
+    }
+  } else {
+    // Fallback when ledger has no recorded seconds yet: use verified play counts (not raw 100-item click durations)
+    const addEntryStats = (title, artist, album, cover, genreRaw, durSec) => {
+      const d = Math.max(10, Math.min(1800, Number(durSec) || 180));
+      const cg = canonicalizeGenre(genreRaw || '', { title, artist, album });
+      genreSecs.set(cg, (genreSecs.get(cg) || 0) + d);
+
+      if (artist && !isUnknownArtist(artist)) {
+        const ak = norm(artist);
+        const prev = artistSecs.get(ak);
+        if (prev) prev.secs += d;
+        else artistSecs.set(ak, { name: String(artist).trim(), secs: d });
+      }
+      if (album && String(album).trim()) {
+        const bk = `${norm(album)}___${norm(artist)}`;
+        const prev = albumSecs.get(bk);
+        if (prev) {
+          prev.secs += d;
+          if (!prev.cover && cover) prev.cover = cover;
+        } else {
+          albumSecs.set(bk, { title: String(album).trim(), artist: String(artist || '').trim(), cover: cover || '', secs: d });
+        }
+      }
+    };
+
+    if (stats && stats.tracks && Object.keys(stats.tracks).length > 0) {
+      (state.tracks || []).forEach(t => {
+        const tKey = t.id || `${t.title}___${t.artist}`;
+        const plays = stats.tracks[tKey] || 0;
+        if (plays > 0) {
+          addEntryStats(t.title, t.artist, t.album, t.cover, t.genre, (Number(t.duration) || 180) * plays);
+        }
+      });
+    }
   }
 
   // 1. Update Total 4-Week Listening Time
@@ -11647,8 +11858,8 @@ async function playCurrentTrack() {
     });
   }
 
-  // Record play count statistics
-  recordPlayCount(track, foundAlbum);
+  // Begin real elapsed listening time session (playCount is recorded once >= 15s is actually listened)
+  beginTrackListeningSession(track, foundAlbum);
 
   // Record playback history (Recent 100 tracks, sorted newest to oldest)
   recordTrackPlaybackHistory(track, foundAlbum);

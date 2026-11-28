@@ -1347,9 +1347,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .week-dots-header {
-  display: flex;
-  gap: 12px;
-  margin-right: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, 14px);
+  gap: 6px;
+  justify-items: center;
+  align-items: center;
+  margin-right: 4px;
   font-size: 10.5px;
   font-weight: 600;
   color: var(--text-muted);
@@ -1371,6 +1374,10 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
 }
 
+[data-theme="light"] .weekly-progress-wrap {
+  background: rgba(15, 23, 42, 0.07);
+}
+
 .weekly-progress-fill {
   height: 100%;
   background: #6366f1;
@@ -1380,21 +1387,30 @@ h1, h2, h3, h4, h5, h6 {
 .weekly-val-lbl {
   font-size: 11px;
   color: var(--text-sub);
-  width: 32px;
+  width: 48px;
+  flex-shrink: 0;
   text-align: right;
+  white-space: nowrap;
 }
 
 .weekly-dots-row {
-  display: flex;
-  gap: 12px;
-  margin-right: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, 14px);
+  gap: 6px;
+  justify-items: center;
+  align-items: center;
+  margin-right: 4px;
 }
 
 .day-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="light"] .day-dot {
+  background: rgba(15, 23, 42, 0.16);
 }
 
 .day-dot.active {
@@ -1402,7 +1418,6 @@ h1, h2, h3, h4, h5, h6 {
   height: 8px;
   background: #6366f1;
   box-shadow: 0 0 6px rgba(99, 102, 241, 0.6);
-  transform: translateY(-1px);
 }
 
 .roo-breakdown-head {
