@@ -1456,6 +1456,7 @@ function creditTrackListeningSeconds(track, foundAlbum, deltaSec) {
 }
 
 function beginTrackListeningSession(track, foundAlbum) {
+  syncTidalBackgroundPauseState();
   if (!track) return;
   const trackKey = track.id || `${track.title || ''}___${track.artist || ''}`;
   _currentTrackPlaySession = {
@@ -1469,6 +1470,7 @@ function beginTrackListeningSession(track, foundAlbum) {
 }
 
 function tickListeningTimeLedger() {
+  syncTidalBackgroundPauseState();
   const nowMs = performance.now();
   const elapsedSec = _listeningLedgerLastTickMs > 0 ? (nowMs - _listeningLedgerLastTickMs) / 1000 : 1.0;
   _listeningLedgerLastTickMs = nowMs;
@@ -1526,6 +1528,37 @@ function tickListeningTimeLedger() {
     }
   } else if (_listeningLedgerDirty) {
     saveListeningLedger();
+  }
+}
+
+function isTrackFromTidal(track) {
+  if (!track) return false;
+  return !!(
+    track.isTidal ||
+    track.source === 'tidal' ||
+    track.tidalId ||
+    String(track.id || '').startsWith('tidal_')
+  );
+}
+
+function isAnyZonePlayingTidal() {
+  if (state.isPlaying && Array.isArray(state.queue) && state.currentTrackIndex >= 0) {
+    if (isTrackFromTidal(state.queue[state.currentTrackIndex])) return true;
+  }
+  if (state.zones && typeof state.zones === 'object') {
+    for (const [zId, zState] of Object.entries(state.zones)) {
+      if (zId === state.activeAudioZone) continue;
+      if (zState && zState.isPlaying && Array.isArray(zState.queue) && zState.currentTrackIndex >= 0) {
+        if (isTrackFromTidal(zState.queue[zState.currentTrackIndex])) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function syncTidalBackgroundPauseState() {
+  if (window.tidalService && typeof window.tidalService.setBackgroundPaused === 'function') {
+    window.tidalService.setBackgroundPaused(isAnyZonePlayingTidal());
   }
 }
 
@@ -3029,9 +3062,12 @@ async function renderArtistSpotlight(forceRefresh = false) {
       });
     }
 
-    // 若已登入 TIDAL，非同步在 TIDAL 搜尋該藝術家之發燒雲端專輯並加入相關精選專輯
+    // 若已登入 TIDAL，非同步在背景（播放 TIDAL 歌曲時自動暫停避讓、播放本機或停止時自動繼續）搜尋該藝術家之發燒雲端專輯
     if (window.tidalService && window.tidalService.isLoggedIn) {
-      window.tidalService.search(artistName, 8).then(res => {
+      const runBg = typeof window.tidalService.runBackground === 'function'
+        ? (fn) => window.tidalService.runBackground(fn)
+        : (fn) => fn();
+      runBg(() => window.tidalService.search(artistName, 8)).then(res => {
         if (currentSpotlightArtistName !== artistName) return;
         const tAlbums = (res && res.albums) ? res.albums : [];
         if (!tAlbums || tAlbums.length === 0) return;
@@ -5368,10 +5404,14 @@ async function fetchArtistPortraitOnline(artistName) {
 
   const task = (async () => {
     try {
-      // 1. Try TIDAL Artist Search first when logged in
-      if (window.tidalService && window.tidalService.isLoggedIn) {
+      // 1. Try TIDAL Artist Search first when logged in (skipped while TIDAL is actively streaming
+      //    so avatars resolve immediately via Rust Deezer/Wikipedia without touching TIDAL quota)
+      const bgPaused = typeof window.tidalService?.isBackgroundPaused === 'function' && window.tidalService.isBackgroundPaused();
+      if (!bgPaused && window.tidalService && window.tidalService.isLoggedIn) {
         try {
-          const res = await window.tidalService.search(name, 5);
+          const res = typeof window.tidalService.runBackground === 'function'
+            ? await window.tidalService.runBackground(() => window.tidalService.search(name, 5))
+            : await window.tidalService.search(name, 5);
           const items = (res && res.artists) || [];
           const hit = items.find(a => normArtistKey(a.name) === key)
             || items.find(a => looseArtistKey(a.name) && looseArtistKey(a.name) === looseArtistKey(name))
@@ -7712,10 +7752,13 @@ async function fetchOnlineGenreTileCover(genreName) {
       ? getRoonGenreZhName(canon)
       : canon;
 
-    // 1. Try TIDAL
-    if (window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.search === 'function') {
+    // 1. Try TIDAL (skipped while TIDAL is actively streaming so genre covers fall back to KKBOX/iTunes immediately)
+    const bgPaused = typeof window.tidalService?.isBackgroundPaused === 'function' && window.tidalService.isBackgroundPaused();
+    if (!bgPaused && window.tidalService && window.tidalService.isLoggedIn && typeof window.tidalService.search === 'function') {
       try {
-        const res = await window.tidalService.search(queryTerm, 8);
+        const res = typeof window.tidalService.runBackground === 'function'
+          ? await window.tidalService.runBackground(() => window.tidalService.search(queryTerm, 8))
+          : await window.tidalService.search(queryTerm, 8);
         const withCov = ((res && res.albums) || []).filter(a => a && a.cover);
         if (withCov.length > 0) {
           const pick = withCov[Math.floor(Math.random() * Math.min(withCov.length, 4))];
@@ -8379,13 +8422,16 @@ async function fetchRgdOnlineDiscovery(canonGenre, sessionId) {
     });
   };
 
-  // 1. Fetch new albums from TIDAL (note: search() and getNewReleases() already return normalized albums!)
+  // 1. Fetch new albums from TIDAL (pauses automatically while streaming TIDAL audio, resumes when stopped or playing local)
   if (window.tidalService && window.tidalService.isLoggedIn) {
     try {
+      const runBg = typeof window.tidalService.runBackground === 'function'
+        ? (fn) => window.tidalService.runBackground(fn)
+        : (fn) => fn();
       const [searchRes, newRelRes] = await Promise.allSettled([
-        window.tidalService.search(queryTerm, 20),
+        runBg(() => window.tidalService.search(queryTerm, 20)),
         typeof window.tidalService.getNewReleases === 'function'
-          ? window.tidalService.getNewReleases(20)
+          ? runBg(() => window.tidalService.getNewReleases(20))
           : Promise.resolve([])
       ]);
       if (searchRes.status === 'fulfilled' && searchRes.value && Array.isArray(searchRes.value.albums)) {
@@ -9697,20 +9743,25 @@ async function fetchLabelTidalAlbums(labelName, localMatched) {
       found.set(String(alb.tidalId), alb);
     };
 
-    // 1) 以公司名稱直接搜尋 TIDAL 專輯
+    const runBg = typeof window.tidalService.runBackground === 'function'
+      ? (fn) => window.tidalService.runBackground(fn)
+      : (fn) => fn();
+
+    // 1) 以公司名稱直接搜尋 TIDAL 專輯（播放 TIDAL 時自動暫停避讓）
     try {
-      const direct = await window.tidalService.search(labelName, 50);
+      const direct = await runBg(() => window.tidalService.search(labelName, 50));
       ((direct && direct.albums) || []).forEach(accept);
     } catch (e) { console.warn('[label] TIDAL label search failed:', e); }
     if (seq !== labelDetailRenderSeq) return;
 
-    // 2) 循該公司在庫藝術家延伸其 TIDAL 歷年發行（最多 8 位，避免大量請求）
-    const artistNames = [...new Set((localMatched || []).map(a => a.artist).filter(Boolean))].slice(0, 8);
+    // 2) 循該公司在庫藝術家延伸其 TIDAL 歷年發行（最多 6 位，每步透過背景佇列自動避讓 TIDAL 播放）
+    const artistNames = [...new Set((localMatched || []).map(a => a.artist).filter(Boolean))].slice(0, 6);
     for (const artistName of artistNames) {
       try {
-        const artistObj = await window.tidalService.searchArtist(artistName);
+        const artistObj = await runBg(() => window.tidalService.searchArtist(artistName));
         if (!artistObj || !artistObj.id) continue;
-        const discography = await window.tidalService.getArtistAlbums(artistObj.id, 50);
+        if (seq !== labelDetailRenderSeq) return;
+        const discography = await runBg(() => window.tidalService.getArtistAlbums(artistObj.id, 50));
         (discography || []).forEach(accept);
       } catch (e) { /* 單一藝術家失敗不影響整頁 */ }
       if (seq !== labelDetailRenderSeq) return;
@@ -10155,24 +10206,31 @@ async function fetchTidalRecommendationAlbums(album) {
 
   let entry = tidalRecommendCache.get(artistName || '__no_artist__');
   if (!entry) {
+    const runBg = typeof window.tidalService.runBackground === 'function'
+      ? (fn) => window.tidalService.runBackground(fn)
+      : (fn) => fn();
     entry = { discography: [], similarAlbums: [], genreAlbums: [] };
     if (artistName && !isUnknownArtist(artistName)) {
       try {
-        const artistObj = await window.tidalService.searchArtist(artistName);
+        const artistObj = await runBg(() => window.tidalService.searchArtist(artistName));
         if (artistObj && artistObj.id) {
-          entry.discography = (await window.tidalService.getArtistAlbums(artistObj.id, 25)) || [];
-          const similar = (await window.tidalService.getSimilarArtists(artistObj.id, 6)) || [];
-          const perArtist = await Promise.all(similar.slice(0, 6).map(async (sa) => {
-            if (!sa || !sa.id) return [];
-            try { return (await window.tidalService.getArtistAlbums(sa.id, 4)) || []; } catch (e) { return []; }
-          }));
+          entry.discography = (await runBg(() => window.tidalService.getArtistAlbums(artistObj.id, 25))) || [];
+          const similar = (await runBg(() => window.tidalService.getSimilarArtists(artistObj.id, 4))) || [];
+          const perArtist = [];
+          for (const sa of similar.slice(0, 3)) {
+            if (!sa || !sa.id) continue;
+            try {
+              const albs = (await runBg(() => window.tidalService.getArtistAlbums(sa.id, 4))) || [];
+              perArtist.push(albs);
+            } catch (e) {}
+          }
           entry.similarAlbums = perArtist.flat();
         }
       } catch (e) { console.warn('[recommend] TIDAL artist graph fetch failed:', e); }
     }
     if (genreName && genreName !== 'Various') {
       try {
-        const res = await window.tidalService.search(genreName, 12);
+        const res = await runBg(() => window.tidalService.search(genreName, 12));
         entry.genreAlbums = (res && res.albums) || [];
       } catch (e) { console.warn('[recommend] TIDAL genre search failed:', e); }
     }
@@ -10285,13 +10343,16 @@ function renderAlbumArtistOtherWorks(album) {
       discography = cached.discography;
     } else {
       try {
+        const runBg = typeof window.tidalService.runBackground === 'function'
+          ? (fn) => window.tidalService.runBackground(fn)
+          : (fn) => fn();
         let tidalArtistId = album.artistId || (Array.isArray(album.artists) && album.artists[0] && album.artists[0].id) || null;
         if (!tidalArtistId) {
-          const artistObj = await window.tidalService.searchArtist(artistName);
+          const artistObj = await runBg(() => window.tidalService.searchArtist(artistName));
           if (artistObj && artistObj.id) tidalArtistId = artistObj.id;
         }
         if (tidalArtistId) {
-          discography = (await window.tidalService.getArtistAlbums(tidalArtistId, 30)) || [];
+          discography = (await runBg(() => window.tidalService.getArtistAlbums(tidalArtistId, 30))) || [];
         }
       } catch (e) {
         console.warn('[otherWorks] TIDAL artist discography fetch failed:', e);
@@ -10779,19 +10840,22 @@ function renderAlbumArtistRecommendations(album) {
     countBadge.textContent = `${chosenArtists.length} 位推薦`;
   }
 
-  // Enrich with online TIDAL artists if logged in
+  // Enrich with online TIDAL artists if logged in (pauses while streaming TIDAL audio, resumes when stopped or playing local)
   if (isTidalLoggedIn) {
+    const runBg = typeof window.tidalService.runBackground === 'function'
+      ? (fn) => window.tidalService.runBackground(fn)
+      : (fn) => fn();
     const artistPromises = [];
     const curArtistName = (album.artist || '').trim();
 
     if (curArtistName && !isUnknownArtist(curArtistName)) {
       artistPromises.push(
-        window.tidalService.searchArtist(curArtistName)
-          .then(artObj => artObj?.id ? window.tidalService.getSimilarArtists(artObj.id, 8) : [])
+        runBg(() => window.tidalService.searchArtist(curArtistName))
+          .then(artObj => artObj?.id ? runBg(() => window.tidalService.getSimilarArtists(artObj.id, 8)) : [])
           .catch(() => [])
       );
       artistPromises.push(
-        window.tidalService.search(curArtistName, 6)
+        runBg(() => window.tidalService.search(curArtistName, 6))
           .then(res => res?.artists || [])
           .catch(() => [])
       );
@@ -10799,7 +10863,7 @@ function renderAlbumArtistRecommendations(album) {
 
     if (currentGenre && currentGenre !== 'Various') {
       artistPromises.push(
-        window.tidalService.search(currentGenre, 8)
+        runBg(() => window.tidalService.search(currentGenre, 8))
           .then(res => res?.artists || [])
           .catch(() => [])
       );
@@ -16283,6 +16347,7 @@ const NP_PLAY_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="curre
 const NP_PAUSE_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="pointer-events:none;"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
 
 function updatePlayPauseBtnUI() {
+  syncTidalBackgroundPauseState();
   if (document.body) {
     document.body.classList.toggle('is-music-playing', !!state.isPlaying);
   }

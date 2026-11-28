@@ -23,6 +23,53 @@ class TidalService {
     this._maxConcurrent = 3;
     this._queue = [];
     this._cooldownUntil = 0;
+    // Background enrichment priority gate: paused while any zone is actively streaming TIDAL audio,
+    // automatically resumed when stopped/paused or playing local tracks.
+    this._backgroundPaused = false;
+    this._bgResumeWaiters = [];
+    this._bgChain = Promise.resolve();
+  }
+
+  isBackgroundPaused() {
+    return !!this._backgroundPaused;
+  }
+
+  setBackgroundPaused(paused) {
+    const next = !!paused;
+    if (this._backgroundPaused === next) return;
+    this._backgroundPaused = next;
+    if (!next && this._bgResumeWaiters.length > 0) {
+      const waiters = this._bgResumeWaiters.splice(0);
+      for (const resolve of waiters) {
+        try { resolve(); } catch (_) {}
+      }
+    }
+  }
+
+  async waitIfBackgroundPaused() {
+    while (this._backgroundPaused) {
+      await new Promise(resolve => this._bgResumeWaiters.push(resolve));
+    }
+  }
+
+  /**
+   * Schedule a background enrichment task:
+   * - Automatically pauses while TIDAL audio is playing so streaming gets 100% bandwidth & quota.
+   * - Automatically resumes (serialized 1-at-a-time with a 260ms pacing gap) when playback stops
+   *   or switches to a local track.
+   */
+  runBackground(taskFn) {
+    const run = async () => {
+      await this.waitIfBackgroundPaused();
+      try {
+        return await taskFn();
+      } finally {
+        await new Promise(r => setTimeout(r, 260));
+      }
+    };
+    const p = this._bgChain.then(run, run);
+    this._bgChain = p.catch(() => {});
+    return p;
   }
 
   async _acquireSlot() {
