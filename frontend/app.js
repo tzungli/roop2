@@ -5391,14 +5391,33 @@ function getImmediateArtistAvatarSrc(artistName, liveArt) {
 }
 
 const _artistPortraitPending = new Map(); // key -> Promise<string>
+const ARTIST_AVATAR_MISS_TTL_MS = 7 * 86400 * 1000;
+const artistAvatarMissCache = createPersistentMap('roo_cache_artist_avatar_miss_v1', 1200);
+
+function isArtistAvatarMissed(key) {
+  const until = artistAvatarMissCache.get(key);
+  return typeof until === 'number' && Date.now() < until;
+}
+
+function markArtistAvatarMissed(key) {
+  if (!key) return;
+  artistAvatarMissCache.set(key, Date.now() + ARTIST_AVATAR_MISS_TTL_MS);
+}
 
 async function fetchArtistPortraitOnline(artistName) {
   const name = String(artistName || '').trim();
   const key = normArtistKey(name);
   if (!key || isUnknownArtist(name)) return '';
 
-  const cached = artistAvatarCache.get(key);
-  if (cached) return resolveArtistAvatarUrl(cached);
+  const cached = artistAvatarCache.get(key) || (typeof artistPortraitCache !== 'undefined' && artistPortraitCache.get(key));
+  if (cached) {
+    if (!artistAvatarCache.has(key)) {
+      artistAvatarCache.set(key, cached);
+      saveArtistAvatarCache();
+    }
+    return resolveArtistAvatarUrl(cached);
+  }
+  if (isArtistAvatarMissed(key)) return '';
 
   if (_artistPortraitPending.has(key)) return _artistPortraitPending.get(key);
 
@@ -5410,8 +5429,8 @@ async function fetchArtistPortraitOnline(artistName) {
       if (!bgPaused && window.tidalService && window.tidalService.isLoggedIn) {
         try {
           const res = typeof window.tidalService.runBackground === 'function'
-            ? await window.tidalService.runBackground(() => window.tidalService.search(name, 5))
-            : await window.tidalService.search(name, 5);
+            ? await window.tidalService.runBackground(() => window.tidalService.search(name, 10))
+            : await window.tidalService.search(name, 10);
           const items = (res && res.artists) || [];
           const hit = items.find(a => normArtistKey(a.name) === key)
             || items.find(a => looseArtistKey(a.name) && looseArtistKey(a.name) === looseArtistKey(name))
@@ -5420,6 +5439,7 @@ async function fetchArtistPortraitOnline(artistName) {
           if (pic) {
             artistAvatarCache.set(key, pic);
             saveArtistAvatarCache();
+            if (typeof artistPortraitCache !== 'undefined') artistPortraitCache.set(key, resolveArtistAvatarUrl(pic) || pic);
             return resolveArtistAvatarUrl(pic);
           }
         } catch (_) {}
@@ -5431,9 +5451,12 @@ async function fetchArtistPortraitOnline(artistName) {
         if (picUrl && /^https?:\/\//i.test(picUrl)) {
           artistAvatarCache.set(key, picUrl);
           saveArtistAvatarCache();
+          if (typeof artistPortraitCache !== 'undefined') artistPortraitCache.set(key, picUrl);
           return picUrl;
         }
       }
+      // Remember 7-day miss only when TIDAL wasn't skipped due to playback pause
+      if (!bgPaused) markArtistAvatarMissed(key);
     } catch (_) {}
     finally {
       _artistPortraitPending.delete(key);
@@ -6368,7 +6391,7 @@ try {
 function saveArtistAvatarCache() {
   try {
     const obj = {}; let n = 0;
-    for (const [k, v] of artistAvatarCache) { if (n++ >= 400) break; obj[k] = v; }
+    for (const [k, v] of artistAvatarCache) { if (n++ >= 1200) break; obj[k] = v; }
     localStorage.setItem('rooplayer_artist_avatars', JSON.stringify(obj));
   } catch (e) {}
 }
@@ -6390,18 +6413,21 @@ const avatarFetchInFlight = new Set();
 async function hydrateArtistAvatars(container) {
   if (!container || !window.tidalService || !window.tidalService.isLoggedIn) return;
   const svc = window.tidalService;
+  const runBg = typeof svc.runBackground === 'function' ? (fn) => svc.runBackground(fn) : (fn) => fn();
   for (const card of [...container.querySelectorAll('.artist-card')]) {
     if (card.querySelector('.artist-avatar img')) continue; // 已有照片
     const name = card.dataset.artistName || '';
     const key = normArtistKey(name);
     if (!key) continue;
-    const cached = artistAvatarCache.get(key);
+    const cached = artistAvatarCache.get(key) || (typeof artistPortraitCache !== 'undefined' && artistPortraitCache.get(key));
     if (cached) { applyArtistAvatar(card, cached); continue; }
+    if (isArtistAvatarMissed(key)) continue;
     if (avatarFetchInFlight.has(key)) continue;
+    if (typeof svc.isBackgroundPaused === 'function' && svc.isBackgroundPaused()) continue;
     avatarFetchInFlight.add(key);
     (async () => {
       try {
-        const res = await svc.search(name, 5);
+        const res = await runBg(() => svc.search(name, 10));
         const items = (res && res.artists) || [];
         // 僅接受名稱完全相符或去符號後相符者，避免誤掛不相干藝術家的照片
         const hit = items.find(a => normArtistKey(a.name) === key)
@@ -6410,7 +6436,10 @@ async function hydrateArtistAvatars(container) {
         if (pic) {
           artistAvatarCache.set(key, pic);
           saveArtistAvatarCache();
+          if (typeof artistPortraitCache !== 'undefined') artistPortraitCache.set(key, resolveArtistAvatarUrl(pic) || pic);
           if (card.isConnected) applyArtistAvatar(card, pic);
+        } else {
+          markArtistAvatarMissed(key);
         }
       } catch (e) {} finally { avatarFetchInFlight.delete(key); }
     })();
@@ -6656,6 +6685,10 @@ window.seedArtistPortraitCache = function(artistName, picUrl) {
   if (!key) return;
   if (!artistPortraitCache.has(key)) {
     artistPortraitCache.set(key, picUrl);
+  }
+  if (typeof artistAvatarCache !== 'undefined' && !artistAvatarCache.has(key)) {
+    artistAvatarCache.set(key, picUrl);
+    if (typeof saveArtistAvatarCache === 'function') saveArtistAvatarCache();
   }
   if (artistBioTranslationCache.has(artistName)) {
     const entry = artistBioTranslationCache.get(artistName);
@@ -9955,7 +9988,7 @@ const GENRE_ERA_TOLERANCE = {
 };
 
 let albumRecommendRenderSeq = 0;
-const tidalRecommendCache = new Map(); // 藝術家名稱 ➔ { discography, similarAlbums, genreAlbums }
+const tidalRecommendCache = createPersistentMap('roo_cache_tidal_recommend_v1', 120); // 藝術家名稱 ➔ { discography, similarAlbums, genreAlbums, _ts }
 
 function albumIdentityKey(alb) {
   if (!alb) return '';
@@ -10205,11 +10238,14 @@ async function fetchTidalRecommendationAlbums(album) {
   if (!window.tidalService || !window.tidalService.isLoggedIn) return out;
 
   let entry = tidalRecommendCache.get(artistName || '__no_artist__');
+  if (entry && entry._ts && (Date.now() - entry._ts > 7 * 86400 * 1000)) {
+    entry = null;
+  }
   if (!entry) {
     const runBg = typeof window.tidalService.runBackground === 'function'
       ? (fn) => window.tidalService.runBackground(fn)
       : (fn) => fn();
-    entry = { discography: [], similarAlbums: [], genreAlbums: [] };
+    entry = { discography: [], similarAlbums: [], genreAlbums: [], _ts: Date.now() };
     if (artistName && !isUnknownArtist(artistName)) {
       try {
         const artistObj = await runBg(() => window.tidalService.searchArtist(artistName));
@@ -10235,11 +10271,6 @@ async function fetchTidalRecommendationAlbums(album) {
       } catch (e) { console.warn('[recommend] TIDAL genre search failed:', e); }
     }
     tidalRecommendCache.set(artistName || '__no_artist__', entry);
-    if (tidalRecommendCache.size > 40) {
-      // 只保留最近使用的藝術家，避免久開後記憶體持續成長
-      const oldest = tidalRecommendCache.keys().next().value;
-      if (oldest !== (artistName || '__no_artist__')) tidalRecommendCache.delete(oldest);
-    }
   }
 
   entry.discography.forEach(alb => out.push({ alb, kind: 'discography' }));

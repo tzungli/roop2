@@ -46,7 +46,7 @@ impl TidalState {
                 serde_json::from_str::<HashMap<String, CachedTidalEntry>>(&data)
                     .unwrap_or_default()
                     .into_iter()
-                    .filter(|(_, v)| now.saturating_sub(v.ts_secs) < 7 * 86400)
+                    .filter(|(_, v)| now.saturating_sub(v.ts_secs) < 14 * 86400)
                     .collect()
             } else {
                 HashMap::new()
@@ -103,12 +103,12 @@ impl TidalState {
             return 0;
         }
         if endpoint.starts_with("/albums/") || endpoint.starts_with("/artists/") {
-            return 7 * 86400; // 7 days for album/artist metadata, covers, portraits & reviews
+            return 14 * 86400; // 14 days for album/artist metadata, covers, portraits, discographies & reviews
         }
         if endpoint.contains("/favorites/") || endpoint.contains("/users/") {
             return 1800; // 30 minutes for user collection (auto-invalidated on writes)
         }
-        6 * 3600 // 6 hours for search, curated Hi-Res picks, official playlists, home modules
+        24 * 3600 // 24 hours for search, curated Hi-Res picks, official playlists, home modules
     }
 
     pub fn get_cached_api(&self, key: &str, ttl_secs: u64) -> Option<serde_json::Value> {
@@ -125,16 +125,23 @@ impl TidalState {
         }
     }
 
+    /// Stale-on-error fallback: returns any previously cached response even if expired,
+    /// protecting the UI during temporary offline or HTTP 429/503 windows.
+    pub fn get_stale_cached_api(&self, key: &str) -> Option<serde_json::Value> {
+        let guard = self.api_cache.read().ok()?;
+        guard.get(key).map(|entry| entry.data.clone())
+    }
+
     pub fn put_cached_api(&self, key: String, data: serde_json::Value) {
         let now = now_unix_secs();
         let snapshot = {
             let Ok(mut guard) = self.api_cache.write() else { return };
             guard.insert(key, CachedTidalEntry { ts_secs: now, data });
-            if guard.len() > 320 {
+            if guard.len() > 1500 {
                 let mut pairs: Vec<(String, u64)> =
                     guard.iter().map(|(k, v)| (k.clone(), v.ts_secs)).collect();
                 pairs.sort_by_key(|(_, ts)| *ts);
-                let remove_count = guard.len().saturating_sub(260);
+                let remove_count = guard.len().saturating_sub(1250);
                 for (k, _) in pairs.into_iter().take(remove_count) {
                     guard.remove(&k);
                 }
@@ -816,7 +823,19 @@ pub async fn tidal_api(
             }
         }
 
-        let resp = req.send().await.map_err(|e| e.to_string())?;
+        let resp = match req.send().await {
+            Ok(r) => r,
+            Err(e) => {
+                drop(_permit);
+                if method_upper == "GET" && ttl_secs > 0 {
+                    if let Some(stale) = state.get_stale_cached_api(&url) {
+                        tracing::warn!("[TIDAL] Network error on {} ({}), serving stale cache", endpoint, e);
+                        return Ok(stale);
+                    }
+                }
+                return Err(e.to_string());
+            }
+        };
         let status = resp.status();
 
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status == reqwest::StatusCode::SERVICE_UNAVAILABLE {
@@ -834,6 +853,12 @@ pub async fn tidal_api(
                 tracing::warn!("[TIDAL] HTTP {} on {} — backing off {:?}", status.as_u16(), endpoint, wait_dur);
                 tokio::time::sleep(wait_dur).await;
                 continue;
+            }
+            if method_upper == "GET" && ttl_secs > 0 {
+                if let Some(stale) = state.get_stale_cached_api(&url) {
+                    tracing::warn!("[TIDAL] HTTP {} on {} — serving stale cache fallback", status.as_u16(), endpoint);
+                    return Ok(stale);
+                }
             }
             return Err(last_err);
         }

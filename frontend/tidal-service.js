@@ -28,6 +28,52 @@ class TidalService {
     this._backgroundPaused = false;
     this._bgResumeWaiters = [];
     this._bgChain = Promise.resolve();
+    // Persistent artistName -> { id, name, picture, missUntil } index to avoid redundant searchArtist calls
+    this._artistIndex = new Map();
+    this._artistIndexSaveTimer = null;
+    try {
+      const rawIdx = typeof localStorage !== 'undefined' && localStorage.getItem('roo_cache_tidal_artist_index_v1');
+      if (rawIdx) {
+        const entries = JSON.parse(rawIdx);
+        if (Array.isArray(entries)) {
+          for (const pair of entries) {
+            if (Array.isArray(pair) && pair.length === 2 && pair[0]) {
+              this._artistIndex.set(pair[0], pair[1]);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  _saveArtistIndexDebounced() {
+    if (typeof localStorage === 'undefined' || this._artistIndexSaveTimer) return;
+    this._artistIndexSaveTimer = setTimeout(() => {
+      this._artistIndexSaveTimer = null;
+      try {
+        while (this._artistIndex.size > 1200) {
+          const oldest = this._artistIndex.keys().next().value;
+          if (oldest === undefined) break;
+          this._artistIndex.delete(oldest);
+        }
+        localStorage.setItem('roo_cache_tidal_artist_index_v1', JSON.stringify(Array.from(this._artistIndex.entries())));
+      } catch (_) {}
+    }, 500);
+  }
+
+  _rememberArtistEntry(artistObj) {
+    if (!artistObj || !artistObj.name || !artistObj.id) return;
+    const key = String(artistObj.name).toLowerCase().trim();
+    if (!key) return;
+    const prev = this._artistIndex.get(key);
+    const pic = artistObj.picture || (prev && prev.picture) || null;
+    this._artistIndex.set(key, {
+      id: artistObj.id,
+      name: artistObj.name,
+      picture: pic,
+      ts: Date.now()
+    });
+    this._saveArtistIndexDebounced();
   }
 
   isBackgroundPaused() {
@@ -373,22 +419,28 @@ class TidalService {
 
   async search(query, limit = 20) {
     if (!query || !query.trim()) return { albums: [], tracks: [], artists: [], playlists: [] };
-    const res = await this.api('/search', { query: query.trim(), limit });
+    // Normalize small limits (e.g. 5, 6, 8) to 10 so different UI widgets share the exact same Rust cache key
+    const normalizedLimit = limit <= 10 ? 10 : (limit <= 20 ? 20 : limit);
+    const res = await this.api('/search', { query: query.trim(), limit: normalizedLimit });
     const artists = (res.artists && res.artists.items) ? res.artists.items : [];
-    // Harvest artist portraits into persistent local cache so artist pages never need extra TIDAL searches
-    if (typeof window !== 'undefined' && typeof window.seedArtistPortraitCache === 'function') {
-      for (const ar of artists) {
-        if (ar && ar.name && ar.picture) {
+    // Harvest artist IDs & portraits into persistent local caches so artist pages never need extra TIDAL searches
+    for (const ar of artists) {
+      if (ar && ar.name) {
+        this._rememberArtistEntry(ar);
+        if (ar.picture && typeof window !== 'undefined' && typeof window.seedArtistPortraitCache === 'function') {
           const picUrl = this.getCoverUrl(ar.picture, 640);
           if (picUrl) window.seedArtistPortraitCache(ar.name, picUrl);
         }
       }
     }
+    const albums = (res.albums && res.albums.items) ? res.albums.items.map(a => this.normalizeAlbum(a)) : [];
+    const tracks = (res.tracks && res.tracks.items) ? res.tracks.items.map(t => this.normalizeTrack(t)) : [];
+    const playlists = (res.playlists && res.playlists.items) ? res.playlists.items : [];
     return {
-      albums: (res.albums && res.albums.items) ? res.albums.items.map(a => this.normalizeAlbum(a)) : [],
-      tracks: (res.tracks && res.tracks.items) ? res.tracks.items.map(t => this.normalizeTrack(t)) : [],
-      artists,
-      playlists: (res.playlists && res.playlists.items) ? res.playlists.items : []
+      albums: albums.slice(0, limit),
+      tracks: tracks.slice(0, limit),
+      artists: artists.slice(0, limit),
+      playlists: playlists.slice(0, limit)
     };
   }
 
@@ -464,10 +516,24 @@ class TidalService {
 
   async searchArtist(artistName) {
     if (!artistName || !artistName.trim()) return null;
-    const res = await this.search(artistName.trim(), 5);
-    if (res && res.artists && res.artists.length > 0) {
-      return res.artists[0];
+    const key = artistName.trim().toLowerCase();
+    const cached = this._artistIndex.get(key);
+    if (cached) {
+      if (cached.id) return { id: cached.id, name: cached.name, picture: cached.picture };
+      if (cached.missUntil && Date.now() < cached.missUntil) return null;
     }
+    const res = await this.search(artistName.trim(), 10);
+    if (res && res.artists && res.artists.length > 0) {
+      const hit = res.artists.find(a => a && a.name && a.name.toLowerCase().trim() === key) || res.artists[0];
+      if (hit && hit.id) {
+        this._artistIndex.set(key, { id: hit.id, name: hit.name, picture: hit.picture || null, ts: Date.now() });
+        this._saveArtistIndexDebounced();
+        return hit;
+      }
+    }
+    // Negative cache: remember miss for 7 days so unknown artists don't re-query TIDAL
+    this._artistIndex.set(key, { id: null, missUntil: Date.now() + 7 * 86400 * 1000 });
+    this._saveArtistIndexDebounced();
     return null;
   }
 
