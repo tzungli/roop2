@@ -1,0 +1,91 @@
+name: Build macOS (Apple Silicon & Intel)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional existing GitHub Release tag (e.g. v0.2.7) to upload .dmg assets to'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch_label: arm64
+          - target: x86_64-apple-darwin
+            arch_label: x64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Node.js (for Tauri CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: macos-${{ matrix.target }}
+
+      - name: Run Rust unit tests (native macOS libraries)
+        run: |
+          cargo test -p roo-dsp --lib
+          cargo test -p roo-library --lib
+          cargo test -p roo-airplay --lib
+
+      - name: Build macOS .app & .dmg bundle
+        run: |
+          npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles app,dmg
+
+      - name: Rename and stage macOS artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-macos
+          DMG_PATH=$(find "target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name '*.dmg' | head -n 1)
+          if [ -z "$DMG_PATH" ]; then
+            echo "ERROR: No .dmg found in target/${{ matrix.target }}/release/bundle/dmg"
+            exit 1
+          fi
+          VER=$(grep -m1 '^version' src-tauri/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          OUT_DMG="dist-macos/rooPlayer_${VER}_macos_${{ matrix.arch_label }}.dmg"
+          cp "$DMG_PATH" "$OUT_DMG"
+          (cd dist-macos && shasum -a 256 *.dmg > "SHA256SUMS-macos-${{ matrix.arch_label }}.txt")
+          ls -lh dist-macos
+          cat "dist-macos/SHA256SUMS-macos-${{ matrix.arch_label }}.txt"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rooPlayer-macos-${{ matrix.arch_label }}
+          path: dist-macos/*
+
+      - name: Attach .dmg to GitHub Release (if tag trigger or release_tag provided)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ inputs.release_tag }}"
+          if [ -z "$TAG" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+          fi
+          if [ -n "$TAG" ]; then
+            gh release upload "$TAG" dist-macos/* --clobber
+          fi

@@ -104,6 +104,7 @@ async fn query_netbios_hostname(ip: std::net::Ipv4Addr) -> Option<String> {
 }
 
 /// Enumerate public Disk shares on a Windows/Samba server via `net view \\<ip>` (UTF-8 codepage, hidden).
+#[cfg(target_os = "windows")]
 fn enumerate_smb_shares(ip: &str) -> Vec<serde_json::Value> {
     let mut shares = Vec::new();
     let out = hidden_command("cmd")
@@ -155,6 +156,34 @@ fn enumerate_smb_shares(ip: &str) -> Vec<serde_json::Value> {
             }
         }
     }
+    shares
+}
+
+#[cfg(not(target_os = "windows"))]
+fn enumerate_smb_shares(ip: &str) -> Vec<serde_json::Value> {
+    let mut shares = Vec::new();
+    #[cfg(target_os = "macos")]
+    if let Ok(output) = hidden_command("smbutil").args(["view", "-N", &format!("//{}", ip)]).output() {
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                let trimmed = line.trim();
+                let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+                if tokens.len() >= 2 {
+                    if let Some(pos) = tokens.iter().position(|&t| t.eq_ignore_ascii_case("Disk")) {
+                        if pos >= 1 {
+                            let name = tokens[..pos].join(" ");
+                            if !name.is_empty() && !name.ends_with('$') {
+                                let comment = if pos + 1 < tokens.len() { tokens[pos + 1..].join(" ") } else { String::new() };
+                                shares.push(serde_json::json!({ "name": name, "comment": comment }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let _ = ip;
     shares
 }
 
@@ -223,59 +252,87 @@ pub async fn samba_connect_and_scan(
     };
 
     tokio::task::spawn_blocking(move || {
-        // Authenticate with `net use` when credentials are provided
-        if !username.is_empty() {
-            let user_arg = format!("/user:{}", username);
-            let run_net_use = || {
-                let mut cmd = hidden_command("net");
-                cmd.arg("use").arg(&unc_base);
-                if !password.is_empty() {
-                    cmd.arg(&password);
-                } else {
-                    cmd.arg("");
-                }
-                cmd.arg(&user_arg).arg("/persistent:no");
-                cmd.output()
-            };
-
-            if let Ok(out) = run_net_use() {
-                if !out.status.success() {
-                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                    // Error 1219: existing session conflict -> disconnect share & retry once
-                    if stderr.contains("1219") {
-                        let _ = hidden_command("net")
-                            .args(["use", &unc_base, "/delete", "/y"])
-                            .output();
-                        if let Ok(retry_out) = run_net_use() {
-                            if !retry_out.status.success() {
-                                let err_msg = String::from_utf8_lossy(&retry_out.stderr).trim().to_string();
-                                return serde_json::json!({
-                                    "success": false,
-                                    "error": if err_msg.is_empty() { "Windows SMB 認證失敗，請檢查帳號密碼或先中斷既有連線。".to_string() } else { err_msg }
-                                });
-                            }
-                        }
+        #[cfg(target_os = "windows")]
+        {
+            // Authenticate with `net use` when credentials are provided
+            if !username.is_empty() {
+                let user_arg = format!("/user:{}", username);
+                let run_net_use = || {
+                    let mut cmd = hidden_command("net");
+                    cmd.arg("use").arg(&unc_base);
+                    if !password.is_empty() {
+                        cmd.arg(&password);
                     } else {
-                        let err_msg = stderr.trim().to_string();
-                        return serde_json::json!({
-                            "success": false,
-                            "error": if err_msg.is_empty() { "Windows SMB 認證失敗，請檢查 IP、共用名稱或帳密。".to_string() } else { err_msg }
-                        });
+                        cmd.arg("");
+                    }
+                    cmd.arg(&user_arg).arg("/persistent:no");
+                    cmd.output()
+                };
+
+                if let Ok(out) = run_net_use() {
+                    if !out.status.success() {
+                        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                        // Error 1219: existing session conflict -> disconnect share & retry once
+                        if stderr.contains("1219") {
+                            let _ = hidden_command("net")
+                                .args(["use", &unc_base, "/delete", "/y"])
+                                .output();
+                            if let Ok(retry_out) = run_net_use() {
+                                if !retry_out.status.success() {
+                                    let err_msg = String::from_utf8_lossy(&retry_out.stderr).trim().to_string();
+                                    return serde_json::json!({
+                                        "success": false,
+                                        "error": if err_msg.is_empty() { "Windows SMB 認證失敗，請檢查帳號密碼或先中斷既有連線。".to_string() } else { err_msg }
+                                    });
+                                }
+                            }
+                        } else {
+                            let err_msg = stderr.trim().to_string();
+                            return serde_json::json!({
+                                "success": false,
+                                "error": if err_msg.is_empty() { "Windows SMB 認證失敗，請檢查 IP、共用名稱或帳密。".to_string() } else { err_msg }
+                            });
+                        }
                     }
                 }
             }
+
+            // Verify directory accessibility
+            match std::fs::read_dir(&unc_full) {
+                Ok(_) => serde_json::json!({
+                    "success": true,
+                    "uncPath": unc_full
+                }),
+                Err(e) => serde_json::json!({
+                    "success": false,
+                    "error": format!("無法存取 {}（{}）", unc_full, e)
+                }),
+            }
         }
 
-        // Verify directory accessibility
-        match std::fs::read_dir(&unc_full) {
-            Ok(_) => serde_json::json!({
-                "success": true,
-                "uncPath": unc_full
-            }),
-            Err(e) => serde_json::json!({
+        #[cfg(not(target_os = "windows"))]
+        {
+            // On macOS/Linux, check if the share is already mounted (e.g., `/Volumes/<share>`),
+            // or mount via `mount_smbfs` into a user cache folder when host + share are given.
+            let _ = (&unc_base, &username, &password);
+            let direct_path = unc_full.replace('\\', "/");
+            if std::fs::read_dir(&direct_path).is_ok() {
+                return serde_json::json!({ "success": true, "uncPath": direct_path });
+            }
+            if !share.is_empty() {
+                let vol_path = if sub_path.is_empty() {
+                    format!("/Volumes/{}", share)
+                } else {
+                    format!("/Volumes/{}/{}", share, sub_path.replace('\\', "/"))
+                };
+                if std::fs::read_dir(&vol_path).is_ok() {
+                    return serde_json::json!({ "success": true, "uncPath": vol_path });
+                }
+            }
+            serde_json::json!({
                 "success": false,
-                "error": format!("無法存取 {}（{}）", unc_full, e)
-            }),
+                "error": "請先在 Finder「前往 ➔ 連接伺服器 (Cmd+K)」掛載 smb:// 共用資料夾，然後在下方選擇本機 /Volumes 資料夾"
+            })
         }
     })
     .await

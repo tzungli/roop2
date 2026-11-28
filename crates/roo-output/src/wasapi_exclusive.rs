@@ -3,18 +3,24 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
 use windows::Win32::Media::Audio::{
     IMMDeviceEnumerator, MMDeviceEnumerator, IAudioClient, IAudioRenderClient,
     eRender, eConsole, AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
     WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
 };
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Com::{CoInitializeEx, CoCreateInstance, CLSCTX_ALL, COINIT_MULTITHREADED};
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Threading::{
     CreateEventW, GetCurrentThread, SetThreadPriority, WaitForSingleObject,
     THREAD_PRIORITY_TIME_CRITICAL,
 };
+#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HANDLE;
+#[cfg(target_os = "windows")]
 use windows::core::HRESULT;
+#[cfg(target_os = "windows")]
 use crate::probe::KSDATAFORMAT_SUBTYPE_PCM;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,6 +145,7 @@ impl ExclusiveController {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn run_wasapi_playback_loop<F>(
     opts: &ExclusiveStartOptions,
     _running: &Arc<AtomicBool>,
@@ -359,4 +366,19 @@ where
     }
 
     Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn run_wasapi_playback_loop<F>(
+    _opts: &ExclusiveStartOptions,
+    _running: &Arc<AtomicBool>,
+    _paused: &Arc<AtomicBool>,
+    _seek_byte: &Arc<AtomicU64>,
+    _stop_signal: &Arc<AtomicBool>,
+    _emit_event: &F,
+) -> Result<(), String>
+where
+    F: Fn(serde_json::Value),
+{
+    Err("WASAPI exclusive mode is only available on Windows".to_string())
 }

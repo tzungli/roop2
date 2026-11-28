@@ -1,13 +1,18 @@
+#[cfg(target_os = "windows")]
 use windows::Win32::Media::Audio::{
     IMMDeviceEnumerator, MMDeviceEnumerator, IAudioClient,
     eRender, eConsole, AUDCLNT_SHAREMODE_EXCLUSIVE,
     WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
 };
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Com::{CoInitializeEx, CoCreateInstance, CLSCTX_ALL, COINIT_MULTITHREADED};
+#[cfg(target_os = "windows")]
 use windows::core::{HRESULT, GUID};
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "windows")]
 pub const KSDATAFORMAT_SUBTYPE_PCM: GUID = GUID::from_u128(0x00000001_0000_0010_8000_00aa00389b71);
+#[cfg(target_os = "windows")]
 pub const KSDATAFORMAT_SUBTYPE_IEEE_FLOAT: GUID = GUID::from_u128(0x00000003_0000_0010_8000_00aa00389b71);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +41,7 @@ pub struct ProbeResult {
     pub msg: Option<String>,
 }
 
+#[cfg(target_os = "windows")]
 pub fn probe_exclusive_device(device_id: Option<&str>) -> ProbeResult {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
@@ -144,6 +150,11 @@ pub fn probe_exclusive_device(device_id: Option<&str>) -> ProbeResult {
             msg: None,
         }
     }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn probe_exclusive_device(_device_id: Option<&str>) -> ProbeResult {
+    err_probe("WASAPI exclusive output is only supported on Windows (use System Output, DLNA, or AirPlay on macOS/Linux)")
 }
 
 fn err_probe(msg: &str) -> ProbeResult {

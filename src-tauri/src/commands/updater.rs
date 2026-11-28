@@ -120,7 +120,7 @@ pub async fn updater_check() -> Result<serde_json::Value, String> {
         .to_string();
 
     let mut chosen_asset: Option<(String, String, u64)> = None;
-    let mut msi_fallback: Option<(String, String, u64)> = None;
+    let mut fallback_asset: Option<(String, String, u64)> = None;
     let mut checksums_url: Option<String> = None;
 
     if let Some(assets) = json.get("assets").and_then(|v| v.as_array()) {
@@ -129,17 +129,32 @@ pub async fn updater_check() -> Result<serde_json::Value, String> {
             let dl_url = a.get("browser_download_url").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let size = a.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
             let lower = name.to_lowercase();
-            if lower == "sha256sums.txt" && !dl_url.is_empty() {
-                checksums_url = Some(dl_url);
+            if lower.starts_with("sha256sums") && lower.ends_with(".txt") && !dl_url.is_empty() {
+                if cfg!(target_os = "macos") && lower.contains("macos") {
+                    checksums_url = Some(dl_url);
+                } else if checksums_url.is_none() {
+                    checksums_url = Some(dl_url);
+                }
+            } else if cfg!(target_os = "macos") {
+                let want_arm64 = cfg!(target_arch = "aarch64");
+                if lower.ends_with(".dmg") && !dl_url.is_empty() {
+                    let is_arm_dmg = lower.contains("aarch64") || lower.contains("arm64") || lower.contains("apple-silicon");
+                    let is_x64_dmg = lower.contains("x64") || lower.contains("x86_64") || lower.contains("intel");
+                    if (want_arm64 && is_arm_dmg) || (!want_arm64 && is_x64_dmg) {
+                        chosen_asset = Some((name, dl_url, size));
+                    } else if fallback_asset.is_none() {
+                        fallback_asset = Some((name, dl_url, size));
+                    }
+                }
             } else if lower.ends_with("-setup.exe") && !dl_url.is_empty() {
                 chosen_asset = Some((name, dl_url, size));
             } else if lower.ends_with(".msi") && !dl_url.is_empty() {
-                msi_fallback = Some((name, dl_url, size));
+                fallback_asset = Some((name, dl_url, size));
             }
         }
     }
 
-    let picked = chosen_asset.or(msi_fallback);
+    let picked = chosen_asset.or(fallback_asset);
     let update_available = !latest_ver.is_empty() && is_newer_version(&current_ver, &latest_ver);
 
     Ok(serde_json::json!({
@@ -177,7 +192,11 @@ pub async fn updater_download_and_install(
         .ok_or_else(|| "無效的安裝檔名稱".to_string())?
         .to_string();
     let lower_name = safe_name.to_lowercase();
-    if !(lower_name.ends_with("-setup.exe") || lower_name.ends_with(".msi")) {
+    if cfg!(target_os = "macos") {
+        if !lower_name.ends_with(".dmg") {
+            return Err("macOS 版本僅允許開啟官方 .dmg 安裝映象檔".to_string());
+        }
+    } else if !(lower_name.ends_with("-setup.exe") || lower_name.ends_with(".msi")) {
         return Err("僅允許執行官方 Windows 安裝程式 (-setup.exe / .msi)".to_string());
     }
 
@@ -281,7 +300,9 @@ pub async fn updater_download_and_install(
     }));
 
     // Launch installer detached
-    let spawn_res = if lower_name.ends_with(".msi") {
+    let spawn_res = if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(&dest_path).spawn()
+    } else if lower_name.ends_with(".msi") {
         std::process::Command::new("msiexec")
             .arg("/i")
             .arg(&dest_path)
