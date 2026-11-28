@@ -553,8 +553,8 @@ pub fn xml_escape(s: &str) -> String {
 }
 
 pub fn extract_xml_value(xml: &str, tag_name: &str) -> Option<String> {
-    let lower_xml = xml.to_lowercase();
-    let lower_tag = tag_name.to_lowercase();
+    let lower_xml = xml.to_ascii_lowercase();
+    let lower_tag = tag_name.to_ascii_lowercase();
 
     let mut search_pos = 0;
     while let Some(start_bracket) = lower_xml[search_pos..].find('<') {

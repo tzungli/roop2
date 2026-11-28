@@ -21061,6 +21061,10 @@ function setupPlayerControls() {
 function isAudioRendererDevice(dev) {
   if (!dev) return false;
   if (dev.isLocal) return true;
+  // Backend already verified AVTransport & excluded non-audio network hardware
+  if (dev.av_transport_url && String(dev.av_transport_url).startsWith('http')) {
+    return true;
+  }
   const name = (dev.name || '').toLowerCase();
   const model = (dev.model || '').toLowerCase();
   const mfr = (dev.manufacturer || '').toLowerCase();
@@ -21361,8 +21365,7 @@ function initAudioZones() {
 
   if (btnToggleDirectIp && directIpDrawer) {
     btnToggleDirectIp.addEventListener('click', () => {
-      const isCurrentlyHidden = directIpDrawer.style.display === 'none' || !directIpDrawer.style.display;
-      if (isCurrentlyHidden) {
+      if (directIpDrawer.style.display !== 'none') {
         renderManualTargetChips();
       }
     });

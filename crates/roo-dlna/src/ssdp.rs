@@ -783,6 +783,7 @@ pub async fn probe_device_ip_fast(ip_or_url: &str, timeout_ms: u64) -> Result<Dl
 
     // 2. Run unicast SSDP M-SEARCH and TCP open-port scan concurrently
     let host_ip_opt = resolve_probe_ipv4(&host).await;
+    let tcp_probe_timeout_ms = if explicit_port.is_some() { 900 } else { 450 };
     let (unicast_locs, open_ports) = tokio::join!(
         async {
             if let Some(ip_v4) = host_ip_opt {
@@ -791,7 +792,7 @@ pub async fn probe_device_ip_fast(ip_or_url: &str, timeout_ms: u64) -> Result<Dl
                 Vec::new()
             }
         },
-        discover_open_tcp_ports(&host, &candidate_ports, 450)
+        discover_open_tcp_ports(&host, &candidate_ports, tcp_probe_timeout_ms)
     );
 
     push_dlna_diag(
@@ -919,7 +920,7 @@ fn parse_header_val(resp: &str, header: &str) -> Option<String> {
 /// Extract all `<serviceType>` strings present in a Device Description XML for diagnostics.
 fn list_xml_service_types(xml: &str) -> Vec<String> {
     let mut out = Vec::new();
-    let lower = xml.to_lowercase();
+    let lower = xml.to_ascii_lowercase();
     let mut cur = 0usize;
     while let Some(idx) = lower[cur..].find("<service") {
         let abs_start = cur + idx;
@@ -961,7 +962,7 @@ fn find_next_device_tag(lower: &str, from: usize) -> Option<usize> {
 /// `<device>` block that actually represents a `MediaRenderer` (or hosts `AVTransport`), so metadata
 /// fields like `friendlyName` and `UDN` aren't taken from an unrelated outer root/bridge device.
 fn select_renderer_device_xml<'a>(xml: &'a str) -> &'a str {
-    let lower = xml.to_lowercase();
+    let lower = xml.to_ascii_lowercase();
     let mut best_mr: Option<&'a str> = None;
     let mut best_av: Option<&'a str> = None;
     let mut pos = 0usize;
@@ -1182,12 +1183,15 @@ pub fn non_audio_exclusion_reason(xml: &str, name: &str, model: &str, manufactur
         "device:basic",
         "device:printer",
         "device:scanner",
+        "wfadevice",
         "wfa-wsc",
         "wsc:1",
-        "wps",
     ];
     for dt in &non_audio_types {
-        if lower_xml.contains(dt) && !lower_xml.contains("device:mediarenderer") {
+        if lower_xml.contains(dt)
+            && !lower_xml.contains("device:mediarenderer")
+            && !lower_xml.contains("service:avtransport")
+        {
             return Some(format!("non-audio deviceType '{}'", dt));
         }
     }
@@ -1240,8 +1244,8 @@ pub fn resolve_url(base: &reqwest::Url, rel: &str) -> String {
 }
 
 pub fn extract_service(xml: &str, service_keyword: &str, base_url: &reqwest::Url) -> Option<(String, String)> {
-    let lower_xml = xml.to_lowercase();
-    let lower_kw = service_keyword.to_lowercase();
+    let lower_xml = xml.to_ascii_lowercase();
+    let lower_kw = service_keyword.to_ascii_lowercase();
 
     let mut cur = 0;
     while let Some(start_idx) = lower_xml[cur..].find("<service") {
@@ -1263,8 +1267,12 @@ pub fn extract_service(xml: &str, service_keyword: &str, base_url: &reqwest::Url
         let lower_block = &lower_xml[abs_start..abs_end];
 
         if lower_block.contains(&lower_kw) {
-            let ctrl_url_rel = extract_xml_value(block, "controlURL")
-                .or_else(|| extract_xml_value(block, "controlUrl"))?;
+            let Some(ctrl_url_rel) = extract_xml_value(block, "controlURL")
+                .or_else(|| extract_xml_value(block, "controlUrl"))
+            else {
+                cur = abs_end;
+                continue;
+            };
             let ctrl_clean = ctrl_url_rel.trim();
             if ctrl_clean.is_empty() {
                 cur = abs_end;
@@ -1445,6 +1453,31 @@ mod tests {
             <friendlyName>Holo Audio RED</friendlyName>
         </device>"#;
         assert!(!is_network_or_non_audio_device(renderer_xml, "Holo Audio RED", "RED", "Holo Audio"));
+
+        // Unicode (Turkish İ changes byte length under to_lowercase()) + malformed first <service> + "Ethernet"/"wps" with AVTransport
+        let tricky_xml = r#"<root>
+            <device>
+                <deviceType>urn:custom:device:EthernetAudioBridge:1</deviceType>
+                <friendlyName>İstanbul Holo RED Ethernet</friendlyName>
+                <modelDescription>Supports wps-free playback</modelDescription>
+                <serviceList>
+                    <service>
+                        <serviceType>urn:dummy:service:AVTransportNote:1</serviceType>
+                    </service>
+                    <service>
+                        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+                        <controlURL>/upnp/control/AVTransport</controlURL>
+                    </service>
+                </serviceList>
+            </device>
+        </root>"#;
+        assert!(!is_network_or_non_audio_device(tricky_xml, "İstanbul Holo RED Ethernet", "Ethernet Bridge", "Holo Audio"));
+        let selected = select_renderer_device_xml(tricky_xml);
+        assert_eq!(extract_xml_value(selected, "friendlyName").as_deref(), Some("İstanbul Holo RED Ethernet"));
+        let base = reqwest::Url::parse("http://192.168.50.88:49152/description.xml").unwrap();
+        let (av_url, _) = extract_service(selected, "AVTransport", &base).unwrap();
+        assert_eq!(av_url, "http://192.168.50.88:49152/upnp/control/AVTransport");
+        assert_eq!(list_xml_service_types(tricky_xml).len(), 2);
     }
 
     #[test]
