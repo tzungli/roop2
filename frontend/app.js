@@ -15741,14 +15741,140 @@ async function fetchLyricsOnline(title, artist, album, duration, trackObj = null
   return null;
 }
 
+const NP_LYRICS_TRANSLATE_KEY = 'rooplayer_np_lyrics_translate_zhtw';
+let npLyricsTranslateEnabled = (() => {
+  try { return localStorage.getItem(NP_LYRICS_TRANSLATE_KEY) === '1'; } catch (_) { return false; }
+})();
+let _npLyricsTranslateBound = false;
+let currentPlainLyricsText = '';
+let currentLyricsTrackKey = '';
+let npLyricsTranslateToken = 0;
+const npLyricsTranslationCache = createPersistentMap('roo_cache_lyrics_trans_zhtw_v1', 300);
+
+function updateLyricsTranslateBtnUI(isLoading = false) {
+  const btn = document.getElementById('btnLyricsTranslateZhTw');
+  if (!btn) return;
+  btn.classList.toggle('active', !!npLyricsTranslateEnabled);
+  btn.textContent = isLoading ? '翻譯中...' : '繁中';
+  btn.disabled = !!isLoading;
+}
+
+function initLyricsTranslateControl() {
+  const btn = document.getElementById('btnLyricsTranslateZhTw');
+  if (btn && !_npLyricsTranslateBound) {
+    _npLyricsTranslateBound = true;
+    btn.addEventListener('click', () => {
+      npLyricsTranslateEnabled = !npLyricsTranslateEnabled;
+      try { localStorage.setItem(NP_LYRICS_TRANSLATE_KEY, npLyricsTranslateEnabled ? '1' : '0'); } catch (_) {}
+      applyNowPlayingLyricsTranslation();
+    });
+  }
+  updateLyricsTranslateBtnUI(false);
+}
+
+async function translateLyricsLinesToZhTw(rawLines) {
+  const nonEmptyIndices = [];
+  const texts = [];
+  rawLines.forEach((line, idx) => {
+    const t = String(line || '').trim();
+    if (t && !/^[♪♫🎵🎶\s\-~•·….,!?()（）\[\]【】]+$/.test(t)) {
+      nonEmptyIndices.push(idx);
+      texts.push(t);
+    }
+  });
+  const out = new Array(rawLines.length).fill('');
+  if (texts.length === 0) return out;
+
+  const CHUNK_SIZE = 24;
+  for (let start = 0; start < texts.length; start += CHUNK_SIZE) {
+    const slice = texts.slice(start, start + CHUNK_SIZE);
+    const joined = slice.join('\n');
+    const translatedBlock = await translateTextToZhTw(joined);
+    const split = String(translatedBlock || '').replace(/\r\n/g, '\n').split('\n');
+    for (let i = 0; i < slice.length; i++) {
+      const orig = slice[i];
+      const tr = (split[i] || '').trim();
+      if (tr && tr.toLowerCase() !== orig.toLowerCase()) {
+        out[nonEmptyIndices[start + i]] = tr;
+      }
+    }
+  }
+  return out;
+}
+
+async function applyNowPlayingLyricsTranslation() {
+  const myToken = ++npLyricsTranslateToken;
+  const container = document.getElementById('nowPlayingLyricsContainer');
+  if (!container) return;
+
+  if (!npLyricsTranslateEnabled) {
+    updateLyricsTranslateBtnUI(false);
+    if (currentSyncedLyrics.length > 0) {
+      renderSyncedLyrics(currentSyncedLyrics, null);
+    } else if (currentPlainLyricsText) {
+      container.innerHTML = `<div class="lyrics-plain-box">${escapeXml(currentPlainLyricsText)}</div>`;
+    }
+    return;
+  }
+
+  if (currentSyncedLyrics.length > 0) {
+    const cacheKey = currentLyricsTrackKey ? `sync::${currentLyricsTrackKey}` : '';
+    let translated = cacheKey ? npLyricsTranslationCache.get(cacheKey) : null;
+    if (!Array.isArray(translated) || translated.length !== currentSyncedLyrics.length) {
+      updateLyricsTranslateBtnUI(true);
+      try {
+        translated = await translateLyricsLinesToZhTw(currentSyncedLyrics.map(l => l.text));
+        if (myToken !== npLyricsTranslateToken) return;
+        if (cacheKey) npLyricsTranslationCache.set(cacheKey, translated);
+      } catch (err) {
+        console.warn('Translate synced lyrics failed:', err);
+        if (myToken === npLyricsTranslateToken) updateLyricsTranslateBtnUI(false);
+        return;
+      }
+    }
+    if (myToken !== npLyricsTranslateToken) return;
+    updateLyricsTranslateBtnUI(false);
+    renderSyncedLyrics(currentSyncedLyrics, translated);
+  } else if (currentPlainLyricsText) {
+    const rawLines = currentPlainLyricsText.replace(/\r\n/g, '\n').split('\n');
+    const cacheKey = currentLyricsTrackKey ? `plain::${currentLyricsTrackKey}` : '';
+    let translated = cacheKey ? npLyricsTranslationCache.get(cacheKey) : null;
+    if (!Array.isArray(translated) || translated.length !== rawLines.length) {
+      updateLyricsTranslateBtnUI(true);
+      try {
+        translated = await translateLyricsLinesToZhTw(rawLines);
+        if (myToken !== npLyricsTranslateToken) return;
+        if (cacheKey) npLyricsTranslationCache.set(cacheKey, translated);
+      } catch (err) {
+        console.warn('Translate plain lyrics failed:', err);
+        if (myToken === npLyricsTranslateToken) updateLyricsTranslateBtnUI(false);
+        return;
+      }
+    }
+    if (myToken !== npLyricsTranslateToken) return;
+    updateLyricsTranslateBtnUI(false);
+    const html = rawLines.map((line, i) => {
+      const tr = translated[i] ? `<span class="lyric-line-trans">${escapeXml(translated[i])}</span>` : '';
+      return `<div style="margin-bottom: 10px;"><span class="lyric-line-orig">${escapeXml(line)}</span>${tr}</div>`;
+    }).join('');
+    container.innerHTML = `<div class="lyrics-plain-box">${html}</div>`;
+  } else {
+    updateLyricsTranslateBtnUI(false);
+  }
+}
+
 async function loadLyricsForNowPlaying(track) {
   initLyricsFontControls();
+  initLyricsTranslateControl();
   const container = document.getElementById('nowPlayingLyricsContainer');
   const sourceEl = document.getElementById('nowPlayingLyricSource');
   if (!container) return;
 
   currentSyncedLyrics = [];
+  currentPlainLyricsText = '';
+  currentLyricsTrackKey = `${String(track?.title || '').trim().toLowerCase()}::${String(track?.artist || '').trim().toLowerCase()}`;
   currentActiveLyricIndex = -1;
+  npLyricsTranslateToken++;
 
   container.innerHTML = `
     <div class="lyrics-loading-state">
@@ -15770,10 +15896,17 @@ async function loadLyricsForNowPlaying(track) {
     if (sourceEl) sourceEl.textContent = `即時同步歌詞 • ${lyricData.source}`;
     currentSyncedLyrics = (Array.isArray(lyricData.lines) && lyricData.lines.length > 0) ? lyricData.lines : parseLrc(lyricData.synced);
     renderSyncedLyrics(currentSyncedLyrics);
+    if (npLyricsTranslateEnabled) {
+      applyNowPlayingLyricsTranslation();
+    }
     try { syncWebDisplayState(true); } catch (_) {}
   } else if (lyricData && lyricData.plain) {
     if (sourceEl) sourceEl.textContent = `純文字歌詞 • ${lyricData.source}`;
+    currentPlainLyricsText = lyricData.plain;
     container.innerHTML = `<div class="lyrics-plain-box">${escapeXml(lyricData.plain)}</div>`;
+    if (npLyricsTranslateEnabled) {
+      applyNowPlayingLyricsTranslation();
+    }
   } else {
     if (sourceEl) sourceEl.textContent = '未收錄歌詞';
     const googleQuery = encodeURIComponent(`${track.title} ${track.artist} 歌詞`);
@@ -15799,7 +15932,7 @@ async function loadLyricsForNowPlaying(track) {
   }
 }
 
-function renderSyncedLyrics(lines) {
+function renderSyncedLyrics(lines, translatedLines = null) {
   const container = document.getElementById('nowPlayingLyricsContainer');
   if (!container) return;
 
@@ -15814,8 +15947,19 @@ function renderSyncedLyrics(lines) {
   lines.forEach((line, idx) => {
     const lineEl = document.createElement('div');
     lineEl.className = 'lyric-line';
+    if (idx === currentActiveLyricIndex) lineEl.classList.add('active');
     lineEl.id = `lyric-line-${idx}`;
-    lineEl.textContent = line.text;
+    const origSpan = document.createElement('span');
+    origSpan.className = 'lyric-line-orig';
+    origSpan.textContent = line.text;
+    lineEl.appendChild(origSpan);
+    const transText = Array.isArray(translatedLines) ? translatedLines[idx] : '';
+    if (transText) {
+      const transSpan = document.createElement('span');
+      transSpan.className = 'lyric-line-trans';
+      transSpan.textContent = transText;
+      lineEl.appendChild(transSpan);
+    }
     lineEl.title = `點擊跳至 ${formatDuration(line.time)}`;
     lineEl.onclick = () => {
       seekPlaybackTo(line.time);
@@ -15825,6 +15969,10 @@ function renderSyncedLyrics(lines) {
 
   container.innerHTML = '';
   container.appendChild(box);
+  if (currentActiveLyricIndex >= 0) {
+    const activeEl = document.getElementById(`lyric-line-${currentActiveLyricIndex}`);
+    if (activeEl) activeEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+  }
 }
 
 function updateNowPlayingPlaybackProgress() {

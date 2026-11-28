@@ -2291,7 +2291,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .pill:hover {
-  color: #ffffff;
+  color: var(--text-main);
+  background-color: rgba(124, 92, 255, 0.08);
 }
 
 .pill.active {
@@ -2299,6 +2300,11 @@ h1, h2, h3, h4, h5, h6 {
   color: #ffffff;
   font-weight: 600;
   box-shadow: 0 2px 8px var(--accent-purple-glow);
+}
+
+.pill.active:hover {
+  background-color: var(--accent-purple);
+  color: #ffffff;
 }
 
 .select-dropdown {
@@ -8219,6 +8225,47 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.lyrics-font-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+.lyrics-translate-btn {
+  width: auto !important;
+  padding: 0 9px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+.lyrics-translate-btn.active {
+  background: var(--accent-purple) !important;
+  color: #ffffff !important;
+  border-color: var(--accent-purple) !important;
+}
+
+.lyric-line-orig {
+  display: block;
+}
+
+.lyric-line-trans {
+  display: block;
+  font-size: 0.64em;
+  font-weight: 400;
+  opacity: 0.72;
+  margin-top: 4px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+.lyric-line.active .lyric-line-trans {
+  opacity: 0.94;
+  color: #e9d5ff;
 }
 
 .np-roon-font-pill {
