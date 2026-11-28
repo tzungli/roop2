@@ -34,7 +34,7 @@
         return await core.invoke(cmd, args);
       } catch (err) {
         console.error(`[TauriShim] invoke "${cmd}" failed:`, err);
-        throw err;
+        throw (typeof err === 'string' ? new Error(err) : err);
       }
     }
     console.warn(`[TauriShim] invoke "${cmd}" called before Tauri initialized:`, args);

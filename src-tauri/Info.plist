@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>rooPlayer 需要區域網路存取權限，以探索並串流高解析度音訊至您的 DLNA / UPnP 與 AirPlay 音響裝置。</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_raop._tcp</string>
+    <string>_airplay._tcp</string>
+  </array>
+</dict>
+</plist>

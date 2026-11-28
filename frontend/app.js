@@ -12022,6 +12022,14 @@ async function playCurrentTrack() {
       return;
     }
 
+    if (track.isKkbox && !track.filePath) {
+      showToast('⚠️ KKBOX 曲目受版權試聽限制，目前僅支援於本機 System Output 播放，無法串流至 DLNA / AirPlay 裝置');
+      state.isPlaying = false;
+      updatePlayPauseBtnUI();
+      updateQueueActiveItem();
+      return;
+    }
+
     // Resolve TIDAL streamUrl and cache file for DLNA streaming
     if (track.isTidal) {
       const tidalQuality = localDspActive() ? 'HI_RES_LOSSLESS' : 'LOSSLESS';
@@ -12138,7 +12146,8 @@ async function playCurrentTrack() {
       }).catch(err => {
         console.error('DLNA play error:', err);
         clearDlnaPrepareUi();
-        showToast(`❌ 串流發送失敗: ${err.message}`);
+        const errMsg = (err && err.message) ? err.message : String(err || '未知錯誤');
+        showToast(`❌ 串流發送失敗: ${errMsg}`);
         state.isPlaying = false;
         updatePlayPauseBtnUI();
       });

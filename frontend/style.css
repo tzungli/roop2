@@ -8814,7 +8814,7 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   color: #f8fafc;
   padding: 0 28px;
   display: grid;
-  grid-template-columns: minmax(260px, 1.15fr) minmax(360px, 1.4fr) minmax(160px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1.3fr) minmax(0, 1fr);
   align-items: center;
   gap: 20px;
 }

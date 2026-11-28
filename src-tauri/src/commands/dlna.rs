@@ -658,9 +658,23 @@ pub async fn dlna_play_track(
 
     // Route AirPlay devices directly to native RAOP engine (44.1kHz / 16-bit ALAC lossless)
     if device_id.starts_with("airplay:") {
-        let file_path = track.get("filePath").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let file_path = track
+            .get("filePath")
+            .or_else(|| track.get("path"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         if file_path.is_empty() {
-            return Err("Track has no filePath".to_string());
+            let msg = "曲目缺少檔案路徑 (Track has no filePath)".to_string();
+            push_dlna_diag("ERROR", format!("[AirPlay] play rejected on {}: {}", device_id, msg));
+            persist_dlna_diag_log();
+            return Err(msg);
+        }
+        if !std::path::Path::new(&file_path).exists() {
+            let msg = format!("找不到音訊檔案（若為網路磁碟請先掛載）：{}", file_path);
+            push_dlna_diag("ERROR", format!("[AirPlay] play rejected on {}: {}", device_id, msg));
+            persist_dlna_diag_log();
+            return Err(msg);
         }
         let start = start_sec.unwrap_or(0.0);
         let peq_json = dsp_options
@@ -731,6 +745,18 @@ pub async fn dlna_play_track(
         };
     }
     let file_path = track.get("filePath").or_else(|| track.get("path")).and_then(|v| v.as_str()).unwrap_or("");
+    if file_path.is_empty() {
+        let msg = "曲目缺少檔案路徑 (Track has no filePath)".to_string();
+        push_dlna_diag("ERROR", format!("[DLNA] play rejected on {}: {}", device_id, msg));
+        persist_dlna_diag_log();
+        return Err(msg);
+    }
+    if !std::path::Path::new(file_path).exists() {
+        let msg = format!("找不到音訊檔案（若為網路磁碟請先掛載）：{}", file_path);
+        push_dlna_diag("ERROR", format!("[DLNA] play rejected on {}: {}", device_id, msg));
+        persist_dlna_diag_log();
+        return Err(msg);
+    }
     let raw_cover = track.get("cover").or_else(|| track.get("coverPath")).and_then(|v| v.as_str()).unwrap_or("");
     let start = start_sec.unwrap_or(0.0);
     let duration_sec = track.get("duration").and_then(|v| v.as_f64());
