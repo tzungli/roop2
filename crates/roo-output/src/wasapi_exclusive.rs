@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
+#[cfg(target_os = "windows")]
 use std::time::Duration;
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "windows")]

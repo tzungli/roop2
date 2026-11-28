@@ -50,22 +50,30 @@ jobs:
           cargo test -p roo-library --lib
           cargo test -p roo-airplay --lib
 
-      - name: Build macOS .app & .dmg bundle
+      - name: Build macOS .app bundle
         run: |
-          npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles app,dmg
+          npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles app
 
-      - name: Rename and stage macOS artifacts
+      - name: Ad-hoc sign .app and package verified .dmg
         shell: bash
         run: |
-          mkdir -p dist-macos
-          DMG_PATH=$(find "target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name '*.dmg' | head -n 1)
-          if [ -z "$DMG_PATH" ]; then
-            echo "ERROR: No .dmg found in target/${{ matrix.target }}/release/bundle/dmg"
+          APP_PATH="target/${{ matrix.target }}/release/bundle/macos/rooPlayer.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: No .app found at $APP_PATH"
             exit 1
           fi
+          codesign --force --deep --sign - "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+          mkdir -p dmg_stage dist-macos
+          cp -R "$APP_PATH" dmg_stage/
+          ln -s /Applications dmg_stage/Applications
+
           VER=$(grep -m1 '^version' src-tauri/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
           OUT_DMG="dist-macos/rooPlayer_${VER}_macos_${{ matrix.arch_label }}.dmg"
-          cp "$DMG_PATH" "$OUT_DMG"
+          hdiutil create -volname "rooPlayer" -srcfolder dmg_stage -ov -format UDZO "$OUT_DMG"
+          hdiutil verify "$OUT_DMG"
+
           (cd dist-macos && shasum -a 256 *.dmg > "SHA256SUMS-macos-${{ matrix.arch_label }}.txt")
           ls -lh dist-macos
           cat "dist-macos/SHA256SUMS-macos-${{ matrix.arch_label }}.txt"
