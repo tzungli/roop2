@@ -4,10 +4,32 @@ use tauri::{AppHandle, Emitter, State};
 use roo_dlna::{discover_dlna_devices, probe_device_ip, probe_known_devices, DlnaDevice, DlnaManager};
 use roo_airplay::{discover_airplay_devices, AirPlayDevice, AirPlayManager};
 
-fn airplay_to_unified_json(dev: &AirPlayDevice) -> serde_json::Value {
+fn resolve_airplay_display_name(
+    ap: &AirPlayDevice,
+    dlna_name_by_ip: &std::collections::HashMap<String, String>,
+) -> String {
+    let ap_name = ap.name.trim();
+    if let Some(dlna_name) = dlna_name_by_ip.get(&ap.ip) {
+        let dn = dlna_name.trim();
+        if !dn.is_empty() && dn.len() > ap_name.len() {
+            let dn_lower = dn.to_lowercase();
+            let ap_lower = ap_name.to_lowercase();
+            if ap_lower.is_empty() || dn_lower.contains(&ap_lower) {
+                return dn.to_string();
+            }
+        }
+    }
+    ap_name.to_string()
+}
+
+fn airplay_to_unified_json(
+    dev: &AirPlayDevice,
+    dlna_name_by_ip: &std::collections::HashMap<String, String>,
+) -> serde_json::Value {
+    let display_name = resolve_airplay_display_name(dev, dlna_name_by_ip);
     serde_json::json!({
         "id": dev.id,
-        "name": dev.name,
+        "name": display_name,
         "model": dev.model,
         "ip": dev.ip,
         "port": dev.port,
@@ -20,8 +42,20 @@ fn airplay_to_unified_json(dev: &AirPlayDevice) -> serde_json::Value {
 }
 
 pub fn merged_devices_json(dlna: &DlnaManager, airplay: &AirPlayManager) -> Vec<serde_json::Value> {
-    let mut out: Vec<serde_json::Value> = dlna
-        .get_devices()
+    let dlna_devs = dlna.get_devices();
+    let mut dlna_name_by_ip: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for kd in load_known_dlna_devices() {
+        if !kd.ip.is_empty() && !kd.name.trim().is_empty() {
+            dlna_name_by_ip.insert(kd.ip, kd.name);
+        }
+    }
+    for d in &dlna_devs {
+        if !d.ip.is_empty() && !d.name.trim().is_empty() {
+            dlna_name_by_ip.insert(d.ip.clone(), d.name.clone());
+        }
+    }
+
+    let mut out: Vec<serde_json::Value> = dlna_devs
         .into_iter()
         .filter_map(|d| {
             let mut val = serde_json::to_value(d).ok()?;
@@ -33,7 +67,7 @@ pub fn merged_devices_json(dlna: &DlnaManager, airplay: &AirPlayManager) -> Vec<
         .collect();
 
     for ap in airplay.get_devices() {
-        out.push(airplay_to_unified_json(&ap));
+        out.push(airplay_to_unified_json(&ap, &dlna_name_by_ip));
     }
     out
 }

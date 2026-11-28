@@ -5957,6 +5957,14 @@ function renderAlbums() {
       const fPath = fTrack.filePath || fTrack.fileName || a.filePath || '';
       return getAudioFormatFromPath(fPath, a.formatName || '').toUpperCase() === 'FLAC';
     });
+  } else if (state.activeFilter === 'tidal') {
+    filtered = filtered.filter(a => !!(
+      a.isTidal ||
+      a.source === 'tidal' ||
+      a.tidalId ||
+      String(a.id || '').startsWith('tidal_') ||
+      (Array.isArray(a.tracks) && a.tracks.some(t => t && (t.isTidal || t.source === 'tidal' || t.tidalId || String(t.id || '').startsWith('tidal_'))))
+    ));
   }
 
   // Sort
@@ -21205,15 +21213,15 @@ function syncDspControlsFromState() {
 }
 
 function formatZoneDspSummary(dspObj, isLocalZone = false, isAirPlayZone = false) {
-  if (isAirPlayZone) return 'AirPlay • ALAC';
-  if (!dspObj || !dspObj.enabled) return '原生直通';
+  if (isAirPlayZone) return 'AirPlay';
+  const protoSuffix = isLocalZone ? '' : ' • DLNA';
+  if (!dspObj || !dspObj.enabled) return isLocalZone ? '原生直通' : 'DLNA';
   const mode = String(dspObj.rateMode || '2x').toLowerCase();
   if (isDsdRateMode(mode)) {
     if (isLocalZone) return '2x PCM';
-    const ord = dspObj.dsdOrder === 75 ? 'ASDM7EC-super 512+fs' : (dspObj.dsdOrder === 55 ? 'ASDM5EC-super 512+fs' : (dspObj.dsdOrder === 70 ? 'ASDM7EC' : (dspObj.dsdOrder === 50 ? 'ASDM5EC' : `${dspObj.dsdOrder || 5}階`)));
-    return `${mode.toUpperCase()} • ${ord}`;
+    return `${mode.toUpperCase()}${protoSuffix}`;
   }
-  return `${mode.toUpperCase()} PCM`;
+  return `${mode.toUpperCase()} PCM${protoSuffix}`;
 }
 
 function getZoneLiveInfo(zoneId) {

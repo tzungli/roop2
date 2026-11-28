@@ -14410,6 +14410,14 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   min-width: 0;
 }
 
+.roon-zone-title-line .roon-zone-name {
+  flex: 0 1 auto;
+  min-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .roon-zone-dsp-pill {
   font-size: 10px;
   font-weight: 600;
