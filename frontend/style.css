@@ -13518,6 +13518,92 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   border-color: #c4b5fd;
 }
 
+#navItemTidal .nav-label {
+  flex: 0 1 auto;
+}
+
+.tidal-query-indicator {
+  margin-left: 6px;
+  margin-right: auto;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #a78bfa;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.8);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0s linear 0.16s;
+}
+
+[data-theme="light"] .tidal-query-indicator {
+  color: #6d28d9;
+}
+
+.tidal-query-indicator.is-querying {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    visibility 0s linear 0s;
+}
+
+.tidal-query-svg {
+  display: block;
+}
+
+.tidal-query-ring-track {
+  opacity: 0.22;
+}
+
+.tidal-query-indicator.is-querying .tidal-query-svg {
+  animation: tidalQuerySpin 0.85s linear infinite;
+}
+
+.tidal-query-indicator.is-querying .tidal-query-core {
+  animation: tidalQueryPulse 1.3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tidal-query-indicator.is-querying .tidal-query-svg {
+    animation-duration: 6s;
+  }
+  .tidal-query-indicator.is-querying .tidal-query-core {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
+@media (forced-colors: active) {
+  .tidal-query-indicator {
+    forced-color-adjust: none;
+    color: CanvasText;
+  }
+}
+
+@keyframes tidalQuerySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes tidalQueryPulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Shared Streaming Page Layout (Prevent negative-margin overlap with history nav) */
 #viewKkbox.active,
 #viewTidal.active {

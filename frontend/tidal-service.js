@@ -14,6 +14,8 @@ class TidalService {
     // Auth-expiry notification hook (set by the UI layer to prompt re-login)
     this.onAuthExpired = null;
     this._authExpiredNotified = false;
+    this.onQueryStateChange = null;
+    this._browserQueryCount = 0;
     // True once a 401 has proven the stored token expired; the TIDAL page uses this
     // to prompt re-login directly. Never checked at app startup.
     this.authExpired = false;
@@ -257,9 +259,24 @@ class TidalService {
    * from a resource-specific 401 (e.g. an unlicensed item). Returns true if the
    * token itself is still accepted.
    */
+  _beginBrowserQuery() {
+    this._browserQueryCount++;
+    if (this._browserQueryCount === 1 && typeof this.onQueryStateChange === 'function') {
+      try { this.onQueryStateChange(true); } catch (_) {}
+    }
+  }
+
+  _endBrowserQuery() {
+    this._browserQueryCount = Math.max(0, this._browserQueryCount - 1);
+    if (this._browserQueryCount === 0 && typeof this.onQueryStateChange === 'function') {
+      try { this.onQueryStateChange(false); } catch (_) {}
+    }
+  }
+
   async _probeSessionValid() {
     const token = this.auth && this.auth.accessToken;
     if (!token) return false;
+    this._beginBrowserQuery();
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 5000);
@@ -274,6 +291,8 @@ class TidalService {
       }
     } catch (e) {
       return false;
+    } finally {
+      this._endBrowserQuery();
     }
   }
 
@@ -387,6 +406,7 @@ class TidalService {
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), 10000);
     let res;
+    this._beginBrowserQuery();
     try {
       res = await fetch(url, {
         method,
@@ -396,6 +416,7 @@ class TidalService {
       });
     } finally {
       clearTimeout(timeoutId);
+      this._endBrowserQuery();
     }
 
     if (res.status === 401) {

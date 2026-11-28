@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::Semaphore;
 use anyhow::Result;
 
@@ -22,6 +23,34 @@ pub struct TidalState {
     pub api_cache: Arc<RwLock<HashMap<String, CachedTidalEntry>>>,
     pub api_semaphore: Arc<Semaphore>,
     pub rate_limit_until: Arc<Mutex<Option<Instant>>>,
+    pub active_queries: Arc<AtomicUsize>,
+}
+
+struct TidalQueryGuard<'a> {
+    app: &'a AppHandle,
+    counter: &'a Arc<AtomicUsize>,
+}
+
+impl<'a> TidalQueryGuard<'a> {
+    fn enter(app: &'a AppHandle, counter: &'a Arc<AtomicUsize>) -> Self {
+        let count = counter.fetch_add(1, Ordering::SeqCst) + 1;
+        let _ = app.emit(
+            "tidal:queryState",
+            serde_json::json!({ "active": true, "count": count }),
+        );
+        Self { app, counter }
+    }
+}
+
+impl<'a> Drop for TidalQueryGuard<'a> {
+    fn drop(&mut self) {
+        let prev = self.counter.fetch_sub(1, Ordering::SeqCst);
+        let count = prev.saturating_sub(1);
+        let _ = self.app.emit(
+            "tidal:queryState",
+            serde_json::json!({ "active": count > 0, "count": count }),
+        );
+    }
 }
 
 fn now_unix_secs() -> u64 {
@@ -95,6 +124,7 @@ impl TidalState {
             api_cache: Arc::new(RwLock::new(initial_api_cache)),
             api_semaphore: Arc::new(Semaphore::new(3)),
             rate_limit_until: Arc::new(Mutex::new(None)),
+            active_queries: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -743,6 +773,7 @@ pub async fn tidal_silent_refresh(
 
 #[tauri::command]
 pub async fn tidal_api(
+    app: AppHandle,
     state: State<'_, TidalState>,
     options: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
@@ -791,6 +822,8 @@ pub async fn tidal_api(
             return Ok(cached);
         }
     }
+
+    let _query_guard = TidalQueryGuard::enter(&app, &state.active_queries);
 
     let max_retries: u32 = 1;
     let mut last_err = "TIDAL API 請求過於頻繁（HTTP 429），請稍候再試".to_string();
@@ -1032,6 +1065,7 @@ pub fn parse_tidal_manifest(manifest_str: &str) -> Option<ManifestSegments> {
 }
 
 async fn ensure_tidal_track_cached(
+    app: Option<&AppHandle>,
     state: &TidalState,
     safe_id: &str,
     playback_info: Option<&serde_json::Value>,
@@ -1055,6 +1089,8 @@ async fn ensure_tidal_track_cached(
             }
         }
     }
+
+    let _query_guard = app.map(|a| TidalQueryGuard::enter(a, &state.active_queries));
 
     // Resolve manifest or direct URLs
     let mut manifest_str = String::new();
@@ -1232,6 +1268,7 @@ async fn ensure_tidal_track_cached(
 
 #[tauri::command]
 pub async fn tidal_get_stream_url(
+    app: AppHandle,
     state: State<'_, TidalState>,
     track_id: serde_json::Value,
     playback_info: Option<serde_json::Value>,
@@ -1241,7 +1278,7 @@ pub async fn tidal_get_stream_url(
         return Err("缺少有效的曲目 ID".to_string());
     }
 
-    let target_file = ensure_tidal_track_cached(&state, &safe_id, playback_info.as_ref()).await?;
+    let target_file = ensure_tidal_track_cached(Some(&app), &state, &safe_id, playback_info.as_ref()).await?;
 
     let bit_depth = playback_info.as_ref().and_then(|i| i.get("bitDepth")).and_then(|v| v.as_u64()).unwrap_or(16);
     let sample_rate = playback_info.as_ref().and_then(|i| i.get("sampleRate")).and_then(|v| v.as_u64()).unwrap_or(44100);
@@ -1261,6 +1298,7 @@ pub async fn tidal_get_stream_url(
 
 #[tauri::command]
 pub async fn tidal_cache_track(
+    app: AppHandle,
     state: State<'_, TidalState>,
     track_id: serde_json::Value,
     stream_url_or_info: Option<serde_json::Value>,
@@ -1293,7 +1331,7 @@ pub async fn tidal_cache_track(
     }
 
     let info_ref = optional_info.as_ref().or(stream_url_or_info.as_ref());
-    match ensure_tidal_track_cached(&state, &safe_id, info_ref).await {
+    match ensure_tidal_track_cached(Some(&app), &state, &safe_id, info_ref).await {
         Ok(path) => Ok(Some(path.to_string_lossy().into_owned())),
         Err(e) => {
             tracing::warn!("[TIDAL] Cache track {} error: {}", safe_id, e);

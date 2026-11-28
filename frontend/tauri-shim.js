@@ -354,6 +354,7 @@
     tidalApi: (options) => invoke('tidal_api', { options }),
     tidalGetStreamUrl: (trackId, playbackInfo) => invoke('tidal_get_stream_url', { trackId, playbackInfo }),
     tidalCacheTrack: (trackId, streamUrlOrInfo, optionalInfo) => invoke('tidal_cache_track', { trackId, streamUrlOrInfo, optionalInfo }),
+    onTidalQueryState: (callback) => listen('tidal:queryState', callback),
 
     // DLNA / UPnP Subsystem
     getDlnaDevices: () => invoke('dlna_get_devices'),

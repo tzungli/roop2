@@ -24386,6 +24386,43 @@ async function initTidalStreaming() {
       triggerTidalDirectLogin();
     };
 
+    const navItemTidalEl = document.getElementById('navItemTidal');
+    const tidalQueryIndicatorEl = document.getElementById('tidalQueryIndicator');
+    let rustTidalQueryActive = false;
+    let browserTidalQueryActive = false;
+    let tidalQueryHideTimer = null;
+    const syncTidalQueryIndicator = () => {
+      if (!tidalQueryIndicatorEl) return;
+      const isBusy = rustTidalQueryActive || browserTidalQueryActive;
+      if (isBusy) {
+        if (tidalQueryHideTimer) {
+          clearTimeout(tidalQueryHideTimer);
+          tidalQueryHideTimer = null;
+        }
+        tidalQueryIndicatorEl.classList.add('is-querying');
+        tidalQueryIndicatorEl.setAttribute('aria-hidden', 'false');
+        if (navItemTidalEl) navItemTidalEl.setAttribute('aria-busy', 'true');
+      } else if (!tidalQueryHideTimer) {
+        tidalQueryHideTimer = setTimeout(() => {
+          tidalQueryHideTimer = null;
+          if (rustTidalQueryActive || browserTidalQueryActive) return;
+          tidalQueryIndicatorEl.classList.remove('is-querying');
+          tidalQueryIndicatorEl.setAttribute('aria-hidden', 'true');
+          if (navItemTidalEl) navItemTidalEl.removeAttribute('aria-busy');
+        }, 160);
+      }
+    };
+    tidalService.onQueryStateChange = (active) => {
+      browserTidalQueryActive = !!active;
+      syncTidalQueryIndicator();
+    };
+    if (window.electronAPI && typeof window.electronAPI.onTidalQueryState === 'function') {
+      window.electronAPI.onTidalQueryState((payload) => {
+        rustTidalQueryActive = !!(payload && payload.active);
+        syncTidalQueryIndicator();
+      });
+    }
+
     await tidalService.init();
     updateTidalUIStatus();
   }
