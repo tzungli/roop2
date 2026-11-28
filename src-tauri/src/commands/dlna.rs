@@ -1,8 +1,95 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
-use roo_dlna::{discover_dlna_devices, probe_device_ip, probe_known_devices, DlnaDevice, DlnaManager};
+use tauri::{AppHandle, Emitter, Manager, State};
+use roo_dlna::{
+    discover_dlna_devices, get_dlna_diag_logs, get_passive_listener_status,
+    list_local_ipv4_interfaces, probe_device_ip, probe_known_devices, push_dlna_diag,
+    spawn_ssdp_notify_listener, DlnaDevice, DlnaManager, SsdpNotifyEvent,
+};
 use roo_airplay::{discover_airplay_devices, AirPlayDevice, AirPlayManager};
+
+fn dlna_device_to_unified_json(dev: &DlnaDevice) -> Option<serde_json::Value> {
+    let mut val = serde_json::to_value(dev).ok()?;
+    if let Some(obj) = val.as_object_mut() {
+        obj.insert("protocol".to_string(), serde_json::json!("dlna"));
+    }
+    Some(val)
+}
+
+pub fn dlna_diag_log_path() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("rooPlayer")
+        .join("dlna_discovery.log")
+}
+
+pub fn persist_dlna_diag_log() {
+    let path = dlna_diag_log_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let interfaces = list_local_ipv4_interfaces()
+        .into_iter()
+        .map(|ip| ip.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let header = format!(
+        "=== rooPlayer DLNA/UPnP Diagnostics ===\nInterfaces: {}\nPassive SSDP: {}\n---\n",
+        if interfaces.is_empty() { "none".to_string() } else { interfaces },
+        get_passive_listener_status()
+    );
+    let body = get_dlna_diag_logs().join("\n");
+    let _ = std::fs::write(&path, format!("{}{}\n", header, body));
+}
+
+pub fn start_ssdp_notify_background(app: AppHandle) {
+    let app_handle = app.clone();
+    spawn_ssdp_notify_listener(move |event| {
+        let mgr = app_handle.state::<DlnaManager>();
+        let ap = app_handle.state::<AirPlayManager>();
+        let mut changed = false;
+        match event {
+            SsdpNotifyEvent::Alive(dev) => {
+                remember_dlna_device(&dev);
+                let mut list = mgr.get_devices();
+                if let Some(existing) = list.iter_mut().find(|d| d.id == dev.id) {
+                    if existing.location != dev.location
+                        || existing.av_transport_url != dev.av_transport_url
+                        || existing.name != dev.name
+                    {
+                        *existing = dev;
+                        changed = true;
+                    }
+                } else {
+                    list.push(dev);
+                    changed = true;
+                }
+                if changed {
+                    mgr.set_devices(list);
+                }
+            }
+            SsdpNotifyEvent::ByeBye { usn } => {
+                let mut list = mgr.get_devices();
+                let before = list.len();
+                list.retain(|d| {
+                    if d.id.is_empty() {
+                        true
+                    } else {
+                        !(usn == d.id || usn.starts_with(&format!("{}::", d.id)))
+                    }
+                });
+                if list.len() != before {
+                    mgr.set_devices(list);
+                    changed = true;
+                }
+            }
+        }
+        persist_dlna_diag_log();
+        if changed {
+            emit_merged_devices(&app_handle, &mgr, &ap);
+        }
+    });
+}
 
 fn resolve_airplay_display_name(
     ap: &AirPlayDevice,
@@ -57,13 +144,7 @@ pub fn merged_devices_json(dlna: &DlnaManager, airplay: &AirPlayManager) -> Vec<
 
     let mut out: Vec<serde_json::Value> = dlna_devs
         .into_iter()
-        .filter_map(|d| {
-            let mut val = serde_json::to_value(d).ok()?;
-            if let Some(obj) = val.as_object_mut() {
-                obj.insert("protocol".to_string(), serde_json::json!("dlna"));
-            }
-            Some(val)
-        })
+        .filter_map(|d| dlna_device_to_unified_json(&d))
         .collect();
 
     for ap in airplay.get_devices() {
@@ -364,7 +445,7 @@ pub async fn dlna_scan(
 
     // Phase 2: Concurrent SSDP (DLNA) + mDNS (AirPlay) multicast discovery for new/DHCP-changed devices
     let (ssdp_res, ap_res) = tokio::join!(
-        discover_dlna_devices(2),
+        discover_dlna_devices(3),
         tokio::task::spawn_blocking(|| discover_airplay_devices(1200))
     );
     let ssdp_found = ssdp_res.unwrap_or_default();
@@ -395,6 +476,7 @@ pub async fn dlna_scan(
 
     manager.set_devices(dlna_devices);
     airplay.set_devices(ap_devices);
+    persist_dlna_diag_log();
 
     let all_devices = merged_devices_json(&manager, &airplay);
     let _ = app.emit("dlna:devicesChanged", &all_devices);
@@ -402,17 +484,65 @@ pub async fn dlna_scan(
 }
 
 #[tauri::command]
-pub async fn dlna_probe_ip(manager: State<'_, DlnaManager>, ip: String) -> Result<DlnaDevice, String> {
-    let dev = probe_device_ip(&ip).await.map_err(|e| e.to_string())?;
-    remember_dlna_device(&dev);
-    let mut list = manager.get_devices();
-    if let Some(existing) = list.iter_mut().find(|d| d.id == dev.id) {
-        *existing = dev.clone();
-    } else {
-        list.push(dev.clone());
+pub async fn dlna_probe_ip(
+    app: AppHandle,
+    manager: State<'_, DlnaManager>,
+    airplay: State<'_, AirPlayManager>,
+    ip: String,
+) -> Result<serde_json::Value, String> {
+    let trimmed = ip.trim().to_string();
+    push_dlna_diag("INFO", format!("Manual IP probe requested for '{}'", trimmed));
+    match probe_device_ip(&trimmed).await {
+        Ok(dev) => {
+            remember_dlna_device(&dev);
+            let mut list = manager.get_devices();
+            if let Some(existing) = list.iter_mut().find(|d| d.id == dev.id) {
+                *existing = dev.clone();
+            } else {
+                list.push(dev.clone());
+            }
+            manager.set_devices(list);
+            persist_dlna_diag_log();
+
+            let all_devices = merged_devices_json(&manager, &airplay);
+            let _ = app.emit("dlna:devicesChanged", &all_devices);
+            let unified_dev = dlna_device_to_unified_json(&dev)
+                .unwrap_or_else(|| serde_json::json!(dev));
+
+            Ok(serde_json::json!({
+                "success": true,
+                "device": unified_dev,
+                "devices": all_devices,
+                "diagnostics": get_dlna_diag_logs(),
+            }))
+        }
+        Err(e) => {
+            push_dlna_diag("WARN", format!("Manual IP probe failed for '{}': {}", trimmed, e));
+            persist_dlna_diag_log();
+            Ok(serde_json::json!({
+                "success": false,
+                "error": e.to_string(),
+                "diagnostics": get_dlna_diag_logs(),
+            }))
+        }
     }
-    manager.set_devices(list);
-    Ok(dev)
+}
+
+#[tauri::command]
+pub async fn dlna_get_diagnostics() -> Result<serde_json::Value, String> {
+    persist_dlna_diag_log();
+    let interfaces: Vec<String> = list_local_ipv4_interfaces()
+        .into_iter()
+        .map(|ip| ip.to_string())
+        .collect();
+    let known = load_known_dlna_devices();
+    Ok(serde_json::json!({
+        "interfaces": interfaces,
+        "passiveListener": get_passive_listener_status(),
+        "knownDevices": known,
+        "logs": get_dlna_diag_logs(),
+        "logPath": dlna_diag_log_path().to_string_lossy().to_string(),
+    }))
 }
 
 #[tauri::command]

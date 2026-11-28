@@ -3741,9 +3741,11 @@ name = "roo-dlna"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "socket2",
  "tokio",
  "tracing",
 ]

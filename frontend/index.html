@@ -4183,8 +4183,18 @@
 
       <!-- Optional Collapsible Direct IP Probe Drawer -->
       <div class="roon-direct-ip-drawer" id="roonDirectIpDrawer" style="display: none;">
-        <input type="text" id="inputDirectIp" class="roon-direct-ip-input" placeholder="輸入 IP 探測 (例: 192.168.1.100)">
-        <button class="roon-direct-ip-btn" id="btnProbeDirectIp">連線</button>
+        <div class="roon-direct-ip-row">
+          <input type="text" id="inputDirectIp" class="roon-direct-ip-input" placeholder="輸入 IP / Port / XML (例: 192.168.1.100)">
+          <button class="roon-direct-ip-btn" id="btnProbeDirectIp">連線</button>
+          <button class="roon-direct-ip-diag-btn" id="btnDlnaDiag" title="檢視區網 DLNA/UPnP 探索診斷日誌">診斷</button>
+        </div>
+        <div class="roon-dlna-diag-panel" id="dlnaDiagPanel" style="display: none;">
+          <div class="roon-dlna-diag-header">
+            <span id="dlnaDiagSummary">掃描日誌</span>
+            <button class="roon-dlna-diag-copy-btn" id="btnCopyDlnaDiag" title="複製診斷日誌">複製</button>
+          </div>
+          <pre class="roon-dlna-diag-logs" id="dlnaDiagLogs"></pre>
+        </div>
       </div>
 
       <!-- Footer Action Bar (Roon style) -->

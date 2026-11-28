@@ -21295,7 +21295,63 @@ function initAudioZones() {
     });
   }
 
-  // Direct IP Probe Handler
+  // Direct IP Probe & Diagnostics Handler
+  const btnDlnaDiag = document.getElementById('btnDlnaDiag');
+  const dlnaDiagPanel = document.getElementById('dlnaDiagPanel');
+  const dlnaDiagSummary = document.getElementById('dlnaDiagSummary');
+  const dlnaDiagLogs = document.getElementById('dlnaDiagLogs');
+  const btnCopyDlnaDiag = document.getElementById('btnCopyDlnaDiag');
+
+  const renderDlnaDiagnostics = async (overrideLogs = null) => {
+    if (!dlnaDiagPanel || !dlnaDiagLogs) return;
+    try {
+      const info = (window.electronAPI && window.electronAPI.getDlnaDiagnostics)
+        ? await window.electronAPI.getDlnaDiagnostics()
+        : null;
+      const logs = Array.isArray(overrideLogs) && overrideLogs.length > 0
+        ? overrideLogs
+        : (info && Array.isArray(info.logs) ? info.logs : []);
+      if (dlnaDiagSummary && info) {
+        const nicText = (info.interfaces && info.interfaces.length > 0)
+          ? info.interfaces.join(', ')
+          : 'none';
+        dlnaDiagSummary.textContent = `NIC: ${nicText} | NOTIFY: ${info.passiveListener || '-'}`;
+      }
+      dlnaDiagLogs.textContent = logs.length > 0
+        ? logs.slice(-80).join('\n')
+        : '尚無掃描診斷紀錄，請點擊「重新搜尋」或輸入 IP 測試。';
+      dlnaDiagPanel.style.display = 'block';
+    } catch (diagErr) {
+      dlnaDiagLogs.textContent = `無法讀取診斷日誌: ${diagErr && diagErr.message ? diagErr.message : String(diagErr)}`;
+      dlnaDiagPanel.style.display = 'block';
+    }
+  };
+
+  if (btnDlnaDiag && dlnaDiagPanel) {
+    btnDlnaDiag.addEventListener('click', async () => {
+      const isHidden = dlnaDiagPanel.style.display === 'none' || !dlnaDiagPanel.style.display;
+      if (isHidden) {
+        await renderDlnaDiagnostics();
+      } else {
+        dlnaDiagPanel.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnCopyDlnaDiag && dlnaDiagLogs) {
+    btnCopyDlnaDiag.addEventListener('click', async () => {
+      const header = dlnaDiagSummary ? `${dlnaDiagSummary.textContent}\n` : '';
+      const text = `${header}${dlnaDiagLogs.textContent || ''}`.trim();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('已複製 DLNA 診斷日誌');
+      } catch (_) {
+        showToast('複製失敗，請手動選取日誌內容');
+      }
+    });
+  }
+
   if (btnProbeDirectIp && inputDirectIp) {
     const savedIp = localStorage.getItem('rooplayer_direct_ip');
     if (savedIp) inputDirectIp.value = savedIp;
@@ -21317,6 +21373,7 @@ function initAudioZones() {
           if (res && res.success && res.device) {
             if (!isAudioRendererDevice(res.device)) {
               showToast(`⚠️ 設備 ${res.device.name} 辨識為網路設備或非音訊播放端點，已排除`);
+              await renderDlnaDiagnostics(res.diagnostics);
               return;
             }
             showToast(`✅ 成功辨識硬體：${res.device.name} (${ip})`);
@@ -21327,15 +21384,22 @@ function initAudioZones() {
                 state.availableDevices.push(res.device);
               }
             }
+            if (dlnaDiagPanel && dlnaDiagPanel.style.display !== 'none') {
+              await renderDlnaDiagnostics(res.diagnostics);
+            }
             renderAudioDevicesList();
             switchAudioZone(res.device);
           } else {
-            showToast(`⚠️ 未在 ${ip} 探測到 DLNA 播放器，請確認設備開機且在同網段`);
+            const detail = (res && res.error) ? ` (${res.error})` : '';
+            showToast(`⚠️ 未在 ${ip} 探測到 DLNA 播放器${detail}`);
+            await renderDlnaDiagnostics(res && res.diagnostics ? res.diagnostics : null);
           }
         }
       } catch (err) {
         console.error('Direct probe error:', err);
-        showToast(`探測失敗: ${err.message}`);
+        const errMsg = (err && err.message) ? err.message : String(err || '未知錯誤');
+        showToast(`探測失敗: ${errMsg}`);
+        await renderDlnaDiagnostics();
       } finally {
         btnProbeDirectIp.disabled = false;
         btnProbeDirectIp.textContent = '連線';

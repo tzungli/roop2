@@ -223,6 +223,7 @@ async fn main() {
 
             let handle = app.handle().clone();
             let dlna_warm_handle = app.handle().clone();
+            commands::dlna::start_ssdp_notify_background(app.handle().clone());
             tokio::spawn(async move {
                 // Phase 1 (< 100ms): Fast parallel warm-probe of all remembered DLNA & AirPlay addresses
                 let mgr = dlna_warm_handle.state::<DlnaManager>();
@@ -231,7 +232,7 @@ async fn main() {
 
                 // Phase 2 (background): Concurrent SSDP + mDNS discovery for any new/DHCP-changed devices
                 let (ssdp_res, ap_res) = tokio::join!(
-                    roo_dlna::discover_dlna_devices(2),
+                    roo_dlna::discover_dlna_devices(3),
                     tokio::task::spawn_blocking(|| roo_airplay::discover_airplay_devices(1200))
                 );
                 let mut dlna_map: std::collections::HashMap<String, roo_dlna::DlnaDevice> = std::collections::HashMap::new();
@@ -252,6 +253,7 @@ async fn main() {
                     commands::dlna::remember_airplay_devices(&ap_list);
                     ap.set_devices(ap_list);
                 }
+                commands::dlna::persist_dlna_diag_log();
                 commands::dlna::emit_merged_devices(&dlna_warm_handle, &mgr, &ap);
             });
             tokio::spawn(async move {
@@ -405,6 +407,7 @@ async fn main() {
             dlna_get_devices,
             dlna_scan,
             dlna_probe_ip,
+            dlna_get_diagnostics,
             dlna_select_device,
             dlna_play_track,
             dlna_queue_next_track,
