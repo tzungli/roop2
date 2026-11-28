@@ -165,6 +165,10 @@ pub struct KnownDlnaDevice {
     pub ip: String,
     pub location: String,
     pub last_used: u64,
+    #[serde(default)]
+    pub manual: bool,
+    #[serde(default)]
+    pub probe_target: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -215,13 +219,26 @@ pub fn load_known_airplay_devices() -> Vec<KnownAirPlayDevice> {
         .unwrap_or_default()
 }
 
-pub fn remember_dlna_devices(devs: &[DlnaDevice]) {
-    if devs.is_empty() {
-        return;
-    }
+fn save_known_dlna_devices(list: &[KnownDlnaDevice]) {
     let path = known_devices_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(list) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+pub fn load_manual_dlna_targets() -> Vec<KnownDlnaDevice> {
+    load_known_dlna_devices()
+        .into_iter()
+        .filter(|k| k.manual)
+        .collect()
+}
+
+fn remember_dlna_devices_inner(devs: &[DlnaDevice], manual_probe_target: Option<&str>) {
+    if devs.is_empty() {
+        return;
     }
     let mut list = load_known_dlna_devices();
     let now = std::time::SystemTime::now()
@@ -233,6 +250,28 @@ pub fn remember_dlna_devices(devs: &[DlnaDevice]) {
         if dev.location.is_empty() && dev.ip.is_empty() {
             continue;
         }
+        let mut is_manual = manual_probe_target.is_some();
+        let mut saved_target = manual_probe_target.unwrap_or("").trim().to_string();
+
+        // Preserve existing manual flag & target when refreshed via SSDP/warm-probe
+        for prev in &list {
+            let same = prev.id == dev.id
+                || (!dev.ip.is_empty() && prev.ip == dev.ip && prev.name == dev.name);
+            if same && prev.manual {
+                is_manual = true;
+                if saved_target.is_empty() && !prev.probe_target.is_empty() {
+                    saved_target = prev.probe_target.clone();
+                }
+            }
+        }
+        if is_manual && saved_target.is_empty() {
+            saved_target = if !dev.ip.is_empty() {
+                dev.ip.clone()
+            } else {
+                dev.location.clone()
+            };
+        }
+
         list.retain(|k| k.id != dev.id && !(k.ip == dev.ip && !dev.ip.is_empty() && k.name == dev.name));
         list.insert(
             0,
@@ -242,18 +281,25 @@ pub fn remember_dlna_devices(devs: &[DlnaDevice]) {
                 ip: dev.ip.clone(),
                 location: dev.location.clone(),
                 last_used: now,
+                manual: is_manual,
+                probe_target: saved_target,
             },
         );
     }
     list.truncate(24);
+    save_known_dlna_devices(&list);
+}
 
-    if let Ok(json) = serde_json::to_string_pretty(&list) {
-        let _ = std::fs::write(&path, json);
-    }
+pub fn remember_dlna_devices(devs: &[DlnaDevice]) {
+    remember_dlna_devices_inner(devs, None);
 }
 
 pub fn remember_dlna_device(dev: &DlnaDevice) {
-    remember_dlna_devices(std::slice::from_ref(dev));
+    remember_dlna_devices_inner(std::slice::from_ref(dev), None);
+}
+
+pub fn remember_manual_dlna_device(dev: &DlnaDevice, probe_target: &str) {
+    remember_dlna_devices_inner(std::slice::from_ref(dev), Some(probe_target));
 }
 
 pub fn remember_airplay_devices(devs: &[AirPlayDevice]) {
@@ -302,7 +348,17 @@ pub async fn warm_probe_known_dlna(manager: &DlnaManager) -> Vec<DlnaDevice> {
     if known.is_empty() {
         return Vec::new();
     }
-    let pairs: Vec<(String, String)> = known.into_iter().map(|k| (k.location, k.ip)).collect();
+    let pairs: Vec<(String, String)> = known
+        .into_iter()
+        .map(|k| {
+            let fallback_target = if !k.probe_target.is_empty() {
+                k.probe_target
+            } else {
+                k.ip
+            };
+            (k.location, fallback_target)
+        })
+        .collect();
     let found = probe_known_devices(&pairs).await;
     if !found.is_empty() {
         let mut merged = manager.get_devices();
@@ -494,7 +550,7 @@ pub async fn dlna_probe_ip(
     push_dlna_diag("INFO", format!("Manual IP probe requested for '{}'", trimmed));
     match probe_device_ip(&trimmed).await {
         Ok(dev) => {
-            remember_dlna_device(&dev);
+            remember_manual_dlna_device(&dev, &trimmed);
             let mut list = manager.get_devices();
             if let Some(existing) = list.iter_mut().find(|d| d.id == dev.id) {
                 *existing = dev.clone();
@@ -513,6 +569,7 @@ pub async fn dlna_probe_ip(
                 "success": true,
                 "device": unified_dev,
                 "devices": all_devices,
+                "manualTargets": load_manual_dlna_targets(),
                 "diagnostics": get_dlna_diag_logs(),
             }))
         }
@@ -522,10 +579,29 @@ pub async fn dlna_probe_ip(
             Ok(serde_json::json!({
                 "success": false,
                 "error": e.to_string(),
+                "manualTargets": load_manual_dlna_targets(),
                 "diagnostics": get_dlna_diag_logs(),
             }))
         }
     }
+}
+
+#[tauri::command]
+pub async fn dlna_get_manual_targets() -> Result<Vec<KnownDlnaDevice>, String> {
+    Ok(load_manual_dlna_targets())
+}
+
+#[tauri::command]
+pub async fn dlna_remove_manual_target(target: String) -> Result<Vec<KnownDlnaDevice>, String> {
+    let t = target.trim();
+    let mut list = load_known_dlna_devices();
+    for k in &mut list {
+        if k.id == t || k.probe_target == t || k.ip == t || k.location == t {
+            k.manual = false;
+        }
+    }
+    save_known_dlna_devices(&list);
+    Ok(load_manual_dlna_targets())
 }
 
 #[tauri::command]

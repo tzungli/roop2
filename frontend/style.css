@@ -7087,6 +7087,67 @@ body.is-music-playing .now-playing-scrubber-fill::before {
   cursor: wait;
 }
 
+.roon-manual-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.roon-manual-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  background: rgba(124, 92, 255, 0.14);
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.roon-manual-chip-connect {
+  border: none;
+  background: transparent;
+  color: var(--text-color, #e2e8f0);
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.roon-manual-chip-connect:hover {
+  background: rgba(124, 92, 255, 0.24);
+}
+
+.roon-manual-chip-remove {
+  border: none;
+  border-left: 1px solid rgba(124, 92, 255, 0.25);
+  background: transparent;
+  color: var(--text-color, #cbd5e1);
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.roon-manual-chip-remove:hover {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.22);
+}
+
+[data-theme="light"] .roon-manual-chip {
+  border-color: rgba(124, 92, 255, 0.32);
+  background: rgba(124, 92, 255, 0.08);
+}
+
+[data-theme="light"] .roon-manual-chip-connect,
+[data-theme="light"] .roon-manual-chip-remove {
+  color: #334155;
+}
+
 .roon-direct-ip-diag-btn,
 .roon-dlna-diag-copy-btn {
   height: 30px;

@@ -359,6 +359,8 @@
     getDlnaDevices: () => invoke('dlna_get_devices'),
     scanDlnaDevices: () => invoke('dlna_scan'),
     probeDlnaIp: (ip) => invoke('dlna_probe_ip', { ip }),
+    getManualDlnaTargets: () => invoke('dlna_get_manual_targets'),
+    removeManualDlnaTarget: (target) => invoke('dlna_remove_manual_target', { target }),
     getDlnaDiagnostics: () => invoke('dlna_get_diagnostics'),
     selectDlnaDevice: (deviceId) => invoke('dlna_select_device', { deviceId }),
     playDlnaTrack: (deviceId, track, startSec = 0, dspOptions = null) =>

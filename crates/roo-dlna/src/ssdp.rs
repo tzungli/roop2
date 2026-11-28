@@ -513,24 +513,24 @@ pub async fn probe_device_location(location: &str, timeout_ms: u64) -> Result<Dl
     }
 }
 
-/// Concurrently probe a list of remembered `(location, ip)` entries.
-/// Tries exact `location` first (~20-80ms); if the port changed on reboot, falls back to fast parallel IP probe.
+/// Concurrently probe a list of remembered `(location, probe_target_or_ip)` entries.
+/// Tries exact `location` first (~20-120ms); if the port changed on reboot, falls back to fast TCP/SSDP target probe.
 pub async fn probe_known_devices(entries: &[(String, String)]) -> Vec<DlnaDevice> {
     if entries.is_empty() {
         return Vec::new();
     }
     let mut handles = Vec::with_capacity(entries.len());
-    for (loc, ip) in entries {
+    for (loc, target) in entries {
         let loc = loc.clone();
-        let ip = ip.clone();
+        let target = target.clone();
         handles.push(tokio::spawn(async move {
             if !loc.is_empty() {
-                if let Ok(dev) = probe_device_location(&loc, 900).await {
+                if let Ok(dev) = probe_device_location(&loc, 1200).await {
                     return Some(dev);
                 }
             }
-            if !ip.is_empty() {
-                if let Ok(dev) = probe_device_ip_fast(&ip, 1200).await {
+            if !target.is_empty() {
+                if let Ok(dev) = probe_device_ip_fast(&target, 1800).await {
                     return Some(dev);
                 }
             }
@@ -547,26 +547,79 @@ pub async fn probe_known_devices(entries: &[(String, String)]) -> Vec<DlnaDevice
     unique.into_values().collect()
 }
 
-/// Parse user input such as `192.168.50.10`, `192.168.50.10:49152`, or `http://192.168.50.10:49152/description.xml`.
+/// Normalize and parse user input such as:
+/// - `192.168.50.10`
+/// - `192.168.50.10:49152`
+/// - `192.168.50.10:49152/description.xml`
+/// - `http://192.168.50.10:49152/description.xml`
+/// - `holored.local`
 fn parse_probe_target(raw_input: &str) -> (String, Option<u16>, Option<String>) {
-    let s = raw_input.trim();
-    if s.starts_with("http://") || s.starts_with("https://") {
-        if let Ok(u) = reqwest::Url::parse(s) {
-            let host = u.host_str().unwrap_or("").to_string();
+    let normalized = raw_input
+        .trim()
+        .replace('：', ":")
+        .replace(" :", ":")
+        .replace(": ", ":");
+    let s = normalized.trim();
+    if s.is_empty() {
+        return (String::new(), None, None);
+    }
+
+    let with_scheme = if s.starts_with("http://") || s.starts_with("https://") {
+        Some(s.to_string())
+    } else if s.contains('/') {
+        Some(format!("http://{}", s.trim_start_matches('/')))
+    } else {
+        None
+    };
+
+    if let Some(candidate_url) = with_scheme {
+        if let Ok(u) = reqwest::Url::parse(&candidate_url) {
+            let host = u.host_str().unwrap_or("").trim_matches(['[', ']']).to_string();
             let port = u.port_or_known_default();
             let path_non_empty = u.path().trim_matches('/');
             if !path_non_empty.is_empty() {
-                return (host, port, Some(s.to_string()));
+                return (host, port, Some(u.to_string()));
             }
             return (host, port, None);
         }
     }
+
     if let Some((h, p)) = s.rsplit_once(':') {
-        if let Ok(port) = p.trim().parse::<u16>() {
-            return (h.trim().trim_matches(['[', ']']).to_string(), Some(port), None);
+        let host_part = h.trim();
+        let port_part = p.trim();
+        // Avoid splitting bare IPv6 without brackets unless bracketed like `[::1]:49152`
+        let is_bracketed_v6 = host_part.starts_with('[') && host_part.ends_with(']');
+        if !host_part.contains(':') || is_bracketed_v6 {
+            if let Ok(port) = port_part.parse::<u16>() {
+                return (
+                    host_part.trim_matches(['[', ']']).to_string(),
+                    Some(port),
+                    None,
+                );
+            }
         }
     }
+
     (s.trim_matches(['[', ']']).to_string(), None, None)
+}
+
+async fn resolve_probe_ipv4(host: &str) -> Option<Ipv4Addr> {
+    if let Ok(ip) = host.parse::<Ipv4Addr>() {
+        return Some(ip);
+    }
+    let lookup = tokio::time::timeout(
+        Duration::from_millis(600),
+        tokio::net::lookup_host((host, SSDP_PORT)),
+    )
+    .await
+    .ok()?
+    .ok()?;
+    for addr in lookup {
+        if let SocketAddr::V4(v4) = addr {
+            return Some(*v4.ip());
+        }
+    }
+    None
 }
 
 /// Send unicast SSDP `M-SEARCH` directly to `<host>:1900` to obtain the exact `LOCATION` URL
@@ -576,15 +629,21 @@ async fn unicast_ssdp_locations(host_ip: Ipv4Addr, timeout_ms: u64) -> Vec<Strin
     let targets = [
         "upnp:rootdevice",
         "urn:schemas-upnp-org:device:MediaRenderer:1",
+        "urn:schemas-upnp-org:device:MediaRenderer:2",
         "urn:schemas-upnp-org:service:AVTransport:1",
         "ssdp:all",
     ];
 
     // Pick the local NIC that routes to `host_ip` so Windows sends unicast via the right interface
     let bind_ip = if let Ok(probe_sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
-        if probe_sock.connect(SocketAddr::V4(SocketAddrV4::new(host_ip, SSDP_PORT))).is_ok() {
+        if probe_sock
+            .connect(SocketAddr::V4(SocketAddrV4::new(host_ip, SSDP_PORT)))
+            .is_ok()
+        {
             match probe_sock.local_addr() {
-                Ok(SocketAddr::V4(v4)) if !v4.ip().is_loopback() && !v4.ip().is_unspecified() => *v4.ip(),
+                Ok(SocketAddr::V4(v4)) if !v4.ip().is_loopback() && !v4.ip().is_unspecified() => {
+                    *v4.ip()
+                }
                 _ => Ipv4Addr::UNSPECIFIED,
             }
         } else {
@@ -605,7 +664,8 @@ async fn unicast_ssdp_locations(host_ip: Ipv4Addr, timeout_ms: u64) -> Vec<Strin
 
     let mut seen = HashSet::new();
     let mut buf = [0u8; 4096];
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms.max(400));
+    let mut deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms.max(400));
+    let mut got_first = false;
     while tokio::time::Instant::now() < deadline {
         let rem = deadline.saturating_duration_since(tokio::time::Instant::now());
         match tokio::time::timeout(rem, sock.recv_from(&mut buf)).await {
@@ -618,6 +678,14 @@ async fn unicast_ssdp_locations(host_ip: Ipv4Addr, timeout_ms: u64) -> Vec<Strin
                             format!("Unicast SSDP reply from {} => LOCATION={}", src, location),
                         );
                         locs.push(location);
+                        if !got_first {
+                            got_first = true;
+                            // Short grace window to collect any remaining LOCATION headers from the same device
+                            let early = tokio::time::Instant::now() + Duration::from_millis(220);
+                            if early < deadline {
+                                deadline = early;
+                            }
+                        }
                     }
                 }
             }
@@ -627,10 +695,43 @@ async fn unicast_ssdp_locations(host_ip: Ipv4Addr, timeout_ms: u64) -> Vec<Strin
     locs
 }
 
-/// Fast parallel IP probe supporting plain IP, `IP:Port`, or full XML URL:
-/// 1) If a full XML URL was given, fetches it directly;
-/// 2) Sends unicast SSDP `M-SEARCH` directly to `<ip>:1900` to learn the exact `LOCATION` URL;
-/// 3) Falls back to scanning common UPnP renderer ports/paths (concurrency-capped at 16).
+/// Fast concurrent TCP port reachability pre-check so HTTP XML probing only hits open ports
+/// and fails fast on closed/firewalled ports instead of wasting seconds timing out 150+ URLs.
+async fn discover_open_tcp_ports(host: &str, candidate_ports: &[u16], timeout_ms: u64) -> Vec<u16> {
+    let mut handles = Vec::with_capacity(candidate_ports.len());
+    for &port in candidate_ports {
+        let addr = format!("{}:{}", host, port);
+        handles.push(tokio::spawn(async move {
+            let ok = tokio::time::timeout(
+                Duration::from_millis(timeout_ms),
+                tokio::net::TcpStream::connect(&addr),
+            )
+            .await
+            .map(|r| r.is_ok())
+            .unwrap_or(false);
+            if ok {
+                Some(port)
+            } else {
+                None
+            }
+        }));
+    }
+
+    let mut open = Vec::new();
+    for h in handles {
+        if let Ok(Some(p)) = h.await {
+            if !open.contains(&p) {
+                open.push(p);
+            }
+        }
+    }
+    open
+}
+
+/// Fast, reliable IP probe supporting plain IP, `IP:Port`, `IP:Port/path`, hostname, or full XML URL:
+/// 1) If a full XML URL was given, fetches it first (and falls back to same port paths on 404);
+/// 2) Runs unicast SSDP `M-SEARCH` + concurrent TCP open-port check in parallel;
+/// 3) Probes only open TCP ports across common UPnP XML paths using `JoinSet` for immediate first-hit return.
 pub async fn probe_device_ip_fast(ip_or_url: &str, timeout_ms: u64) -> Result<DlnaDevice> {
     let (host, explicit_port, explicit_url) = parse_probe_target(ip_or_url);
     push_dlna_diag(
@@ -641,89 +742,162 @@ pub async fn probe_device_ip_fast(ip_or_url: &str, timeout_ms: u64) -> Result<Dl
         ),
     );
 
+    if host.is_empty() {
+        bail!("請輸入有效的 IP 位址、IP:Port 或 XML URL");
+    }
+
     let client = build_dlna_http_client(timeout_ms.max(1500))?;
+    let mut best_rejection: Option<String> = None;
 
     // 1. Direct full URL if provided
     if let Some(full_url) = explicit_url {
         match fetch_device_desc(&client, &full_url).await {
             Ok(dev) if dev.av_transport_url.starts_with("http") => return Ok(dev),
-            Ok(dev) => bail!("設備 '{}' 回傳無效的 AVTransport URL", dev.name),
+            Ok(dev) => {
+                let msg = format!("設備 '{}' 回傳無效的 AVTransport URL", dev.name);
+                push_dlna_diag("WARN", format!("Manual URL rejected ({}): {}", full_url, msg));
+                best_rejection = Some(msg);
+            }
             Err(e) => {
-                push_dlna_diag("WARN", format!("Manual URL probe failed ({}): {}", full_url, e));
-                return Err(e);
+                let msg = e.to_string();
+                push_dlna_diag("WARN", format!("Manual URL probe failed ({}): {}", full_url, msg));
+                best_rejection = Some(msg);
             }
         }
+        // If user entered a full URL that didn't yield an audio renderer (and explicit_port wasn't an HTTP-only miss),
+        // fall through to check unicast SSDP and open-port description paths on that host/port.
     }
 
-    if host.is_empty() {
-        bail!("請輸入有效的 IP 位址或 URL");
-    }
-
-    // 2. Unicast SSDP M-SEARCH directly to <ip>:1900
-    if let Ok(ip_v4) = host.parse::<Ipv4Addr>() {
-        let unicast_locs = unicast_ssdp_locations(ip_v4, 900).await;
-        for loc in unicast_locs {
-            match fetch_device_desc(&client, &loc).await {
-                Ok(dev) if dev.av_transport_url.starts_with("http") => return Ok(dev),
-                Ok(_) => {}
-                Err(e) => push_dlna_diag("WARN", format!("Unicast location {} rejected: {}", loc, e)),
-            }
-        }
-    }
-
-    // 3. Expanded HTTP description port + path probe
-    let default_ports: [u16; 19] = [
-        49152, 49153, 49154, 49155, 49156, 49149, 49150, 49151,
-        1858, 1772, 8080, 1400, 49494, 50002, 8200, 9000, 8008, 80, 2869,
+    let default_ports: [u16; 29] = [
+        49152, 49153, 49154, 49155, 49156, 49157, 49158, 49159, 49160,
+        49149, 49150, 49151,
+        1858, 1772, 8080, 1400, 49494, 50002, 50001, 8200, 9000, 8008,
+        80, 2869, 4000, 49000, 59152, 60000, 9790,
     ];
-    let mut candidate_ports: Vec<u16> = Vec::with_capacity(20);
+    let mut candidate_ports: Vec<u16> = Vec::with_capacity(30);
     if let Some(p) = explicit_port {
         candidate_ports.push(p);
     } else {
         candidate_ports.extend_from_slice(&default_ports);
     }
 
+    // 2. Run unicast SSDP M-SEARCH and TCP open-port scan concurrently
+    let host_ip_opt = resolve_probe_ipv4(&host).await;
+    let (unicast_locs, open_ports) = tokio::join!(
+        async {
+            if let Some(ip_v4) = host_ip_opt {
+                unicast_ssdp_locations(ip_v4, 850).await
+            } else {
+                Vec::new()
+            }
+        },
+        discover_open_tcp_ports(&host, &candidate_ports, 450)
+    );
+
+    push_dlna_diag(
+        "INFO",
+        format!(
+            "Manual IP pre-check for '{}': resolved_v4={:?} | unicast_locs={:?} | open_tcp_ports={:?}",
+            host, host_ip_opt, unicast_locs, open_ports
+        ),
+    );
+
+    for loc in &unicast_locs {
+        match fetch_device_desc(&client, loc).await {
+            Ok(dev) if dev.av_transport_url.starts_with("http") => return Ok(dev),
+            Ok(dev) => {
+                best_rejection.get_or_insert_with(|| format!("設備 '{}' 回傳無效的 AVTransport URL", dev.name));
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                push_dlna_diag("WARN", format!("Unicast location {} rejected: {}", loc, msg));
+                best_rejection.get_or_insert(msg);
+            }
+        }
+    }
+
+    if open_ports.is_empty() {
+        let port_desc = if let Some(p) = explicit_port {
+            format!("連接埠 {}", p)
+        } else {
+            format!("{} 個常見 UPnP 連接埠", candidate_ports.len())
+        };
+        let reason = best_rejection.unwrap_or_else(|| {
+            format!(
+                "無法建立 TCP 連線至 {}（{} 無回應，請確認 IP 正確、設備已開機且已開啟 UPnP/DLNA）",
+                host, port_desc
+            )
+        });
+        push_dlna_diag("WARN", format!("Manual IP probe failed for '{}': {}", ip_or_url, reason));
+        bail!("{}", reason);
+    }
+
+    // 3. Probe common UPnP XML description paths ONLY on actually open TCP ports, returning on first hit
     let candidate_paths = [
         "description.xml",
         "devicedesc.xml",
         "device.xml",
         "rootDesc.xml",
         "upnp/desc.xml",
+        "upnp/description.xml",
         "xml/device_description.xml",
         "dmr.xml",
         "desc.xml",
+        "MediaRenderer/desc.xml",
+        "dlna/Render/desc.xml",
+        "DeviceDescription.xml",
         "",
     ];
 
-    let sem = Arc::new(tokio::sync::Semaphore::new(16));
-    let mut handles = Vec::new();
-    for port in candidate_ports {
+    let mut join_set: tokio::task::JoinSet<Result<DlnaDevice>> = tokio::task::JoinSet::new();
+    for port in &open_ports {
         for path in candidate_paths {
             let url = if path.is_empty() {
                 format!("http://{}:{}/", host, port)
             } else {
                 format!("http://{}:{}/{}", host, port, path)
             };
+            if unicast_locs.iter().any(|u| u == &url) {
+                continue;
+            }
             let c = client.clone();
-            let s = sem.clone();
-            handles.push(tokio::spawn(async move {
-                let _permit = s.acquire().await.ok()?;
-                match fetch_device_desc(&c, &url).await {
-                    Ok(dev) if dev.av_transport_url.starts_with("http") => Some(dev),
-                    _ => None,
+            join_set.spawn(async move {
+                let dev = fetch_device_desc(&c, &url).await?;
+                if dev.av_transport_url.starts_with("http") {
+                    Ok(dev)
+                } else {
+                    bail!("Device '{}' at {} has invalid AVTransport URL", dev.name, url)
                 }
-            }));
+            });
         }
     }
 
-    for h in handles {
-        if let Ok(Some(dev)) = h.await {
-            return Ok(dev);
+    while let Some(res) = join_set.join_next().await {
+        match res {
+            Ok(Ok(dev)) => {
+                join_set.abort_all();
+                return Ok(dev);
+            }
+            Ok(Err(e)) => {
+                let msg = e.to_string();
+                // Prefer preserving rich XML/AVTransport/exclusion errors over plain 404s
+                let is_rich = msg.contains("AVTransport") || msg.contains("excluded");
+                if is_rich || best_rejection.is_none() {
+                    best_rejection = Some(msg);
+                }
+            }
+            Err(_) => {}
         }
     }
 
-    push_dlna_diag("WARN", format!("Manual IP probe exhausted all ports/paths for '{}'", ip_or_url));
-    bail!("在 {} 找不到支援 AVTransport 的 UPnP/DLNA 設備（請確認已於設備設定開啟 UPnP/DLNA 模式；可在診斷日誌查看詳細連線狀態）", ip_or_url);
+    let detail = best_rejection.unwrap_or_else(|| {
+        format!(
+            "已連通連接埠 {:?}，但未找到包含 AVTransport 的 UPnP 描述檔",
+            open_ports
+        )
+    });
+    push_dlna_diag("WARN", format!("Manual IP probe exhausted open ports {:?} for '{}': {}", open_ports, ip_or_url, detail));
+    bail!("在 {} 未找到可用的 UPnP/DLNA MediaRenderer（{}）", ip_or_url, detail);
 }
 
 pub async fn probe_device_ip(ip: &str) -> Result<DlnaDevice> {
@@ -1177,10 +1351,79 @@ mod tests {
 
         assert_eq!(parse_probe_target("192.168.50.88"), ("192.168.50.88".to_string(), None, None));
         assert_eq!(parse_probe_target("192.168.50.88:49152"), ("192.168.50.88".to_string(), Some(49152), None));
+        assert_eq!(parse_probe_target(" 192.168.50.88 ： 49152 "), ("192.168.50.88".to_string(), Some(49152), None));
+        assert_eq!(
+            parse_probe_target("192.168.50.88:49152/description.xml"),
+            ("192.168.50.88".to_string(), Some(49152), Some("http://192.168.50.88:49152/description.xml".to_string()))
+        );
         assert_eq!(
             parse_probe_target("http://192.168.50.88:49152/description.xml"),
             ("192.168.50.88".to_string(), Some(49152), Some("http://192.168.50.88:49152/description.xml".to_string()))
         );
+        assert_eq!(parse_probe_target("holored.local"), ("holored.local".to_string(), None, None));
+    }
+
+    #[tokio::test]
+    async fn test_manual_probe_fast_tcp_and_xml() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let server = tokio::spawn(async move {
+            let xml = r#"<?xml version="1.0"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>Holo Audio RED</friendlyName>
+    <manufacturer>Holo Audio</manufacturer>
+    <modelName>RED</modelName>
+    <UDN>uuid:holo-red-test</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <controlURL>/upnp/control/AVTransport</controlURL>
+      </service>
+    </serviceList>
+  </device>
+</root>"#;
+            for _ in 0..20 {
+                let Ok((mut stream, _)) = listener.accept().await else { break };
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 1024];
+                    let n = stream.read(&mut buf).await.unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    if req.starts_with("GET /description.xml") {
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            xml.len(),
+                            xml
+                        );
+                        let _ = stream.write_all(resp.as_bytes()).await;
+                    } else if req.starts_with("GET ") {
+                        let _ = stream
+                            .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                            .await;
+                    }
+                });
+            }
+        });
+
+        let target = format!("127.0.0.1:{}", port);
+        let dev = probe_device_ip_fast(&target, 1500).await.unwrap();
+        assert_eq!(dev.name, "Holo Audio RED");
+        assert_eq!(dev.av_transport_url, format!("http://127.0.0.1:{}/upnp/control/AVTransport", port));
+        drop(server);
+
+        // Closed port should fail fast without hanging
+        let closed_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let closed_port = closed_listener.local_addr().unwrap().port();
+        drop(closed_listener);
+        let t0 = std::time::Instant::now();
+        let err = probe_device_ip_fast(&format!("127.0.0.1:{}", closed_port), 1500)
+            .await
+            .unwrap_err();
+        assert!(t0.elapsed() < Duration::from_secs(2));
+        assert!(err.to_string().contains("無法建立 TCP 連線"));
     }
 
     #[test]

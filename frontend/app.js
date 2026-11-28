@@ -21295,12 +21295,78 @@ function initAudioZones() {
     });
   }
 
-  // Direct IP Probe & Diagnostics Handler
+  // Direct IP Probe, Saved Targets & Diagnostics Handler
   const btnDlnaDiag = document.getElementById('btnDlnaDiag');
   const dlnaDiagPanel = document.getElementById('dlnaDiagPanel');
   const dlnaDiagSummary = document.getElementById('dlnaDiagSummary');
   const dlnaDiagLogs = document.getElementById('dlnaDiagLogs');
   const btnCopyDlnaDiag = document.getElementById('btnCopyDlnaDiag');
+  const dlnaSavedManualChips = document.getElementById('dlnaSavedManualChips');
+  let isDirectProbing = false;
+
+  const renderManualTargetChips = async (overrideList = null) => {
+    if (!dlnaSavedManualChips) return;
+    try {
+      let targets = Array.isArray(overrideList) ? overrideList : null;
+      if (!targets && window.electronAPI && window.electronAPI.getManualDlnaTargets) {
+        targets = await window.electronAPI.getManualDlnaTargets();
+      }
+      dlnaSavedManualChips.innerHTML = '';
+      if (!Array.isArray(targets) || targets.length === 0) {
+        dlnaSavedManualChips.style.display = 'none';
+        return;
+      }
+      targets.slice(0, 6).forEach((entry) => {
+        const probeVal = (entry.probe_target || entry.ip || entry.location || '').trim();
+        if (!probeVal) return;
+
+        const chip = document.createElement('div');
+        chip.className = 'roon-manual-chip';
+
+        const connectBtn = document.createElement('button');
+        connectBtn.type = 'button';
+        connectBtn.className = 'roon-manual-chip-connect';
+        const labelName = (entry.name || 'DLNA 設備').trim();
+        connectBtn.textContent = `${labelName} · ${probeVal}`;
+        connectBtn.title = `點擊直接連線 ${probeVal}`;
+        connectBtn.addEventListener('click', () => {
+          if (inputDirectIp) inputDirectIp.value = probeVal;
+          if (typeof handleDirectProbe === 'function') {
+            handleDirectProbe(probeVal);
+          }
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'roon-manual-chip-remove';
+        removeBtn.textContent = '×';
+        removeBtn.title = '移除此常用 IP 紀錄';
+        removeBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (window.electronAPI && window.electronAPI.removeManualDlnaTarget) {
+            const remaining = await window.electronAPI.removeManualDlnaTarget(entry.id || probeVal);
+            await renderManualTargetChips(remaining);
+          }
+        });
+
+        chip.appendChild(connectBtn);
+        chip.appendChild(removeBtn);
+        dlnaSavedManualChips.appendChild(chip);
+      });
+      dlnaSavedManualChips.style.display = dlnaSavedManualChips.childElementCount > 0 ? 'flex' : 'none';
+    } catch (chipErr) {
+      console.warn('renderManualTargetChips error:', chipErr);
+    }
+  };
+
+  if (btnToggleDirectIp && directIpDrawer) {
+    btnToggleDirectIp.addEventListener('click', () => {
+      const isCurrentlyHidden = directIpDrawer.style.display === 'none' || !directIpDrawer.style.display;
+      if (isCurrentlyHidden) {
+        renderManualTargetChips();
+      }
+    });
+  }
 
   const renderDlnaDiagnostics = async (overrideLogs = null) => {
     if (!dlnaDiagPanel || !dlnaDiagLogs) return;
@@ -21352,24 +21418,33 @@ function initAudioZones() {
     });
   }
 
+  let handleDirectProbe = null;
   if (btnProbeDirectIp && inputDirectIp) {
     const savedIp = localStorage.getItem('rooplayer_direct_ip');
     if (savedIp) inputDirectIp.value = savedIp;
+    renderManualTargetChips();
 
-    const handleDirectProbe = async () => {
-      const ip = inputDirectIp.value.trim();
+    handleDirectProbe = async (explicitTarget = null) => {
+      if (isDirectProbing) return;
+      const rawVal = (typeof explicitTarget === 'string' ? explicitTarget : inputDirectIp.value);
+      const ip = String(rawVal || '').trim();
       if (!ip) {
-        showToast('請輸入目標設備 IP (例如: 192.168.1.100)');
+        showToast('請輸入目標設備 IP、IP:Port 或 XML URL (例如: 192.168.1.100)');
         return;
       }
+      inputDirectIp.value = ip;
       localStorage.setItem('rooplayer_direct_ip', ip);
       showToast(`🎯 正在直接探測與辨識 ${ip}...`);
+      isDirectProbing = true;
       btnProbeDirectIp.disabled = true;
       btnProbeDirectIp.textContent = '探測中...';
 
       try {
         if (window.electronAPI && window.electronAPI.probeDlnaIp) {
           const res = await window.electronAPI.probeDlnaIp(ip);
+          if (res && Array.isArray(res.manualTargets)) {
+            renderManualTargetChips(res.manualTargets);
+          }
           if (res && res.success && res.device) {
             if (!isAudioRendererDevice(res.device)) {
               showToast(`⚠️ 設備 ${res.device.name} 辨識為網路設備或非音訊播放端點，已排除`);
@@ -21401,12 +21476,13 @@ function initAudioZones() {
         showToast(`探測失敗: ${errMsg}`);
         await renderDlnaDiagnostics();
       } finally {
+        isDirectProbing = false;
         btnProbeDirectIp.disabled = false;
         btnProbeDirectIp.textContent = '連線';
       }
     };
 
-    btnProbeDirectIp.addEventListener('click', handleDirectProbe);
+    btnProbeDirectIp.addEventListener('click', () => handleDirectProbe());
     inputDirectIp.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') handleDirectProbe();
     });

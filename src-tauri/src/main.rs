@@ -407,6 +407,8 @@ async fn main() {
             dlna_get_devices,
             dlna_scan,
             dlna_probe_ip,
+            dlna_get_manual_targets,
+            dlna_remove_manual_target,
             dlna_get_diagnostics,
             dlna_select_device,
             dlna_play_track,
